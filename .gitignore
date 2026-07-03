@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Local config (SDK path, signing secrets)
+local.properties
+keystore.properties
+*.keystore
+*.jks
+!debug.keystore
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Google services config is provisioned per-environment; never commit real one blindly
+# (tracked intentionally when Kemar provides it)

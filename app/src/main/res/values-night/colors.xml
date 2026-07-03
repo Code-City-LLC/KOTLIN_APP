@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- gray200 dark — DesignTokens background -->
+    <color name="window_background_dark">#333333</color>
+</resources>

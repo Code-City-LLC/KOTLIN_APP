@@ -1,0 +1,188 @@
+package com.ga.airdrop.core.designsystem.theme
+
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
+
+/*
+ * Design-system colors.
+ *
+ * Ported 1:1 from SWIFT_APP/Airdrop/DesignTokens.swift, which was generated
+ * from the Figma "Design System" page (node 1:4) variables via the Figma
+ * Dev Mode MCP. Do NOT hand-edit values unless Figma changed — drift makes
+ * the design diverge silently.
+ *
+ * Every token that is dynamic on iOS (UIColor.dynamic(light:dark:)) is a
+ * pair here, resolved by [AirdropColorScheme] for the active theme.
+ */
+
+// ─── Static brand palette (same in both modes) ───────────────────────────
+object BrandPalette {
+    // Primary brand orange — Figma Primary Color/Orange/Main
+    val OrangeMain = Color(0xFFF15114)
+    val OrangeDark = Color(0xFFF15114) // alias retained (see Swift comment)
+    val OrangeLegacy = Color(0xFFFF8000) // RN's bright pumpkin — explicit references only
+    val OrangeTertiary1 = Color(0xFF994D00)
+    val OrangeTertiary2 = Color(0xFFCC6600)
+    val OrangeTertiary3 = Color(0xFFFFA64D)
+    val OrangeTertiary4 = Color(0xFFFFCC99)
+    val OrangeTertiary5 = Color(0xFFFFEEDD)
+    val OrangeTertiary6 = Color(0xFFFAF6F5)
+
+    // Secondary orange (warm gold accent)
+    val OrangeAccentMain = Color(0xFFF99A3C)
+    val OrangeAccentTertiary1 = Color(0xFF804F1F)
+    val OrangeAccentTertiary2 = Color(0xFFB26E2B)
+    val OrangeAccentTertiary3 = Color(0xFFF9BF86)
+
+    // Primary brand blue (deep navy)
+    val BlueMain = Color(0xFF2A2367)
+    val BlueTertiary1 = Color(0xFF3E3499)
+    val BlueTertiary2 = Color(0xFF5345CC)
+    val BlueTertiary3 = Color(0xFF877CE5)
+    val BlueTertiary4 = Color(0xFFC4BDFF)
+
+    // Secondary blue (cyan accent)
+    val BlueAccentMain = Color(0xFF0A96D4)
+    val BlueAccentTertiary1 = Color(0xFF0872A1)
+    val BlueAccentTertiary2 = Color(0xFF40C4FF)
+    val BlueAccentTertiary3 = Color(0xFFA6E3FF)
+
+    // Buttons (function state) — synced with RN buttons{}
+    val ButtonStatic = Color(0xFFFF8000)
+    val ButtonHover = Color(0xFFFFA64D)
+    val ButtonActive = Color(0xFFCC6600)
+    val ButtonLoading = Color(0xFFFF8000)
+    val ButtonDisable = Color(0xFFD1D1D1)
+
+    val White = Color(0xFFFFFFFF)
+}
+
+// ─── Alerts (shipment / package status) — static, no dark variant ────────
+object AlertPalette {
+    val Completed = Color(0xFF39A634)
+    val OnHold = Color(0xFF0049D9)
+    val Error = Color(0xFFD92A2A)
+    val Cancel = Color(0xFFB8B8B8)
+    val Pending = Color(0xFFF2A813)
+    val NotStarted = Color(0xFF292929)
+
+    object Light {
+        val Completed = Color(0xFFCCF9CA)
+        val OnHold = Color(0xFFE3ECFF)
+        val Error = Color(0xFFF9D3D3)
+        val Pending = Color(0xFFF8EAD0)
+    }
+
+    object Middle {
+        val Completed = Color(0xFF99E495)
+        val OnHold = Color(0xFF97AFDD)
+        val Error = Color(0xFFDF9494)
+        val Pending = Color(0xFFE7CC97)
+    }
+}
+
+// ─── Customer-tier accents ────────────────────────────────────────────────
+object TierPalette {
+    val BronzeSaver2 = Color(0xFFD2554D)
+    val PlatinumElite2 = Color(0xFF6C46C5)
+    val CorporateBulk2 = Color(0xFF004B6C)
+    val CorporateBulk3 = Color(0xFF0A96D4)
+}
+
+// ─── Gradients ────────────────────────────────────────────────────────────
+object GradientPalette {
+    /** RN MainButton main variant: vertical orange gradient. */
+    val SignInButton = listOf(Color(0xFFFF783E), Color(0xFFF15114))
+
+    /** Warm sunrise ramp behind the login logo — light mode. Stops 0/0.55/1. */
+    val SignInBackgroundLight = listOf(Color(0xFFFFE9D6), Color(0xFFFFC9A3), Color(0xFFF88458))
+
+    /** Deep navy ramp — dark mode. Stops 0/0.55/1. */
+    val SignInBackgroundDark = listOf(Color(0xFF16182B), Color(0xFF2A2367), Color(0xFF3E3499))
+}
+
+/**
+ * Mode-dependent tokens. Mirrors the `UIColor.dynamic(light:dark:)` pairs in
+ * DesignTokens.swift; [lightAirdropColors]/[darkAirdropColors] hold the same
+ * hex pairs as RN `light.gray.*` / `dark.gray.*`.
+ */
+@Immutable
+data class AirdropColorScheme(
+    val isDark: Boolean,
+    // Grayscale
+    val gray100: Color, // surface
+    val gray150: Color, // BG Box
+    val gray200: Color, // BG
+    val gray300: Color,
+    val gray400: Color,
+    val gray500: Color,
+    val gray600: Color,
+    val gray700: Color,
+    // Text
+    val textDarkTitle: Color,
+    val textWhiteTitle: Color,
+    val textDescription: Color,
+    val textPlaceholder: Color,
+    // Misc
+    val divider: Color,
+    val iconShape: Color,
+    val iconWhite: Color,
+    val iconSelected: Color,
+    val peachLight: Color,
+    // Glass overlays
+    val glassOverlay20: Color,
+    val glassOverlay70: Color,
+    // Login gradient for the active mode
+    val signInBackground: List<Color>,
+)
+
+val lightAirdropColors = AirdropColorScheme(
+    isDark = false,
+    gray100 = Color(0xFFFFFFFF),
+    gray150 = Color(0xFFFBFBFB),
+    gray200 = Color(0xFFF5F5F5),
+    gray300 = Color(0xFFEBEBEB),
+    gray400 = Color(0xFFB8B8B8),
+    gray500 = Color(0xFF9E9E9E),
+    gray600 = Color(0xFF6B6B6B),
+    gray700 = Color(0xFF292929),
+    textDarkTitle = Color(0xFF292929),
+    textWhiteTitle = Color(0xFFFFFFFF),
+    textDescription = Color(0xFF5C5C5C),
+    textPlaceholder = Color(0xFF999999),
+    divider = Color(0xFFD9D9D9),
+    iconShape = Color(0xFFE5E5E5),
+    iconWhite = Color(0xFFFFFFFF),
+    iconSelected = Color(0xFF292929),
+    peachLight = Color(0xFFF8E9E0),
+    glassOverlay20 = Color(0x33FFFFFF),
+    glassOverlay70 = Color(0xB3FFFFFF),
+    signInBackground = GradientPalette.SignInBackgroundLight,
+)
+
+val darkAirdropColors = AirdropColorScheme(
+    isDark = true,
+    gray100 = Color(0xFF383838),
+    gray150 = Color(0xFF2E2E2E),
+    gray200 = Color(0xFF333333),
+    gray300 = Color(0xFF494949),
+    gray400 = Color(0xFFEBEBEB),
+    gray500 = Color(0xFFF2F2F2),
+    gray600 = Color(0xFFFBFBFB),
+    gray700 = Color(0xFFFFFFFF),
+    textDarkTitle = Color(0xFFFFFFFF),
+    textWhiteTitle = Color(0xFFFFFFFF),
+    textDescription = Color(0xFF999999),
+    textPlaceholder = Color(0xFF5C5C5C),
+    divider = Color(0xFF404040),
+    iconShape = Color(0xFF595959),
+    iconWhite = Color(0xFFFFFFFF),
+    iconSelected = Color(0xFFFFFFFF),
+    peachLight = Color(0xFF3A2A22),
+    glassOverlay20 = Color(0x33292929),
+    glassOverlay70 = Color(0xB3292929),
+    signInBackground = GradientPalette.SignInBackgroundDark,
+)
+
+val LocalAirdropColors = staticCompositionLocalOf { lightAirdropColors }
