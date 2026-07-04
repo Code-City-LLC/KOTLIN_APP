@@ -73,7 +73,6 @@ object Routes {
     // Tools
     const val CALCULATOR = "calculator"
     const val CALCULATOR_RESULTS = "calculatorResults"
-    const val CALCULATOR_GOVERNMENT_CHARGES = "calculatorGovernmentCharges"
     const val DROP_ALERT = "dropAlert"
 
     fun packageDetails(id: String) = "packageDetails/$id"
