@@ -7,10 +7,13 @@ package com.ga.airdrop.core.navigation
  */
 object Routes {
     // Auth
+    const val SPLASH = "splash"
+    const val ONBOARDING = "onboarding"
     const val AUTH_LANDING = "authLanding"
     const val LOGIN = "login"
     const val SIGN_UP = "signUp"
     const val FORGOT_PASSWORD = "forgotPassword"
+    const val REGISTRATION_SUCCESS = "registrationSuccess"
 
     // Tab roots
     const val HOME = "home"

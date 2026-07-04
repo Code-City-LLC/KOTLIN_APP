@@ -20,30 +20,40 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Cairo
 import com.ga.airdrop.core.designsystem.theme.Spacing
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 
 /**
- * Shared tab header — Figma "Header Type" (node 40000817:8974).
- * Glass overlay (#292929 at 70%) intended to sit over the hero image:
- * greeting + tier link on the left; bell, cart (badged) and AirCoin count
- * on the right, 20dp gaps, 24dp icons, 62dp content row.
+ * Shared tab header — Figma "Header Type".
+ * [AirdropHeaderStyle.OverImage]: black/70 glass + white text (Home hero).
+ * [AirdropHeaderStyle.Solid]: white/70 glass + divider + dark-title text
+ * (Shipments/Shop/Help/More), tier label in gradient gold.
  */
+enum class AirdropHeaderStyle { OverImage, Solid }
+
+private val TierGoldGradient = Brush.verticalGradient(
+    0.47f to Color(0xFFEFBF04),
+    1.0f to Color(0xFF8C6F01),
+)
+
 @Composable
 fun AirdropHeader(
     greeting: String,
     tierName: String,
-    tierColor: Color = Color(0xFFC19A02),
+    style: AirdropHeaderStyle = AirdropHeaderStyle.OverImage,
     cartCount: Int = 0,
     airCoins: String = "",
     onTierClick: () -> Unit = {},
@@ -51,12 +61,17 @@ fun AirdropHeader(
     onCartClick: () -> Unit = {},
     onAirCoinsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
-    overlayColor: Color = Color(0xB3292929), // gradiant/black/70
 ) {
+    val colors = AirdropTheme.colors
+    val overImage = style == AirdropHeaderStyle.OverImage
+    val background = if (overImage) Color(0xB3292929) else colors.glassOverlay70
+    val contentColor = if (overImage) BrandPalette.White else colors.textDarkTitle
+    val iconTint = if (overImage) BrandPalette.White else colors.iconSelected
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(overlayColor)
+            .background(background)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(
@@ -70,25 +85,37 @@ fun AirdropHeader(
                 Text(
                     text = greeting,
                     style = AirdropType.subtitle2,
-                    color = BrandPalette.White,
+                    color = contentColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    modifier = Modifier.clickable(onClick = onTierClick),
-                ) {
-                    Text(
-                        text = tierName,
-                        style = AirdropType.subtitle2.copy(lineHeight = 22.sp),
-                        color = tierColor,
-                    )
-                    Image(
-                        painter = painterResource(R.drawable.ic_small_arrow_down),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                    )
+                if (tierName.isNotBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        modifier = Modifier.clickable(onClick = onTierClick),
+                    ) {
+                        if (overImage) {
+                            Text(
+                                text = tierName,
+                                style = AirdropType.subtitle2.copy(lineHeight = 22.sp),
+                                color = Color(0xFFC19A02),
+                            )
+                        } else {
+                            Text(
+                                text = tierName,
+                                style = AirdropType.subtitle3.copy(brush = TierGoldGradient),
+                            )
+                        }
+                        Image(
+                            painter = painterResource(R.drawable.ic_small_arrow_down),
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(
+                                if (overImage) BrandPalette.White else colors.iconSelected
+                            ),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
             Row(
@@ -98,6 +125,7 @@ fun AirdropHeader(
                 Image(
                     painter = painterResource(R.drawable.ic_header_bell),
                     contentDescription = "Notifications",
+                    colorFilter = ColorFilter.tint(iconTint),
                     modifier = Modifier
                         .size(24.dp)
                         .clickable(onClick = onBellClick),
@@ -106,6 +134,7 @@ fun AirdropHeader(
                     Image(
                         painter = painterResource(R.drawable.ic_header_cart),
                         contentDescription = "Cart",
+                        colorFilter = ColorFilter.tint(iconTint),
                         modifier = Modifier
                             .size(24.dp)
                             .clickable(onClick = onCartClick),
@@ -140,7 +169,7 @@ fun AirdropHeader(
                         Text(
                             text = airCoins,
                             style = AirdropType.subtitle1,
-                            color = BrandPalette.White,
+                            color = contentColor,
                         )
                         Image(
                             painter = painterResource(R.drawable.img_coin_stack),
@@ -150,6 +179,14 @@ fun AirdropHeader(
                     }
                 }
             }
+        }
+        if (!overImage) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(colors.divider)
+            )
         }
     }
 }

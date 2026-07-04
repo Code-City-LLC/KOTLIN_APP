@@ -91,10 +91,14 @@ private fun androidx.navigation.NavGraphBuilder.authGraph(navController: NavHost
 }
 
 private fun androidx.navigation.NavGraphBuilder.mainGraph(navController: NavHostController) {
-    composable(Routes.HOME) { PlaceholderScreen("Home") }
+    composable(Routes.HOME) {
+        com.ga.airdrop.feature.home.HomeScreen(onNavigate = { navController.navigate(it) })
+    }
     composable(Routes.SHIPMENTS) { PlaceholderScreen("Shipments") }
     composable(Routes.SHOP) { PlaceholderScreen("Shop") }
-    composable(Routes.CONTACTS) { PlaceholderScreen("Contacts") }
+    composable(Routes.CONTACTS) {
+        com.ga.airdrop.feature.contacts.ContactsScreen(onNavigate = { navController.navigate(it) })
+    }
     composable(Routes.MORE) { PlaceholderScreen("More") }
 }
 

@@ -19,7 +19,7 @@ data class LoginUiState(
 )
 
 class LoginViewModel(
-    private val repository: AuthRepository = AuthRepository(),
+    private val repository: AuthRepository = AuthRepository(com.ga.airdrop.core.network.ApiClient.service),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginUiState())
@@ -35,9 +35,19 @@ class LoginViewModel(
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             repository.login(current.email.trim(), current.password)
-                .onSuccess { token ->
-                    AuthTokenStore.save(token)
-                    _state.update { it.copy(loading = false, loggedIn = true) }
+                .onSuccess { response ->
+                    val token = response.token
+                    if (token.isNullOrBlank()) {
+                        _state.update {
+                            it.copy(
+                                loading = false,
+                                error = response.message ?: "Unable to log in. Please try again.",
+                            )
+                        }
+                    } else {
+                        AuthTokenStore.save(token)
+                        _state.update { it.copy(loading = false, loggedIn = true) }
+                    }
                 }
                 .onFailure { e ->
                     _state.update {
