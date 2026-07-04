@@ -80,12 +80,17 @@ fun AuthLandingScreen(
             ) {
                 // Logo top edge sits at 207.26/812 of the screen in Figma.
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(207f))
+                // Theme-aware logo: wide color wordmark (light) / round logo
+                // (dark) — same asset pair the Swift login uses.
                 Image(
-                    painter = painterResource(R.drawable.img_airdrop_logo),
+                    painter = painterResource(
+                        if (colors.isDark) R.drawable.img_airdrop_logo_dark
+                        else R.drawable.img_airdrop_logo
+                    ),
                     contentDescription = "AirDrop",
                     modifier = Modifier
                         .fillMaxWidth(324f / 375f)
-                        .aspectRatio(324.032f / 89.57f),
+                        .aspectRatio(if (colors.isDark) 1.06f else 649f / 180f),
                     contentScale = ContentScale.Fit,
                 )
                 androidx.compose.foundation.layout.Spacer(Modifier.height(54.dp))

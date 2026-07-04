@@ -88,11 +88,14 @@ fun LoginScreen(
             }
             Spacer(Modifier.height(44.dp))
             Image(
-                painter = painterResource(R.drawable.img_airdrop_logo),
+                painter = painterResource(
+                    if (colors.isDark) R.drawable.img_airdrop_logo_dark
+                    else R.drawable.img_airdrop_logo
+                ),
                 contentDescription = "AirDrop",
                 modifier = Modifier
                     .fillMaxWidth(260f / 375f)
-                    .aspectRatio(260.032f / 71.879f)
+                    .aspectRatio(if (colors.isDark) 1.06f else 649f / 180f)
                     .align(Alignment.CenterHorizontally),
                 contentScale = ContentScale.Fit,
             )
