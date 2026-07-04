@@ -219,12 +219,14 @@ fun SignUpScreen(
                             append("I accept the ")
                             withLink(
                                 LinkAnnotation.Clickable("terms") {
-                                    context.startActivity(
-                                        Intent(
-                                            Intent.ACTION_VIEW,
-                                            android.net.Uri.parse(TERMS_URL),
-                                        ),
-                                    )
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(
+                                                Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(TERMS_URL),
+                                            ),
+                                        )
+                                    }
                                 },
                             ) {
                                 withStyle(

@@ -54,6 +54,7 @@ class PaymentsViewModel(
     val invoiceEvents: StateFlow<InvoiceOpenEvent?> = _invoiceEvents
 
     private var currentPage = 1
+    private var loadJob: kotlinx.coroutines.Job? = null
     private var searchJob: Job? = null
 
     init {
@@ -110,9 +111,9 @@ class PaymentsViewModel(
     fun consumeError() = _state.update { it.copy(error = null) }
 
     private fun load(reset: Boolean) {
-        if (reset) currentPage = 1
+        if (reset) { currentPage = 1; loadJob?.cancel() }
         val requestedPage = currentPage
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             _state.update { it.copy(loading = reset, loadingMore = !reset) }
             val s = _state.value
             val search = s.searchText.trim().takeIf { it.length >= SEARCH_MIN_CHARS }

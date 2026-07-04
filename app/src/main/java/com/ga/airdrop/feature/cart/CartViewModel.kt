@@ -105,6 +105,7 @@ class CartViewModel(
 
     /** Swift onPay: needs a package id on every line; pays in USD. */
     fun pay() {
+        if (_state.value.paying) return
         val lines = items.value
         if (lines.isEmpty()) {
             _state.update {

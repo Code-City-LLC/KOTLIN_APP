@@ -41,8 +41,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Canvas
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -76,20 +79,25 @@ fun PackageDetailsScreen(
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        val files = uris.mapNotNull { uri ->
-            runCatching {
-                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?: return@mapNotNull null
-                val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                var name = "invoice"
-                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (index >= 0 && cursor.moveToFirst()) name = cursor.getString(index)
-                }
-                InvoiceUploadFile(fileName = name, mimeType = mime, bytes = bytes)
-            }.getOrNull()
+        // Read each selected file off the main thread to avoid an ANR; the
+        // resolver + Uris are safe to touch from IO. uploadInvoices does its
+        // own viewModelScope.launch + thread-safe StateFlow.update.
+        viewModel.viewModelScope.launch(Dispatchers.IO) {
+            val files = uris.mapNotNull { uri ->
+                runCatching {
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: return@mapNotNull null
+                    val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                    var name = "invoice"
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (index >= 0 && cursor.moveToFirst()) name = cursor.getString(index)
+                    }
+                    InvoiceUploadFile(fileName = name, mimeType = mime, bytes = bytes)
+                }.getOrNull()
+            }
+            viewModel.uploadInvoices(files)
         }
-        viewModel.uploadInvoices(files)
     }
 
     Box(Modifier.fillMaxSize().background(colors.gray150)) {

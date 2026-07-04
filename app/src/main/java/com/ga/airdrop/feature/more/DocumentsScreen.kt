@@ -1,6 +1,5 @@
 package com.ga.airdrop.feature.more
 
-import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -76,23 +75,8 @@ fun DocumentsScreen(
         val slot = uploadSlot
         uploadSlot = null
         if (uri == null || slot == null) return@rememberLauncherForActivityResult
-        val resolver = context.contentResolver
-        val bytes = runCatching {
-            resolver.openInputStream(uri)?.use { it.readBytes() }
-        }.getOrNull()
-        if (bytes == null) {
-            viewModel.showAlert("Upload failed", "Could not read the selected file.")
-            return@rememberLauncherForActivityResult
-        }
-        var fileName = "document"
-        runCatching {
-            resolver.query(uri, null, null, null, null)?.use { cursor ->
-                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (index >= 0 && cursor.moveToFirst()) fileName = cursor.getString(index)
-            }
-        }
-        val mime = resolver.getType(uri) ?: "application/octet-stream"
-        viewModel.upload(slot, fileName, mime, bytes)
+        // Read bytes + display name off the main thread (see ViewModel.upload).
+        viewModel.upload(slot, uri, context.contentResolver)
     }
 
     fun openFile(slot: DocumentSlot) {

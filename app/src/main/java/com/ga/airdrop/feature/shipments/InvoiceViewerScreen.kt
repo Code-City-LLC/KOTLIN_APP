@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.widget.Toast
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -29,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +46,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.FileProvider
 import coil.compose.SubcomposeAsyncImage
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -73,6 +76,7 @@ fun InvoiceViewerScreen(
     val secureUrl = remember(url) {
         if (url.startsWith("http://")) "https://" + url.removePrefix("http://") else url
     }
+    val isLocalFile = remember(secureUrl) { secureUrl.startsWith("file://") }
     val isImage = remember(secureUrl) {
         val path = Uri.parse(secureUrl).path.orEmpty().lowercase(Locale.US)
         listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp").any { path.endsWith(it) }
@@ -130,6 +134,35 @@ fun InvoiceViewerScreen(
                             )
                         },
                     )
+                }
+                isLocalFile -> {
+                    // Local file:// caches can't reach the gview embed; hand the
+                    // file to the device's default viewer via a FileProvider URI.
+                    LaunchedEffect(secureUrl) {
+                        loading = false
+                        runCatching {
+                            val file = java.io.File(Uri.parse(secureUrl).path!!)
+                            val authority = context.packageName + ".fileprovider"
+                            val contentUri = FileProvider.getUriForFile(context, authority, file)
+                            val intent = Intent(Intent.ACTION_VIEW)
+                                .setDataAndType(contentUri, "application/pdf")
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            context.startActivity(intent)
+                        }.onFailure {
+                            Toast.makeText(context, "No app to open this file", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "Opening $fileName...",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 }
                 else -> {
                     // PDFs render through an embedded viewer page (WebView has
@@ -282,12 +315,31 @@ private fun InvoiceActionButton(
 
 private fun saveInvoice(context: Context, url: String, fileName: String) {
     runCatching {
-        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle(fileName)
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-        manager.enqueue(request)
+        if (Uri.parse(url).scheme.equals("file", ignoreCase = true)) {
+            // Cached file:// invoice — DownloadManager rejects file:// sources,
+            // so copy into public Downloads via MediaStore instead.
+            val resolver = context.contentResolver
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(
+                    android.provider.MediaStore.Downloads.MIME_TYPE,
+                    if (fileName.endsWith(".pdf", true)) "application/pdf" else "application/octet-stream",
+                )
+            }
+            val dest = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            if (dest != null) {
+                resolver.openOutputStream(dest)?.use { out ->
+                    java.io.File(Uri.parse(url).path!!).inputStream().use { it.copyTo(out) }
+                }
+            }
+        } else {
+            val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val request = DownloadManager.Request(Uri.parse(url))
+                .setTitle(fileName)
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+            manager.enqueue(request)
+        }
     }
 }
 

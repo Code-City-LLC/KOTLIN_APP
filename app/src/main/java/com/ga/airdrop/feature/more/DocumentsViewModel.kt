@@ -1,11 +1,16 @@
 package com.ga.airdrop.feature.more
 
+import android.content.ContentResolver
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Document slot descriptor — RN DocumentsView DOCUMENTS const, verbatim.
@@ -83,6 +88,58 @@ class DocumentsViewModel(
                 .onSuccess { files -> _state.update { it.copy(files = files, loading = false) } }
                 // Render slots without files so Upload still works (RN parity on 401).
                 .onFailure { _state.update { it.copy(loading = false) } }
+        }
+    }
+
+    /**
+     * SAF-backed upload — reads the selected file's bytes and display name off
+     * the main thread (avoids ANR), then delegates to the byte-based upload.
+     */
+    fun upload(slot: DocumentSlot, uri: Uri, resolver: ContentResolver) {
+        _state.update { it.copy(uploadingType = slot.docType) }
+        viewModelScope.launch {
+            val read = withContext(Dispatchers.IO) {
+                val bytes = runCatching {
+                    resolver.openInputStream(uri)?.use { it.readBytes() }
+                }.getOrNull() ?: return@withContext null
+                var fileName = "document"
+                runCatching {
+                    resolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (index >= 0 && cursor.moveToFirst()) fileName = cursor.getString(index)
+                    }
+                }
+                val mime = resolver.getType(uri) ?: "application/octet-stream"
+                Triple(fileName, mime, bytes)
+            }
+            if (read == null) {
+                _state.update {
+                    it.copy(
+                        uploadingType = null,
+                        alert = "Upload failed" to "Could not read the selected file.",
+                    )
+                }
+                return@launch
+            }
+            val (fileName, mime, bytes) = read
+            repository.uploadUserDocument(slot.docType, fileName, mime, bytes)
+                .onSuccess {
+                    _state.update {
+                        it.copy(
+                            uploadingType = null,
+                            alert = "Uploaded" to "${slot.title} was uploaded.",
+                        )
+                    }
+                    load()
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            uploadingType = null,
+                            alert = "Upload failed" to (e.message ?: "Please try again."),
+                        )
+                    }
+                }
         }
     }
 

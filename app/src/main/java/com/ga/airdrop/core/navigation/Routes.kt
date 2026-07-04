@@ -86,8 +86,8 @@ object Routes {
     fun addAuthorizedUser(editId: String? = null) =
         if (editId != null) "addAuthorizedUser?editId=$editId" else "addAuthorizedUser?editId="
     fun invoiceViewer(url: String, title: String): String {
-        val encoded = java.net.URLEncoder.encode(url, "UTF-8")
-        val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+        val encoded = java.net.URLEncoder.encode(url, "UTF-8").replace("+", "%20")
+        val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8").replace("+", "%20")
         return "invoiceViewer?url=$encoded&title=$encodedTitle"
     }
 }

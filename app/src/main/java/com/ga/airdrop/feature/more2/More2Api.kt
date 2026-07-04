@@ -110,53 +110,60 @@ class More2Repository(
     private val api: More2Api = ApiClient.retrofit.create(More2Api::class.java),
 ) {
 
+    // runCatching swallows CancellationException, turning coroutine cancellation
+    // into a spurious error dialog; rethrow it and wrap only real failures.
+    private suspend fun <T> apiCall(block: suspend () -> T): Result<T> =
+        try { Result.success(block()) }
+        catch (e: kotlin.coroutines.cancellation.CancellationException) { throw e }
+        catch (e: Throwable) { Result.failure(e) }
+
     suspend fun authorizedUsers(): Result<AuthorizedUsers> =
-        runCatching { api.authorizedUsers().users }
+        apiCall { api.authorizedUsers().users }
 
     suspend fun authorizedUser(id: Int) =
-        runCatching { api.authorizedUser(id).user ?: error("User not found") }
+        apiCall { api.authorizedUser(id).user ?: error("User not found") }
 
     suspend fun addAuthorizedUser(request: AuthorizedUserRequest) =
-        runCatching { api.addAuthorizedUser(request) }
+        apiCall { api.addAuthorizedUser(request) }
 
     suspend fun updateAuthorizedUser(id: Int, request: AuthorizedUserRequest) =
-        runCatching { api.updateAuthorizedUser(id, request) }
+        apiCall { api.updateAuthorizedUser(id, request) }
 
     suspend fun deleteAuthorizedUser(id: Int) =
-        runCatching { api.deleteAuthorizedUser(id) }
+        apiCall { api.deleteAuthorizedUser(id) }
 
     suspend fun activateAuthorizedUser(id: Int) =
-        runCatching { api.activateAuthorizedUser(id, EmptyRequest()) }
+        apiCall { api.activateAuthorizedUser(id, EmptyRequest()) }
 
     suspend fun deactivateAuthorizedUser(id: Int) =
-        runCatching { api.deactivateAuthorizedUser(id, EmptyRequest()) }
+        apiCall { api.deactivateAuthorizedUser(id, EmptyRequest()) }
 
     suspend fun referredFriends(limit: Int = 20): Result<List<ReferredFriend>> =
-        runCatching { api.referredFriends(limit).items }
+        apiCall { api.referredFriends(limit).items }
 
     suspend fun referFriend(request: ReferFriendRequest) =
-        runCatching { api.referFriend(request) }
+        apiCall { api.referFriend(request) }
 
     suspend fun profile(): Result<AirdropUser> =
-        runCatching { api.profile().data ?: error("No profile returned") }
+        apiCall { api.profile().data ?: error("No profile returned") }
 
     suspend fun promotionalBanners(activeOnly: Boolean = true): Result<List<PromotionalBanner>> =
-        runCatching {
+        apiCall {
             val banners = api.promotionalBanners().items
             if (activeOnly) banners.filter { it.active == true } else banners
         }
 
     suspend fun shippingRates(): Result<ShippingRates> =
-        runCatching { api.shippingRates().data ?: ShippingRates() }
+        apiCall { api.shippingRates().data ?: ShippingRates() }
 
     suspend fun faqs(): Result<List<FaqItem>> =
-        runCatching { api.faqs().items.filter { it.question.isNotBlank() } }
+        apiCall { api.faqs().items.filter { it.question.isNotBlank() } }
 
     suspend fun termsContent(): Result<String> =
-        runCatching { parseCmsBody(api.termsContent().string()) }
+        apiCall { parseCmsBody(api.termsContent().string()) }
 
     suspend fun privacyContent(): Result<String> =
-        runCatching { parseCmsBody(api.privacyContent().string()) }
+        apiCall { parseCmsBody(api.privacyContent().string()) }
 
     /**
      * Swift verifyAccountCredentials: validates locally, re-runs /login and
@@ -170,7 +177,7 @@ class More2Repository(
         if (password.length < 6) {
             return Result.failure(IllegalArgumentException("Password must be at least 6 characters long."))
         }
-        return runCatching { api.verifyLogin(LoginRequest(trimmed, password)).token != null }
+        return apiCall { api.verifyLogin(LoginRequest(trimmed, password)).token != null }
     }
 
     /**
@@ -178,7 +185,7 @@ class More2Repository(
      * selected reason is not part of the Laravel payload (kept client-side).
      */
     suspend fun deactivateAccount(password: String) =
-        runCatching {
+        apiCall {
             api.deactivateAccount(
                 DeactivateAccountRequest(password = password, passwordConfirmation = password),
             )
