@@ -11,7 +11,7 @@
         android:strokeLineJoin="round" />
     <path
         android:pathData="M 4.95508 20.0107 H 19.0443"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

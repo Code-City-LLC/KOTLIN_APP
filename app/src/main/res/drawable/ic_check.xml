@@ -5,6 +5,6 @@
     android:viewportHeight="11">
     <path
         android:pathData="M1.361 5.333l4.8 4 6.4-8"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.6" />
 </vector>

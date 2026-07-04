@@ -68,7 +68,9 @@ enum class ShipmentMethodUi(
     val iconRes: Int,
     val heroRes: Int,
 ) {
-    Standard("AirDrop", Color(0xFF10BBE9), R.drawable.ic_standard_shipping, R.drawable.img_shipments_hero_standard),
+    // Titles per Swift PackagePresentation.methodLabel ("AirDrop Standard",
+    // not the bare "AirDrop" an earlier pass used).
+    Standard("AirDrop Standard", Color(0xFF10BBE9), R.drawable.ic_standard_shipping, R.drawable.img_shipments_hero_standard),
     Express("Express", Color(0xFFF15114), R.drawable.ic_express_shipping, R.drawable.img_shipments_hero_express),
     SeaDrop("SeaDrop", Color(0xFF0A96D4), R.drawable.ic_sea_drop_shipping, R.drawable.img_shipments_hero_seadrop);
 
@@ -309,7 +311,9 @@ fun ShipmentsDetailHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.glassOverlay70)
+            // Swift makeInnerHeader: OPAQUE gray100 surface (never a
+            // translucent wash) + 1pt bottom divider.
+            .background(colors.gray100)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(
@@ -522,46 +526,57 @@ fun PackageCard(
 
     Column(
         modifier = modifier
+            // Swift pins 280x280 but its content (54 strip + 4 line-height
+            // rows) measures ~298 and UIKit lets the stack overflow the
+            // card. Wrap height here instead — every row is maxLines=1 so
+            // all cards stay equal-height with the full Status row visible.
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .clickable(onClick = onClick),
     ) {
-        // Method strip
+        // Method strip — Swift topBar (54pt): icon + label BOTH in the
+        // method color (icon primary/secondary = methodColor), Title2.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(54.dp)
                 .background(colors.gray150, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
                 .border(1.dp, colors.iconShape, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+                .padding(horizontal = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             Image(
                 painter = painterResource(method.iconRes),
                 contentDescription = null,
+                colorFilter = ColorFilter.tint(method.tint),
                 modifier = Modifier.size(24.dp),
             )
-            Text(text = method.title, style = AirdropType.title1, color = method.tint)
+            Text(text = method.title, style = AirdropType.title2, color = method.tint)
         }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+                // Swift: body top 14, sides 20, bottom ≥16.
+                .padding(start = Spacing.md, end = Spacing.md, top = 14.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             CardFieldColumn(
                 label = "Description",
                 value = pkg.description?.replaceFirstChar { it.uppercase(Locale.US) } ?: "—",
+                valueMaxLines = 1,
             )
             CardFieldColumn(
                 label = "Weight",
                 value = ShipmentsFormat.weight(pkg.weightLbs, pkg.weightKg, pkg.weight),
+                valueMaxLines = 1,
             )
             CardFieldColumn(
                 label = "Total Charges",
                 value = ShipmentsFormat.usdJmd(chargesTotal, rate),
                 valueColor = BrandPalette.OrangeMain,
+                valueMaxLines = 1,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -573,6 +588,8 @@ fun PackageCard(
                         text = pkg.statusName ?: pkg.status ?: "—",
                         style = AirdropType.title2,
                         color = packageStatusColor(pkg.statusName ?: pkg.status),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Image(
@@ -665,6 +682,8 @@ fun OrderCard(
     val colors = AirdropTheme.colors
     Column(
         modifier = modifier
+            // Swift makeOrderCard: fixed 280x380.
+            .height(380.dp)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -676,7 +695,8 @@ fun OrderCard(
                 .height(160.dp)
                 .background(colors.gray150, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
                 .border(1.dp, colors.iconShape, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
-                .padding(horizontal = Spacing.md, vertical = Spacing.lg),
+                // Swift: photo inset 20 on all sides of the 160 panel.
+                .padding(Spacing.md),
             contentAlignment = Alignment.Center,
         ) {
             SubcomposeAsyncImage(
@@ -697,7 +717,8 @@ fun OrderCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+                // Swift: body top 14, sides 20, bottom ≥16.
+                .padding(start = Spacing.md, end = Spacing.md, top = 14.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             CardFieldColumn(
@@ -707,12 +728,16 @@ fun OrderCard(
             )
             CardFieldColumn(
                 label = "Package Value",
-                value = ShipmentsFormat.usd(order.invoiceAmountUsd),
+                // Swift formats as "$1,550.00" currency, not "USD 1,550.00".
+                value = ShipmentsFormat.price(order.invoiceAmountUsd),
+                valueColor = BrandPalette.OrangeMain,
+                valueMaxLines = 1,
             )
             CardFieldColumn(
                 label = "Status",
                 value = ShipmentsFormat.titleCase(order.orderStatus ?: order.status),
                 valueColor = AlertPalette.Pending,
+                valueMaxLines = 1,
             )
         }
     }
@@ -853,7 +878,10 @@ fun ShipmentsAlertDialog(
     }
 }
 
-/** "Header Section" — bold section title + orange underlined action. */
+/**
+ * "Header Section" — Swift makeSectionHeader: Title1 (Bold 18) section title
+ * + underlined Body2 "View More" in orangeMain, baseline-aligned.
+ */
 @Composable
 fun SectionHeaderRow(title: String, actionText: String, onAction: () -> Unit) {
     Row(
@@ -861,10 +889,10 @@ fun SectionHeaderRow(title: String, actionText: String, onAction: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = title, style = AirdropType.title2, color = AirdropTheme.colors.textDarkTitle)
+        Text(text = title, style = AirdropType.title1, color = AirdropTheme.colors.textDarkTitle)
         Text(
             text = actionText,
-            style = AirdropType.underlineLink.copy(
+            style = AirdropType.body2.copy(
                 textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
             ),
             color = BrandPalette.OrangeMain,

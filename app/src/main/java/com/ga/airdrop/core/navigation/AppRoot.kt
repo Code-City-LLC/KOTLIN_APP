@@ -122,6 +122,9 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(navController: NavHost
     composable(Routes.CONTACTS) {
         com.ga.airdrop.feature.contacts.ContactsScreen(onNavigate = { navController.navigate(it) })
     }
+    composable(Routes.LIVE_CHAT) {
+        com.ga.airdrop.feature.contacts.LiveAgentChatScreen(onBack = { navController.popBackStack() })
+    }
     // More hub + drill-downs (registers Routes.MORE itself).
     moreGraph(navController)
     more2Graph(navController)

@@ -22,6 +22,9 @@ object Routes {
     const val CONTACTS = "contacts"
     const val MORE = "more"
 
+    // Help drill-down — Swift "LiveAgentChatView" (Trengo web chat)
+    const val LIVE_CHAT = "liveChat"
+
     // Home drill-downs
     const val WAREHOUSES = "warehouses"
     const val SERVICES = "services"

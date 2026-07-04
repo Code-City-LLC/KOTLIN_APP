@@ -31,28 +31,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.AirdropHeader
 import com.ga.airdrop.core.designsystem.components.AirdropHeaderStyle
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 import kotlinx.coroutines.delay
 
 /**
- * Help/Contacts tab — FigmaContactsViewController parity: six section cards
- * (Contact Number, WhatsApp, Email, Location, Business Hours, Social Media)
- * with copy + open actions and the "information is copied" toast.
+ * Help/Contacts tab — Figma node 40001617:20377 (visual truth), behavior from
+ * FigmaContactsViewController + RN ContactsView.
+ *
+ * Figma layout, top-to-bottom (first card 20 below the 106 header, 10 gap
+ * between cards, all cards gray100 / radius 15 / 1dp iconShape border):
+ *  - "Live Chat" Card Page row (59 tall, px 20 / py 10) → LiveAgentChatView;
+ *  - Component 36: Contact Number + WhatsApp + Email grouped in ONE card
+ *    (padding 20; each sub-section = 24 duotone icon + column[Title2 title,
+ *    SubTitle2 value rows with trailing copy], pb 10);
+ *  - Component 37 x3: Location (3 addresses), Business Hours (multiline +
+ *    copy), Social Media (4 handle rows).
+ * Values are SubTitle2 (Cairo SemiBold 14/24) — NOT SubTitle1/16; that
+ * heavier cut is what made the page read as "everything bold".
  */
 @Composable
 fun ContactsScreen(
@@ -86,69 +94,130 @@ fun ContactsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // Swift FigmaContactsViewController.swift:114 — first card 126 below top.
+            // Figma: first card 126 below top (header 106 + 20).
             Spacer(Modifier.height(126.dp))
             Column(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.md),
-                // Swift FigmaContactsViewController.swift:85 — 20 between cards.
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                // Figma: 10 between cards (y 20→89→393→713→871).
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                // Swift FigmaContactsViewController.swift:354-367 — two phone
-                // rows separated by a divider.
-                SectionCard(iconRes = R.drawable.ic_contact_number, title = "Contact Number") {
-                    ValueRow(text = "+876-676-6999", onOpen = { open("tel:+8766766999") }, onCopy = ::copy)
-                    RowDivider()
-                    ValueRow(text = "+833-676-6999", onOpen = { open("tel:+8336766999") }, onCopy = ::copy)
-                }
-                // Swift :371-381.
-                SectionCard(iconRes = R.drawable.ic_whatsapp, title = "WhatsApp") {
-                    ValueRow(text = "+876-566-9339", onOpen = { open("https://wa.me/8765669339") }, onCopy = ::copy)
-                }
-                // Swift :385-395.
-                SectionCard(iconRes = R.drawable.ic_message, title = "Email Address") {
-                    ValueRow(
-                        text = "support@airdropja.com",
-                        onOpen = { open("mailto:support@airdropja.com") },
-                        onCopy = ::copy,
+                // ── Live Chat row — Figma "Card Page" 40001617:20379 ──
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(59.dp)
+                        .clip(RoundedCornerShape(Spacing.sm1))
+                        .background(colors.gray100)
+                        .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+                        .clickable { onNavigate(Routes.LIVE_CHAT) }
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_chat),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Text("Live Chat", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+                    }
+                    Image(
+                        painter = painterResource(R.drawable.ic_small_arrow_down),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                        modifier = Modifier
+                            .size(24.dp)
+                            .rotate(-90f),
                     )
                 }
-                // Swift :399-422 — three addresses with dividers.
-                SectionCard(iconRes = R.drawable.ic_location, title = "Location") {
-                    val addresses = listOf(
-                        "Unit #1, Toma Place, 9-11 Phoenix Avenue, Kingston 10",
-                        "Unit #14, Annex Complex, Fairview Shopping Center, Montego Bay",
-                        "Unit 8, Beckford Plaza, 33-35 Beckford Street, Savanna La Mar, Westmoreland",
-                    )
-                    addresses.forEachIndexed { index, address ->
-                        ValueRow(text = address, onOpen = null, onCopy = ::copy)
-                        if (index != addresses.lastIndex) RowDivider()
+
+                // ── Component 36: Contact Number / WhatsApp / Email ──
+                ContactCard {
+                    SubSection(iconRes = R.drawable.ic_contact_number, title = "Contact Number") {
+                        ValueRow("+876-676-6999", onOpen = { open("tel:+8766766999") }, onCopy = ::copy)
+                        ValueRow("+833-676-6999", onOpen = { open("tel:+8336766999") }, onCopy = ::copy)
+                    }
+                    SubSection(iconRes = R.drawable.ic_whatsapp, title = "WhatsApp") {
+                        ValueRow("+876-566-9339", onOpen = { open("https://wa.me/8765669339") }, onCopy = ::copy)
+                    }
+                    SubSection(iconRes = R.drawable.ic_message, title = "Email Address", last = true) {
+                        ValueRow(
+                            "support@airdropja.com",
+                            onOpen = { open("mailto:support@airdropja.com") },
+                            onCopy = ::copy,
+                        )
                     }
                 }
-                // Swift :426-434 — plain multiline block, no copy affordance.
-                SectionCard(iconRes = R.drawable.ic_clock, title = "Business Hours") {
-                    Text(
-                        text = "Monday-Friday: 9am-6pm\nSaturday: 10am-4pm\nSunday: Closed",
-                        style = AirdropType.subtitle1,
-                        color = colors.iconSelected,
-                    )
-                }
-                // Swift :438-480 — icon + "Title: " (dark) + handle (iconSelected),
-                // copy copies the handle only.
-                SectionCard(iconRes = R.drawable.ic_social_media, title = "Social Media") {
-                    val socials = listOf(
-                        SocialEntry(R.drawable.ic_instagram, "Instagram: ", "@airdrop.ja", "https://www.instagram.com/airdrop.ja/"),
-                        SocialEntry(R.drawable.ic_facebook, "Facebook: ", "@airdrop.jamaica", "https://www.facebook.com/airdropja-2235323533226290/"),
-                        SocialEntry(R.drawable.ic_x, "X: ", "@airdropja", "https://twitter.com/airdropja"),
-                        SocialEntry(R.drawable.ic_tic_tok, "Tiktok: ", "@airdropja", "https://www.tiktok.com/@airdropja"),
-                    )
-                    socials.forEachIndexed { index, social ->
-                        SocialRow(entry = social, onOpen = { open(social.url) }, onCopy = ::copy)
-                        if (index != socials.lastIndex) RowDivider()
+
+                // ── Component 37: Location ──
+                ContactCard {
+                    SubSection(iconRes = R.drawable.ic_location, title = "Location", last = true) {
+                        val addresses = listOf(
+                            "Unit #1, Toma Place, 9-11 Phoenix Avenue, Kingston 10",
+                            "Unit #14, Annex Complex, Fairview Shopping Center, Montego Bay",
+                            "Unit 8, Beckford Plaza, 33-35 Beckford Street, Savanna La Mar, Westmoreland",
+                        )
+                        addresses.forEachIndexed { index, address ->
+                            ValueRow(
+                                address,
+                                onOpen = { open("geo:0,0?q=${Uri.encode(address)}") },
+                                onCopy = ::copy,
+                            )
+                            if (index != addresses.lastIndex) RowDivider()
+                        }
                     }
                 }
-                // Swift :137-139 — 130 tail clears the floating tab bar.
+
+                // ── Component 37: Business Hours (Figma copy + trailing copy
+                // button that copies the whole block — 40001617:20382) ──
+                val hoursText = "Monday - Friday: 9 AM - 6 PM\nSaturday: 10 AM - 4 PM\nSunday: Closed"
+                ContactCard {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_clock),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                Text("Business Hours", style = AirdropType.title2, color = colors.textDarkTitle)
+                                Text(
+                                    text = hoursText,
+                                    style = AirdropType.subtitle2,
+                                    color = colors.textDarkTitle,
+                                )
+                            }
+                        }
+                        CopyButton(hoursText, ::copy)
+                    }
+                }
+
+                // ── Component 37: Social Media ──
+                ContactCard {
+                    SubSection(iconRes = R.drawable.ic_social_media, title = "Social Media", last = true) {
+                        val socials = listOf(
+                            SocialEntry(R.drawable.ic_instagram, "Instagram: ", "@airdrop.ja", "https://www.instagram.com/airdrop.ja/"),
+                            SocialEntry(R.drawable.ic_facebook, "Facebook: ", "@airdrop.jamaica", "https://www.facebook.com/airdropja-2235323533226290/"),
+                            SocialEntry(R.drawable.ic_x, "X: ", "@airdropja", "https://twitter.com/airdropja"),
+                            SocialEntry(R.drawable.ic_tic_tok, "Tiktok: ", "@airdropja", "https://www.tiktok.com/@airdropja"),
+                        )
+                        socials.forEachIndexed { index, social ->
+                            SocialRow(entry = social, onOpen = { open(social.url) }, onCopy = ::copy)
+                            if (index != socials.lastIndex) RowDivider()
+                        }
+                    }
+                }
+
+                // Tail clears the tab bar (Swift :137-139).
                 Spacer(Modifier.height(130.dp))
             }
         }
@@ -168,9 +237,7 @@ fun ContactsScreen(
             modifier = Modifier.align(Alignment.TopCenter),
         )
 
-        // "All the information is copied" toast — Swift
-        // FigmaContactsViewController.swift:536-556: textDarkTitle @ 0.92,
-        // radius 20, SubTitle2 white label, 52 below the safe area.
+        // "All the information is copied" toast — Swift :536-556.
         if (showCopiedToast) {
             Box(
                 modifier = Modifier
@@ -185,7 +252,7 @@ fun ContactsScreen(
                 Text(
                     text = "All the information is copied",
                     style = AirdropType.subtitle2,
-                    color = androidx.compose.ui.graphics.Color.White,
+                    color = colors.gray100,
                 )
             }
         }
@@ -199,44 +266,57 @@ private data class SocialEntry(
     val url: String,
 )
 
-/**
- * Outer rounded card with title row — Swift FigmaContactsViewController.swift:145-214:
- * gray100 fill, radius 15, 1dp iconShape border, 15dp padding, 10dp row spacing,
- * icon 24 + Title2 header.
- */
+/** Outer card — Figma: gray100, radius 15, 1dp iconShape border, padding 20. */
 @Composable
-private fun SectionCard(
-    iconRes: Int,
-    title: String,
-    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
-) {
+private fun ContactCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     val colors = AirdropTheme.colors
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.s))
+            .clip(RoundedCornerShape(Spacing.sm1))
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(Spacing.sm1),
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+            .padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        content = content,
+    )
+}
+
+/**
+ * Figma sub-section: 24 duotone icon (untinted — orange + night-aware dark
+ * tones baked into the vector) + column [Title2 title, rows...] gap 10;
+ * pb 10 except on the last sub-section.
+ */
+@Composable
+private fun SubSection(
+    iconRes: Int,
+    title: String,
+    last: Boolean = false,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = if (last) 0.dp else Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Image(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(24.dp),
-            )
             Text(title, style = AirdropType.title2, color = colors.textDarkTitle)
+            content()
         }
-        content()
     }
 }
 
-/** Divider between rows inside a card — Swift :177-183 (iconShape, 1pt). */
+/** Divider between rows inside a card (iconShape, 1dp). */
 @Composable
 private fun RowDivider() {
     Box(
@@ -260,7 +340,7 @@ private fun CopyButton(value: String, onCopy: (String) -> Unit) {
     )
 }
 
-/** Value row — Swift :240-259: SubTitle1 in iconSelected + trailing copy. */
+/** Value row — Figma: SubTitle2 (14/24) dark-title + trailing 24 copy. */
 @Composable
 private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Unit) {
     val colors = AirdropTheme.colors
@@ -271,21 +351,17 @@ private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Un
     ) {
         Text(
             text = text,
-            style = AirdropType.subtitle1,
-            color = colors.iconSelected,
+            style = AirdropType.subtitle2,
+            color = colors.textDarkTitle,
             modifier = Modifier
                 .weight(1f)
-                .then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier)
-                .padding(vertical = 6.dp),
+                .then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier),
         )
         CopyButton(text, onCopy)
     }
 }
 
-/**
- * Social row — Swift :244-253 combined label ("Instagram: " textDarkTitle +
- * "@handle" iconSelected, both SubTitle1); copy copies the handle (:472).
- */
+/** Social row — icon + "Title: @handle" SubTitle2; copy copies the handle. */
 @Composable
 private fun SocialRow(entry: SocialEntry, onOpen: () -> Unit, onCopy: (String) -> Unit) {
     val colors = AirdropTheme.colors
@@ -297,8 +373,7 @@ private fun SocialRow(entry: SocialEntry, onOpen: () -> Unit, onCopy: (String) -
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onOpen)
-                .padding(vertical = 6.dp),
+                .clickable(onClick = onOpen),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -308,15 +383,9 @@ private fun SocialRow(entry: SocialEntry, onOpen: () -> Unit, onCopy: (String) -
                 modifier = Modifier.size(24.dp),
             )
             Text(
-                text = buildAnnotatedString {
-                    withStyle(AirdropType.subtitle1.toSpanStyle().copy(color = colors.textDarkTitle)) {
-                        append(entry.title)
-                    }
-                    withStyle(AirdropType.subtitle1.toSpanStyle().copy(color = colors.iconSelected)) {
-                        append(entry.handle)
-                    }
-                },
-                style = AirdropType.subtitle1,
+                text = entry.title + entry.handle,
+                style = AirdropType.subtitle2,
+                color = colors.textDarkTitle,
             )
         }
         CopyButton(entry.handle, onCopy)

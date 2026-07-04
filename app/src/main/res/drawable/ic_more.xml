@@ -6,27 +6,27 @@
     <path
         android:pathData="M21.9356 24.5H18.8976C17.4813 24.5 16.3333 23.352 16.3333 21.9356V18.8976C16.3333 17.4813 17.4813 16.3333 18.8976 16.3333H21.9356C23.3519 16.3333 24.4999 17.4813 24.4999 18.8976V21.9356C24.4999 23.352 23.3519 24.5 21.9356 24.5Z"
         android:fillType="evenOdd"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.75"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M20.4167 3.76886V11.3872M24.2288 7.57875H16.6023"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.75"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M9.10233 11.6667H6.06433C4.648 11.6667 3.5 10.5187 3.5 9.10233V6.06433C3.5 4.648 4.648 3.5 6.06433 3.5H9.10233C10.5187 3.5 11.6667 4.648 11.6667 6.06433V9.10233C11.6667 10.5187 10.5187 11.6667 9.10233 11.6667Z"
         android:fillType="evenOdd"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.75"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M9.10233 24.5H6.06433C4.648 24.5 3.5 23.352 3.5 21.9356V18.8976C3.5 17.4813 4.648 16.3333 6.06433 16.3333H9.10233C10.5187 16.3333 11.6667 17.4813 11.6667 18.8976V21.9356C11.6667 23.352 10.5187 24.5 9.10233 24.5Z"
         android:fillType="evenOdd"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.75"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

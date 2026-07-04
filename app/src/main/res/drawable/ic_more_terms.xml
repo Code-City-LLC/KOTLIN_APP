@@ -9,13 +9,13 @@
         android:translateY="2.0011">
         <path
             android:pathData="M11.2379 0.761771H4.58493C2.50493 0.7538 0.799929 2.4118 0.750929 4.4908V15.2038C0.704929 17.3168 2.37993 19.0678 4.49293 19.1148C4.52393 19.1148 4.55393 19.1158 4.58493 19.1148H12.5739C14.6679 19.0298 16.3179 17.2998 16.303 15.2038V6.0378L11.2379 0.761771Z"
-            android:strokeColor="#FF292929"
+            android:strokeColor="@color/icon_duotone"
             android:strokeWidth="1.5"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
         <path
             android:pathData="M10.9752 0.75V3.659C10.9752 5.079 12.1232 6.23 13.5432 6.234H16.2982"
-            android:strokeColor="#FF292929"
+            android:strokeColor="@color/icon_duotone"
             android:strokeWidth="1.5"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />

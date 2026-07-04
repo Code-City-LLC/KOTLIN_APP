@@ -23,17 +23,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,17 +46,24 @@ import com.ga.airdrop.core.designsystem.components.AirdropHeader
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
-import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.model.AuctionProduct
+import com.ga.airdrop.feature.cart.CartStore
 import java.text.NumberFormat
 import java.util.Locale
 
 /**
- * Home tab — Figma "Home - Light Mode" 40000710:5347 / dark 40000710:5667.
- * Hero image (534dp, gradient fade into bg), warehouse card carousel,
- * 2x2 activity grid, Auction Highlights carousel, Refer-a-friend row.
+ * Home tab — Swift FigmaHomeViewController (Figma 40001464:28899).
+ *
+ * Geometry (FigmaHomeViewController.swift:220-276):
+ *  - hero photo layer fixed at 375x534, top of the scroll content, under a
+ *    flat black-10% scrim (:193-197) — no gradient fades;
+ *  - content stack starts at y=326, so the warehouse cards overlap the
+ *    photo's lower half and spill below its bottom edge;
+ *  - stack spacing 8; custom 20 after the activities grid and after the
+ *    auction highlights; 120pt tail clears the tab bar.
  */
 @Composable
 fun HomeScreen(
@@ -64,6 +73,9 @@ fun HomeScreen(
 {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    val header by SessionStore.header.collectAsState()
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { CartStore.init(context) }
 
     Box(Modifier.fillMaxSize().background(colors.gray200)) {
         Column(
@@ -71,72 +83,52 @@ fun HomeScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // Hero: image 534dp tall with dark gradient at bottom fading to bg.
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(534.dp)
-            ) {
-                val heroContext = androidx.compose.ui.platform.LocalContext.current
-                Image(
-                    painter = painterResource(
-                        com.ga.airdrop.feature.more.BackgroundStore.currentBackgroundRes(
-                            heroContext,
-                            colors.isDark,
-                        )
-                    ),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
+            Box {
+                // Hero photo — 534dp, aspect-fill, flat 10% black scrim
+                // (Swift :193-197). Honours the user-selected background.
                 Box(
                     Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0.79f to Color.Transparent,
-                                1f to Color(0xFF343538),
-                            )
-                        )
-                )
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .height(110.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                0.21f to Color.Transparent,
-                                0.85f to colors.gray200,
+                        .height(534.dp)
+                ) {
+                    Image(
+                        painter = painterResource(
+                            com.ga.airdrop.feature.more.BackgroundStore.currentBackgroundRes(
+                                context,
+                                colors.isDark,
                             )
-                        )
-                )
-                // Warehouse cards overlap the hero (start at y=326 of 534).
-                WarehouseCarousel(
-                    onReadMore = { type -> onNavigate("${Routes.WAREHOUSES}?type=$type") },
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(bottom = 0.dp),
-                )
-            }
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.10f))
+                    )
+                }
 
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                ActivityGrid(onNavigate)
-                AuctionHighlights(
-                    products = state.auctionHighlights,
-                    // Swift FigmaHomeViewController.swift:843 — See More on the
-                    // Auction Highlights title opens the Auction list, not Shop.
-                    onSeeMore = { onNavigate(Routes.AUCTION) },
-                    onProduct = { onNavigate(Routes.auctionProductDetails(it)) },
-                )
-                ReferAFriendCard(onClick = { onNavigate(Routes.REFER_A_FRIEND) })
-                // Clearance for the glass bottom bar — Swift FigmaHomeViewController.swift:274 (120).
-                Spacer(Modifier.height(120.dp))
+                // Content overlaps the photo from y=326 (Swift :245).
+                Column(Modifier.padding(top = 326.dp)) {
+                    WarehouseCarousel(
+                        onOpen = { type -> onNavigate("${Routes.WAREHOUSES}?type=$type") },
+                    )
+                    Spacer(Modifier.height(8.dp)) // contentStack spacing
+                    ActivityGrid(onNavigate)
+                    Spacer(Modifier.height(Spacing.md)) // custom 20 after grid
+                    AuctionHighlights(
+                        products = state.auctionHighlights,
+                        loading = state.loading,
+                        // Swift :843 — See More opens the Auction list.
+                        onSeeMore = { onNavigate(Routes.AUCTION) },
+                        onProduct = { onNavigate(Routes.auctionProductDetails(it)) },
+                    )
+                    Spacer(Modifier.height(Spacing.md)) // custom 20 after auction
+                    ReferAFriendCard(onClick = { onNavigate(Routes.REFER_A_FRIEND) })
+                    // Tail spacer clears the tab bar (Swift :274).
+                    Spacer(Modifier.height(120.dp))
+                }
             }
         }
 
@@ -145,7 +137,7 @@ fun HomeScreen(
                 .filter { it.isNotBlank() }
                 .joinToString(" "),
             tierName = state.tierName.ifBlank { " " },
-            cartCount = state.cartCount,
+            cartCount = header.cartCount,
             airCoins = state.airCoins,
             onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },
             onBellClick = { onNavigate(Routes.NOTIFICATIONS) },
@@ -156,7 +148,7 @@ fun HomeScreen(
     }
 }
 
-// ─── Warehouse cards — Figma Component 36/37/38 ───────────────────────────
+// ─── Warehouse cards — Swift makeWarehouseCard (Figma 40000770:6487) ──────
 
 private data class WarehouseCard(
     val title: String,
@@ -194,75 +186,80 @@ private val warehouseCards = listOf(
 )
 
 @Composable
-private fun WarehouseCarousel(onReadMore: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     LazyRow(
-        modifier = modifier.fillMaxWidth(),
+        // Swift: row top = scroll top + 20, leading/trailing 20, gap 10.
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = Spacing.md),
         contentPadding = PaddingValues(horizontal = Spacing.md),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(warehouseCards) { card ->
             Column(
                 modifier = Modifier
+                    // Swift: fixed 238x326 (Figma Components 36/37/38).
                     .width(238.dp)
-                    .background(colors.gray150, RoundedCornerShape(Radius.s))
-                    .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-                    .padding(horizontal = Spacing.md, vertical = Spacing.lg),
+                    .height(326.dp)
+                    .clip(RoundedCornerShape(Spacing.sm1)) // radius 15 (Figma 2xs)
+                    .background(colors.gray150)
+                    .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+                    // Swift: the WHOLE card is a tap target → WarehouseView.
+                    .clickable { onOpen(card.type) }
+                    // Swift: px 20, top pinned 30, bottom ≤ (stack bottom is a
+                    // lessThanOrEqualTo constraint — no bottom padding here so
+                    // Cairo's taller-than-nominal metrics can't clip Read More).
+                    .padding(start = Spacing.md, end = Spacing.md, top = Spacing.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                // Swift stack spacing 10 between text rows.
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+                Image(
+                    painter = painterResource(card.imageRes),
+                    contentDescription = card.title,
+                    modifier = Modifier
+                        .size(80.dp)
+                        // Swift customSpacing 30 after icon (10 base + 20 here).
+                        .padding(bottom = 0.dp),
+                    contentScale = ContentScale.Fit,
+                )
+                Spacer(Modifier.height(Spacing.md - Spacing.sm)) // icon→title 30 total
+                Text(
+                    text = card.title,
+                    style = AirdropType.h5,
+                    color = colors.textDarkTitle,
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Image(
-                        painter = painterResource(card.imageRes),
-                        contentDescription = card.title,
-                        modifier = Modifier.size(80.dp),
-                        contentScale = ContentScale.Fit,
-                    )
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        Column(Modifier.fillMaxWidth()) {
-                            Text(
-                                text = card.title,
-                                style = AirdropType.h5,
-                                color = colors.textDarkTitle,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            )
-                            Text(
-                                text = card.subtitle,
-                                style = AirdropType.subtitle1,
-                                color = colors.textDarkTitle,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            )
-                        }
-                        Text(
-                            text = card.description,
-                            style = AirdropType.body2,
-                            color = colors.textDarkTitle,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        )
-                    }
-                }
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = card.subtitle,
+                    style = AirdropType.subtitle1,
+                    color = colors.textDarkTitle,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = card.description,
+                    style = AirdropType.body2,
+                    // Swift: body uses textDescription, not the title color.
+                    color = colors.textDescription,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                )
                 Text(
                     text = "Read More",
-                    style = AirdropType.underlineLink.copy(textDecoration = TextDecoration.Underline),
-                    color = BrandPalette.OrangeMain,
-                    modifier = Modifier.clickable { onReadMore(card.type) },
+                    // Swift: Body2 underlined in orangeDark.
+                    style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
+                    color = BrandPalette.OrangeDark,
+                    modifier = Modifier.clickable { onOpen(card.type) },
                 )
             }
         }
     }
 }
 
-// ─── Activity grid — Figma Card Page 162.5dp ──────────────────────────────
+// ─── Activity grid — Swift makeActivitiesGrid (Figma 40000770:6493) ───────
 
 private data class Activity(val label: String, val iconRes: Int, val route: String)
 
@@ -274,7 +271,11 @@ private fun ActivityGrid(onNavigate: (String) -> Unit) {
         Activity("Calculator", R.drawable.ic_calculator, Routes.CALCULATOR),
         Activity("Drop Alert", R.drawable.ic_drop_alert, Routes.DROP_ALERT),
     )
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Column(
+        // Swift wrap: grid inset top 20, horizontal 20; rows gap 10.
+        modifier = Modifier.padding(start = Spacing.md, end = Spacing.md, top = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
         activities.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 row.forEach { activity ->
@@ -294,19 +295,21 @@ private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modi
     val colors = AirdropTheme.colors
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(Radius.s))
+            // Swift: fixed 108pt tile (py20 + icon 32 + gap 10 + label 26).
+            .height(108.dp)
+            .clip(RoundedCornerShape(Spacing.sm1)) // radius 15
             .background(colors.gray150)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.sm, vertical = Spacing.md),
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+            .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.Center,
     ) {
         Image(
             painter = painterResource(activity.iconRes),
             contentDescription = null,
             modifier = Modifier.size(32.dp),
         )
+        Spacer(Modifier.height(Spacing.sm))
         Text(
             text = activity.label,
             style = AirdropType.title2,
@@ -315,109 +318,209 @@ private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modi
     }
 }
 
-// ─── Auction Highlights — Figma Item Static 160dp ─────────────────────────
+// ─── Auction Highlights — Swift makeAuctionHighlights ─────────────────────
 
 @Composable
 private fun AuctionHighlights(
     products: List<AuctionProduct>,
+    loading: Boolean,
     onSeeMore: () -> Unit,
     onProduct: (String) -> Unit,
 ) {
     val colors = AirdropTheme.colors
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Column {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                // Swift: title row 335x26 inset 20; cards row 10 below.
+                .height(26.dp)
+                .padding(horizontal = Spacing.md),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                // Swift FigmaHomeViewController.swift:527 — Title1.
+                // Swift :527 — Title1.
                 text = "Auction Highlights",
                 style = AirdropType.title1,
                 color = colors.textDarkTitle,
             )
             Text(
-                // Swift FigmaHomeViewController.swift:529-534 — underlined
-                // Body2 in orangeDark.
+                // Swift :529-534 — underlined Body2 in orangeDark.
                 text = "See More",
                 style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
                 color = BrandPalette.OrangeDark,
                 modifier = Modifier.clickable(onClick = onSeeMore),
             )
         }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            items(products, key = { it.id ?: it.hashCode() }) { product ->
-                ProductHighlightCard(product = product, onClick = { onProduct(product.slug.orEmpty()) })
+        Spacer(Modifier.height(Spacing.sm))
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = Spacing.md),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            when {
+                products.isNotEmpty() -> {
+                    // Swift renders at most 4 live cards (:138).
+                    items(products.take(4), key = { it.id ?: it.hashCode() }) { product ->
+                        ProductHighlightCard(
+                            product = product,
+                            onClick = { onProduct(product.slug.orEmpty()) },
+                        )
+                    }
+                }
+                loading -> items(listOf(0, 1, 2)) { AuctionSkeletonCard() }
+                else -> items(listOf(0)) { EmptyAuctionCard() }
             }
         }
     }
 }
 
+private fun AuctionProduct.toCartLine(): CartStore.CartLine = CartStore.CartLine(
+    id = id ?: 0,
+    packageId = checkoutPackageId,
+    imageUrl = displayImageUrl,
+    title = displayTitle,
+    priceUsd = displayPriceUsd,
+)
+
 @Composable
 fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
     val colors = AirdropTheme.colors
-    // Swift FigmaHomeViewController.swift:588-598 — radius 14, 160-wide card.
-    Column(
+    val cartItems by CartStore.items.collectAsState()
+    val inCart = product.id != null && cartItems.any { it.id == product.id }
+    // Swift makeAuctionCard: fixed 160x245, radius 14, padding 8, spacing 6;
+    // photo 124 aspect-fill on gray200; title Body3 single line; price
+    // Title2 buttonStatic (textDescription when unavailable); 34pt plus
+    // button pinned bottom-trailing (-10, -16) toggling the cart.
+    Box(
         modifier = Modifier
             .width(160.dp)
+            .height(245.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(colors.gray150)
             .border(1.dp, colors.iconShape, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Swift FigmaHomeViewController.swift:665 — photo height 124.
-                .height(124.dp)
-                .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
-                .background(colors.gray150)
-                .padding(horizontal = Spacing.md, vertical = Spacing.lg),
-            contentAlignment = Alignment.Center,
-        ) {
-            AsyncImage(
-                model = product.displayImageUrl,
-                contentDescription = product.displayTitle,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit,
-            )
-        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.sm1, vertical = Spacing.sm1),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                text = product.displayTitle,
-                style = AirdropType.body2,
-                color = colors.textDarkTitle,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(124.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colors.gray200),
             ) {
-                Text(
-                    text = NumberFormat.getCurrencyInstance(Locale.US)
-                        .format(product.displayPriceUsd),
-                    style = AirdropType.title2,
-                    color = BrandPalette.OrangeMain,
-                )
-                Image(
-                    painter = painterResource(R.drawable.ic_add),
-                    contentDescription = "Add to cart",
-                    colorFilter = ColorFilter.tint(colors.iconSelected),
-                    modifier = Modifier.size(24.dp),
+                AsyncImage(
+                    model = product.displayImageUrl,
+                    contentDescription = product.displayTitle,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
                 )
             }
+            Text(
+                text = product.displayTitle,
+                style = AirdropType.body3,
+                color = colors.textDarkTitle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = NumberFormat.getCurrencyInstance(Locale.US)
+                    .format(product.displayPriceUsd),
+                style = AirdropType.title2,
+                color = if (product.isAvailable) BrandPalette.ButtonStatic else colors.textDescription,
+            )
+        }
+        // Cart toggle — Swift onTapAddToCart / updateAuctionCartButton.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 10.dp, bottom = 16.dp)
+                .size(34.dp)
+                .clickable(enabled = product.id != null) {
+                    CartStore.toggle(product.toCartLine())
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
+                contentDescription = if (inCart) "Remove from cart" else "Add to cart",
+                colorFilter = ColorFilter.tint(
+                    if (inCart) BrandPalette.OrangeMain else colors.textDarkTitle
+                ),
+                modifier = Modifier.size(24.dp),
+            )
         }
     }
 }
 
-// ─── Refer a friend — Figma Card Page 59dp row ────────────────────────────
+/** Swift makeAuctionSkeletonCard — gray blocks while products load. */
+@Composable
+private fun AuctionSkeletonCard() {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = Modifier
+            .width(160.dp)
+            .height(245.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.gray150)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(14.dp))
+            .padding(8.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(124.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.gray200)
+        )
+        Spacer(Modifier.height(12.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(end = 20.dp)
+                .height(14.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(colors.gray200)
+        )
+        Spacer(Modifier.height(14.dp))
+        Box(
+            Modifier
+                .width(74.dp)
+                .height(18.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(colors.gray200)
+        )
+    }
+}
+
+/** Swift makeEmptyAuctionCard — shown when the API returns no products. */
+@Composable
+private fun EmptyAuctionCard() {
+    val colors = AirdropTheme.colors
+    Box(
+        modifier = Modifier
+            .width(160.dp)
+            .height(245.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.gray150)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(14.dp))
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "No auction highlights",
+            style = AirdropType.body1,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+// ─── Refer a friend — Swift makeReferAFriend (Figma 40000770:6511) ────────
 
 @Composable
 private fun ReferAFriendCard(onClick: () -> Unit) {
@@ -425,23 +528,27 @@ private fun ReferAFriendCard(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // Swift: 335x59 card inset 20, padding px 20 / py 10.
+            .padding(horizontal = Spacing.md)
             .height(59.dp)
-            .clip(RoundedCornerShape(Radius.s))
+            .clip(RoundedCornerShape(Spacing.sm1)) // radius 15 (Figma 2xs)
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
             .clickable(onClick = onClick)
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            // Swift row spacing 12.
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_refer),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(colors.iconSelected),
+                // Swift: TwoUsers icon single-tone textDarkTitle.
+                colorFilter = ColorFilter.tint(colors.textDarkTitle),
                 modifier = Modifier.size(24.dp),
             )
             Text(
@@ -453,7 +560,8 @@ private fun ReferAFriendCard(onClick: () -> Unit) {
         Image(
             painter = painterResource(R.drawable.ic_small_arrow_down),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(colors.iconSelected),
+            // Swift: chevron tinted textDarkTitle, rotated -90°.
+            colorFilter = ColorFilter.tint(colors.textDarkTitle),
             modifier = Modifier
                 .size(24.dp)
                 .rotate(-90f),

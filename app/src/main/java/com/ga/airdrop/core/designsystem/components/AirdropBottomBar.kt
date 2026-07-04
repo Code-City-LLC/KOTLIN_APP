@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,18 +23,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
-import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
+import com.ga.airdrop.core.designsystem.theme.Cairo
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
- * Custom bottom nav — Figma "Nav Bar Menu" (node 40000798:6657).
- * Glass bar (white/70 light, #292929/70 dark) with hairline top border;
- * active tab = orange filled icon + Cairo SemiBold 14 label; inactive tabs
- * icon-only outlines tinted iconSelected.
+ * Custom bottom nav — Swift `FigmaBottomTabBar` (FigmaTabHeader.swift:427+).
+ *
+ * Swift places a blur under an OPAQUE gray200 overlay ("not a translucent
+ * gray layer that lets page content shift the perceived color") with a 1pt
+ * iconShape top divider. Items: 28pt icons; active = orangeMain icon +
+ * Cairo SemiBold 14 label; inactive = icon only, tinted iconSelected,
+ * vertically centered (Swift pushes inactive icons down 14pt inside the
+ * 67pt row so both states read centered).
  */
 enum class AirdropTab(val label: String) {
     Home("Home"),
@@ -53,21 +61,22 @@ fun AirdropBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.glassOverlay70)
+            // Swift: opaque gray200 surface — never a transparent wash.
+            .background(colors.gray200)
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .size(width = 0.dp, height = 1.dp)
-                .fillMaxWidth()
+                .height(1.dp)
                 .background(colors.iconShape)
         )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+                // Swift row: top 15, horizontal 20, height 67.
+                .padding(start = Spacing.md, end = Spacing.md, top = Spacing.sm1)
+                .height(58.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
         ) {
             AirdropTab.entries.forEach { tab ->
                 TabItem(
@@ -97,20 +106,30 @@ private fun TabItem(
             onClick = onClick,
         ),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        // Swift: active icon at row top (label below); inactive icon +14pt
+        // so the lone glyph reads vertically centered.
+        verticalArrangement = if (isSelected) Arrangement.Top else Arrangement.Center,
     ) {
-        val tint: Color? = if (isSelected) BrandPalette.OrangeMain else colors.iconSelected
+        val tint: Color = if (isSelected) BrandPalette.OrangeMain else colors.iconSelected
         Image(
             painter = painterResource(tab.iconRes(isSelected)),
             contentDescription = tab.label,
-            modifier = Modifier.size(if (isSelected) 24.dp else 28.dp),
-            colorFilter = tint?.let { ColorFilter.tint(it) },
+            // Swift: 28pt in both states.
+            modifier = Modifier.size(28.dp),
+            colorFilter = ColorFilter.tint(tint),
         )
         if (isSelected) {
             Text(
                 text = tab.label,
-                style = AirdropType.subtitle2,
+                // Swift: Cairo SemiBold 14, 5pt below the icon.
+                style = TextStyle(
+                    fontFamily = Cairo,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                ),
                 color = BrandPalette.OrangeMain,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
     }

@@ -24,7 +24,7 @@
         android:strokeLineJoin="round" />
     <path
         android:pathData="M4.31062 4.76692L3.46413 6.88314C3.16737 7.62551 3.01365 8.41849 3.01267 9.2173L3.00002 16.9135C2.99419 19.2856 4.07126 20.964 6.44629 20.9698L17.5547 20.9854C19.9288 20.9912 20.9805 19.3197 20.9864 16.9476L21 9.23773C21.001 8.4253 20.8453 7.61968 20.5417 6.8666L19.6933 4.76011C19.2691 3.70541 18.2455 3.0146 17.1081 3.0146H6.89775C5.7584 3.0146 4.73289 3.70833 4.31062 4.76692Z"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

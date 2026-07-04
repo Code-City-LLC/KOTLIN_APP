@@ -13,25 +13,25 @@
         android:translateY="2.667">
         <path
             android:pathData="M14.9825 1.01558H6.11319C3.33986 1.00495 1.06786 3.21429 1.00119 5.98762V20.3036C0.941191 23.1063 3.16519 25.4263 5.96652 25.4863C6.01586 25.4863 6.06519 25.4876 6.11319 25.4863H16.7639C19.5505 25.3876 21.7532 23.0916 21.7373 20.3036V8.05029L14.9825 1.01558Z"
-            android:strokeColor="#FF292929"
+            android:strokeColor="@color/icon_duotone"
             android:strokeWidth="2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
         <path
             android:pathData="M14.6335 1V4.87867C14.6335 6.772 16.1655 8.30667 18.0588 8.312H21.7308"
-            android:strokeColor="#FF292929"
+            android:strokeColor="@color/icon_duotone"
             android:strokeWidth="2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
         <path
             android:pathData="M10.8561 18.5996V10.5449"
-            android:strokeColor="#FF292929"
+            android:strokeColor="@color/icon_duotone"
             android:strokeWidth="2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
         <path
             android:pathData="M7.72852 15.4591L10.8552 18.5991L13.9819 15.4591"
-            android:strokeColor="#FF292929"
+            android:strokeColor="@color/icon_duotone"
             android:strokeWidth="2"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />

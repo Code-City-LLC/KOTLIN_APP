@@ -30,7 +30,7 @@
     <path
         android:pathData="M 5.4676 10.3836 C 5.4676 7.01622 8.19769 4.28613 11.5641 4.28613 C 14.9315 4.28613 17.6616 7.01622 17.6616 10.3836 L 17.6626 11.6076 C 17.6626 12.3314 17.8221 13.0466 18.1306 13.7023 L 18.5635 14.6218 C 19.2251 16.0277 18.1987 17.6437 16.6458 17.6437 H 6.48335 C 4.92956 17.6437 3.90407 16.0277 4.56567 14.6218 L 4.99864 13.7023 C 5.30706 13.0466 5.46662 12.3314 5.46662 11.6076 L 5.4676 10.3836 Z"
         android:fillType="evenOdd"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

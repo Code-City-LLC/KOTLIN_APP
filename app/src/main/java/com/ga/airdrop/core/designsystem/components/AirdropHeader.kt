@@ -8,21 +8,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -37,17 +39,35 @@ import com.ga.airdrop.core.designsystem.theme.Cairo
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
- * Shared tab header — Figma "Header Type".
- * [AirdropHeaderStyle.OverImage]: black/70 glass + white text (Home hero).
- * [AirdropHeaderStyle.Solid]: white/70 glass + divider + dark-title text
- * (Shipments/Shop/Help/More), tier label in gradient gold.
+ * Shared tab header — Swift `FigmaTabHeader` (Figma node 40000817:8974).
+ *
+ * Swift renders BOTH styles on an OPAQUE gray200 surface ("use an opaque
+ * semantic surface so the dark header does not become a loose transparent
+ * wash over content" — FigmaTabHeader.swift:117-123). The only difference:
+ *  - [AirdropHeaderStyle.OverImage] (Home hero): no bottom divider.
+ *  - [AirdropHeaderStyle.Solid] (Shipments/Shop/Help/More): 1dp divider.
+ *
+ * Greeting = subtitle2 textDarkTitle; tier = subtitle2 in the tier's accent
+ * color with a 14pt chevron tinted the same (FigmaTabHeader.swift:355-371);
+ * bell/cart = 24pt iconSelected; AirCoin pill = subtitle1 value + 28x24 coin.
  */
 enum class AirdropHeaderStyle { OverImage, Solid }
 
-private val TierGoldGradient = Brush.verticalGradient(
-    0.47f to Color(0xFFEFBF04),
-    1.0f to Color(0xFF8C6F01),
-)
+/**
+ * Tier accent colors — Swift FigmaTabHeader.tierAccentColor (lines 385-398).
+ * Gold uses the Figma literal; others use the light/visible end of RN's
+ * gradient pairs for legibility.
+ */
+private fun tierAccentColor(name: String): Color = when (name) {
+    "Inactive" -> Color(0xFFF1A88C)
+    "Ruby Starter" -> Color(0xFFD2554D)
+    "Sapphire Saver" -> Color(0xFF40C4FF)
+    "Gold Standard" -> Color(0xFFC19A02)
+    "Platinum Priority", "Platinum Standard" -> Color(0xFFCACACA)
+    "Diamond Elite", "Diamond Standard" -> Color(0xFFB8B8B8)
+    "Corporate" -> Color(0xFF877CE5)
+    else -> Color(0xFFC19A02)
+}
 
 @Composable
 fun AirdropHeader(
@@ -63,89 +83,78 @@ fun AirdropHeader(
     modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
-    val overImage = style == AirdropHeaderStyle.OverImage
-    val background = if (overImage) Color(0xB3292929) else colors.glassOverlay70
-    val contentColor = if (overImage) BrandPalette.White else colors.textDarkTitle
-    val iconTint = if (overImage) BrandPalette.White else colors.iconSelected
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(background)
+            .background(colors.gray200)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(62.dp)
-                .padding(horizontal = Spacing.md, vertical = 4.dp),
+                // Swift: greeting top 2, tier +2 below, bottom breathing -4
+                // inside the 106pt header (47pt content under the safe area).
+                .padding(start = Spacing.md, end = 16.dp, top = 2.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
                     text = greeting,
                     style = AirdropType.subtitle2,
-                    color = contentColor,
+                    color = colors.textDarkTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (tierName.isNotBlank()) {
+                    val accent = tierAccentColor(tierName)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                         modifier = Modifier.clickable(onClick = onTierClick),
                     ) {
-                        if (overImage) {
-                            Text(
-                                text = tierName,
-                                style = AirdropType.subtitle2.copy(lineHeight = 22.sp),
-                                color = Color(0xFFC19A02),
-                            )
-                        } else {
-                            Text(
-                                text = tierName,
-                                style = AirdropType.subtitle3.copy(brush = TierGoldGradient),
-                            )
-                        }
+                        Text(
+                            text = tierName,
+                            style = AirdropType.subtitle2.copy(lineHeight = 22.sp),
+                            color = accent,
+                        )
                         Image(
                             painter = painterResource(R.drawable.ic_small_arrow_down),
                             contentDescription = null,
-                            colorFilter = ColorFilter.tint(
-                                if (overImage) BrandPalette.White else colors.iconSelected
-                            ),
-                            modifier = Modifier.size(20.dp),
+                            // Swift: 14pt chevron tinted to the tier accent.
+                            colorFilter = ColorFilter.tint(accent),
+                            modifier = Modifier.size(14.dp),
                         )
                     }
                 }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painter = painterResource(R.drawable.ic_header_bell),
                     contentDescription = "Notifications",
-                    colorFilter = ColorFilter.tint(iconTint),
+                    colorFilter = ColorFilter.tint(colors.iconSelected),
                     modifier = Modifier
                         .size(24.dp)
                         .clickable(onClick = onBellClick),
                 )
-                Box {
+                Box(Modifier.padding(start = 14.dp)) {
                     Image(
                         painter = painterResource(R.drawable.ic_header_cart),
                         contentDescription = "Cart",
-                        colorFilter = ColorFilter.tint(iconTint),
+                        colorFilter = ColorFilter.tint(colors.iconSelected),
                         modifier = Modifier
                             .size(24.dp)
                             .clickable(onClick = onCartClick),
                     )
                     if (cartCount > 0) {
+                        // Swift cartBadgeLabel: 18pt circle, top -2 / end +6,
+                        // bold 10, white on orangeMain.
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .offset(x = 8.dp, y = (-3).dp)
-                                .background(BrandPalette.OrangeMain, RoundedCornerShape(40.dp))
-                                .padding(horizontal = Spacing.xs),
+                                .offset(x = 6.dp, y = (-2).dp)
+                                .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+                                .background(BrandPalette.OrangeMain, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -153,7 +162,7 @@ fun AirdropHeader(
                                 style = TextStyle(
                                     fontFamily = Cairo,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 9.sp,
+                                    fontSize = 10.sp,
                                     lineHeight = 12.sp,
                                 ),
                                 color = BrandPalette.White,
@@ -164,28 +173,35 @@ fun AirdropHeader(
                 if (airCoins.isNotEmpty()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable(onClick = onAirCoinsClick),
+                        modifier = Modifier
+                            .padding(start = 16.dp)
+                            .clickable(onClick = onAirCoinsClick),
                     ) {
                         Text(
                             text = airCoins,
                             style = AirdropType.subtitle1,
-                            color = contentColor,
+                            color = colors.textDarkTitle,
                         )
+                        // RN AirCoinButton: Coins.png at 28x24, 4dp gap.
                         Image(
                             painter = painterResource(R.drawable.img_coin_stack),
                             contentDescription = "AirCoins",
-                            modifier = Modifier.size(24.dp),
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .width(28.dp)
+                                .height(24.dp),
                         )
                     }
                 }
             }
         }
-        if (!overImage) {
+        if (style == AirdropHeaderStyle.Solid) {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(colors.divider)
+                    .background(colors.iconShape)
             )
         }
     }

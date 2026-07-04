@@ -71,27 +71,33 @@ fun ShipmentsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(Modifier.height(ShipmentsHeaderClearance))
+            // Swift: first content at y=126 (header 106 + 20).
+            Spacer(Modifier.height(126.dp))
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                Modifier.fillMaxWidth(),
+                // Swift contentStack spacing 24 between sections.
+                verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 SummarySection(state = state, onNavigate = onNavigate)
 
-                // Packages preview
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    SectionHeaderRow(
-                        title = "Packages",
-                        actionText = "View More",
-                        onAction = { onNavigate(Routes.PACKAGES) },
-                    )
+                // Packages preview — horizontal cards scroll edge-to-edge
+                // with 20 content padding (Swift scroll full-bleed).
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.padding(horizontal = Spacing.md)) {
+                        SectionHeaderRow(
+                            title = "Packages",
+                            actionText = "View More",
+                            onAction = { onNavigate(Routes.PACKAGES) },
+                        )
+                    }
                     if (state.packages.isEmpty()) {
                         if (state.loading) ShipmentsLoadingIndicator()
                         else ShipmentsEmptyLabel("No packages found")
                     } else {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            contentPadding = PaddingValues(horizontal = Spacing.md),
+                        ) {
                             items(state.packages, key = { it.id }) { pkg ->
                                 PackageCard(
                                     pkg = pkg,
@@ -99,15 +105,19 @@ fun ShipmentsScreen(
                                     onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
                                     onToggleCart = { viewModel.toggleCart(pkg.id) },
                                     inCart = ShipmentsCartStore.contains(pkg.id),
-                                    modifier = Modifier.width(281.dp),
+                                    // Swift: 280-wide fixed cards.
+                                    modifier = Modifier.width(280.dp),
                                 )
                             }
                         }
                     }
                 }
 
-                // Payments preview
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                // Payments preview — Swift stack spacing 12, inset 20.
+                Column(
+                    Modifier.padding(horizontal = Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     SectionHeaderRow(
                         title = "Payments",
                         actionText = "View More",
@@ -117,7 +127,7 @@ fun ShipmentsScreen(
                         if (state.loading) ShipmentsLoadingIndicator()
                         else ShipmentsEmptyLabel("No payments found")
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             state.payments.forEach { payment ->
                                 PaymentCard(
                                     payment = payment,
@@ -129,34 +139,36 @@ fun ShipmentsScreen(
                     }
                 }
 
-                // Orders preview
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    SectionHeaderRow(
-                        title = "Orders",
-                        actionText = "View More",
-                        onAction = { onNavigate(Routes.ORDERS) },
-                    )
+                // Orders preview — horizontal cards, full-bleed scroll.
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.padding(horizontal = Spacing.md)) {
+                        SectionHeaderRow(
+                            title = "Orders",
+                            actionText = "View More",
+                            onAction = { onNavigate(Routes.ORDERS) },
+                        )
+                    }
                     if (state.orders.isEmpty()) {
                         if (state.loading) ShipmentsLoadingIndicator()
-                        else NoOrdersCard()
+                        else Box(Modifier.padding(horizontal = Spacing.md)) { NoOrdersCard() }
                     } else {
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                            contentPadding = PaddingValues(0.dp),
+                            contentPadding = PaddingValues(horizontal = Spacing.md),
                         ) {
                             items(state.orders, key = { it.id }) { order ->
                                 OrderCard(
                                     order = order,
                                     onClick = { onNavigate(Routes.orderDetails(order.id.toString())) },
-                                    modifier = Modifier.width(281.dp),
+                                    modifier = Modifier.width(280.dp),
                                 )
                             }
                         }
                     }
                 }
 
-                // Clearance for the glass bottom bar.
-                Spacer(Modifier.height(90.dp))
+                // Tail clears the tab bar (Swift :169-171 — 130).
+                Spacer(Modifier.height(130.dp))
             }
         }
 
@@ -190,21 +202,28 @@ private fun SummarySection(state: ShipmentsUiState, onNavigate: (String) -> Unit
         SummaryTile("Payments", R.drawable.ic_payments, Routes.PAYMENTS) to state.summary.totalPayments,
         SummaryTile("Orders", R.drawable.ic_orders, Routes.ORDERS) to state.summary.totalOrders,
     )
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Column(
+        Modifier.padding(horizontal = Spacing.md),
+        // Swift: header → grid gap 12, grid rows gap 10.
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
+            // Swift makeSectionHeader — Title1 (Bold 18).
             text = "Shipments Summary",
-            style = AirdropType.title2,
+            style = AirdropType.title1,
             color = colors.textDarkTitle,
         )
-        tiles.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                row.forEach { (tile, count) ->
-                    SummaryTileCard(
-                        tile = tile,
-                        count = count,
-                        onClick = { onNavigate(tile.route) },
-                        modifier = Modifier.weight(1f),
-                    )
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            tiles.chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    row.forEach { (tile, count) ->
+                        SummaryTileCard(
+                            tile = tile,
+                            count = count,
+                            onClick = { onNavigate(tile.route) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -219,24 +238,28 @@ private fun SummaryTileCard(
     modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
-    Column(
+    // Swift makeStatTile: gray150 card, 93pt tall, radius 15, icon 22 +
+    // subtitle2 title at top (12/14 inset), h5 value pinned bottom-left.
+    Box(
         modifier = modifier
+            .height(93.dp)
             .clip(RoundedCornerShape(Radius.s))
-            .background(colors.gray100)
+            .background(colors.gray150)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            .padding(horizontal = 12.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 14.dp),
         ) {
             Image(
                 painter = painterResource(tile.iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(22.dp),
             )
             Text(
                 text = tile.label,
@@ -246,10 +269,12 @@ private fun SummaryTileCard(
             )
         }
         Text(
-            text = count?.toString() ?: "—",
+            text = count?.toString() ?: "0",
             style = AirdropType.h5,
             color = colors.textDarkTitle,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(bottom = 4.dp),
         )
     }
 }
@@ -257,23 +282,17 @@ private fun SummaryTileCard(
 @Composable
 private fun NoOrdersCard() {
     val colors = AirdropTheme.colors
-    Column(
+    // Swift makeEmptyOrdersCard: 280x120 gray100 card, centered Body1.
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
+            .width(280.dp)
+            .height(120.dp)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(Spacing.lg),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            .padding(horizontal = Spacing.md),
+        contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_shop),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(colors.gray400),
-            modifier = Modifier.size(40.dp),
-        )
-        // Swift FigmaShipmentsViewController.swift:830-832 — Body1.
         Text(text = "No orders", style = AirdropType.body1, color = colors.textDescription)
     }
 }

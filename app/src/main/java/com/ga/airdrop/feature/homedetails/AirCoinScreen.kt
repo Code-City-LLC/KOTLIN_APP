@@ -69,7 +69,8 @@ fun AirCoinBalanceScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(colors.gray150)
+            // Swift: view bg gray100 under the full-screen AirCoin art.
+            .background(colors.gray100)
     ) {
         Image(
             painter = painterResource(R.drawable.img_homedet_aircoin_bg),
@@ -82,7 +83,8 @@ fun AirCoinBalanceScreen(
             HomeDetailsHeader(
                 title = "AirCoin Balance",
                 onBack = onBack,
-                containerColor = colors.glassOverlay70,
+                // Swift makeHeader: OPAQUE gray100 (not a translucent wash).
+                containerColor = colors.gray100,
                 trailingIconRes = R.drawable.ic_document_list,
                 trailingContentDescription = "AirCoin history",
                 onTrailingClick = onOpenHistory,
@@ -165,17 +167,19 @@ private fun ConversionPill(text: String, modifier: Modifier = Modifier) {
 @Composable
 private fun StatsCard(accumulated: Int, redeemed: Int, available: Int) {
     val colors = AirdropTheme.colors
+    // Swift makeStatsCard: rows 64pt with full-width 1pt iconShape dividers
+    // between (stack spacing 0, rows carry their own 16pt side insets).
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
     ) {
         StatRow(R.drawable.img_homedet_wallet_2, "Accumulated AirCoin", accumulated)
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
         StatRow(R.drawable.img_homedet_wallet_3, "Redeemed AirCoin", redeemed)
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
         StatRow(R.drawable.img_homedet_wallet_4, "Available AirCoin", available)
     }
 }
@@ -184,12 +188,17 @@ private fun StatsCard(accumulated: Int, redeemed: Int, available: Int) {
 private fun StatRow(iconRes: Int, label: String, amount: Int) {
     val colors = AirdropTheme.colors
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier
+            .fillMaxWidth()
+            // Swift makeStatRow: 64pt row, img 40 at leading 16, label +12,
+            // amount trailing -16.
+            .height(64.dp)
+            .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(
@@ -216,25 +225,26 @@ private fun StatRow(iconRes: Int, label: String, amount: Int) {
 @Composable
 private fun TipCard() {
     val colors = AirdropTheme.colors
+    // Swift makeTipCard: 40pt icon at leading 16, Body2 label with 16pt
+    // vertical padding — card height wraps the label.
     Row(
         Modifier
             .fillMaxWidth()
-            .height(82.dp)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
             painter = painterResource(R.drawable.img_homedet_wallet_1),
             contentDescription = null,
-            modifier = Modifier.size(50.dp),
+            modifier = Modifier.size(40.dp),
         )
         Text(
             text = "Earn 0.5 AirCoin for each package collected at the counter.",
-            style = AirdropType.subtitle2,
+            style = AirdropType.body2,
             color = colors.textDarkTitle,
             modifier = Modifier.weight(1f),
         )
@@ -266,20 +276,16 @@ fun AirCoinHistoryDetailScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(colors.gray150)
+            // Swift FigmaAirCoinTransactionsViewController: plain gray100
+            // page — no full-screen coin art on the ledger (Figma
+            // 40006461:26563 shows only the hero illustration up top).
+            .background(colors.gray100)
     ) {
-        Image(
-            painter = painterResource(R.drawable.img_homedet_aircoin_bg),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-
         Column(Modifier.fillMaxSize()) {
             HomeDetailsHeader(
                 title = "History",
                 onBack = onBack,
-                containerColor = colors.glassOverlay70,
+                containerColor = colors.gray100,
             )
 
             LazyColumn(

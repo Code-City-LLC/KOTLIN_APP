@@ -5,7 +5,7 @@
     android:viewportHeight="24">
     <path
         android:pathData="M 7.95 20.037 a 1.016 1.016 0 0 0 -.698 -.092 c -.81 .191 -2.118 .517 -3.07 .756 a .744 .744 0 0 1 -.908 -.888 c .237 -1.025 .565 -2.452 .72 -3.165 c .049 -.222 .019 -.45 -.077 -.656 C 3.347 14.772 3 13.42 3 12 c 0 -5.512 5.021 -9.907 10.715 -8.839 c 3.578 .671 6.453 3.547 7.124 7.124 C 21.907 15.979 17.512 21 11.999 21 c -1.409 0 -2.818 -.34 -4.05 -.963 z"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

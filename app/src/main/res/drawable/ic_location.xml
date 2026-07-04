@@ -5,13 +5,13 @@
     android:viewportHeight="24">
     <path
         android:pathData="M 6.32 8.677 c 0 4.039 4.768 7.9 5.676 7.9 c .91 0 5.677 -3.861 5.677 -7.9 a 5.677 5.677 0 0 0 -11.354 0 z"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M 13.89 8.63 a 1.893 1.893 0 1 0 -3.785 .001 a 1.893 1.893 0 0 0 3.785 0 z"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

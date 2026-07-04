@@ -5,19 +5,19 @@
     android:viewportHeight="24">
     <path
         android:pathData="M17.9177 5.32617L5.98438 17.2597"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M7.97602 3.02672L7.98832 3.0564M3.09629 7.9221L3.12173 7.93263M14.8776 3.05981L14.9024 3M3.11619 14.8365L3.07031 14.8556"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M15.0201 7.78526C13.0851 5.85034 9.94793 5.85034 8.01369 7.78458C6.07877 9.7195 6.07877 12.8567 8.01369 14.7916"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

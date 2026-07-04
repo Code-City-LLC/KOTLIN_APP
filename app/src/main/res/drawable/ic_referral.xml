@@ -19,25 +19,25 @@
         android:strokeLineJoin="round" />
     <path
         android:pathData="M6.18425 13.4258H6.17612C4.45186 13.6942 3.24609 14.3215 3.24609 15.5862C3.24609 16.2389 3.57041 16.7228 4.12449 17.0736"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M19.1172 13.4258H19.1253C20.8496 13.6942 22.0553 14.3215 22.0553 15.5862C22.0553 16.2389 21.731 16.7228 21.1769 17.0736"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M18.8075 10.4081C20.0813 9.93131 20.8164 8.56288 20.4717 7.21478C20.1932 6.12492 19.2894 5.3614 18.2422 5.21094"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M6.49327 10.4081C5.21939 9.93131 4.48435 8.56288 4.82899 7.21478C5.10756 6.12492 6.01137 5.3614 7.05854 5.21094"
-        android:strokeColor="#FF292929"
+        android:strokeColor="@color/icon_duotone"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

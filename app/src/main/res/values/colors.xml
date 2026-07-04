@@ -2,4 +2,10 @@
 <resources>
     <!-- gray200 light — DesignTokens background -->
     <color name="window_background">#F5F5F5</color>
+    <!-- Duotone icon "dark" tone — DesignTokens iconSelected/textDarkTitle.
+         Night override flips this to white so untinted duotone vector icons
+         stay visible on dark surfaces (Swift FigmaIcons resolve the same
+         token dynamically at render time). Tinted usages are unaffected —
+         ColorFilter overrides the fill. -->
+    <color name="icon_duotone">#FF292929</color>
 </resources>
