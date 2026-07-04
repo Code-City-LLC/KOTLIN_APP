@@ -55,12 +55,12 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         arguments = listOf(navArgument("userId") { type = NavType.StringType }),
     ) { entry ->
         val userId = entry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+        // Swift FigmaAuthorizedUserDetailViewController.swift:146-148 — the
+        // detail surface is read-only (Activate/Deactivate + Delete only); no
+        // Edit affordance. Matches RN; no iOS-only edit button.
         AuthorizedUserDetailScreen(
             userId = userId,
             onBack = { navController.popBackStack() },
-            onEdit = { id ->
-                navController.navigate(Routes.addAuthorizedUser(id.toString()))
-            },
         )
     }
 
@@ -113,9 +113,10 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         AccountDeletionReasonScreen(
             onBack = { navController.popBackStack() },
             onDeleted = {
-                // Mirrors Swift completeDeactivation: local state already
-                // cleared by the ViewModel; reset the stack to auth landing.
-                navController.navigate(Routes.AUTH_LANDING) {
+                // Swift FigmaAccountDeletionReasonViewController.swift:422 —
+                // completeDeactivation root-swaps to FigmaLoginViewController
+                // (Login form), exactly like logout.
+                navController.navigate(Routes.LOGIN) {
                     popUpTo(0) { inclusive = true }
                 }
             },

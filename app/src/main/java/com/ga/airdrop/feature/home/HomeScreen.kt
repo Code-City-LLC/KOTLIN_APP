@@ -129,7 +129,9 @@ fun HomeScreen(
                 ActivityGrid(onNavigate)
                 AuctionHighlights(
                     products = state.auctionHighlights,
-                    onSeeMore = { onNavigate(Routes.SHOP) },
+                    // Swift FigmaHomeViewController.swift:843 — See More on the
+                    // Auction Highlights title opens the Auction list, not Shop.
+                    onSeeMore = { onNavigate(Routes.AUCTION) },
                     onProduct = { onNavigate(Routes.auctionProductDetails(it)) },
                 )
                 ReferAFriendCard(onClick = { onNavigate(Routes.REFER_A_FRIEND) })

@@ -68,8 +68,14 @@ fun SignUpScreen(
     var pickerFor by remember { mutableStateOf<String?>(null) }
     var showCustomsText by remember { mutableStateOf(false) }
 
+    // Swift SignUpViewController.swift:510-523 — on success show a success
+    // alert, then pop back to Login when the user taps OK.
     if (state.registered) {
-        LaunchedEffect(Unit) { onRegistered() }
+        AuthAlertDialog(
+            title = "Registration Successful",
+            message = "Your account has been created. Please log in to continue.",
+            onDismiss = onRegistered,
+        )
     }
 
     Column(

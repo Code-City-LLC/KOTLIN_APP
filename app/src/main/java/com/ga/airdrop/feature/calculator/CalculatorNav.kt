@@ -36,10 +36,14 @@ fun NavGraphBuilder.calculatorGraph(navController: NavHostController) {
     composable(Routes.CALCULATOR_RESULTS) { entry ->
         val parentEntry = remember(entry) { navController.getBackStackEntry(Routes.CALCULATOR) }
         val viewModel: CalculatorViewModel = viewModel(parentEntry)
+        // Swift results VC footer has only Drop Alert + Make Payment; the
+        // disclaimer "Click the link" is a dead label (no Government Charges
+        // navigation). The GOVERNMENT_CHARGES destination below is kept
+        // registered for the Figma page (40001817:20681) but is no longer
+        // reached from the results flow, matching Swift.
         CalculatorResultsScreen(
             viewModel = viewModel,
             onBack = { navController.popBackStack() },
-            onGovernmentCharges = { navController.navigate(CALCULATOR_GOVERNMENT_CHARGES) },
             onDropAlert = { navController.navigate(Routes.DROP_ALERT) },
             onMakePayment = { navController.navigate(Routes.CART) },
         )

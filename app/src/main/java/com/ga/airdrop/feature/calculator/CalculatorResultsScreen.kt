@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,14 +52,14 @@ import kotlin.math.abs
  * Calculator Results — Figma 40001817:19439 (Standard) / 40001817:20391
  * (Express) / 40001817:20537 (SeaDrop). Behavior from
  * FigmaCalculatorResultsViewController; the CIF info button opens the
- * Figma "CIF Value" bottom sheet (40001817:20191) and the disclaimer link
- * opens the Government Charges screen (40001817:20681).
+ * Figma "CIF Value" bottom sheet (40001817:20191). The disclaimer's
+ * "Click the link" span is decorative/non-interactive, matching Swift
+ * (which ships no Government Charges screen).
  */
 @Composable
 fun CalculatorResultsScreen(
     viewModel: CalculatorViewModel,
     onBack: () -> Unit,
-    onGovernmentCharges: () -> Unit,
     onDropAlert: () -> Unit,
     onMakePayment: () -> Unit,
 ) {
@@ -130,7 +129,7 @@ fun CalculatorResultsScreen(
                 TotalPill(label = "Total with Duty", amount = charges.totalWithDuty)
             }
 
-            DisclaimerCard(onLinkClick = onGovernmentCharges)
+            DisclaimerCard()
         }
 
         // Footer — Swift buildFooter: Drop Alert (outline) + Make Payment.
@@ -322,17 +321,18 @@ internal fun TotalPill(label: String, amount: Double) {
 }
 
 /**
- * Blue disclaimer — Figma 40001817:19548; "Click the link" opens the
- * Government Charges estimate (customs duties/taxes).
+ * Blue disclaimer — Swift FigmaCalculatorResultsViewController.swift:650-705:
+ * "Click the link" is DECORATIVE attributed text on a plain label with NO tap
+ * gesture and no navigation (Swift ships no Government Charges screen). The
+ * span is styled but non-interactive to match Swift's flow.
  */
 @Composable
-private fun DisclaimerCard(onLinkClick: () -> Unit) {
+private fun DisclaimerCard() {
     val colors = AirdropTheme.colors
     BlueInfoCard(
         text = {
             val text = buildAnnotatedString {
                 append("The price indicated above is an estimate and does not include customs duties or taxes. ")
-                pushStringAnnotation(tag = "link", annotation = "governmentCharges")
                 withStyle(
                     SpanStyle(
                         color = BrandPalette.OrangeMain,
@@ -342,15 +342,11 @@ private fun DisclaimerCard(onLinkClick: () -> Unit) {
                 ) {
                     append("Click the link")
                 }
-                pop()
                 append(" to get an estimate of these additional charges.")
             }
-            ClickableText(
+            Text(
                 text = text,
                 style = AirdropType.body2.copy(color = colors.textDarkTitle),
-                onClick = { offset ->
-                    text.getStringAnnotations("link", offset, offset).firstOrNull()?.let { onLinkClick() }
-                },
             )
         },
     )

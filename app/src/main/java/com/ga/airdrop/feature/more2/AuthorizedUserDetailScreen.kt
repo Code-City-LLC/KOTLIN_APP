@@ -1,7 +1,6 @@
 package com.ga.airdrop.feature.more2
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,20 +29,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
  * Authorized User Detail — Figma node 40001185:5345, behavior from
- * FigmaAuthorizedUserDetailViewController: read-only detail card,
- * Activate/Deactivate + Delete CTAs, plus the EDIT header affordance the
- * Swift app never wired (opens the Add form in edit mode).
+ * FigmaAuthorizedUserDetailViewController:146-148 — the surface is READ-ONLY
+ * (Activate/Deactivate + Delete only). Swift/RN deliberately expose no Edit
+ * affordance, so Android renders none either.
  */
 @Composable
 fun AuthorizedUserDetailScreen(
     userId: Int,
     onBack: () -> Unit,
-    onEdit: (Int) -> Unit,
     viewModel: AuthorizedUserDetailViewModel = viewModel(
         factory = detailFactory(userId),
         key = "authorizedUserDetail_$userId",
@@ -57,7 +54,6 @@ fun AuthorizedUserDetailScreen(
         if (state.deleted) onBack()
     }
 
-    // Refetch when coming back from the edit form.
     LaunchedEffect(Unit) { viewModel.load() }
 
     Column(
@@ -68,16 +64,6 @@ fun AuthorizedUserDetailScreen(
         More2InnerHeader(
             title = "User Details",
             onBack = onBack,
-            rightContent = if (state.user != null) {
-                {
-                    Text(
-                        text = "Edit",
-                        style = AirdropType.subtitle2,
-                        color = BrandPalette.OrangeMain,
-                        modifier = Modifier.clickable { onEdit(userId) },
-                    )
-                }
-            } else null,
         )
 
         Box(Modifier.weight(1f)) {

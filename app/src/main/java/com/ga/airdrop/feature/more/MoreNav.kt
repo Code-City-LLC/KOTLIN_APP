@@ -33,15 +33,11 @@ fun NavGraphBuilder.moreGraph(navController: NavHostController) {
         SettingsScreen(
             onBack = { navController.popBackStack() },
             onNavigate = { navController.navigate(it) },
+            // Swift FigmaSpecificPages.swift:1737 — logout root-swaps the
+            // window to FigmaLoginViewController (the Login form), stack reset.
             onLoggedOut = {
-                navController.navigate(Routes.AUTH_LANDING) {
+                navController.navigate(Routes.LOGIN) {
                     popUpTo(0) { inclusive = true }
-                }
-            },
-            onBackToHome = {
-                navController.navigate(Routes.HOME) {
-                    popUpTo(Routes.HOME) { inclusive = false }
-                    launchSingleTop = true
                 }
             },
         )

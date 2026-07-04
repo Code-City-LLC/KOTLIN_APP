@@ -19,7 +19,6 @@ fun NavGraphBuilder.dropAlertGraph(navController: NavHostController) {
         DropAlertScreen(
             viewModel = viewModel,
             onBack = { navController.popBackStack() },
-            onNavigate = { route -> navController.navigate(route) },
         )
     }
 }

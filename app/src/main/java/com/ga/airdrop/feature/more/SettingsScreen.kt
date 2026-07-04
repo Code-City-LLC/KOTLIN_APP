@@ -54,7 +54,6 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onNavigate: (String) -> Unit,
     onLoggedOut: () -> Unit,
-    onBackToHome: () -> Unit,
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
@@ -141,13 +140,9 @@ fun SettingsScreen(
         )
     }
     if (state.cacheCleared) {
-        CacheClearedSheet(
-            onBackToHome = {
-                viewModel.dismissCacheCleared()
-                onBackToHome()
-            },
-            onDismiss = viewModel::dismissCacheCleared,
-        )
+        // Swift FigmaSpecificPages.swift:1430-1444 — clearing cache shows an
+        // OK-only confirmation and stays on Settings (no navigation home).
+        CacheClearedSheet(onDismiss = viewModel::dismissCacheCleared)
     }
 }
 
@@ -159,7 +154,6 @@ fun SettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CacheClearedSheet(
-    onBackToHome: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
@@ -225,8 +219,8 @@ private fun CacheClearedSheet(
                     .background(colors.divider),
             )
             OutlineButton(
-                text = "Back to Home",
-                onClick = onBackToHome,
+                text = "OK",
+                onClick = onDismiss,
                 modifier = Modifier.padding(Spacing.md),
             )
         }

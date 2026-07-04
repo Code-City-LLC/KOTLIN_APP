@@ -59,7 +59,6 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
-import com.ga.airdrop.core.navigation.Routes
 // Shared form chrome from the sibling calculator feature (same owner) —
 // Figma Type Input Field, select field, blue info card, inner header.
 import com.ga.airdrop.feature.calculator.BlueInfoCard
@@ -82,7 +81,6 @@ import java.util.Locale
 fun DropAlertScreen(
     viewModel: DropAlertViewModel,
     onBack: () -> Unit,
-    onNavigate: (String) -> Unit,
 ) {
     val colors = AirdropTheme.colors
     val context = LocalContext.current
@@ -169,7 +167,7 @@ fun DropAlertScreen(
                 trailing = { DollarTrailing() },
             )
 
-            InsuranceInfoCard(onSeeDetails = { onNavigate(Routes.TERMS) })
+            InsuranceInfoCard()
 
             // Not in the Figma frame, but required by the API
             // (package_store) — Swift/RN both collect it. See report.
@@ -271,10 +269,15 @@ fun DropAlertScreen(
     }
 }
 
-/** Insurance note with the tappable "See details" link → Terms & Conditions. */
+/**
+ * Insurance note — Swift FigmaDropAlertViewController.swift:613-619: tapping
+ * "See details" shows an in-place "Terms and Conditions" alert, NOT a push to
+ * the full Terms screen.
+ */
 @Composable
-private fun InsuranceInfoCard(onSeeDetails: () -> Unit) {
+private fun InsuranceInfoCard() {
     val colors = AirdropTheme.colors
+    var showTerms by remember { mutableStateOf(false) }
     BlueInfoCard(
         text = {
             val text = buildAnnotatedString {
@@ -294,11 +297,19 @@ private fun InsuranceInfoCard(onSeeDetails: () -> Unit) {
                 text = text,
                 style = AirdropType.body2.copy(color = colors.textDarkTitle),
                 onClick = { offset ->
-                    text.getStringAnnotations("link", offset, offset).firstOrNull()?.let { onSeeDetails() }
+                    text.getStringAnnotations("link", offset, offset).firstOrNull()?.let { showTerms = true }
                 },
             )
         },
     )
+    if (showTerms) {
+        SimpleAlertDialog(
+            title = "Terms and Conditions",
+            message = "Your package is insured for the value entered. Coverage is " +
+                "subject to our terms and conditions.",
+            onDismiss = { showTerms = false },
+        )
+    }
 }
 
 @Composable
