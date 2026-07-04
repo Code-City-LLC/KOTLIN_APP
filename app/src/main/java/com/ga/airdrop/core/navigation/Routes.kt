@@ -7,6 +7,7 @@ package com.ga.airdrop.core.navigation
  */
 object Routes {
     // Auth
+    const val AUTH_LANDING = "authLanding"
     const val LOGIN = "login"
     const val SIGN_UP = "signUp"
     const val FORGOT_PASSWORD = "forgotPassword"

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Figma: Nav Bar Menu > Shipment (outline), node 40000770:4755 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <path
+        android:pathData="M8.2279,17.8102C9.4629,17.8102 10.464,18.8113 10.464,20.0464C10.464,21.2813 9.4629,22.2825 8.2279,22.2825C6.9929,22.2825 5.9917,21.2813 5.9917,20.0464C5.9917,18.8113 6.9929,17.8102 8.2279,17.8102Z"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M18.8977,17.8099C20.1326,17.8099 21.1339,18.8111 21.1339,20.046C21.1339,21.281 20.1326,22.2822 18.8977,22.2822C17.6627,22.2822 16.6615,21.281 16.6615,20.046C16.6615,18.8111 17.6627,17.8099 18.8977,17.8099Z"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M10.4658,20.0458H16.6618"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M18.8963,17.8103L18.8966,8.1434C18.8966,6.804 17.8103,5.7177 16.4709,5.7177H5.8894C4.5704,5.7177 3.5,6.787 3.5,8.1071V17.6216C3.5,18.961 4.5863,20.0473 5.9257,20.0473"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M8.7044,12.4101L10.4332,14.1377L13.6932,10.8765"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M21.1321,20.0462L22.074,20.0465C23.4133,20.0465 24.4996,18.9602 24.4996,17.6207V13.6036C24.4996,12.5117 23.8549,11.5218 22.856,11.0814L18.8968,9.3345"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M21.6973,14.479H24.4987"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

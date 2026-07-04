@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Figma: Small Arrow - Down 2 (7x4.13 glyph centered in a 20x20 frame,
+     insets 41.67%/31.66%/37.66%/33.33%), node 40000770:7405 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <group
+        android:translateX="6.667"
+        android:translateY="8.333">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M3.5011,4.1344C3.3354,4.1343 3.1765,4.0683 3.0594,3.9511L0.1677,1.0511C0.0573,0.9326 -0.0028,0.7759 0.0001,0.614C0.003,0.452 0.0686,0.2976 0.1831,0.183C0.2976,0.0685 0.4521,0.003 0.614,0.0001C0.7759,-0.0028 0.9326,0.0573 1.0511,0.1677L3.5011,2.6677L5.951,0.1677C6.0695,0.0573 6.2262,-0.0028 6.3881,0.0001C6.5501,0.003 6.7045,0.0685 6.8191,0.183C6.9336,0.2976 6.9992,0.452 7.002,0.614C7.0049,0.7759 6.9448,0.9326 6.8344,1.0511L3.9428,3.9594C3.8243,4.0736 3.6656,4.1365 3.5011,4.1344Z" />
+    </group>
+</vector>

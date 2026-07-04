@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Figma: Header Type > Shopping Cart, node 40000770:6638 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M3,3.1484H4.9966L7.6499,14.3805C7.9067,15.4664 8.9235,16.1981 10.0347,16.0949L16.972,15.4518C17.9761,15.3584 18.8246,14.6676 19.1184,13.7024L20.9505,7.6981C21.1704,6.981 20.6294,6.2561 19.8793,6.263L5.8294,6.3768"
+        android:strokeColor="#FFFFFF" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M11.1022,9.5781L11.6091,12.2285"
+        android:strokeColor="#FFFFFF" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M15.6833,9.375L15.1764,12.0254"
+        android:strokeColor="#FFFFFF" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M8.8847,20.3468V20.4649M9.3635,20.3722C9.3635,20.6381 9.1477,20.8537 8.8818,20.8537C8.6159,20.8537 8.4004,20.6381 8.4004,20.3722C8.4004,20.1062 8.6159,19.8906 8.8818,19.8906C9.1477,19.8906 9.3635,20.1062 9.3635,20.3722Z"
+        android:strokeColor="#FFFFFF" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M18.0957,20.3468V20.4649M18.5744,20.3722C18.5744,20.6381 18.3587,20.8537 18.0927,20.8537C17.8268,20.8537 17.6113,20.6381 17.6113,20.3722C17.6113,20.1062 17.8268,19.8906 18.0927,19.8906C18.3587,19.8906 18.5744,20.1062 18.5744,20.3722Z"
+        android:strokeColor="#FFFFFF" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

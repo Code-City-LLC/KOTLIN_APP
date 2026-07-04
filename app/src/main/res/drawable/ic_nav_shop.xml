@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Figma: Nav Bar Menu > Shop (outline), node 40000770:4753 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <path
+        android:pathData="M3.5185,6.9609C3.5219,5.3138 4.7671,3.837 6.3835,3.5589C6.715,3.501 10.6028,3.509 12.2113,3.5101C13.8027,3.5113 15.1592,4.0834 16.2829,5.2049C18.669,7.5863 21.0527,9.9701 23.4331,12.3562C24.8417,13.7671 24.8611,15.9329 23.4581,17.3485C21.4341,19.3916 19.3999,21.4247 17.3579,23.4486C15.9436,24.8505 13.7778,24.8323 12.3656,23.4236C9.958,21.0228 7.5504,18.622 5.153,16.211C4.2256,15.278 3.6785,14.1507 3.5571,12.8329C3.4594,11.7795 3.5162,7.8633 3.5185,6.9609Z"
+        android:fillType="evenOdd"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M11.5583,9.7012C11.5538,10.716 10.7058,11.5503 9.6808,11.548C8.6626,11.5458 7.8147,10.6967 7.8203,9.6853C7.8272,8.6296 8.6626,7.8067 9.7251,7.8112C10.7331,7.8146 11.5628,8.6694 11.5583,9.7012Z"
+        android:fillType="evenOdd"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M12.8721,15.8664L15.8779,12.8606"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path
+        android:pathData="M18.6134,15.5996L15.6076,18.6054"
+        android:strokeColor="#292929" android:strokeWidth="1.75"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>
