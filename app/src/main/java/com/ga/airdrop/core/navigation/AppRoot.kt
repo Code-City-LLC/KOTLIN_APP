@@ -23,6 +23,7 @@ import com.ga.airdrop.feature.auth.AuthLandingScreen
 import com.ga.airdrop.feature.auth.LoginScreen
 import com.ga.airdrop.feature.calculator.calculatorGraph
 import com.ga.airdrop.feature.dropalert.dropAlertGraph
+import com.ga.airdrop.feature.homedetails.homeDetailsGraph
 import com.ga.airdrop.feature.more.moreGraph
 import com.ga.airdrop.feature.more2.more2Graph
 import com.ga.airdrop.feature.shipments.shipmentsGraph
@@ -49,6 +50,15 @@ fun AppRoot() {
         Routes.CONTACTS -> AirdropTab.Help
         Routes.MORE -> AirdropTab.More
         else -> null
+    }
+
+    // Push-notification deep links (route + referenceID) land here once the
+    // graph is composed — mirrors FigmaRouteResolver deep-linking.
+    val pendingPush by com.ga.airdrop.core.push.PushDeepLink.pending.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(pendingPush, token) {
+        if (pendingPush != null && token != null) {
+            com.ga.airdrop.core.push.PushDeepLink.consume()?.let { navController.navigate(it) }
+        }
     }
 
     Box(
@@ -112,6 +122,7 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(navController: NavHost
     // More hub + drill-downs (registers Routes.MORE itself).
     moreGraph(navController)
     more2Graph(navController)
+    homeDetailsGraph(navController)
 }
 
 /** Tab switch = replace the current tab root, keeping Home as anchor. */

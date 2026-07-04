@@ -3,6 +3,10 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // Enable once google-services.json for com.ga.airdrop.app is provided
+    // (Firebase console → project settings → Android app). Until then FCM
+    // token registration no-ops at runtime (guarded by FirebaseApp check).
+    // alias(libs.plugins.google.services)
 }
 
 android {
@@ -85,6 +89,9 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

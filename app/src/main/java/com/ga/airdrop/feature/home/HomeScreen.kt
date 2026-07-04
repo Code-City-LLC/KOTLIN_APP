@@ -113,7 +113,7 @@ fun HomeScreen(
                 )
                 // Warehouse cards overlap the hero (start at y=326 of 534).
                 WarehouseCarousel(
-                    onReadMore = { onNavigate(Routes.WAREHOUSES) },
+                    onReadMore = { type -> onNavigate("${Routes.WAREHOUSES}?type=$type") },
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(bottom = 0.dp),
@@ -161,6 +161,7 @@ private data class WarehouseCard(
     val subtitle: String,
     val description: String,
     val imageRes: Int,
+    val type: String,
 )
 
 private val warehouseCards = listOf(
@@ -169,23 +170,26 @@ private val warehouseCards = listOf(
         subtitle = "Air Freight",
         description = "2 to 3 business days after items are delivered to our warehouse",
         imageRes = R.drawable.img_warehouse_standard,
+        type = "standard",
     ),
     WarehouseCard(
         title = "SeaDrop",
         subtitle = "Sea Freight",
         description = "2 to 4 weeks after items are\ndelivered to our warehouse",
         imageRes = R.drawable.img_warehouse_seadrop,
+        type = "seadrop",
     ),
     WarehouseCard(
         title = "Express",
         subtitle = "Air Freight",
         description = "1 to 2 business days after items are delivered to our warehouse",
         imageRes = R.drawable.img_warehouse_express,
+        type = "express",
     ),
 )
 
 @Composable
-private fun WarehouseCarousel(onReadMore: () -> Unit, modifier: Modifier = Modifier) {
+private fun WarehouseCarousel(onReadMore: (String) -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     LazyRow(
         modifier = modifier.fillMaxWidth(),
@@ -246,7 +250,7 @@ private fun WarehouseCarousel(onReadMore: () -> Unit, modifier: Modifier = Modif
                     text = "Read More",
                     style = AirdropType.underlineLink.copy(textDecoration = TextDecoration.Underline),
                     color = BrandPalette.OrangeMain,
-                    modifier = Modifier.clickable(onClick = onReadMore),
+                    modifier = Modifier.clickable { onReadMore(card.type) },
                 )
             }
         }

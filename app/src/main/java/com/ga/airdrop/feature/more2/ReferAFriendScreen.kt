@@ -219,7 +219,6 @@ private fun HeroCarousel() {
     )
     // Figma 40001940:26885: white cards with a 1dp colored border, the
     // illustration inside a white circle, colored Title2 + centered Body2.
-    val colors = AirdropTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
