@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Customer-tier badge — converted from Figma node 40004847:35229
+  ("Customer Tier" pager, file N4k6jzpeLZgeRS5O1xfyIv). Paths kept verbatim;
+  the page-background rects and the final mix-blend "color" wash layer are
+  omitted (VectorDrawable cannot express blend modes), and the soft ground
+  shadow is flattened to a translucent ellipse.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="70dp"
+    android:height="70dp"
+    android:viewportWidth="70"
+    android:viewportHeight="70">
+
+    <!-- Star 1 (outer hex) -->
+    <path
+        android:pathData="M34.7713 2.2876L49.0012 10.3531L63.101 18.6438L63.2311 35L63.101 51.3562L49.0012 59.6469L34.7713 67.7124L20.5414 59.6469L6.44147 51.3562L6.31145 35L6.44147 18.6438L20.5414 10.3531L34.7713 2.2876Z"
+        android:fillColor="#D2DDED" />
+    <!-- Star 3 -->
+    <path
+        android:pathData="M34.7713 8.23535L46.4139 14.8344L57.9502 21.6177L58.0566 35.0001L57.9502 48.3824L46.4139 55.1657L34.7713 61.7648L23.1287 55.1657L11.5924 48.3824L11.486 35.0001L11.5924 21.6177L23.1287 14.8344L34.7713 8.23535Z"
+        android:fillColor="#BFCCDF" />
+    <!-- Star 4 (recessed inner hex, vertical gradient) -->
+    <path android:pathData="M34.7712 10.7517L45.3192 16.7303L55.7709 22.8759L55.8673 35.0001L55.7709 47.1243L45.3192 53.2698L34.7712 59.2484L24.2232 53.2698L13.7715 47.1243L13.6751 35.0001L13.7715 22.8759L24.2232 16.7303L34.7712 10.7517Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="34.7712"
+                android:startY="10.7517"
+                android:endX="34.7712"
+                android:endY="59.2484">
+                <item android:offset="0.1" android:color="#8993A2" />
+                <item android:offset="0.9" android:color="#C9D7E9" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Star 5 (lower facet, radial sheen) -->
+    <path android:pathData="M55.771 47.1242L55.8673 40.9478H13.6752L13.7716 47.1242L24.2232 53.2698L34.7713 59.2484L45.3193 53.2698L55.771 47.1242Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="34.7712"
+                android:centerY="40.9478"
+                android:gradientRadius="18.3006">
+                <item android:offset="0.1" android:color="#8993A2" />
+                <item android:offset="0.9" android:color="#C9D7E9" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Ground shadow (flattened from the multiply radial) -->
+    <path
+        android:pathData="M23.7909 49.8694a10.9804 1.37255 0 1 0 21.9608 0a10.9804 1.37255 0 1 0 -21.9608 0Z"
+        android:fillColor="#26737373" />
+    <!-- Diamond facets -->
+    <path
+        android:pathData="M25.9641 24.4771L34.8857 24.4771V32.0261H29.0523L25.9641 24.4771Z"
+        android:fillColor="#E7F0FF" />
+    <path
+        android:pathData="M43.6927 24.4771L34.7712 24.4771V32.0261H40.6045L43.6927 24.4771Z"
+        android:fillColor="#E7F0FF" />
+    <path
+        android:pathData="M34.8856 49.7549L19.2157 32.0261H34.8856V49.7549Z"
+        android:fillColor="#E5F2FF" />
+    <path
+        android:pathData="M34.7712 49.7549L50.4412 32.0261H34.7712V49.7549Z"
+        android:fillColor="#E5F2FF" />
+    <path
+        android:pathData="M29.0522 32.0261L34.8856 24.4771V49.7548L29.0522 32.0261Z"
+        android:fillColor="#F2F6FC" />
+    <path
+        android:pathData="M40.6046 32.0261L34.7713 24.4771V49.7548L40.6046 32.0261Z"
+        android:fillColor="#F7FBFF" />
+    <path
+        android:pathData="M19.2156 32.0261H29.0522L25.9777 24.4771L19.2156 32.0261Z"
+        android:fillColor="#D7E7F8" />
+    <path
+        android:pathData="M50.4412 32.0261H40.6046L43.6792 24.4771L50.4412 32.0261Z"
+        android:fillColor="#D7E7F8" />
+    <!-- Frame shards -->
+    <path
+        android:pathData="M43.3497 64.9673L34.6569 56.2745V69.9861L43.3497 64.9673Z"
+        android:fillColor="#C5CEDB" />
+    <path
+        android:pathData="M43.3497 5.03268L34.6569 13.7255V0.0138833L43.3497 5.03268Z"
+        android:fillColor="#DAE2EB" />
+    <path
+        android:pathData="M26.0784 64.9673L34.7712 56.2745V69.9861L26.0784 64.9673Z"
+        android:fillColor="#E4E9F5" />
+    <path
+        android:pathData="M26.0784 5.03268L34.7712 13.7255V0.0138833L26.0784 5.03268Z"
+        android:fillColor="#F2F4F5" />
+    <path
+        android:pathData="M4.35846 27.3104L16.2331 24.1286L4.35846 17.2728L4.35846 27.3104Z"
+        android:fillColor="#C5CEDB" />
+    <path
+        android:pathData="M12.994 12.3529L16.1758 24.2275L4.30121 17.3717L12.994 12.3529Z"
+        android:fillColor="#E4E9F5" />
+    <path
+        android:pathData="M65.184 27.3104L53.3094 24.1286L65.184 17.2728L65.184 27.3104Z"
+        android:fillColor="#CAD1DF" />
+    <path
+        android:pathData="M56.4824 12.3529L53.3006 24.2275L65.1752 17.3717L56.4824 12.3529Z"
+        android:fillColor="#E6ECF5" />
+    <path
+        android:pathData="M4.35846 42.549L16.2331 45.7308L4.35846 52.5866L4.35846 42.549Z"
+        android:fillColor="#E4E9F5" />
+    <path
+        android:pathData="M12.994 57.5065L16.1758 45.6319L4.30121 52.4877L12.994 57.5065Z"
+        android:fillColor="#C5CEDB" />
+    <path
+        android:pathData="M65.1181 42.549L53.2435 45.7308L65.1181 52.5866L65.1181 42.549Z"
+        android:fillColor="#E4E9F5" />
+    <path
+        android:pathData="M56.4824 57.5065L53.3006 45.6319L65.1752 52.4877L56.4824 57.5065Z"
+        android:fillColor="#C6CFDC" />
+</vector>

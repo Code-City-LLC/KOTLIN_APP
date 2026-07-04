@@ -21,6 +21,12 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.feature.auth.AuthLandingScreen
 import com.ga.airdrop.feature.auth.LoginScreen
+import com.ga.airdrop.feature.calculator.calculatorGraph
+import com.ga.airdrop.feature.dropalert.dropAlertGraph
+import com.ga.airdrop.feature.more.moreGraph
+import com.ga.airdrop.feature.more2.more2Graph
+import com.ga.airdrop.feature.shipments.shipmentsGraph
+import com.ga.airdrop.feature.shop.shopGraph
 
 /**
  * App entry. Mirrors the Swift SceneDelegate + FigmaRouteResolver:
@@ -94,12 +100,18 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(navController: NavHost
     composable(Routes.HOME) {
         com.ga.airdrop.feature.home.HomeScreen(onNavigate = { navController.navigate(it) })
     }
-    composable(Routes.SHIPMENTS) { PlaceholderScreen("Shipments") }
-    composable(Routes.SHOP) { PlaceholderScreen("Shop") }
+    // Shipments hub + drill-downs (registers Routes.SHIPMENTS itself).
+    shipmentsGraph(navController)
+    // Shop + Cart destinations (registers Routes.SHOP itself).
+    shopGraph(navController)
+    calculatorGraph(navController)
+    dropAlertGraph(navController)
     composable(Routes.CONTACTS) {
         com.ga.airdrop.feature.contacts.ContactsScreen(onNavigate = { navController.navigate(it) })
     }
-    composable(Routes.MORE) { PlaceholderScreen("More") }
+    // More hub + drill-downs (registers Routes.MORE itself).
+    moreGraph(navController)
+    more2Graph(navController)
 }
 
 /** Tab switch = replace the current tab root, keeping Home as anchor. */

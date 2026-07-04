@@ -77,8 +77,14 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .height(534.dp)
             ) {
+                val heroContext = androidx.compose.ui.platform.LocalContext.current
                 Image(
-                    painter = painterResource(R.drawable.img_home_hero),
+                    painter = painterResource(
+                        com.ga.airdrop.feature.more.BackgroundStore.currentBackgroundRes(
+                            heroContext,
+                            colors.isDark,
+                        )
+                    ),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,

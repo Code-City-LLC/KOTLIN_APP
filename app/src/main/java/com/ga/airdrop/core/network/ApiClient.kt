@@ -3,8 +3,12 @@ package com.ga.airdrop.core.network
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.data.api.AirdropApiFactory
 import com.ga.airdrop.data.api.AirdropApiService
+import com.ga.airdrop.data.api.AirdropJson
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
@@ -12,6 +16,9 @@ import java.util.concurrent.TimeUnit
  * Timeouts match the Swift session config (30s request / 60s resource).
  */
 object ApiClient {
+
+    /** Shared lenient Json (same instance the Retrofit converter uses). */
+    val json: kotlinx.serialization.json.Json get() = com.ga.airdrop.data.api.AirdropJson
 
     val okHttp: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -26,6 +33,15 @@ object ApiClient {
                     })
                 }
             }
+            .build()
+    }
+
+    /** Shared Retrofit for feature-scoped interfaces (same base URL/converter). */
+    val retrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(BuildConfig.API_BASE_URL.trimEnd('/') + "/")
+            .client(okHttp)
+            .addConverterFactory(AirdropJson.asConverterFactory("application/json".toMediaType()))
             .build()
     }
 

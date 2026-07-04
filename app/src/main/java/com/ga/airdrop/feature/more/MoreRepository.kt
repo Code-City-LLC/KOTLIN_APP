@@ -1,0 +1,277 @@
+package com.ga.airdrop.feature.more
+
+import com.ga.airdrop.BuildConfig
+import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.data.model.flexBool
+import com.ga.airdrop.data.model.flexInt
+import com.ga.airdrop.data.model.flexString
+import com.ga.airdrop.data.model.objectAt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+
+/*
+ * More-tab data access. Mirrors the Swift AirdropAPI call set used by the
+ * More VCs (FigmaSpecificPages / FigmaProfile / FigmaDocuments /
+ * FigmaPreferences / FigmaNotificationSettings):
+ *
+ *   GET    /user/profile          → currentUser (envelope {data:{user}} tolerated)
+ *   PUT    /user/profile          → updateProfile (snake_case ProfileUpdateRequest)
+ *   GET    /user/profile/image    → profileImage {url|path|image_url|...}
+ *   POST   /user/profile/image    → multipart, field "image"
+ *   DELETE /user/profile/image
+ *   GET    /user/documents        → per-doc-type file map
+ *   POST   /user/documents        → multipart, field name = doc type + document_type field
+ *   DELETE /user/documents/{id}
+ *   POST   /auth/logout
+ *   GET    /aircoins/status
+ *
+ * Self-contained on OkHttp (ApiClient.okHttp carries the bearer token via
+ * AuthInterceptor) so this feature does not depend on the shared
+ * data/api/AirdropApiService surface while it is still being built.
+ * RECONCILE: fold into data/repo/UserRepository + DocumentsRepository once
+ * the shared data layer lands.
+ */
+
+/** Profile fields consumed by the More tab. Laravel returns snake_case with legacy aliases. */
+data class MoreUser(
+    val id: Int? = null,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val accountNumber: String? = null,
+    val email: String? = null,
+    val phone: String? = null,
+    val mobile: String? = null,
+    val trnNumber: String? = null,
+    val identityType: String? = null,
+    val identityNumber: String? = null,
+    val dob: String? = null,
+    val language: String? = null,
+    val addressLine1: String? = null,
+    val addressLine2: String? = null,
+    val city: String? = null,
+    val state: String? = null,
+    val country: String? = null,
+    val pickupLocation: String? = null,
+    val paymentCurrency: String? = null,
+    val tierName: String? = null,
+    val profileImageUrl: String? = null,
+) {
+    val fullName: String
+        get() = listOfNotNull(firstName?.trim(), lastName?.trim())
+            .filter { it.isNotEmpty() }
+            .joinToString(" ")
+
+    /** Swift `formattedAccount`: digits prefixed with AIR. */
+    val formattedAccount: String?
+        get() {
+            val digits = accountNumber.orEmpty().filter { it.isDigit() }
+            return if (digits.isEmpty()) null else "AIR$digits"
+        }
+}
+
+data class ProfileAsset(val url: String?, val path: String?) {
+    val resolvedUrl: String?
+        get() = (url ?: path)?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+data class MoreDocumentFile(
+    val id: Int?,
+    val fileName: String?,
+    val fileUrl: String?,
+    val docType: String?,
+    val uploadStatus: Boolean?,
+) {
+    val hasFile: Boolean get() = !fileUrl.isNullOrBlank() || !fileName.isNullOrBlank()
+}
+
+class MoreRepositoryException(message: String) : IOException(message)
+
+class MoreRepository {
+
+    private val client = ApiClient.okHttp
+    private val json = ApiClient.json
+    private val base = BuildConfig.API_BASE_URL.trimEnd('/')
+    private val jsonMedia = "application/json".toMediaType()
+
+    // ─── User profile ───
+
+    suspend fun currentUser(): Result<MoreUser> = request("GET", "/user/profile") { root ->
+        val user = root.objectAt("data")?.objectAt("user")
+            ?: root.objectAt("data")
+            ?: root.objectAt("user")
+            ?: root
+        parseUser(user)
+    }
+
+    /**
+     * PUT /user/profile — sparse update, snake_case keys matching the Swift
+     * ProfileUpdateRequest. Null values are omitted (server keeps old value).
+     */
+    suspend fun updateProfile(fields: Map<String, String?>): Result<String?> {
+        val body = buildJsonObject {
+            fields.forEach { (key, value) -> if (value != null) put(key, value) }
+        }
+        return request("PUT", "/user/profile", body.toString().toRequestBody(jsonMedia)) { root ->
+            root.flexString("message")
+        }
+    }
+
+    // ─── Profile image ───
+
+    suspend fun profileImage(): Result<ProfileAsset> =
+        request("GET", "/user/profile/image") { it.parseAsset() }
+
+    suspend fun uploadProfileImage(
+        bytes: ByteArray,
+        fileName: String = "profile.jpg",
+        mimeType: String = "image/jpeg",
+    ): Result<ProfileAsset> {
+        val multipart = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("image", fileName, bytes.toRequestBody(mimeType.toMediaType()))
+            .build()
+        return request("POST", "/user/profile/image", multipart) { it.parseAsset() }
+    }
+
+    suspend fun deleteProfileImage(): Result<Unit> =
+        request("DELETE", "/user/profile/image") { }
+
+    /** Raw image download with the bearer token attached (avatar URLs are protected). */
+    suspend fun fetchImage(url: String): Result<ByteArray> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.newCall(Request.Builder().url(url).build()).execute()
+            response.use {
+                if (!it.isSuccessful) throw MoreRepositoryException("Image download failed (${it.code}).")
+                it.body?.bytes() ?: throw MoreRepositoryException("Empty image response.")
+            }
+        }
+    }
+
+    // ─── Documents ───
+
+    /** GET /user/documents → map keyed by doc-type string ("file_1583", "trn", …). */
+    suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>> =
+        request("GET", "/user/documents") { root ->
+            val payload = root.objectAt("data") ?: root
+            buildMap {
+                for ((key, value) in payload) {
+                    val obj = value as? JsonObject ?: continue
+                    put(
+                        key,
+                        MoreDocumentFile(
+                            id = obj.flexInt("id"),
+                            fileName = obj.flexString("file_name", "fileName"),
+                            fileUrl = obj.flexString("file_url", "fileURL", "url"),
+                            docType = obj.flexString("doc_type", "docType") ?: key,
+                            uploadStatus = obj.flexBool("upload_status"),
+                        ),
+                    )
+                }
+            }
+        }
+
+    /** POST /user/documents multipart — field name is the doc type (Swift parity). */
+    suspend fun uploadUserDocument(
+        docType: String,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): Result<Unit> {
+        val multipart = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("document_type", docType)
+            .addFormDataPart(docType, fileName, bytes.toRequestBody(mimeType.toMediaType()))
+            .build()
+        return request("POST", "/user/documents", multipart) { }
+    }
+
+    suspend fun deleteUserDocument(identifier: String): Result<Unit> =
+        request("DELETE", "/user/documents/$identifier") { }
+
+    // ─── Session ───
+
+    suspend fun logout(): Result<Unit> =
+        request("POST", "/auth/logout", ByteArray(0).toRequestBody(jsonMedia)) { }
+
+    /** GET /aircoins/status → available ?? balance, rendered as the header label. */
+    suspend fun airCoinsBalance(): Result<Int> = request("GET", "/aircoins/status") { root ->
+        val payload = root.objectAt("data") ?: root
+        payload.flexInt("available") ?: payload.flexInt("balance") ?: 0
+    }
+
+    // ─── Internals ───
+
+    private suspend fun <T> request(
+        method: String,
+        path: String,
+        body: RequestBody? = null,
+        parse: (JsonObject) -> T,
+    ): Result<T> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url(base + path)
+                .method(method, body)
+                .build()
+            client.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                val root = runCatching {
+                    json.parseToJsonElement(text.ifBlank { "{}" }) as? JsonObject
+                }.getOrNull() ?: JsonObject(emptyMap())
+                if (!response.isSuccessful) {
+                    throw MoreRepositoryException(
+                        root.flexString("message")
+                            ?: "Request failed (${response.code}). Please try again.",
+                    )
+                }
+                parse(root)
+            }
+        }
+    }
+
+    private fun JsonObject.parseAsset(): ProfileAsset {
+        val payload = objectAt("data") ?: this
+        return ProfileAsset(
+            url = payload.flexString("url", "image_url", "file_url"),
+            path = payload.flexString("path", "image_path", "file_path"),
+        )
+    }
+
+    private fun parseUser(obj: JsonObject): MoreUser = MoreUser(
+        id = obj.flexInt("id"),
+        firstName = obj.flexString("first_name", "user_first_name"),
+        lastName = obj.flexString("last_name", "user_last_name"),
+        accountNumber = obj.flexString("account_number", "user_account_number"),
+        email = obj.flexString("email", "user_email"),
+        phone = obj.flexString("phone", "user_phone"),
+        mobile = obj.flexString("mobile", "user_mobile"),
+        trnNumber = obj.flexString("user_trn_number", "trn_number"),
+        identityType = obj.flexString("user_identity_type", "identity_type"),
+        identityNumber = obj.flexString("user_identity_number", "identity_number"),
+        dob = obj.flexString("user_dob", "dob"),
+        language = obj.flexString("user_language", "language"),
+        addressLine1 = obj.flexString("address", "user_address_line_1")
+            ?: obj.objectAt("address")?.flexString("line_1", "address_line_1"),
+        addressLine2 = obj.flexString("user_address_line_2")
+            ?: obj.objectAt("address")?.flexString("line_2", "address_line_2"),
+        city = obj.flexString("city", "user_address_city")
+            ?: obj.objectAt("address")?.flexString("city"),
+        state = obj.flexString("state", "user_address_state")
+            ?: obj.objectAt("address")?.flexString("state"),
+        country = obj.flexString("country", "user_address_country")
+            ?: obj.objectAt("address")?.flexString("country"),
+        pickupLocation = obj.flexString("pickup_location"),
+        paymentCurrency = obj.flexString("payment_currency"),
+        tierName = obj.objectAt("customer_tier")?.flexString("name")
+            ?: obj.flexString("customer_tier"),
+        profileImageUrl = obj.flexString("profile_image_url", "profile_image_remote"),
+    )
+}

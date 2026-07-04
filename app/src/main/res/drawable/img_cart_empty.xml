@@ -1,0 +1,89 @@
+<!-- EmptyCartIllustration — verbatim port of the RN asset
+     src/assets/images/EmptyCartIllustration.tsx (see the byte-for-byte Swift
+     port EmptyCartIllustrationView in FigmaCartViewController.swift).
+     ViewBox 354x250: two faint orange ripple circles, a gradient orange disc
+     with a white cart glyph, and decorative dots. Static brand colors —
+     identical in both themes. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="354dp"
+    android:height="250dp"
+    android:viewportWidth="354"
+    android:viewportHeight="250">
+
+    <!-- Ripple circles -->
+    <path
+        android:pathData="M 77,125 a 100,100 0 1,0 200,0 a 100,100 0 1,0 -200,0"
+        android:fillColor="#F15114"
+        android:fillAlpha="0.05" />
+    <path
+        android:pathData="M 102,125 a 75,75 0 1,0 150,0 a 75,75 0 1,0 -150,0"
+        android:fillColor="#F15114"
+        android:fillAlpha="0.10" />
+
+    <!-- Gradient disc (#F15114 top → #F1855C bottom) -->
+    <path android:pathData="M 127,125 a 50,50 0 1,0 100,0 a 50,50 0 1,0 -100,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="177"
+                android:startY="75"
+                android:endX="177"
+                android:endY="175">
+                <item android:offset="0" android:color="#FFF15114" />
+                <item android:offset="1" android:color="#FFF1855C" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- White stroke ring (opacity 0.2) -->
+    <path
+        android:pathData="M 125.5,125 a 51.5,51.5 0 1,0 103,0 a 51.5,51.5 0 1,0 -103,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.2"
+        android:strokeWidth="3" />
+
+    <!-- Cart body glyph -->
+    <path
+        android:pathData="M153.5,101.396 L158.824,101.396 C160.7,105 164.2,118 165.9,131.348 C166.585,134.244 169.296,136.195 172.259,135.92 L190.759,134.205 C193.436,133.956 195.699,132.114 196.482,129.54 L201.368,113.528 C201.954,111.616 200.512,109.683 198.511,109.701 L161.045,110.005"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M175.105,118.542 L176.457,125.609"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M187.322,118 L185.971,125.068"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+
+    <!-- Cart wheels -->
+    <path
+        android:pathData="M 167.9,147.326 a 1.285,1.285 0 1,0 2.57,0 a 1.285,1.285 0 1,0 -2.57,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3" />
+    <path
+        android:pathData="M 192.463,147.326 a 1.285,1.285 0 1,0 2.57,0 a 1.285,1.285 0 1,0 -2.57,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3" />
+
+    <!-- Decorative dots — large (#F1855C, r=4.683) -->
+    <path android:pathData="M 235.664,8.367 a 4.683,4.683 0 1,0 9.366,0 a 4.683,4.683 0 1,0 -9.366,0" android:fillColor="#F1855C" />
+    <path android:pathData="M 39.22,30.683 a 4.683,4.683 0 1,0 9.366,0 a 4.683,4.683 0 1,0 -9.366,0" android:fillColor="#F1855C" />
+    <path android:pathData="M 34.407,146.683 a 4.683,4.683 0 1,0 9.366,0 a 4.683,4.683 0 1,0 -9.366,0" android:fillColor="#F1855C" />
+    <path android:pathData="M 283.227,239.683 a 4.683,4.683 0 1,0 9.366,0 a 4.683,4.683 0 1,0 -9.366,0" android:fillColor="#F1855C" />
+    <path android:pathData="M 310.227,110.683 a 4.683,4.683 0 1,0 9.366,0 a 4.683,4.683 0 1,0 -9.366,0" android:fillColor="#F1855C" />
+
+    <!-- Decorative dots — small (#F1CBBC, r=2.342) -->
+    <path android:pathData="M 114.19,2.342 a 2.342,2.342 0 1,0 4.684,0 a 2.342,2.342 0 1,0 -4.684,0" android:fillColor="#F1CBBC" />
+    <path android:pathData="M 66.576,85.862 a 2.342,2.342 0 1,0 4.684,0 a 2.342,2.342 0 1,0 -4.684,0" android:fillColor="#F1CBBC" />
+    <path android:pathData="M 176.226,37.342 a 2.342,2.342 0 1,0 4.684,0 a 2.342,2.342 0 1,0 -4.684,0" android:fillColor="#F1CBBC" />
+    <path android:pathData="M 267.219,60.342 a 2.342,2.342 0 1,0 4.684,0 a 2.342,2.342 0 1,0 -4.684,0" android:fillColor="#F1CBBC" />
+    <path android:pathData="M 71,205.342 a 2.342,2.342 0 1,0 4.684,0 a 2.342,2.342 0 1,0 -4.684,0" android:fillColor="#F1CBBC" />
+    <path android:pathData="M 285.842,182.549 a 2.342,2.342 0 1,0 4.684,0 a 2.342,2.342 0 1,0 -4.684,0" android:fillColor="#F1CBBC" />
+    <path android:pathData="M 144.633,246.658 a 2.342,2.342 0 1,0 4.684,0 a 2.342,2.342 0 1,0 -4.684,0" android:fillColor="#F1CBBC" />
+</vector>

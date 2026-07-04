@@ -46,6 +46,10 @@ data class Payment(
     @SerialName("package_id")
     @Serializable(with = FlexibleIntSerializer::class)
     val packageId: Int? = null,
+    // Product payments carry the order id (Swift receives it on the same row).
+    @SerialName("order_id")
+    @Serializable(with = FlexibleIntSerializer::class)
+    val orderId: Int? = null,
     @SerialName("exchange_rate")
     @Serializable(with = FlexibleDoubleSerializer::class)
     val exchangeRate: Double? = null,

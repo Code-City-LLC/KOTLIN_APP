@@ -1,0 +1,197 @@
+package com.ga.airdrop.feature.shop
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ga.airdrop.core.designsystem.components.AirdropHeader
+import com.ga.airdrop.core.designsystem.components.AirdropHeaderStyle
+import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.Radius
+import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.session.SessionStore
+import com.ga.airdrop.feature.cart.CartStore
+
+/**
+ * Shop tab root — Figma "Shop" 40001846:53519.
+ * Solid AirdropHeader, search (500 ms debounce), "Auction" 2-column grid
+ * (shortlist of 4), "Feature Products" horizontal 160dp card row, 90dp+
+ * clearance for the glass bottom bar. Behavior: FigmaShopViewController.
+ */
+@Composable
+fun ShopScreen(
+    onNavigate: (String) -> Unit,
+    viewModel: ShopViewModel = viewModel(),
+) {
+    val colors = AirdropTheme.colors
+    val state by viewModel.state.collectAsState()
+    val headerInfo by SessionStore.header.collectAsState()
+    val cartLines by CartStore.items.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) { CartStore.init(context) }
+
+    fun openDetails(product: ShopProduct, featured: Boolean) {
+        onNavigate(Routes.auctionProductDetails(product.routeSlug, featured))
+    }
+
+    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(Modifier.height(130.dp)) // clearance under the solid header
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                ShopSearchField(
+                    value = state.query,
+                    onValueChange = viewModel::onQueryChange,
+                    placeholder = "Search",
+                    onFilterClick = { viewModel.setSortSheetVisible(true) },
+                )
+
+                // ─── Auction section (2-column grid of 4) ───
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    ShopSectionHeader(
+                        title = "Auction",
+                        actionLabel = "View More",
+                        onAction = { onNavigate(Routes.AUCTION) },
+                    )
+                    if (state.auctionLoading && state.auction.isEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            repeat(2) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                    ShopSkeletonCard(Modifier.weight(1f))
+                                    ShopSkeletonCard(Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    } else if (state.auction.isEmpty()) {
+                        ShopEmptyCard(text = "No auction products")
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            state.auction.chunked(2).forEach { rowItems ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                    rowItems.forEach { product ->
+                                        ShopProductCard(
+                                            product = product,
+                                            inCart = cartLines.any { it.id == product.id },
+                                            onClick = { openDetails(product, featured = false) },
+                                            onToggleCart = { CartStore.toggle(product.toCartLine()) },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+                                    if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ─── Feature Products section (horizontal 160dp cards) ───
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    ShopSectionHeader(
+                        title = "Feature Products",
+                        actionLabel = "View More",
+                        onAction = { onNavigate(Routes.FEATURED_PRODUCTS) },
+                    )
+                    if (state.featuredLoading && state.featured.isEmpty()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            repeat(3) { ShopSkeletonCard(Modifier.width(160.dp)) }
+                        }
+                    } else if (state.featured.isEmpty()) {
+                        ShopEmptyCard(text = "No featured products")
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            items(state.featured, key = { it.id }) { product ->
+                                ShopProductCard(
+                                    product = product,
+                                    inCart = cartLines.any { it.id == product.id },
+                                    onClick = { openDetails(product, featured = true) },
+                                    onToggleCart = { CartStore.toggle(product.toCartLine()) },
+                                    modifier = Modifier.width(160.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Clearance for the glass bottom bar (Swift tail = 120).
+                Spacer(Modifier.height(120.dp))
+            }
+        }
+
+        AirdropHeader(
+            greeting = listOf(headerInfo.greeting, headerInfo.firstName)
+                .filter { it.isNotBlank() }
+                .joinToString(" "),
+            tierName = headerInfo.tierName,
+            style = AirdropHeaderStyle.Solid,
+            cartCount = headerInfo.cartCount,
+            airCoins = headerInfo.airCoins,
+            onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },
+            onBellClick = { onNavigate(Routes.NOTIFICATIONS) },
+            onCartClick = { onNavigate(Routes.CART) },
+            onAirCoinsClick = { onNavigate(Routes.AIRCOIN_HISTORY) },
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+    }
+
+    if (state.showSortSheet) {
+        ShopSortSheet(
+            selected = state.sort,
+            onSelect = viewModel::applySort,
+            onDismiss = { viewModel.setSortSheetVisible(false) },
+        )
+    }
+}
+
+@Composable
+internal fun ShopEmptyCard(text: String, modifier: Modifier = Modifier) {
+    val colors = AirdropTheme.colors
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .background(colors.gray100, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .padding(Spacing.sm1),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = AirdropType.body1,
+            color = colors.textDescription,
+        )
+    }
+}

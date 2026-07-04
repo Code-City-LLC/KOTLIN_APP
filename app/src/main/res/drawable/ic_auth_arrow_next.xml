@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Figma: SmallArrow - Right Circle (Arrow - Right Circle-4), 4.98x8.44 glyph
+     inside a 24x24 frame (insets 33.33%/37.59%/31.5%/41.67%), from the
+     onboarding "Next" button, node I40006240:23789;531:23440. SVG converted
+     verbatim. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:translateX="10"
+        android:translateY="8">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M 0.74939 8.43933 C 0.650767 8.44037 0.552884 8.42142 0.461792 8.38361 C 0.3707 8.34579 0.288259 8.28993 0.21936 8.21936 C 0.0789099 8.07873 0 7.88808 0 7.68933 C 0 7.49058 0.0789099 7.29999 0.21936 7.15936 L 3.21936 4.21936 L 0.21936 1.27936 C 0.0789099 1.13873 0 0.948079 0 0.749329 C 0 0.550578 0.0789099 0.359986 0.21936 0.21936 C 0.359986 0.0789099 0.550639 0 0.74939 0 C 0.94814 0 1.13867 0.0789099 1.2793 0.21936 L 4.75928 3.68933 C 4.89816 3.83105 4.97707 4.02095 4.97937 4.21936 C 4.97758 4.42083 4.89879 4.61398 4.75928 4.75934 L 1.2793 8.22931 C 1.136 8.36454 0.946417 8.43972 0.74939 8.43933 Z" />
+    </group>
+</vector>

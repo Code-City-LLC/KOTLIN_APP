@@ -1,0 +1,586 @@
+package com.ga.airdrop.feature.shipments
+
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Canvas
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.GradientButton
+import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
+import com.ga.airdrop.core.designsystem.theme.Radius
+import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.navigation.Routes
+
+/**
+ * Package details — Figma node 40001753:15716, behavior from
+ * FigmaPackageDetailsViewController: method hero + circular badge, Summary
+ * card, Shipment Timeline (Metro steps), invoice upload zone (multipart POST
+ * /packages/{id}/invoices) + list + delete, CIF info, Breakdown of Charges
+ * and Add to Cart (status >= 7).
+ */
+@Composable
+fun PackageDetailsScreen(
+    packageId: String,
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit,
+    viewModel: PackageDetailsViewModel = viewModel(key = "packageDetails/$packageId") {
+        PackageDetailsViewModel(packageId)
+    },
+) {
+    val colors = AirdropTheme.colors
+    val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    val detail = state.detail
+    val method = ShipmentMethodUi.from(detail?.shippingMethod)
+
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        val files = uris.mapNotNull { uri ->
+            runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: return@mapNotNull null
+                val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                var name = "invoice"
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index >= 0 && cursor.moveToFirst()) name = cursor.getString(index)
+                }
+                InvoiceUploadFile(fileName = name, mimeType = mime, bytes = bytes)
+            }.getOrNull()
+        }
+        viewModel.uploadInvoices(files)
+    }
+
+    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Hero — method image, 240dp visible under the glass header.
+            Box(Modifier.fillMaxWidth()) {
+                Image(
+                    painter = painterResource(method.heroRes),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(262.dp),
+                )
+            }
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .offset(y = (-20).dp)
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                        .background(colors.gray150)
+                        .padding(top = Spacing.xl),
+                ) {
+                    // Method name — H6 centered, divider below.
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.xl)
+                            .padding(bottom = Spacing.md),
+                    ) {
+                        Text(
+                            text = method.title,
+                            style = AirdropType.h6,
+                            color = method.tint,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(colors.divider)
+                    )
+
+                    when {
+                        state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
+                        detail == null -> ShipmentsEmptyLabel(state.error ?: "Package not found")
+                        else -> PackageDetailsContent(
+                            state = state,
+                            detail = detail,
+                            onPickFiles = {
+                                filePicker.launch(arrayOf("application/pdf", "image/*"))
+                            },
+                            onViewInvoice = { doc ->
+                                doc.fullUrl?.let { url ->
+                                    onNavigate(Routes.invoiceViewer(url, doc.fileName ?: "Invoice"))
+                                }
+                            },
+                            onDeleteInvoice = viewModel::requestDeleteInvoice,
+                            onCifInfo = { viewModel.showCifInfo(true) },
+                            onAddToCart = viewModel::addToCart,
+                        )
+                    }
+                }
+
+                // 90dp circular method badge centered on the sheet edge.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = (-45).dp)
+                        .size(90.dp)
+                        .background(colors.gray100, CircleShape)
+                        .border(1.dp, colors.gray300, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(method.iconRes),
+                        contentDescription = method.title,
+                        modifier = Modifier.size(40.dp),
+                    )
+                }
+            }
+        }
+
+        ShipmentsDetailHeader(
+            title = "Packages Details",
+            onBack = onBack,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
+
+        if (state.showCifInfo) {
+            ShipmentsAlertDialog(
+                title = "CIF Value",
+                message = "CIF = Cost + Insurance + Freight — the package value used to compute customs charges.",
+                confirmText = "OK",
+                onConfirm = { viewModel.showCifInfo(false) },
+                onDismiss = { viewModel.showCifInfo(false) },
+            )
+        }
+        if (state.showAddedToCart) {
+            ShipmentsAlertDialog(
+                title = "Success",
+                message = "Package added to cart",
+                confirmText = "View Cart",
+                dismissText = "Keep Browsing",
+                onConfirm = {
+                    viewModel.dismissAddedToCart()
+                    onNavigate(Routes.CART)
+                },
+                onDismiss = viewModel::dismissAddedToCart,
+            )
+        }
+        if (state.confirmDeleteInvoiceId != null) {
+            ShipmentsAlertDialog(
+                title = "Delete invoice",
+                message = "Are you sure you want to delete this invoice?",
+                confirmText = "Delete",
+                dismissText = "Cancel",
+                onConfirm = viewModel::confirmDeleteInvoice,
+                onDismiss = viewModel::dismissDeleteInvoice,
+            )
+        }
+        state.transientMessage?.let { message ->
+            ShipmentsAlertDialog(
+                title = "Upload Invoice",
+                message = message,
+                confirmText = "OK",
+                onConfirm = viewModel::consumeTransientMessage,
+                onDismiss = viewModel::consumeTransientMessage,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PackageDetailsContent(
+    state: PackageDetailsUiState,
+    detail: ShipmentPackageDetail,
+    onPickFiles: () -> Unit,
+    onViewInvoice: (PackageInvoiceDoc) -> Unit,
+    onDeleteInvoice: (Int) -> Unit,
+    onCifInfo: () -> Unit,
+    onAddToCart: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        // Summary — Figma 40001761:29193
+        ShipmentsSectionCard(title = "Summary") {
+            val method = ShipmentMethodUi.from(detail.shippingMethod)
+            val courier = listOfNotNull(
+                detail.shipper?.takeIf { it.isNotBlank() },
+                detail.courierNumber?.takeIf { it.isNotBlank() },
+            ).joinToString(" ").ifBlank { "—" }
+            ShipmentsListRow("Drop Number", detail.trackingCode ?: "—")
+            ShipmentsListRow("Shipping Method", detail.shippingMethod ?: method.title)
+            ShipmentsListRow("Merchant/Shipper", detail.store ?: "—")
+            ShipmentsListRow("Courier Tracking", courier)
+            ShipmentsListRow("Description", detail.description?.ifBlank { "—" } ?: "—")
+            ShipmentsListRow(
+                "Weight/Volume",
+                ShipmentsFormat.weight(detail.weightLbs, detail.weightKg, detail.weight),
+            )
+            ShipmentsListRow(
+                "Number of Pieces",
+                (detail.numberOfPieces ?: 1).toString(),
+                showDivider = false,
+            )
+        }
+
+        // Shipment Timeline — Metro Step Card
+        ShipmentsSectionCard(title = "Shipment Timeline", showChevron = false) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.md, end = Spacing.md, top = Spacing.md, bottom = Spacing.sm),
+            ) {
+                val steps = detail.history.ifEmpty {
+                    listOf(
+                        PackageHistoryItem(
+                            status = detail.status?.toIntOrNull(),
+                            statusName = detail.statusName,
+                            changedDate = null,
+                        )
+                    )
+                }
+                steps.forEachIndexed { index, item ->
+                    val statusName = item.statusName ?: "—"
+                    MetroStep(
+                        iconRes = item.status?.let { ShipmentStatusCatalog.iconRes(it) }
+                            ?: ShipmentStatusCatalog.iconResFor(item.statusName),
+                        title = statusName,
+                        titleColor = timelineStatusColor(statusName),
+                        date = listOfNotNull(
+                            item.comment?.takeIf { it.isNotBlank() },
+                            ShipmentsFormat.timelineDate(item.changedDate),
+                        ).joinToString("\n"),
+                        showConnector = index != steps.lastIndex,
+                    )
+                }
+            }
+        }
+
+        // Upload Your Invoice
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Upload Your Invoice",
+                    style = AirdropType.title2,
+                    color = colors.textDarkTitle,
+                )
+                Text(
+                    text = "(${detail.invoices.size}/3)",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                )
+            }
+            UploadInvoiceZone(uploading = state.uploading, onClick = onPickFiles)
+            Text(
+                text = "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
+                    "Only the following formats are allowed: pdf, jpg, bmp, png, doc, docx html.",
+                style = AirdropType.body2,
+                color = colors.textDescription,
+            )
+            detail.invoices.forEach { doc ->
+                InvoiceFileRow(
+                    doc = doc,
+                    onView = { onViewInvoice(doc) },
+                    onDelete = { onDeleteInvoice(doc.id) },
+                )
+            }
+        }
+
+        // CIF Value info row — Figma 40001753:21889
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(59.dp)
+                .clip(RoundedCornerShape(Radius.s))
+                .background(colors.gray100)
+                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+                .clickable(onClick = onCifInfo)
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "CIF Value", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+            Image(
+                painter = painterResource(R.drawable.ic_info),
+                contentDescription = "CIF info",
+                colorFilter = ColorFilter.tint(colors.iconSelected),
+                modifier = Modifier.size(24.dp),
+            )
+        }
+
+        // Breakdown of Charges + Add to Cart — only once Ready for Pickup.
+        if (state.readyForPickup) {
+            if (detail.additionalCharges.isNotEmpty() || (state.chargesTotal ?: 0.0) > 0.0) {
+                ChargesCard(state = state, detail = detail)
+            }
+            TotalChargesBox(value = ShipmentsFormat.usdJmd(state.chargesTotal, state.effectiveRate))
+            GradientButton(text = "Add to Cart", onClick = onAddToCart)
+        }
+
+        Spacer(Modifier.height(Spacing.md))
+    }
+}
+
+// ─── Upload zone — Figma "Attached File Type" 40000643:22987 ───────────────
+
+@Composable
+private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.xs))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+            .clickable(enabled = !uploading, onClick = onClick)
+            .padding(Spacing.md),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                text = "Upload Invoice",
+                style = AirdropType.title1,
+                color = colors.textDarkTitle,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = "PNG, JPG and PDF files are allowed",
+                style = AirdropType.body2,
+                color = colors.textDescription,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        // Dashed drop zone.
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            val dashColor = colors.gray300
+            Canvas(Modifier.matchParentSize()) {
+                drawRoundRect(
+                    color = dashColor,
+                    size = Size(size.width, size.height),
+                    cornerRadius = CornerRadius(10.dp.toPx()),
+                    style = Stroke(
+                        width = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
+                    ),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.xs))
+                    .background(colors.gray150)
+                    .padding(horizontal = 49.dp, vertical = Spacing.md),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                if (uploading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = BrandPalette.OrangeMain,
+                        strokeWidth = 2.5.dp,
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(R.drawable.ic_download_file),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(colors.iconSelected),
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+                Text(
+                    text = "Drag and drop or browse to choose a file",
+                    style = AirdropType.subtitle2,
+                    color = colors.textDarkTitle,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InvoiceFileRow(
+    doc: PackageInvoiceDoc,
+    onView: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.s))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_pdf),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier.size(24.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = doc.fileName ?: "Invoice",
+                style = AirdropType.subtitle1,
+                color = colors.textDarkTitle,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Text(text = "PDF File", style = AirdropType.body3, color = colors.textPlaceholder)
+        }
+        Image(
+            painter = painterResource(R.drawable.ic_eye),
+            contentDescription = "View invoice",
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier
+                .size(24.dp)
+                .clickable(onClick = onView),
+        )
+        Image(
+            painter = painterResource(R.drawable.ic_trash),
+            contentDescription = "Delete invoice",
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier
+                .size(24.dp)
+                .clickable(onClick = onDelete),
+        )
+    }
+}
+
+// ─── Breakdown of Charges ───────────────────────────────────────────────────
+
+@Composable
+private fun ChargesCard(state: PackageDetailsUiState, detail: ShipmentPackageDetail) {
+    val colors = AirdropTheme.colors
+    val rate = state.effectiveRate
+    ShipmentsSectionCard(title = "Breakdown of Charges", showChevron = false) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            ChargeRow(
+                name = "Services",
+                usd = "USD",
+                jmd = "Local (JMD)",
+                nameColor = colors.textDescription,
+                valueColor = colors.textDescription,
+            )
+            detail.additionalCharges.entries.sortedBy { it.key }.forEach { (name, amount) ->
+                ChargeRow(
+                    name = name,
+                    usd = "$" + ShipmentsFormat.money(amount),
+                    jmd = "$" + ShipmentsFormat.money(amount * rate),
+                    nameColor = colors.textDarkTitle,
+                    valueColor = colors.textDarkTitle,
+                )
+            }
+            val subtotal = state.chargesTotal ?: 0.0
+            Row(Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Subtotal",
+                    style = AirdropType.title2,
+                    color = colors.textDarkTitle,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "$" + ShipmentsFormat.money(subtotal),
+                    style = AirdropType.title2,
+                    color = colors.textDarkTitle,
+                )
+                Spacer(Modifier.size(Spacing.md))
+                Text(
+                    text = "$" + ShipmentsFormat.money(subtotal * rate),
+                    style = AirdropType.title2,
+                    color = colors.textDarkTitle,
+                )
+            }
+            Text(
+                text = "1 USD = ${ShipmentsFormat.money(rate)} JMD",
+                style = AirdropType.body3,
+                color = colors.textDescription,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChargeRow(
+    name: String,
+    usd: String,
+    jmd: String,
+    nameColor: androidx.compose.ui.graphics.Color,
+    valueColor: androidx.compose.ui.graphics.Color,
+) {
+    Row(Modifier.fillMaxWidth()) {
+        Text(text = name, style = AirdropType.body2, color = nameColor, modifier = Modifier.weight(1f))
+        Text(text = usd, style = AirdropType.body2, color = valueColor)
+        Spacer(Modifier.size(Spacing.md))
+        Text(text = jmd, style = AirdropType.body2, color = valueColor)
+    }
+}

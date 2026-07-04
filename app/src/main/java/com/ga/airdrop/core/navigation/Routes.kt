@@ -60,6 +60,7 @@ object Routes {
     const val AUTHORIZED_USERS = "authorizedUsers"
     const val ADD_AUTHORIZED_USER = "addAuthorizedUser?editId={editId}"
     const val AUTHORIZED_USER_DETAIL = "authorizedUserDetail/{userId}"
+    const val PAYMENT_METHODS = "paymentMethods"
     const val ACCOUNT_DELETION = "accountDeletion"
     const val ACCOUNT_DELETION_REASON = "accountDeletionReason"
     const val SHIPPING_RATES = "shippingRates"
@@ -71,6 +72,7 @@ object Routes {
     // Tools
     const val CALCULATOR = "calculator"
     const val CALCULATOR_RESULTS = "calculatorResults"
+    const val CALCULATOR_GOVERNMENT_CHARGES = "calculatorGovernmentCharges"
     const val DROP_ALERT = "dropAlert"
 
     fun packageDetails(id: String) = "packageDetails/$id"
