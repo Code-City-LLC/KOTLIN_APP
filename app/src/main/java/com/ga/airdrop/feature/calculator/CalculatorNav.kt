@@ -15,11 +15,13 @@ import com.ga.airdrop.core.navigation.Routes
  *
  * The calculation result travels via [CalculatorViewModel] scoped to the
  * Routes.CALCULATOR back-stack entry (no serialization) — the same values the
- * Swift results-VC initializer receives. The results screen pops itself if
+ * Swift results-VC initializer receives. Results/GovCharges pop themselves if
  * that entry (and thus the result) is gone.
  *
- * There is deliberately NO Government Charges destination: Swift ships no such
- * screen, and the results-screen disclaimer link is a dead label (Swift wins).
+ * The results-screen disclaimer link navigates to Government Charges (Figma
+ * 40001817:20681), which shows the customs-duty-inclusive breakdown. Figma
+ * ships that screen even though Swift does not — Figma is the visual source of
+ * truth, so the destination is live.
  */
 fun NavGraphBuilder.calculatorGraph(navController: NavHostController) {
     composable(Routes.CALCULATOR) { entry ->
@@ -34,13 +36,25 @@ fun NavGraphBuilder.calculatorGraph(navController: NavHostController) {
     composable(Routes.CALCULATOR_RESULTS) { entry ->
         val parentEntry = remember(entry) { navController.getBackStackEntry(Routes.CALCULATOR) }
         val viewModel: CalculatorViewModel = viewModel(parentEntry)
-        // Swift results VC footer has only Drop Alert + Make Payment; the
-        // disclaimer "Click the link" is a dead label (no navigation).
         CalculatorResultsScreen(
             viewModel = viewModel,
             onBack = { navController.popBackStack() },
             onDropAlert = { navController.navigate(Routes.DROP_ALERT) },
             onMakePayment = { navController.navigate(Routes.CART) },
+            onGovernmentCharges = { navController.navigate(Routes.CALCULATOR_GOVERNMENT_CHARGES) },
+        )
+    }
+
+    composable(Routes.CALCULATOR_GOVERNMENT_CHARGES) { entry ->
+        val parentEntry = remember(entry) { navController.getBackStackEntry(Routes.CALCULATOR) }
+        val viewModel: CalculatorViewModel = viewModel(parentEntry)
+        GovernmentChargesScreen(
+            viewModel = viewModel,
+            onBack = { navController.popBackStack() },
+            onBackToCalculator = {
+                navController.popBackStack(route = Routes.CALCULATOR, inclusive = false)
+            },
+            onRestrictedItems = { navController.navigate(Routes.RESTRICTED_ITEMS) },
         )
     }
 }

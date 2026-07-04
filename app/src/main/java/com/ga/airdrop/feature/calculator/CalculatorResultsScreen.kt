@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,10 +52,10 @@ import kotlin.math.abs
 /**
  * Calculator Results — Figma 40001817:19439 (Standard) / 40001817:20391
  * (Express) / 40001817:20537 (SeaDrop). Behavior from
- * FigmaCalculatorResultsViewController; the CIF info button opens a plain
- * "CIF Value" alert (Swift onCIFInfoTapped), and the disclaimer's
- * "Click the link" span is decorative/non-interactive — both matching Swift
- * (which ships neither a CIF bottom sheet nor a Government Charges screen).
+ * FigmaCalculatorResultsViewController; the CIF info button opens the
+ * Figma "CIF Value" bottom sheet (40001817:20191). The disclaimer's
+ * "Click the link" span navigates to Government Charges (Figma
+ * 40001817:20681) — Figma ships that screen even though Swift does not.
  */
 @Composable
 fun CalculatorResultsScreen(
@@ -62,9 +63,11 @@ fun CalculatorResultsScreen(
     onBack: () -> Unit,
     onDropAlert: () -> Unit,
     onMakePayment: () -> Unit,
+    onGovernmentCharges: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
     val result by viewModel.result.collectAsState()
+    val usdToJmd by viewModel.usdToJmd.collectAsState()
     val current = result
     if (current == null) {
         // Result lost (e.g. process recreation) — nothing to show, go back.
@@ -73,6 +76,8 @@ fun CalculatorResultsScreen(
     }
     val charges = remember(current) { resolveCharges(current) }
     var showCifSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { viewModel.loadExchangeRate() }
 
     val title = when (current.method) {
         ShippingMethod.EXPRESS -> "Express Results"
@@ -126,7 +131,7 @@ fun CalculatorResultsScreen(
                 TotalPill(label = "Total with Duty", amount = charges.totalWithDuty)
             }
 
-            DisclaimerCard()
+            DisclaimerCard(onLinkClick = onGovernmentCharges)
         }
 
         // Footer — Swift buildFooter: Drop Alert (outline) + Make Payment.
@@ -158,17 +163,9 @@ fun CalculatorResultsScreen(
     }
 
     if (showCifSheet) {
-        // Swift FigmaCalculatorResultsViewController.swift:502-515 — CIF info is
-        // a plain "CIF Value" alert with the Invoice/Insurance/Freight/CIF
-        // breakdown and an OK button (not a bottom sheet).
-        SimpleAlertDialog(
-            title = "CIF Value",
-            message = "CIF (Cost, Insurance, Freight) is the estimated value used to " +
-                "calculate customs duty.\n\n" +
-                "Invoice Amount: ${formatPrice(charges.invoiceAmount)}\n" +
-                "Insurance: ${formatPrice(charges.insurance)}\n" +
-                "Freight: ${formatPrice(charges.freight)}\n\n" +
-                "CIF Value: ${formatPrice(charges.cifValue)}",
+        CifValueSheet(
+            charges = charges,
+            usdToJmd = usdToJmd,
             onDismiss = { showCifSheet = false },
         )
     }
@@ -202,7 +199,7 @@ private fun primarySummaryValue(result: CalculationResult, charges: Charges): St
             }
     }
 
-// ─── Result cards ───
+// ─── Result cards (shared with GovernmentChargesScreen) ───
 
 /**
  * Figma "Caouning Card" (sic): gray150, iconShape border, radius 10,
@@ -326,18 +323,19 @@ internal fun TotalPill(label: String, amount: Double) {
 }
 
 /**
- * Blue disclaimer — Swift FigmaCalculatorResultsViewController.swift:650-705:
- * "Click the link" is DECORATIVE attributed text on a plain label with NO tap
- * gesture and no navigation (Swift ships no Government Charges screen). The
- * span is styled but non-interactive to match Swift's flow.
+ * Blue disclaimer — Figma 40001817:19439: the orange underlined "Click the
+ * link" span is an interactive link that navigates to Government Charges
+ * (Figma 40001817:20681) to show the customs-duty estimate. Figma ships that
+ * screen (Swift does not); per the source-of-truth hierarchy Figma wins here.
  */
 @Composable
-private fun DisclaimerCard() {
+private fun DisclaimerCard(onLinkClick: () -> Unit) {
     val colors = AirdropTheme.colors
     BlueInfoCard(
         text = {
             val text = buildAnnotatedString {
                 append("The price indicated above is an estimate and does not include customs duties or taxes. ")
+                pushStringAnnotation(tag = "link", annotation = "governmentCharges")
                 withStyle(
                     SpanStyle(
                         color = BrandPalette.OrangeMain,
@@ -347,15 +345,176 @@ private fun DisclaimerCard() {
                 ) {
                     append("Click the link")
                 }
+                pop()
                 append(" to get an estimate of these additional charges.")
             }
-            Text(
+            ClickableText(
                 text = text,
                 style = AirdropType.body2.copy(color = colors.textDarkTitle),
+                onClick = { offset ->
+                    text.getStringAnnotations("link", offset, offset).firstOrNull()?.let { onLinkClick() }
+                },
             )
         },
     )
 }
 
-// CIF info is a Swift-style alert (see SimpleAlertDialog above) — the Figma
-// "CIF Value" bottom sheet is intentionally not used (Swift wins).
+// ─── CIF Value bottom sheet — Figma 40001817:20191 ───
+
+/** Total row tint — Figma secondary-blue tertiary-4 (not yet in BrandPalette). */
+private val CifTotalRowBackground = Color(0xFFE1F6FF)
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+internal fun CifValueSheet(
+    charges: Charges,
+    usdToJmd: Double,
+    onDismiss: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = colors.gray150,
+        shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = Spacing.sm)
+                    .size(width = 100.dp, height = 6.dp)
+                    .background(colors.gray300, RoundedCornerShape(Radius.full))
+            )
+        },
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.md)
+                .padding(top = Spacing.sm, bottom = Spacing.lg)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(text = "CIF Value", style = AirdropType.h5, color = colors.textDarkTitle)
+            Text(
+                text = "The CIF value represents the total landed cost of an item and is made up of three key components:",
+                style = AirdropType.body2,
+                color = colors.textDarkTitle,
+            )
+            CifBullet(bold = "Cost: ", rest = "The item’s purchase price, declared value, or invoice amount.")
+            CifBullet(bold = "Insurance: ", rest = "The cost of insuring the item during transport.")
+            CifBullet(bold = "Freight: ", rest = "The shipping and handling cost to the destination port.")
+
+            // Services / USD-JMD table
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.xs)
+                    .background(colors.gray100, RoundedCornerShape(Radius.s))
+                    .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(colors.gray150, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s)),
+                ) {
+                    CifHeaderCell("Services", Modifier.weight(1f))
+                    CifHeaderCell("USD / JMD", Modifier.weight(1f))
+                }
+                CifTableDivider()
+                CifTableRow("Cost (Invoice Amount)", charges.invoiceAmount, usdToJmd, colors.gray100)
+                CifTableDivider()
+                CifTableRow("Insurance", charges.insurance, usdToJmd, colors.gray150)
+                CifTableDivider()
+                CifTableRow("Freight", charges.freight, usdToJmd, colors.gray100)
+                CifTableDivider()
+                val total = charges.invoiceAmount + charges.insurance + charges.freight
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(
+                            CifTotalRowBackground,
+                            RoundedCornerShape(bottomStart = Radius.s, bottomEnd = Radius.s),
+                        ),
+                ) {
+                    CifTotalCell("Total", Modifier.weight(1f))
+                    CifTotalCell(
+                        "${formatDecimal(total)} / ${formatDecimal(total * usdToJmd)}",
+                        Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CifBullet(bold: String, rest: String) {
+    val colors = AirdropTheme.colors
+    Row {
+        Text(
+            text = "•",
+            style = AirdropType.body2,
+            color = colors.textDarkTitle,
+            modifier = Modifier.padding(horizontal = Spacing.xs),
+        )
+        Text(
+            text = buildAnnotatedString {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(bold) }
+                append(rest)
+            },
+            style = AirdropType.body2,
+            color = colors.textDarkTitle,
+        )
+    }
+}
+
+@Composable
+private fun CifHeaderCell(text: String, modifier: Modifier) {
+    Text(
+        text = text,
+        style = AirdropType.subtitle2,
+        color = AirdropTheme.colors.textDarkTitle,
+        textAlign = TextAlign.Center,
+        modifier = modifier.padding(Spacing.sm),
+    )
+}
+
+@Composable
+private fun CifTableRow(label: String, usd: Double, rate: Double, background: Color) {
+    Row(Modifier.fillMaxWidth().background(background)) {
+        CifBodyCell(label, Modifier.weight(1f))
+        CifBodyCell("${formatDecimal(usd)} / ${formatDecimal(usd * rate)}", Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun CifBodyCell(text: String, modifier: Modifier) {
+    Text(
+        text = text,
+        style = AirdropType.body3,
+        color = AirdropTheme.colors.textDarkTitle,
+        textAlign = TextAlign.Center,
+        modifier = modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+    )
+}
+
+@Composable
+private fun CifTotalCell(text: String, modifier: Modifier) {
+    Text(
+        text = text,
+        style = AirdropType.body3.copy(fontWeight = FontWeight.Bold),
+        color = BrandPalette.BlueAccentTertiary1,
+        textAlign = TextAlign.Center,
+        modifier = modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+    )
+}
+
+@Composable
+private fun CifTableDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(AirdropTheme.colors.divider)
+    )
+}

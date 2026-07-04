@@ -18,5 +18,8 @@ captures/
 .externalNativeBuild/
 .cxx/
 
+# Kotlin incremental-compile session files (build noise)
+.kotlin/
+
 # Google services config is provisioned per-environment; never commit real one blindly
 # (tracked intentionally when Kemar provides it)
