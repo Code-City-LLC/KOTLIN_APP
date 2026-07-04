@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -70,7 +71,7 @@ fun ProfileScreen(
 
     // Swift FigmaProfileViewController.swift:120 — gray100 background.
     Box(Modifier.fillMaxSize().background(colors.gray100)) {
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().imePadding()) {
             MoreDetailHeader(title = "Edit Profile", onBack = onBack)
             Column(
                 Modifier
