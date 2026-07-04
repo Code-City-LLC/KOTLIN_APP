@@ -66,7 +66,8 @@ fun SettingsScreen(
         if (state.loggedOut) onLoggedOut()
     }
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    // Swift FigmaSpecificPages.swift:1316 — gray200 background.
+    Box(Modifier.fillMaxSize().background(colors.gray200)) {
         Column(Modifier.fillMaxSize()) {
             MoreDetailHeader(
                 title = "Settings",

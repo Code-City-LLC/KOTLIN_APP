@@ -107,7 +107,8 @@ fun ShopInnerHeader(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(62.dp)
+                // Swift FigmaAuctionProductDetailsViewController.swift:153 — 56dp bar.
+                .height(56.dp)
                 .padding(horizontal = Spacing.md)
         ) {
             Image(

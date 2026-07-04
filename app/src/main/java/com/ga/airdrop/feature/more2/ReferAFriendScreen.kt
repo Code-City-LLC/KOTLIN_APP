@@ -217,41 +217,35 @@ private fun HeroCarousel() {
             textColor = AlertPalette.Pending,
         ),
     )
-    // Figma 40001940:26885: white cards with a 1dp colored border, the
-    // illustration inside a white circle, colored Title2 + centered Body2.
+    // Swift FigmaReferAFriendViewController.swift:207-300 — 238x220 cards
+    // filled with tint@0.18 + 1dp tint border (radius 15), bare 90dp
+    // illustration 18dp from the top, Title2 tinted title 10dp below,
+    // Body3 textDarkTitle body 6dp below.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(335.dp)
+            .height(220.dp)
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         cards.forEach { card ->
             Column(
                 modifier = Modifier
-                    .width(225.dp)
+                    .width(238.dp)
                     .fillMaxSize()
                     .clip(RoundedCornerShape(Radius.s))
-                    .background(colors.gray100)
+                    .background(card.tint.copy(alpha = 0.18f))
                     .border(1.dp, card.tint, RoundedCornerShape(Radius.s))
                     .padding(horizontal = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.height(56.dp))
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(if (colors.isDark) colors.gray150 else BrandPalette.White),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(card.imageRes),
-                        contentDescription = null,
-                        modifier = Modifier.size(90.dp),
-                    )
-                }
-                Spacer(Modifier.height(34.dp))
+                Spacer(Modifier.height(18.dp))
+                Image(
+                    painter = painterResource(card.imageRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(90.dp),
+                )
+                Spacer(Modifier.height(10.dp))
                 Text(
                     text = card.title,
                     style = AirdropType.title2,
@@ -259,11 +253,11 @@ private fun HeroCarousel() {
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = card.body,
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
+                    style = AirdropType.body3,
+                    color = colors.textDarkTitle,
                     textAlign = TextAlign.Center,
                 )
             }

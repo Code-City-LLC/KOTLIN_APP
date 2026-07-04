@@ -329,7 +329,8 @@ private fun PackageDetailsContent(
             Text(
                 text = "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
                     "Only the following formats are allowed: pdf, jpg, bmp, png, doc, docx html.",
-                style = AirdropType.body2,
+                // Swift FigmaPackageDetailsViewController.swift:612-613 — Body3.
+                style = AirdropType.body3,
                 color = colors.textDescription,
             )
             detail.invoices.forEach { doc ->
@@ -395,14 +396,16 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
         Column(Modifier.fillMaxWidth()) {
             Text(
                 text = "Upload Invoice",
-                style = AirdropType.title1,
+                // Swift FigmaPackageDetailsViewController.swift:526-530 — Title2.
+                style = AirdropType.title2,
                 color = colors.textDarkTitle,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
                 text = "PNG, JPG and PDF files are allowed",
-                style = AirdropType.body2,
+                // Swift FigmaPackageDetailsViewController.swift:533-537 — Body3.
+                style = AirdropType.body3,
                 color = colors.textDescription,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
@@ -450,8 +453,10 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
                 }
                 Text(
                     text = "Drag and drop or browse to choose a file",
-                    style = AirdropType.subtitle2,
-                    color = colors.textDarkTitle,
+                    // Swift FigmaPackageDetailsViewController.swift:570-573 —
+                    // Body3 in textDescription.
+                    style = AirdropType.body3,
+                    color = colors.textDescription,
                     textAlign = TextAlign.Center,
                 )
             }

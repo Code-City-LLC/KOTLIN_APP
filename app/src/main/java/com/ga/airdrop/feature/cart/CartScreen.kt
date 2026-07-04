@@ -303,8 +303,8 @@ private fun CartItemCard(line: CartStore.CartLine, onRemove: () -> Unit) {
             Column {
                 Text(text = "Drop Number", style = AirdropType.body3, color = colors.textDescription)
                 Text(
-                    // Figma sample "ARD00000022583" — ARD + zero-padded id.
-                    text = String.format(Locale.US, "ARD%011d", line.id),
+                    // Swift FigmaCartViewController.swift:459 — "AIR" + %010d (Swift wins over Figma sample).
+                    text = String.format(Locale.US, "AIR%010d", line.id),
                     style = AirdropType.body2,
                     color = colors.textDarkTitle,
                 )

@@ -22,8 +22,10 @@ import com.ga.airdrop.core.designsystem.theme.GradientPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 
 /**
- * Primary CTA — Figma "Function Buttons Desktop": 50dp tall, radius 10,
- * vertical #FF783E→#F15114 gradient, Cairo SemiBold 16 white label.
+ * Primary CTA — Swift "RN MainButton main variant"
+ * (FigmaLoginViewController.swift:185-193, FigmaAddAuthorizedUserViewController.swift:299-306):
+ * 52dp tall, radius 14, vertical #FF783E→#F15114 gradient, Cairo SemiBold 16
+ * white label.
  */
 @Composable
 fun GradientButton(
@@ -36,8 +38,8 @@ fun GradientButton(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(50.dp)
-            .clip(RoundedCornerShape(Radius.xs))
+            .height(52.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(
                 if (enabled) Brush.verticalGradient(GradientPalette.SignInButton)
                 else Brush.verticalGradient(

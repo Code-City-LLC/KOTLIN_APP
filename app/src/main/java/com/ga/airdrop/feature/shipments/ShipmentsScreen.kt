@@ -273,6 +273,7 @@ private fun NoOrdersCard() {
             colorFilter = ColorFilter.tint(colors.gray400),
             modifier = Modifier.size(40.dp),
         )
-        Text(text = "No orders", style = AirdropType.body2, color = colors.textDescription)
+        // Swift FigmaShipmentsViewController.swift:830-832 — Body1.
+        Text(text = "No orders", style = AirdropType.body1, color = colors.textDescription)
     }
 }

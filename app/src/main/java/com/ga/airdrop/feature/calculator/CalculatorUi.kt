@@ -58,8 +58,8 @@ internal fun formatPrice(value: Double): String = String.format(Locale.US, "$%,.
 internal fun formatDecimal(value: Double): String = String.format(Locale.US, "%,.2f", value)
 
 /**
- * Inner detail header — Figma "Header Type" (44 status + 62 bar): back arrow
- * at 20dp inset, centered Cairo SemiBold 16 title, 1dp divider.
+ * Inner detail header — Swift FigmaCalculatorViewController.swift:149-168:
+ * 56dp bar, back arrow left, centered Title1 (Bold 18), 1dp iconShape divider.
  */
 @Composable
 internal fun InnerScreenHeader(title: String, onBack: () -> Unit) {
@@ -73,7 +73,7 @@ internal fun InnerScreenHeader(title: String, onBack: () -> Unit) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(62.dp)
+                .height(56.dp)
                 .padding(horizontal = Spacing.md),
         ) {
             Image(
@@ -87,7 +87,7 @@ internal fun InnerScreenHeader(title: String, onBack: () -> Unit) {
             )
             Text(
                 text = title,
-                style = AirdropType.subtitle1,
+                style = AirdropType.title1,
                 color = colors.textDarkTitle,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center),

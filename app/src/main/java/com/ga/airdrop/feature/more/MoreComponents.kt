@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -32,10 +33,10 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.ga.airdrop.R
-import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import androidx.compose.ui.unit.dp
@@ -47,9 +48,10 @@ import androidx.compose.ui.unit.dp
  */
 
 /**
- * Detail-screen header — Figma Header Type / L–Back (e.g. 40007388:24261):
- * white/70 glass, back arrow left, SubTitle-1 centered title, optional
- * 24dp trailing action, 1dp divider underline.
+ * Detail-screen header — Swift inner-header pattern (FigmaSpecificPages.swift
+ * :1332-1334/:1362-1366 Settings, FigmaProfileViewController.swift:144-198):
+ * solid gray100, 56dp tall, back arrow left, SubTitle-1 centered title,
+ * optional 24dp trailing action, 1dp iconShape divider underline.
  */
 @Composable
 fun MoreDetailHeader(
@@ -62,13 +64,13 @@ fun MoreDetailHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.glassOverlay70)
+            .background(colors.gray100)
             .windowInsetsPadding(WindowInsets.statusBars),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(62.dp)
+                .height(56.dp)
                 .padding(horizontal = Spacing.md, vertical = 4.dp),
         ) {
             Image(
@@ -96,7 +98,8 @@ fun MoreDetailHeader(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(colors.divider),
+                // Swift divider is iconShape (FigmaProfileViewController.swift:175).
+                .background(colors.iconShape),
         )
     }
 }
@@ -169,8 +172,10 @@ fun MoreChevronRight(modifier: Modifier = Modifier) {
 }
 
 /**
- * Pinned CTA bar — Figma "Button Type" (e.g. 40007388:24270): white/70
- * glass, 1dp top divider, 20dp padding around the gradient button.
+ * Pinned CTA bar — Swift pinned-CTA pattern (FigmaSpecificPages.swift
+ * :1630-1667 makeBottomLogoutBar, FigmaProfileViewController.swift:105-116):
+ * solid gray100 bar, 1dp iconShape top border, 20dp padding around a solid
+ * orangeMain button (radius 10, 52dp, Button typography, white label).
  */
 @Composable
 fun MoreBottomButtonBar(
@@ -184,21 +189,34 @@ fun MoreBottomButtonBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.glassOverlay70),
+            .background(colors.gray100),
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(colors.divider),
+                .background(colors.iconShape),
         )
-        GradientButton(
-            text = text,
-            onClick = onClick,
-            loading = loading,
-            enabled = enabled,
-            modifier = Modifier.padding(Spacing.md),
-        )
+        Box(
+            modifier = Modifier
+                .padding(Spacing.md)
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(Radius.xs))
+                .background(if (enabled) BrandPalette.OrangeMain else BrandPalette.ButtonDisable)
+                .clickable(enabled = enabled && !loading, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = BrandPalette.White,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(text = text, style = AirdropType.button, color = BrandPalette.White)
+            }
+        }
         Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
     }
 }

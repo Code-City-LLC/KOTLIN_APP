@@ -18,11 +18,11 @@ enum class ShippingMethod(val label: String, val apiValue: String, val info: Str
         info = "2 to 3 business days after items are delivered to our warehouse.",
     ),
 
-    // Figma 40001464:30381 — "2 to 3 weeks…" (RN parity; Swift drifted to 2-4)
+    // Swift FigmaCalculatorViewController.swift:26 — "2 to 4 weeks…" (Swift wins over Figma 40001464:30381)
     SEADROP(
         label = "SeaDrop",
         apiValue = "seadrop_standard",
-        info = "2 to 3 weeks after items are delivered to our warehouse.",
+        info = "2 to 4 weeks after items are delivered to our warehouse.",
     ),
     EXPRESS(
         label = "Express",

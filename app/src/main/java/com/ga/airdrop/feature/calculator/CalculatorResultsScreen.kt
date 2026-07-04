@@ -136,16 +136,18 @@ fun CalculatorResultsScreen(
         // Footer — Swift buildFooter: Drop Alert (outline) + Make Payment.
         // The Figma frame shows the template "Calculate" button here; the
         // Swift VC's two-CTA footer is the shipped behavior.
+        // Swift FigmaCalculatorResultsViewController.swift:231-238 — gray150
+        // footer with 1dp iconShape top border.
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(colors.glassOverlay70)
+                .background(colors.gray150)
         ) {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(colors.divider)
+                    .background(colors.iconShape)
             )
             Row(
                 Modifier
@@ -212,8 +214,8 @@ internal fun SummaryCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .background(colors.gray150, RoundedCornerShape(Radius.xs))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+            .background(colors.gray150, RoundedCornerShape(Radius.s)) // Swift FigmaCalculatorResultsViewController.swift:409/:553 — Radius.s
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
@@ -264,8 +266,8 @@ internal fun ChargesCard(content: @Composable () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .background(colors.gray150, RoundedCornerShape(Radius.xs))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+            .background(colors.gray150, RoundedCornerShape(Radius.s)) // Swift FigmaCalculatorResultsViewController.swift:409/:553 — Radius.s
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
@@ -299,8 +301,8 @@ internal fun TotalPill(label: String, amount: Double) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(BrandPalette.OrangeTertiary6, RoundedCornerShape(Radius.xs))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+            .background(BrandPalette.OrangeTertiary6, RoundedCornerShape(Radius.s)) // Swift FigmaCalculatorResultsViewController.swift:615 — Radius.s
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),

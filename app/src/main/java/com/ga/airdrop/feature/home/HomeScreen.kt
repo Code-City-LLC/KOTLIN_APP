@@ -133,8 +133,8 @@ fun HomeScreen(
                     onProduct = { onNavigate(Routes.auctionProductDetails(it)) },
                 )
                 ReferAFriendCard(onClick = { onNavigate(Routes.REFER_A_FRIEND) })
-                // Clearance for the glass bottom bar.
-                Spacer(Modifier.height(90.dp))
+                // Clearance for the glass bottom bar — Swift FigmaHomeViewController.swift:274 (120).
+                Spacer(Modifier.height(120.dp))
             }
         }
 
@@ -165,8 +165,11 @@ private data class WarehouseCard(
 )
 
 private val warehouseCards = listOf(
+    // Copy matches Swift FigmaHomeViewController.swift:296-303 exactly
+    // (titles without the "AirDrop" prefix; SeaDrop/Express bodies keep
+    // their trailing periods, Standard has none).
     WarehouseCard(
-        title = "AirDrop Standard",
+        title = "Standard",
         subtitle = "Air Freight",
         description = "2 to 3 business days after items are delivered to our warehouse",
         imageRes = R.drawable.img_warehouse_standard,
@@ -175,14 +178,14 @@ private val warehouseCards = listOf(
     WarehouseCard(
         title = "SeaDrop",
         subtitle = "Sea Freight",
-        description = "2 to 4 weeks after items are\ndelivered to our warehouse",
+        description = "2 to 4 weeks after items are delivered to our warehouse.",
         imageRes = R.drawable.img_warehouse_seadrop,
         type = "seadrop",
     ),
     WarehouseCard(
         title = "Express",
         subtitle = "Air Freight",
-        description = "1 to 2 business days after items are delivered to our warehouse",
+        description = "1 to 2 business days after items are delivered to our warehouse.",
         imageRes = R.drawable.img_warehouse_express,
         type = "express",
     ),
@@ -326,14 +329,17 @@ private fun AuctionHighlights(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
+                // Swift FigmaHomeViewController.swift:527 — Title1.
                 text = "Auction Highlights",
-                style = AirdropType.title2,
+                style = AirdropType.title1,
                 color = colors.textDarkTitle,
             )
             Text(
+                // Swift FigmaHomeViewController.swift:529-534 — underlined
+                // Body2 in orangeDark.
                 text = "See More",
-                style = AirdropType.underlineLink.copy(textDecoration = TextDecoration.Underline),
-                color = BrandPalette.OrangeMain,
+                style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
+                color = BrandPalette.OrangeDark,
                 modifier = Modifier.clickable(onClick = onSeeMore),
             )
         }
@@ -348,19 +354,21 @@ private fun AuctionHighlights(
 @Composable
 fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
     val colors = AirdropTheme.colors
+    // Swift FigmaHomeViewController.swift:588-598 — radius 14, 160-wide card.
     Column(
         modifier = Modifier
             .width(160.dp)
-            .clip(RoundedCornerShape(Radius.s))
+            .clip(RoundedCornerShape(14.dp))
             .background(colors.gray150)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(135.dp)
-                .clip(RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
+                // Swift FigmaHomeViewController.swift:665 — photo height 124.
+                .height(124.dp)
+                .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
                 .background(colors.gray150)
                 .padding(horizontal = Spacing.md, vertical = Spacing.lg),
             contentAlignment = Alignment.Center,

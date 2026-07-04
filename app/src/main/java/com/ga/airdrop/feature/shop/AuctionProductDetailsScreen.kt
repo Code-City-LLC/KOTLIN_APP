@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,26 +34,21 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ga.airdrop.R
-import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
-import com.ga.airdrop.core.designsystem.theme.Cairo
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
+import java.util.Locale
 
 /**
  * Auction Product Details — Figma 40002072:24025, behavior from
@@ -137,33 +133,48 @@ fun AuctionProductDetailsScreen(
             }
         }
 
-        // Sticky bottom CTA — Figma "Button Type".
+        // Sticky bottom CTA — Swift FigmaAuctionProductDetailsViewController.swift:745-782:
+        // gray100 bar, iconShape top divider, solid orangeMain button
+        // (radius 10, height 52), insets top 14 / sides 20 / bottom 8.
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(colors.glassOverlay70)
+                .background(colors.gray100)
         ) {
-            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
-            Box(Modifier.padding(Spacing.md).navigationBarsPadding()) {
-                GradientButton(
-                    text = if (featured) "Purchase Product" else "Add to Cart",
-                    enabled = product != null,
-                    onClick = {
-                        if (featured) {
-                            val raw = product?.amazonUrl?.trim().orEmpty()
-                            if (raw.isNotEmpty()) {
-                                val url = if (raw.startsWith("http://") || raw.startsWith("https://")) {
-                                    raw.replaceFirst("http://", "https://")
-                                } else {
-                                    "https://$raw"
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
+            Box(
+                Modifier
+                    .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp)
+                    .navigationBarsPadding()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                        .clickable(enabled = product != null) {
+                            if (featured) {
+                                val raw = product?.amazonUrl?.trim().orEmpty()
+                                if (raw.isNotEmpty()) {
+                                    val url = if (raw.startsWith("http://") || raw.startsWith("https://")) {
+                                        raw.replaceFirst("http://", "https://")
+                                    } else {
+                                        "https://$raw"
+                                    }
+                                    launchExternalUrl(context, url)
                                 }
-                                launchExternalUrl(context, url)
+                            } else {
+                                viewModel.addToCart()
                             }
-                        } else {
-                            viewModel.addToCart()
-                        }
-                    },
-                )
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (featured) "Purchase Product" else "Add to Cart",
+                        style = AirdropType.button,
+                        color = BrandPalette.White,
+                    )
+                }
             }
         }
     }
@@ -225,33 +236,45 @@ private fun DetailsContent(
 ) {
     val colors = AirdropTheme.colors
 
-    // ─── Hero image + dots — white section with bottom divider ───
+    // Swift FigmaAuctionProductDetailsViewController.swift:200-247 — one
+    // 20dp-margined stack (spacing 16, custom 12 after dividers) on gray100.
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.gray100)
-            .padding(Spacing.md),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            .padding(horizontal = Spacing.md),
     ) {
-        AsyncImage(
-            model = product.imageUrl,
-            contentDescription = product.title,
+        Spacer(Modifier.height(16.dp))
+
+        // ─── Hero image card — Swift :268-308: gray150 fill, radius 15,
+        //     1dp iconShape border, height 240, photo inset 20. ───
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp),
-            contentScale = ContentScale.Fit,
-        )
-        // Paging dots — Figma shows 3 dots, middle orange (single-image
-        // carousel placeholder, Swift parity).
+                .height(240.dp)
+                .background(colors.gray150, RoundedCornerShape(15.dp))
+                .border(1.dp, colors.iconShape, RoundedCornerShape(15.dp)),
+        ) {
+            AsyncImage(
+                model = product.imageUrl,
+                contentDescription = product.title,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                contentScale = ContentScale.Fit,
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+
+        // ─── Paging dots — Swift :310-338: 8dp dots, 6dp spacing, centered. ───
         Row(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             repeat(3) { index ->
                 Box(
                     Modifier
-                        .size(6.dp)
+                        .size(8.dp)
                         .background(
                             if (index == 1) BrandPalette.OrangeMain else colors.iconShape,
                             CircleShape,
@@ -259,151 +282,132 @@ private fun DetailsContent(
                 )
             }
         }
-    }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
+        Spacer(Modifier.height(16.dp))
 
-    // ─── Stats row — gray150 strip: reviews + shares ───
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.gray150)
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+        // ─── Stats row — Swift :343-388: no strip background, 18dp icons +
+        //     body2 labels in textDarkTitle, 6dp icon gap, 24dp pair gap. ───
         Row(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_star),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(20.dp),
-            )
-            Text(text = "0 Reviews", style = AirdropType.body2, color = colors.iconSelected)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_star),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(text = "0 Reviews", style = AirdropType.body2, color = colors.textDarkTitle)
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_share),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(text = "50 Shares", style = AirdropType.body2, color = colors.textDarkTitle)
+            }
         }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Image(
-                painter = painterResource(R.drawable.ic_share),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(20.dp),
-            )
-            Text(text = "50 Shares", style = AirdropType.body2, color = colors.iconSelected)
-        }
-    }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
+        Spacer(Modifier.height(12.dp))
 
-    // ─── Title / model / price + stepper / stock ───
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Column {
-            Text(
-                text = product.title,
-                style = AirdropType.title1,
-                color = colors.textDarkTitle,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(fontFamily = Cairo, fontWeight = FontWeight.Normal)) {
-                        append("Model: ")
-                    }
-                    withStyle(SpanStyle(fontFamily = Cairo, fontWeight = FontWeight.Bold)) {
-                        append(product.slug?.uppercase() ?: "—")
-                    }
-                },
-                style = AirdropType.body2.copy(lineHeight = 20.sp),
-                color = colors.textDarkTitle,
-            )
-        }
+        // ─── Title block — Swift :392-449. ───
+        Text(
+            text = product.title,
+            style = AirdropType.subtitle1,
+            color = colors.textDarkTitle,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = buildAnnotatedString {
+                withStyle(AirdropType.body2.toSpanStyle().copy(color = colors.textDescription)) {
+                    append("Model: ")
+                }
+                withStyle(AirdropType.subtitle2.toSpanStyle().copy(color = colors.textDarkTitle)) {
+                    append(product.slug?.uppercase() ?: "—")
+                }
+            },
+            style = AirdropType.body2,
+        )
+        Spacer(Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 val regular = product.regularPriceUsd
                 if (regular != null && regular > product.priceUsd && regular > 0) {
                     Text(
-                        text = formatUsd(regular),
-                        style = AirdropType.body3.copy(textDecoration = TextDecoration.LineThrough),
+                        // Swift :477-481 — strikethrough body2 "$%.2f".
+                        text = String.format(Locale.US, "$%.2f", regular),
+                        style = AirdropType.body2.copy(textDecoration = TextDecoration.LineThrough),
                         color = colors.textDescription,
                     )
                 }
                 Text(
-                    text = formatUsd(product.priceUsd),
-                    style = TextStyle(
-                        fontFamily = Cairo,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
-                        lineHeight = 28.sp,
-                    ),
+                    // Swift :487-494 — h5 orangeMain "$%.2f".
+                    text = String.format(Locale.US, "$%.2f", product.priceUsd),
+                    style = AirdropType.h5,
                     color = BrandPalette.OrangeMain,
                 )
             }
             QuantityStepper(quantity = quantity, onChange = onChangeQuantity)
         }
+        Spacer(Modifier.height(12.dp))
         Text(
-            text = "Stock Quantity: ${product.inventory ?: 0}",
-            style = TextStyle(
-                fontFamily = Cairo,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                lineHeight = 19.sp,
-            ),
+            // Swift :428-445 — "Stock Quantity: " subtitle2 + value subtitle1,
+            // both blueAccentMain.
+            text = buildAnnotatedString {
+                withStyle(AirdropType.subtitle2.toSpanStyle()) { append("Stock Quantity: ") }
+                withStyle(AirdropType.subtitle1.toSpanStyle()) { append("${product.inventory ?: 0}") }
+            },
+            style = AirdropType.subtitle2,
             color = BrandPalette.BlueAccentMain,
         )
-    }
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
+        Spacer(Modifier.height(12.dp))
 
-    // ─── Description — gray150 section with top/bottom dividers ───
-    Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.gray150)
-            .padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        Text(text = "Description", style = AirdropType.title2, color = colors.textDarkTitle)
+        // ─── Description — Swift :561-599: subtitle1 title, body2
+        //     textDescription body (4 lines collapsed), underlined See all. ───
+        Text(text = "Description", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+        Spacer(Modifier.height(8.dp))
         Text(
             text = cleanDescription(product.description),
             style = AirdropType.body2,
-            color = colors.textDarkTitle,
+            color = colors.textDescription,
             maxLines = if (expanded) Int.MAX_VALUE else 4,
             overflow = TextOverflow.Ellipsis,
         )
+        Spacer(Modifier.height(8.dp))
         Text(
             text = if (expanded) "See less" else "See all",
             style = AirdropType.underlineLink.copy(textDecoration = TextDecoration.Underline),
             color = BrandPalette.OrangeMain,
             modifier = Modifier.clickable(onClick = onToggleExpanded),
         )
-    }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
 
-    // ─── Related Products (auction mode only) ───
-    if (!featured && related.isNotEmpty()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
+        // ─── Related Products (auction mode only) — Swift :237-240, :643-654. ───
+        if (!featured && related.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
             ShopSectionHeader(
                 title = "Related Products",
                 actionLabel = "View More",
                 onAction = onViewMoreRelated,
             )
+            Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 related.take(2).forEach { item ->
                     ShopProductCard(
@@ -419,49 +423,61 @@ private fun DetailsContent(
                 }
             }
         }
+
+        // Tail spacer — Swift :242-245.
+        Spacer(Modifier.height(80.dp))
     }
 }
 
-/** 144x55 stepper card — Figma node 40002083:26012. */
+/**
+ * 132x44 stepper card — Swift FigmaAuctionProductDetailsViewController.swift:501-549:
+ * gray100 fill, radius 12, 1dp iconShape border, 16dp +/- icons in 36dp
+ * touch targets inset 4, subtitle1 quantity, all textDarkTitle.
+ */
 @Composable
 private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) {
     val colors = AirdropTheme.colors
     Row(
         modifier = Modifier
-            .width(144.dp)
-            .height(55.dp)
-            .background(colors.gray150, RoundedCornerShape(14.dp))
-            .border(1.37.dp, colors.iconShape, RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp),
+            .width(132.dp)
+            .height(44.dp)
+            .background(colors.gray100, RoundedCornerShape(12.dp))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
+            .padding(horizontal = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_shop_minus_square),
-            contentDescription = "Decrease quantity",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
+        Box(
             modifier = Modifier
-                .size(27.dp)
+                .size(36.dp)
                 .clickable { onChange(-1) },
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_shop_minus_square),
+                contentDescription = "Decrease quantity",
+                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                modifier = Modifier.size(16.dp),
+            )
+        }
         Text(
             text = quantity.toString(),
-            style = TextStyle(
-                fontFamily = Cairo,
-                fontWeight = FontWeight.Bold,
-                fontSize = 24.sp,
-                lineHeight = 34.sp,
-            ),
+            style = AirdropType.subtitle1,
             color = colors.textDarkTitle,
         )
-        Image(
-            painter = painterResource(R.drawable.ic_shop_add_square),
-            contentDescription = "Increase quantity",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
+        Box(
             modifier = Modifier
-                .size(27.dp)
+                .size(36.dp)
                 .clickable { onChange(1) },
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_shop_add_square),
+                contentDescription = "Increase quantity",
+                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 

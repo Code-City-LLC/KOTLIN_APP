@@ -68,7 +68,8 @@ fun ProfileScreen(
     var pickerFor by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    // Swift FigmaProfileViewController.swift:120 — gray100 background.
+    Box(Modifier.fillMaxSize().background(colors.gray100)) {
         Column(Modifier.fillMaxSize()) {
             MoreDetailHeader(title = "Edit Profile", onBack = onBack)
             Column(

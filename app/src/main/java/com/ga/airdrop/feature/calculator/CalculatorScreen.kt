@@ -148,7 +148,7 @@ fun CalculatorScreen(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         CalcInputField(
-                            label = "Actual Weight",
+                            label = "Actual Weight (lbs)", // Swift FigmaCalculatorViewController.swift:198
                             value = state.actualWeight,
                             onValueChange = viewModel::onActualWeightChange,
                             placeholder = "e.g. 843",
@@ -199,7 +199,7 @@ fun CalculatorScreen(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         CalcInputField(
-                            label = "Actual Weight",
+                            label = "Actual Weight (lbs)", // Swift FigmaCalculatorViewController.swift:198
                             value = state.actualWeight,
                             onValueChange = viewModel::onActualWeightChange,
                             placeholder = "e.g. 843",

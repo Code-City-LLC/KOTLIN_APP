@@ -60,13 +60,14 @@ fun ShopScreen(
         onNavigate(Routes.auctionProductDetails(product.routeSlug, featured))
     }
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    // Swift FigmaShopViewController.swift:42 — gray200 background.
+    Box(Modifier.fillMaxSize().background(colors.gray200)) {
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(Modifier.height(130.dp)) // clearance under the solid header
+            Spacer(Modifier.height(126.dp)) // Swift FigmaShopViewController.swift:109 — 126 top clearance
             Column(
                 Modifier
                     .fillMaxWidth()
