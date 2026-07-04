@@ -21,6 +21,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.feature.auth.AuthLandingScreen
 import com.ga.airdrop.feature.auth.LoginScreen
+import com.ga.airdrop.feature.auth.authExtraGraph
 import com.ga.airdrop.feature.calculator.calculatorGraph
 import com.ga.airdrop.feature.dropalert.dropAlertGraph
 import com.ga.airdrop.feature.homedetails.homeDetailsGraph
@@ -39,7 +40,9 @@ import com.ga.airdrop.feature.shop.shopGraph
 fun AppRoot() {
     val navController = rememberNavController()
     val token by AuthTokenStore.tokenFlow.collectAsState()
-    val startDestination = if (token != null) Routes.HOME else Routes.AUTH_LANDING
+    // Splash decides: token → Home, first run → Onboarding, else → Landing
+    // (mirrors RN LaunchAppView + Swift SceneDelegate).
+    val startDestination = Routes.SPLASH
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -102,8 +105,8 @@ private fun androidx.navigation.NavGraphBuilder.authGraph(navController: NavHost
             onForgotPassword = { navController.navigate(Routes.FORGOT_PASSWORD) },
         )
     }
-    composable(Routes.SIGN_UP) { PlaceholderScreen("Sign Up") }
-    composable(Routes.FORGOT_PASSWORD) { PlaceholderScreen("Forgot Password") }
+    // Splash, onboarding, sign-up, forgot-password, registration-success.
+    authExtraGraph(navController)
 }
 
 private fun androidx.navigation.NavGraphBuilder.mainGraph(navController: NavHostController) {
