@@ -47,6 +47,17 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Sign the release with the auto-managed debug keystore so
+            // `assembleRelease` produces an INSTALLABLE apk for on-device
+            // sideload testing (an unsigned apk is rejected by the package
+            // installer). The debug keystore is a well-known, non-secret
+            // shared key — nothing sensitive is committed.
+            //
+            // FOR PLAY STORE UPLOAD: replace this with a dedicated upload
+            // keystore. Put its credentials in a gitignored keystore.properties
+            // (storeFile/storePassword/keyAlias/keyPassword) and point a real
+            // signingConfig at them — never commit the keystore or passwords.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
