@@ -18,9 +18,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -51,6 +54,8 @@ fun TypeInputField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     enabled: Boolean = true,
     error: String? = null,
+    /** Enables system autofill / password-manager for this field. */
+    autofillContentType: ContentType? = null,
 )
 {
     val colors = AirdropTheme.colors
@@ -101,7 +106,15 @@ fun TypeInputField(
                     } else {
                         VisualTransformation.None
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (autofillContentType != null) {
+                                Modifier.semantics { contentType = autofillContentType }
+                            } else {
+                                Modifier
+                            }
+                        ),
                 )
             }
             if (isPassword && onTogglePasswordVisibility != null) {

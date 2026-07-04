@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -24,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -91,7 +94,8 @@ fun ForgotPasswordScreen(
                         )
                         .padding(horizontal = 31.dp)
                         .padding(top = 42.dp)
-                        .navigationBarsPadding()
+                        // Lift the reset form above the keyboard.
+                        .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                         .padding(bottom = 28.dp)
                         .verticalScroll(rememberScrollState()),
                 ) {
@@ -114,6 +118,7 @@ fun ForgotPasswordScreen(
                         onValueChange = viewModel::onEmailChange,
                         placeholder = "e.g. username@email.com",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        autofillContentType = ContentType.EmailAddress,
                     )
                     if (state.error != null) {
                         Spacer(Modifier.height(Spacing.sm))

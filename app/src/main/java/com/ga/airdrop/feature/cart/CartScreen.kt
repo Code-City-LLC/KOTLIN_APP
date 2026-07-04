@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -83,7 +84,13 @@ fun CartScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(colors.gray150)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(colors.gray150)
+            // Lift the billing form + payment bar above the keyboard.
+            .imePadding()
+    ) {
         // Swift keeps "My Cart" (Title1) so the empty cart never reads
         // "Order Summary".
         ShopInnerHeader(title = "My Cart", onBack = onBack, titleStyle = AirdropType.title1)

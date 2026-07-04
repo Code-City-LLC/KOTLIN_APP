@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -81,7 +83,9 @@ fun SignUpScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(colors.gray150),
+            .background(colors.gray150)
+            // Lift the whole form (incl. pinned Sign Up bar) above the keyboard.
+            .imePadding(),
     ) {
         AuthDetailHeader(title = "Sign Up", onBack = onBack)
         Column(
@@ -119,6 +123,7 @@ fun SignUpScreen(
                 passwordVisible = state.passwordVisible,
                 onTogglePasswordVisibility = viewModel::togglePasswordVisible,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                autofillContentType = ContentType.NewPassword,
             )
             TypeInputField(
                 label = "Confirm Password",
@@ -137,6 +142,7 @@ fun SignUpScreen(
                 placeholder = "e.g. kemi2627@yahoo.com",
                 required = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                autofillContentType = ContentType.EmailAddress,
             )
             TypeInputField(
                 label = "Confirm Email Address",

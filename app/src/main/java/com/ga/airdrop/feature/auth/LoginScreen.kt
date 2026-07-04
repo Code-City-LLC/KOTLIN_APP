@@ -9,13 +9,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -86,19 +89,20 @@ fun LoginScreen(
             ) {
                 ThemeToggle()
             }
-            // Swift FigmaLoginViewController.swift:230 — logo top sits 80
-            // below the safe area (62dp toggle row + 18 = 80).
             Spacer(Modifier.height(18.dp))
+            // Figma Login logo (node 40006240:26932): the wide color wordmark
+            // sized to 260 of the 375-wide frame (screen-relative, not a fixed
+            // dp box that renders tiny on real devices). Dark mode uses the
+            // round logo at a matching visual height.
             Image(
                 painter = painterResource(
                     if (colors.isDark) R.drawable.img_airdrop_logo_dark
                     else R.drawable.img_airdrop_logo
                 ),
                 contentDescription = "AirDrop",
-                // Swift FigmaLoginViewController.swift:231-232 — 240x90 frame.
                 modifier = Modifier
-                    .width(240.dp)
-                    .height(90.dp)
+                    .fillMaxWidth(if (colors.isDark) 0.26f else 260f / 375f)
+                    .aspectRatio(if (colors.isDark) 1.049f else 649f / 180f)
                     .align(Alignment.CenterHorizontally),
                 contentScale = ContentScale.Fit,
             )
@@ -115,7 +119,11 @@ fun LoginScreen(
                     )
                     .padding(horizontal = 30.dp)
                     .padding(top = 32.dp)
-                    .navigationBarsPadding()
+                    // Lift the form above the keyboard (edge-to-edge means the
+                    // window doesn't resize on its own): pad by whichever is
+                    // larger — the nav bar or the IME. The focused field then
+                    // scrolls into view above the keyboard.
+                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                     .padding(bottom = 32.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
@@ -139,6 +147,7 @@ fun LoginScreen(
                     onValueChange = viewModel::onEmailChange,
                     placeholder = "e.g. username@email.com",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    autofillContentType = ContentType.EmailAddress + ContentType.Username,
                 )
                 Spacer(Modifier.height(Spacing.md))
                 TypeInputField(
@@ -150,6 +159,7 @@ fun LoginScreen(
                     passwordVisible = state.passwordVisible,
                     onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    autofillContentType = ContentType.Password,
                 )
                 // Swift FigmaLoginViewController.swift:213 — 10 after password;
                 // :171-179 — Body2 underline in textDarkTitle.
