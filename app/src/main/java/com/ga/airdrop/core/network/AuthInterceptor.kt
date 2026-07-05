@@ -12,14 +12,28 @@ class AuthInterceptor : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
+        val path = original.url.encodedPath
+        // Pre-auth endpoints MUST be sent unauthenticated — a leftover bearer
+        // from a prior session makes the backend reject the sign-in/registration
+        // request (the reported "login shows 400"). Swift's AirdropAPI omits the
+        // token for these too. `auth/refresh` and `auth/logout` still need it.
+        // NB: match `auth/register`, not the unrelated `device-tokens/register`.
+        val isPreAuth = path.endsWith("auth/login") ||
+            path.endsWith("auth/register") ||
+            path.endsWith("auth/forgot-password") ||
+            path.endsWith("auth/reset-password")
+        val attachedToken = if (isPreAuth) null else AuthTokenStore.token
         val builder = original.newBuilder()
             .header("Accept", "application/json")
-        AuthTokenStore.token?.let { builder.header("Authorization", "Bearer $it") }
+        attachedToken?.let { builder.header("Authorization", "Bearer $it") }
 
         val response = chain.proceed(builder.build())
 
-        if (response.code == 401 && AuthTokenStore.token != null &&
-            !original.url.encodedPath.contains("/auth/login")
+        if (response.code == 401 &&
+            // Only clear if the token we sent is still the current one —
+            // prevents a stale-request 401 from wiping a freshly-refreshed token.
+            attachedToken != null && attachedToken == AuthTokenStore.token &&
+            !isPreAuth
         ) {
             AuthTokenStore.clear()
         }
