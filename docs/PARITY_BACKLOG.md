@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **32 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **34 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -188,6 +188,17 @@ light AND dark.
   `/tmp/kotlin_ui_proof/authorized_users_figma.png`,
   `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_light.png`,
   `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_dark.png`.
+- **Authorized User Detail one-load/action rails:** Authorized User Detail was
+  compared against Swift `FigmaAuthorizedUserDetailViewController.swift`; the
+  documented Figma detail node `40001185:5345` currently resolves to the
+  Authorized Users list, so Swift takes precedence for the detail runtime. The
+  root cause was a duplicate first-entry load: `AuthorizedUserDetailViewModel`
+  already loads in `init`, while `AuthorizedUserDetailScreen` also called
+  `viewModel.load()` from composition. Android now loads once on entry, keeps
+  the Swift read-only header with no Edit action, refreshes after
+  Activate/Deactivate, and pops after Delete. Proof:
+  `/tmp/kotlin_ui_proof/authorized_user_detail/android/authorized_user_detail/authorized_user_detail_swift_light.png`,
+  `/tmp/kotlin_ui_proof/authorized_user_detail/android/authorized_user_detail/authorized_user_detail_swift_dark.png`.
 - **Background Images Swift-precedence picker:** Background Images was compared
   against Figma section `40006644:65735` / frame `40006644:67051` and Swift
   `FigmaBackgroundImagesViewController.swift`. Swift takes precedence over the
@@ -460,6 +471,15 @@ rail while adding the missing orange pull-to-refresh path through
 `AuthorizedUsersViewModel.refresh()`. `AuthorizedUsersParityTest` verifies light
 and dark geometry, card/add taps, and manual refresh API calls; adjacent More
 regressions passed 18/18 and the full connected staging suite passed 104/104.
+
+**✅ CLOSED — Authorized User Detail one-load/action follow-up:** Swift
+`FigmaAuthorizedUserDetailViewController.swift` wins for the detail page because
+Figma node `40001185:5345` currently renders the Authorized Users list, not the
+detail surface. Android removed the duplicate screen-side first load and keeps
+the existing ViewModel-owned load/mutation/delete rails: one GET on entry,
+Activate/Deactivate refreshes detail, Delete pops back, and no Edit action is
+rendered. `AuthorizedUserDetailParityTest` verifies light/dark detail geometry,
+one-load behavior, status mutation refreshes, and delete navigation.
 
 **✅ CLOSED — Invite Friend contacts icon follow-up:** Swift's
 `FigmaInviteFriendViewController` renders ContactNumber with orange signal arcs

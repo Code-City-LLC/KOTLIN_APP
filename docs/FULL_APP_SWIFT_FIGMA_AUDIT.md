@@ -484,6 +484,30 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/authorized_users_figma.png`,
     `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_light.png`,
     `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_dark.png`
+- Android checks run for the Authorized User Detail Swift/Figma load/action
+  pass:
+  - Figma MCP design context checked for documented detail node
+    `40001185:5345`; that node currently resolves to the Authorized Users list,
+    not the detail surface. The Add Authorized User node `40001541:45296` also
+    omits Swift's Email field, so Swift remains the runtime/detail authority.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaAuthorizedUserDetailViewController.swift`.
+  - Swift takes precedence: `viewDidLoad` calls `loadUser()` once, the detail
+    screen is read-only with no Edit affordance, Activate/Deactivate refreshes
+    the detail after mutation, and Delete pops back after success.
+  - Android had a real runtime drift: `AuthorizedUserDetailViewModel.init`
+    already loaded the user, and `AuthorizedUserDetailScreen` also triggered
+    `viewModel.load()` on first composition. The screen-side duplicate load was
+    removed while preserving the existing ViewModel, repository, mutation, and
+    delete rails.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `AuthorizedUserDetailParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed on
+    `airdrop_test2(AVD) - 15`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/authorized_user_detail/android/authorized_user_detail/authorized_user_detail_swift_light.png`,
+    `/tmp/kotlin_ui_proof/authorized_user_detail/android/authorized_user_detail/authorized_user_detail_swift_dark.png`
 - Android checks run for the Restricted Items Swift-precedence pass:
   - Figma MCP design context and screenshots checked for nodes `40001432:14025`
     and `40001432:14918`.
@@ -1010,6 +1034,11 @@ assets; only repair the parts that are visibly or functionally wrong.
   keeps the Swift/Figma 20dp content gutters, 56dp card header, active/inactive
   section layout, card-detail taps, bottom-only `Add User` action, and adds the
   missing Swift orange pull-to-refresh rail through the existing repository path.
+- Authorized User Detail now has Swift-precedence proof against
+  `FigmaAuthorizedUserDetailViewController.swift`; Figma node `40001185:5345`
+  is currently stale/misnamed and renders the list rather than detail. Android
+  now loads detail once on entry, keeps the Swift read-only no-Edit header,
+  refreshes after Activate/Deactivate, and pops after Delete.
 - Background Images now has Swift-precedence proof against Figma section
   `40006644:65735` / frame `40006644:67051` and Swift
   `FigmaBackgroundImagesViewController.swift`. Figma shows a one-column `335x150`
@@ -1389,7 +1418,7 @@ For each page, fill this before claiming completion:
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates` | partial | partial | partial | Codex | More root profile/menu/header tap rails, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Authorized User Detail stale node `40001185:5345`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates`, `/authorized-users/{id}` mutations | partial | partial | partial | Codex | More root profile/menu/header tap rails, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Authorized User Detail one-load/read-only/mutation/delete rails, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
 
 ---

@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -54,11 +55,10 @@ fun AuthorizedUserDetailScreen(
         if (state.deleted) onBack()
     }
 
-    LaunchedEffect(Unit) { viewModel.load() }
-
     Column(
         Modifier
             .fillMaxSize()
+            .testTag("authorized-user-detail-root")
             .background(colors.gray100)
     ) {
         More2InnerHeader(
@@ -90,9 +90,10 @@ fun AuthorizedUserDetailScreen(
                         Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
+                            .testTag("authorized-user-detail-scroll")
                             .padding(Spacing.md)
                     ) {
-                        More2OuterCard {
+                        More2OuterCard(Modifier.testTag("authorized-user-detail-card")) {
                             val rows = buildList {
                                 add(Triple("Name", user.fullName(), false))
                                 add(Triple("ID Type", user.identificationType ?: "-", false))
@@ -158,18 +159,21 @@ fun AuthorizedUserDetailScreen(
                         text = "Deactivate User",
                         onClick = viewModel::togglePrimary,
                         loading = state.processing,
+                        modifier = Modifier.testTag("authorized-user-detail-primary"),
                     )
                 } else {
                     More2PrimaryButton(
                         text = "Activate User",
                         onClick = viewModel::togglePrimary,
                         loading = state.processing,
+                        modifier = Modifier.testTag("authorized-user-detail-primary"),
                     )
                 }
                 More2RedButton(
                     text = "Delete User",
                     onClick = { showDeleteConfirm = true },
                     enabled = !state.processing,
+                    modifier = Modifier.testTag("authorized-user-detail-delete"),
                 )
             }
         }
