@@ -457,6 +457,7 @@ fun ShipmentsSectionCard(
     modifier: Modifier = Modifier,
     titleStyle: TextStyle = AirdropType.title2,
     showChevron: Boolean = true,
+    headerDividerTestTag: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = AirdropTheme.colors
@@ -495,6 +496,13 @@ fun ShipmentsSectionCard(
                 Spacer(Modifier.size(24.dp))
             }
         }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(colors.gray300)
+                .then(if (headerDividerTestTag != null) Modifier.testTag(headerDividerTestTag) else Modifier)
+        )
         if (expanded) content()
     }
 }

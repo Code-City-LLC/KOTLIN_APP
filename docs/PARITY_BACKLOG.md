@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **20 items are FIXED, on-device verified, and pushed.** Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **21 items are FIXED, on-device verified, and pushed.** Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -196,10 +196,22 @@ light AND dark.
   `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/payments_swift_dark.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/orders_swift_light.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/orders_swift_dark.png`.
+- **Shipments section-card divider follow-up:** Swift
+  `FigmaOrderDetailsViewController.swift`,
+  `FigmaProductPaymentDetailsViewController.swift`, and
+  `FigmaPaymentPackageDetailsViewController.swift` all place a 1pt `gray300`
+  divider immediately under the gray200 section header bar. Figma Order Details
+  node `40001761:28814` confirms the same visual. Android had already removed
+  the stale doubled header border, but it still lacked the Swift divider.
+  `ShipmentsSectionCardParityTest` now locks a full-width 1dp divider in app
+  light and dark. Proof:
+  `/tmp/kotlin_ui_proof/shipments_section_cards/figma/figma_order_details_40001761_28814.png`,
+  `/tmp/kotlin_ui_proof/shipments_section_cards/android/shipments_section_cards/shipments_section_card_swift_light.png`,
+  `/tmp/kotlin_ui_proof/shipments_section_cards/android/shipments_section_cards/shipments_section_card_swift_dark.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, and Payments/Orders header/error follow-up slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, and Shipments section-card divider slices are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -584,12 +596,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] All section cards in this group
+## [CLOSED] All section cards in this group
 `app/src/main/java/com/ga/airdrop/feature/shipments/ShipmentsUi.kt:432` — Section-card header row draws a full 4-sided border inside the already-bordered card, doubling the outline; Swift has only a 1px divider under the bar
 
 **Detail:** ShipmentsUi.kt:432 applies .border(1.dp, colors.iconShape) to the gray200 header Row, adding visible extra lines at the card's top and sides on top of the outer card border. Swift cards (e.g. FigmaOrderDetailsViewController.swift:310-333) draw a single gray300 divider between bar and body only.
 
-**Fix:** Remove the border on the header Row and add a 1dp divider Box (colors.divider) between the header and content().
+**Fix:** Verified closed. Current Android had already removed the old doubled 4-sided header border, so this pass added the missing Swift 1dp `gray300` divider under the section header bar and locked it with `ShipmentsSectionCardParityTest` in light/dark. Swift is the runtime source; Figma Order Details node `40001761:28814` confirms the same header/body separator.
 
 ---
 
