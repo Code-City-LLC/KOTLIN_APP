@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -60,6 +61,8 @@ fun PaymentMethodsScreen(
                     Image(
                         painter = painterResource(R.drawable.ic_more_payment_methods),
                         contentDescription = null,
+                        // Swift template-tints this icon fully iconSelected.
+                        colorFilter = ColorFilter.tint(colors.iconSelected),
                         modifier = Modifier.size(24.dp),
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

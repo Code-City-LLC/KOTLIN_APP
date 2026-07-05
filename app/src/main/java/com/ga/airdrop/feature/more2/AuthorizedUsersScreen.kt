@@ -190,14 +190,9 @@ private fun UserCard(user: AuthorizedUser, onClick: () -> Unit) {
                 .background(colors.iconShape)
         )
 
-        val fields = buildList<Triple<String, String, Color?>> {
-            // Figma 40000975:7859: inactive cards lead with an "Active User"
-            // row showing how many times the user was activated.
-            val activeTimes = user.activeTimes
-            if (!user.isActive && activeTimes != null && activeTimes > 0) {
-                add(Triple("Active User", "$activeTimes Times Active", null))
-            }
-        } + listOf(
+        // Swift list cards do NOT render the "Active User / N Times Active"
+        // row — fields start at ID Type for every card.
+        val fields = listOf(
             Triple("ID Type", user.identificationType ?: "-", null),
             Triple("ID Number", user.identificationIdNumber ?: "-", null),
             Triple("Email Address", user.email ?: "-", null),

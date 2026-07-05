@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.shop
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -204,11 +205,29 @@ fun AuctionCheckoutScreen(
                         color = colors.textDarkTitle,
                     )
                 }
-                GradientButton(
-                    text = "Continue to pay",
-                    loading = state.paying,
-                    onClick = viewModel::pay,
-                )
+                // Swift: flat orangeMain button, radius 10 (not the gradient).
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                        .clickable(enabled = !state.paying, onClick = viewModel::pay),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (state.paying) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = BrandPalette.White,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text(
+                            text = "Continue to pay",
+                            style = AirdropType.button,
+                            color = BrandPalette.White,
+                        )
+                    }
+                }
             }
         }
     }

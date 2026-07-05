@@ -71,7 +71,7 @@ fun FeaturedProductsScreen(
     ProductListScreen(
         title = "Feature Products",
         searchPlaceholder = "Paste Any Amazon Product Link",
-        emptyText = "No feature products right now",
+        emptyText = "No Products Found",
         featured = true,
         viewModel = viewModel,
         onNavigate = onNavigate,
