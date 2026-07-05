@@ -94,7 +94,7 @@ private val moreMenuItems = listOf(
     MoreMenuItem("Refer a friend", R.drawable.ic_more_refer, Routes.REFER_A_FRIEND, MoreRootTags.REFER_A_FRIEND),
     MoreMenuItem("Shipping Rates", R.drawable.ic_more_shipping_rates, Routes.SHIPPING_RATES, MoreRootTags.SHIPPING_RATES),
     MoreMenuItem("Restricted Items", R.drawable.ic_more_restricted, Routes.RESTRICTED_ITEMS, MoreRootTags.RESTRICTED_ITEMS),
-    MoreMenuItem("Payment Methods", R.drawable.ic_more_payment_methods, MoreRoutes.PAYMENT_METHODS, MoreRootTags.PAYMENT_METHODS),
+    MoreMenuItem("Payment Methods", R.drawable.ic_more_payment_methods, Routes.PAYMENT_METHODS, MoreRootTags.PAYMENT_METHODS),
     MoreMenuItem("FAQs", R.drawable.ic_more_faqs, Routes.FAQ, MoreRootTags.FAQS),
     MoreMenuItem("Terms & Conditions", R.drawable.ic_more_terms, Routes.TERMS, MoreRootTags.TERMS),
     MoreMenuItem("Privacy Policy", R.drawable.ic_more_privacy, Routes.PRIVACY, MoreRootTags.PRIVACY),

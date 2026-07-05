@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **35 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **36 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -176,6 +176,18 @@ light AND dark.
   `/tmp/kotlin_ui_proof/more_root/figma/figma_more_40001948_22354.png`,
   `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_light.png`,
   `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_dark.png`.
+- **Payment Methods Swift-precedence empty-state/Cart rail:** Payment Methods
+  was compared against Figma node `40001428:9188` and Swift
+  `FigmaPaymentMethodsViewController`. Swift takes precedence over the visible
+  Figma conflict: Figma shows a saved-card chooser with PayPal/Apple Pay/Visa/
+  Mastercard/AmEx rows and an `Add New Card` CTA, while Swift ships an
+  informational empty-state card plus `Go to Checkout`. Android already matched
+  Swift; this pass removed the stale duplicate `MoreRoutes.PAYMENT_METHODS`
+  alias, keeps canonical `Routes.PAYMENT_METHODS`, and locks light/dark layout
+  plus Cart navigation. Proof:
+  `/tmp/kotlin_ui_proof/payment_methods/figma/payment_methods_40001428_9188.png`,
+  `/tmp/kotlin_ui_proof/payment_methods/android/payment_methods/payment_methods_swift_light.png`,
+  `/tmp/kotlin_ui_proof/payment_methods/android/payment_methods/payment_methods_swift_dark.png`.
 - **Authorized Users refresh/list rails:** Authorized Users was compared
   against Figma node `40000975:7859` and Swift
   `FigmaAuthorizedUsersViewController.swift`. Swift takes precedence for
@@ -378,7 +390,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
@@ -471,6 +483,13 @@ focused proof for the 80dp profile card, 48dp avatar, 335x59dp menu rows, the
 12 menu row callbacks, the profile-card/avatar split, and header tier/bell/cart/
 AirCoins callbacks. This closes the More root rail only; broader More subpage
 pixel parity remains tracked separately.
+
+**✅ CLOSED — Payment Methods Swift-precedence follow-up:** Swift
+`FigmaPaymentMethodsViewController` wins over Figma node `40001428:9188`.
+Figma still shows the saved-card chooser and `Add New Card`; Android must keep
+Swift's informational empty-state card and `Go to Checkout` Cart row until Swift
+changes. `PaymentMethodsParityTest` verifies light/dark geometry, rejects the
+stale Figma chooser copy, and proves the Cart route.
 
 **✅ CLOSED — Authorized Users refresh/list follow-up:** Swift
 `FigmaAuthorizedUsersViewController.swift` wins for runtime behavior, while

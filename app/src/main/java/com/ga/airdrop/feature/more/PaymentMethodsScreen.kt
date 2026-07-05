@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
@@ -39,19 +40,26 @@ fun PaymentMethodsScreen(
     onNavigate: (String) -> Unit,
 ) {
     val colors = AirdropTheme.colors
-    Box(Modifier.fillMaxSize().background(colors.gray200)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .testTag("payment-methods-root")
+            .background(colors.gray200)
+    ) {
         Column(Modifier.fillMaxSize()) {
             MoreDetailHeader(title = "Payment Methods", onBack = onBack)
             Column(
                 Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
+                    .testTag("payment-methods-scroll")
                     .padding(Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .testTag("payment-methods-status-card")
                         .clip(RoundedCornerShape(Radius.s))
                         .background(colors.gray100)
                         .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -83,6 +91,8 @@ fun PaymentMethodsScreen(
                     title = "Go to Checkout",
                     tint = colors.iconSelected,
                     onClick = { onNavigate(Routes.CART) },
+                    modifier = Modifier.testTag("payment-methods-checkout-card"),
+                    testTagPrefix = "payment-methods-checkout",
                 )
             }
         }

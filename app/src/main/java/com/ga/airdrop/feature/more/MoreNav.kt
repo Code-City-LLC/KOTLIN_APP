@@ -6,21 +6,10 @@ import androidx.navigation.compose.composable
 import com.ga.airdrop.core.navigation.Routes
 
 /**
- * More-tab route constants that don't exist in Routes.kt yet.
- * RECONCILE (orchestrator): add `const val PAYMENT_METHODS = "paymentMethods"`
- * to Routes.kt — mirrored here so this feature compiles standalone.
- */
-object MoreRoutes {
-    const val PAYMENT_METHODS = "paymentMethods"
-}
-
-/**
  * More feature group, part 1 — hub, Settings, Profile, Documents,
  * Preferences, Notification Settings, Background Images, Payment Methods.
  *
- * RECONCILE (orchestrator): call `moreGraph(navController)` from the
- * mainGraph in core/navigation/AppRoot.kt and drop its `Routes.MORE`
- * PlaceholderScreen registration. Destinations still owned elsewhere:
+ * Destinations still owned elsewhere:
  * REFER_A_FRIEND / PROMOTIONS / AUTHORIZED_USERS / SHIPPING_RATES /
  * RESTRICTED_ITEMS / FAQ / TERMS / PRIVACY / ACCOUNT_DELETION (feature/more2),
  * INVOICE_VIEWER (shipments), CART (shop).
@@ -60,7 +49,7 @@ fun NavGraphBuilder.moreGraph(navController: NavHostController) {
     composable(Routes.BACKGROUNDS) {
         BackgroundImagesScreen(onBack = { navController.popBackStack() })
     }
-    composable(MoreRoutes.PAYMENT_METHODS) {
+    composable(Routes.PAYMENT_METHODS) {
         PaymentMethodsScreen(
             onBack = { navController.popBackStack() },
             onNavigate = { navController.navigate(it) },
