@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **21 items are FIXED, on-device verified, and pushed.** Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **22 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -208,6 +208,22 @@ light AND dark.
   `/tmp/kotlin_ui_proof/shipments_section_cards/figma/figma_order_details_40001761_28814.png`,
   `/tmp/kotlin_ui_proof/shipments_section_cards/android/shipments_section_cards/shipments_section_card_swift_light.png`,
   `/tmp/kotlin_ui_proof/shipments_section_cards/android/shipments_section_cards/shipments_section_card_swift_dark.png`.
+- **Home bottom-tab navigation state:** The earlier observation that Home could
+  appear selected while More/FAQ content remained visible was rechecked against
+  Swift `FigmaBottomTabBar` + `FigmaRouteResolver.switchToTabRoute` first, then
+  Figma Home node `40001464:28899`. Swift takes precedence: tab taps root-swap
+  the controller with `setViewControllers([destination])`. The visible
+  Home-selected/More-visible state did not reproduce on current `origin/main`,
+  but the hidden back stack still retained the previous tab instead of matching
+  Swift's root replacement. Android now clears the stack on tab switches and
+  ignores already-selected tab taps like Swift's `guard route != activeRoute`.
+  `AppRootNavigationParityTest` verifies real `AppRoot` More -> Home clears the
+  More/FAQ row, `switchTab` reaches Home with no previous tab left in the test
+  back stack, and More -> FAQ hides the bottom tab bar. Proof:
+  `/tmp/kotlin_ui_proof/home_tab_navigation/figma/figma_home_40001464_28899.png`,
+  `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/app_root_more_before_home_tab.png`,
+  `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/app_root_home_after_more_tab.png`,
+  `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/harness_home_after_more_start.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 

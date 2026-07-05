@@ -83,7 +83,11 @@ fun AppRoot() {
         if (currentTab != null) {
             AirdropBottomBar(
                 selected = currentTab,
-                onSelect = { tab -> navController.switchTab(tab) },
+                onSelect = { tab ->
+                    if (tab != currentTab) {
+                        navController.switchTab(tab)
+                    }
+                },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -134,7 +138,7 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(navController: NavHost
     homeDetailsGraph(navController)
 }
 
-/** Tab switch = replace the current tab root, keeping Home as anchor. */
+/** Tab switch = Swift FigmaRouteResolver.switchToTabRoute root replacement. */
 fun NavHostController.switchTab(tab: AirdropTab) {
     val route = when (tab) {
         AirdropTab.Home -> Routes.HOME
@@ -144,7 +148,7 @@ fun NavHostController.switchTab(tab: AirdropTab) {
         AirdropTab.More -> Routes.MORE
     }
     navigate(route) {
-        popUpTo(Routes.HOME) { inclusive = route == Routes.HOME }
+        popUpTo(0) { inclusive = true }
         launchSingleTop = true
     }
 }

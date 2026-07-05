@@ -735,9 +735,24 @@ Findings to verify/fix:
   dark mode while primary orange layers remain orange. Proof:
   `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_light_after_fix.png`,
   `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_dark_after_fix.png`.
-- Functional bug observed during Codex inspection: a bottom-tab tap sequence
-  appeared to leave More/FAQ content visible while Home was selected. Reproduce
-  carefully and fix `AppRoot.switchTab` or navigation state if confirmed.
+- Home bottom-tab navigation state was rechecked on 2026-07-05 against Swift
+  `FigmaBottomTabBar` + `FigmaRouteResolver.switchToTabRoute` first, then
+  Figma Home node `40001464:28899`. Swift takes precedence here: tab changes
+  root-swap the `UINavigationController` with `setViewControllers([destination])`.
+  The earlier visible Home-selected/More-visible state did not reproduce on
+  current `origin/main`, but the strengthened hidden-stack check confirmed the
+  real drift: `switchTab` could leave the previous tab underneath instead of
+  matching Swift's root replacement. Android now clears the stack with the same
+  root-swap behavior and ignores already-selected tab taps like Swift's
+  `guard route != activeRoute`. `AppRootNavigationParityTest` verifies real
+  `AppRoot` More -> Home clears the More/FAQ row, `switchTab` reaches Home with
+  no previous tab left in the test back stack, and the More -> FAQ drill-down
+  hides the bottom tab bar instead of showing a selected Home tab.
+  Proof:
+  `/tmp/kotlin_ui_proof/home_tab_navigation/figma/figma_home_40001464_28899.png`,
+  `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/app_root_more_before_home_tab.png`,
+  `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/app_root_home_after_more_tab.png`,
+  `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/harness_home_after_more_start.png`.
 
 ### Shipments
 
