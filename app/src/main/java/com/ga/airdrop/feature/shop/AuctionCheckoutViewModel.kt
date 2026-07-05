@@ -2,10 +2,12 @@ package com.ga.airdrop.feature.shop
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.data.api.toUserMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 data class AuctionCheckoutUiState(
     val product: ShopProduct? = null,
@@ -90,11 +92,20 @@ class AuctionCheckoutViewModel(
                     _state.update { it.copy(paying = false, checkoutUrl = url) }
                 }
                 .onFailure { err ->
+                    val unauthenticated = err.isUnauthenticatedCheckoutFailure()
                     _state.update {
                         it.copy(
                             paying = false,
-                            errorTitle = "Checkout failed",
-                            errorMessage = err.message ?: "Stripe did not return a valid checkout URL.",
+                            errorTitle = if (unauthenticated) {
+                                "Sign in required"
+                            } else {
+                                "Checkout failed"
+                            },
+                            errorMessage = if (unauthenticated) {
+                                "Log in to your Airdropja account before checking out."
+                            } else {
+                                err.toUserMessage().ifBlank { "Stripe did not return a valid checkout URL." }
+                            },
                         )
                     }
                 }
@@ -108,4 +119,12 @@ class AuctionCheckoutViewModel(
     fun dismissError() {
         _state.update { it.copy(errorTitle = null, errorMessage = null) }
     }
+}
+
+private fun Throwable.isUnauthenticatedCheckoutFailure(): Boolean {
+    if (this is HttpException && code() == 401) return true
+    val text = listOfNotNull(message, cause?.message).joinToString(" ")
+    return text.contains("401") ||
+        text.contains("unauthenticated", ignoreCase = true) ||
+        text.contains("unauthorized", ignoreCase = true)
 }

@@ -761,12 +761,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Auction Checkout
+## [CLOSED] Auction Checkout — hero placeholder and unauthenticated alert
 `app/src/main/java/com/ga/airdrop/feature/shop/AuctionCheckoutScreen.kt:109` — Hero placeholder is the Airdrop logo instead of Swift's gift emoji, no image-error fallback, and the unauthenticated error isn't special-cased
 
 **Detail:** Swift shows an 80pt '🎁' label as the hero placeholder and re-shows it when the image load fails (FigmaAuctionProductCheckoutViewController.swift:267-285). Kotlin shows img_airdrop_logo and has no onError handling on the AsyncImage. Swift also maps APIError.unauthenticated to a 'Sign in required' alert (lines 488-494); Kotlin surfaces every failure as generic 'Checkout failed'.
 
-**Fix:** Use an 80sp '🎁' Text placeholder, add AsyncImage onError to swap back to it, and map the repository's 401/unauthenticated failure to title 'Sign in required' / message 'Log in to your Airdropja account before checking out.'
+**Fix:** Closed. Figma MCP `get_design_context` on the documented checkout node `40001846:54756` confirmed that node is actually the Feature Products list + sort sheet, so Swift is the controlling source for this checkout slice. Android now uses an 80sp gift placeholder for null hero images, restores it from `AsyncImage.onError`, and maps 401/unauthenticated checkout failures to Swift's `Sign in required` alert copy. `AuctionCheckoutParityTest` verifies the null placeholder, failed-image fallback, and unauthenticated alert.
 
 ---
 

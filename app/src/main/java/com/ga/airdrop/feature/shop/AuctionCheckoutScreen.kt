@@ -24,15 +24,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ga.airdrop.R
@@ -62,6 +67,7 @@ fun AuctionCheckoutScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val product = state.product
+    val heroImageUrl = product?.imageUrl
 
     // Open the Stripe hosted checkout in a Custom Tab, then pop back
     // (Swift pops checkout + details after presenting Safari).
@@ -107,19 +113,22 @@ fun AuctionCheckoutScreen(
                         .padding(horizontal = Spacing.md, vertical = 16.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (product?.imageUrl.isNullOrBlank()) {
-                        Image(
-                            painter = painterResource(R.drawable.img_airdrop_logo),
-                            contentDescription = null,
-                            modifier = Modifier.size(80.dp),
-                            contentScale = ContentScale.Fit,
+                    var heroImageFailed by remember(heroImageUrl) { mutableStateOf(false) }
+                    if (heroImageUrl.isNullOrBlank() || heroImageFailed) {
+                        Text(
+                            text = AuctionCheckoutGiftPlaceholder,
+                            fontSize = 80.sp,
+                            lineHeight = 88.sp,
+                            modifier = Modifier.testTag("auction-checkout-hero-placeholder"),
                         )
                     } else {
                         AsyncImage(
-                            model = product?.imageUrl,
+                            model = heroImageUrl,
                             contentDescription = product?.title,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit,
+                            onError = { heroImageFailed = true },
+                            onSuccess = { heroImageFailed = false },
                         )
                     }
                 }
@@ -210,6 +219,7 @@ fun AuctionCheckoutScreen(
                     Modifier
                         .fillMaxWidth()
                         .height(52.dp)
+                        .testTag("auction-checkout-continue")
                         .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
                         .clickable(enabled = !state.paying, onClick = viewModel::pay),
                     contentAlignment = Alignment.Center,
@@ -253,3 +263,5 @@ fun AuctionCheckoutScreen(
         )
     }
 }
+
+private const val AuctionCheckoutGiftPlaceholder = "\uD83C\uDF81"
