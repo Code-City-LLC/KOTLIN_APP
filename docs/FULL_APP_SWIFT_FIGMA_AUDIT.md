@@ -12,23 +12,81 @@ No screen is done until it has been seen against all three sources:
 3. Swift `Figma*ViewController.swift` behavior/layout source.
 
 Swift is the behavior and flow guide. Figma is the visual source of truth,
-especially where Swift is missing a designed element. Preserve working Android
-flows and assets; only repair the parts that are visibly or functionally wrong.
+especially where Swift is missing a designed element. If Swift and Figma
+conflict, follow the latest room mandate from BlueDeer: Swift wins as the
+updated implementation truth, and the conflict must be documented in this file
+instead of silently choosing either side. Preserve working Android flows and
+assets; only repair the parts that are visibly or functionally wrong.
 
 ## Current Evidence
 
 - Figma MCP broad app-canvas metadata call for node `40000002:83125` timed out
   with HTTP 504, so use per-screen Figma MCP calls.
 - Figma MCP Home screenshot succeeded for node `40001464:28899`.
+- Figma MCP screenshots now exist for:
+  - Home: `/tmp/kotlin_ui_proof/figma_home_light.png`
+  - Shipments: `/tmp/kotlin_ui_proof/figma_shipments_light.png`
+  - Help: `/tmp/kotlin_ui_proof/figma_help_light.png`
+  - AirCoins: `/tmp/kotlin_ui_proof/figma_aircoins_light.png`
 - Local proof screenshots:
   - `/tmp/kotlin_ui_proof/figma_home_light.png`
   - `/tmp/kotlin_ui_proof/android_home_light_correct.png`
   - `/tmp/kotlin_ui_proof/more_light.png`
+- Valid Android dark-mode proof screenshots captured from `emulator-5554`:
+  - `/tmp/kotlin_ui_proof/android_home_proof_dark.png`
+  - `/tmp/kotlin_ui_proof/android_shipments_proof_dark.png`
+  - `/tmp/kotlin_ui_proof/android_help_proof_dark.png`
+  - `/tmp/kotlin_ui_proof/android_aircoins_proof_dark.png`
+  - Matching UIAutomator XML files use the same names with `.xml`.
 - Android checks already run by Codex before this audit doc:
   - `:app:compileStagingDebugKotlin`
   - `:app:testProdDebugUnitTest`
   - `:app:assembleStagingDebug`
   - staging debug APK installed on `emulator-5554`
+
+## Latest Device/Figma Findings
+
+### Home
+
+- Android dark proof does not match the Figma Home node. Figma uses the
+  shopping-icon hero image, compact white warehouse cards, and smaller service
+  tiles. Android dark proof currently shows a different orange-cart/books hero,
+  dark warehouse cards, and large highlight tiles.
+- The Android warehouse card title says `Standard`; Figma says `AirDrop`.
+  Swift source currently uses `Standard`, so this needs a source-of-truth
+  decision or a deliberate Swift-vs-Figma reconciliation before editing labels.
+- The Standard destination exists: fresh launch resumed on the Standard detail
+  screen during inspection. The user-reported "nothing opens" bug must be
+  reproduced from the Home card/Read More tap path before changing routes.
+
+### Shipments
+
+- Android dark proof reaches the Shipments hub and pulls live-looking data, but
+  it differs from Figma in counts, sample content, card proportions, visible
+  sections, icon contrast, and dark surface treatment.
+- The first viewport in Android dark proof shows only summary and the first
+  package cards; Figma first viewport also establishes payments/orders sections
+  lower in the scroll. Tap checks are still required for Track Shipment,
+  Packages, Payments, Orders, View More links, package add-to-cart, and detail
+  cards.
+
+### Help
+
+- Android dark proof confirms the user complaint that the screen reads too bold:
+  section labels and values are visually heavier than the Figma Help node.
+- Several dark-mode help/contact icons render as very low-contrast dark glyphs
+  on dark surfaces. They need duotone/tint correction, not duplicated rows.
+- Copy/tap actions still need a functional pass: phone, WhatsApp, email,
+  locations, business hours, socials, and Live Chat.
+
+### AirCoins
+
+- Android dark proof is not pixel-perfect against the Figma AirCoins node.
+  Android uses a much taller coin hero and dark radial background; Figma shows a
+  compact light hero, tighter conversion controls, and smaller stat/tip cards.
+- Data mapping works enough to render current values (`1 AirCoin`, `1 USD`,
+  accumulated/redeemed/available rows), but endpoint verification and history
+  tap proof are still outstanding.
 
 ## Reopened Defects From User Review
 
@@ -138,9 +196,9 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | partial | no | partial | unassigned | reopened |
-| Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | no | no | unassigned | reopened |
-| Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | no | no | unassigned | reopened |
-| AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | no | no | unassigned | reopened |
+| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | partial | yes | partial | unassigned | reopened; Figma/Swift conflict on Standard label |
+| Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
+| Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
+| AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | no | partial | Codex | in progress |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | see backlog | products/auction/cart | no | no | no | BlueDeer/others | in progress elsewhere |

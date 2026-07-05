@@ -99,6 +99,13 @@ data class AuctionProductPackage(
     @SerialName("account_number") val accountNumber: String? = null,
 )
 
+/** Envelope for GET /products/{slug}: { data: { product: {...} } }. */
+@Serializable
+data class ProductDetailEnvelope(val data: ProductDetailData? = null)
+
+@Serializable
+data class ProductDetailData(val product: AuctionProduct? = null)
+
 data class ProductFilters(
     val search: String? = null,
     val order: String? = null,

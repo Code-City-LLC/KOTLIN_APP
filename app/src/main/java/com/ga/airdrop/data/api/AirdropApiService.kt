@@ -160,6 +160,12 @@ interface AirdropApiService {
     @GET("products")
     suspend fun products(@QueryMap params: Map<String, String>): Paginated<AuctionProduct>
 
+    // Dedicated single-product-by-slug detail endpoint (Laravel route-model
+    // binding on slug: GET /products/{product:slug}). The list ?slug= filter
+    // does NOT match, so the detail screen must use this.
+    @GET("products/{slug}")
+    suspend fun productDetail(@Path("slug") slug: String): com.ga.airdrop.data.model.ProductDetailEnvelope
+
     @GET("featured-products")
     suspend fun featuredProducts(@QueryMap params: Map<String, String>): Paginated<AuctionProduct>
 

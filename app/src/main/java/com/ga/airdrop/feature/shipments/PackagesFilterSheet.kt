@@ -77,14 +77,14 @@ fun PackagesFilterSheet(
                         )
                         MethodRow(
                             method = ShipmentMethodUi.SeaDrop,
-                            labelStyle = AirdropType.title1,
+                            labelStyle = AirdropType.title2,
                             selected = selectedMethod == ShipmentTypeFilter.Seadrop,
                             onClick = { onSelectMethod(ShipmentTypeFilter.Seadrop) },
                             showDivider = true,
                         )
                         MethodRow(
                             method = ShipmentMethodUi.Express,
-                            labelStyle = AirdropType.title1,
+                            labelStyle = AirdropType.title2,
                             selected = selectedMethod == ShipmentTypeFilter.Express,
                             onClick = { onSelectMethod(ShipmentTypeFilter.Express) },
                             showDivider = false,
@@ -202,16 +202,16 @@ private fun StatusRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
+            Image(
+                painter = painterResource(ShipmentStatusCatalog.iconRes(status.id)),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
             Text(
                 text = status.name,
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
                 modifier = Modifier.weight(1f),
-            )
-            Image(
-                painter = painterResource(ShipmentStatusCatalog.iconRes(status.id)),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
             )
         }
         if (showDivider) {

@@ -544,6 +544,14 @@ private fun cleanDescription(raw: String?): String {
         .replace(Regex("<br\\s*/?>"), "\n")
         .replace(Regex("</p>"), "\n\n")
         .replace(Regex("<[^>]+>"), "")
+        // Decode the common HTML entities the CMS emits (Swift decodeHTMLEntities).
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
         .trim()
 }
 

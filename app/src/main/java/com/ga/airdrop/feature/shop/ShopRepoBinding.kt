@@ -76,11 +76,24 @@ private class DataShopProductsRepository(
 
     override suspend fun productBySlug(slug: String, featured: Boolean): Result<ShopProduct> =
         runCatching {
-            val params = mapOf("slug" to slug, "page" to "1", "per_page" to "1")
-            val items = if (featured) {
-                ApiClient.service.featuredProducts(params).items
-            } else {
-                ApiClient.service.products(params).items
+            // Primary: the dedicated detail endpoint GET /products/{slug}
+            // (Laravel route-model binding). The list ?slug= filter returns
+            // 200 with an EMPTY data array, which is why the detail screen was
+            // showing "Product not found" for every card. A featured product
+            // is still a Product, so this endpoint serves both.
+            val fromShow = runCatching {
+                ApiClient.service.productDetail(slug).data?.product
+            }.getOrNull()
+            if (fromShow != null) return@runCatching fromShow.toShopProduct()
+
+            // Fallback: list query (covers numeric-id routeSlug when a product
+            // has no slug — Laravel /products supports ?id=).
+            suspend fun query(params: Map<String, String>) =
+                if (featured) ApiClient.service.featuredProducts(params).items
+                else ApiClient.service.products(params).items
+            var items = query(mapOf("slug" to slug, "page" to "1", "per_page" to "1"))
+            if (items.isEmpty() && slug.all { it.isDigit() }) {
+                items = query(mapOf("id" to slug, "page" to "1", "per_page" to "1"))
             }
             val match = items.firstOrNull { it.slug == slug || it.id?.toString() == slug }
                 ?: items.firstOrNull()

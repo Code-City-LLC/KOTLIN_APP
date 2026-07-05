@@ -34,6 +34,12 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -168,6 +174,22 @@ fun GoldPriorityScreen(
     val state by viewModel.state.collectAsState()
     val pagerState = rememberPagerState(initialPage = defaultTierIndex) { tierPages.size }
 
+    val view = androidx.compose.ui.platform.LocalView.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    DisposableEffect(view) {
+        val window = (context as? android.app.Activity)?.window
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, view)
+            val previousIsAppearanceLightStatusBars = controller.isAppearanceLightStatusBars
+            controller.isAppearanceLightStatusBars = false
+            onDispose {
+                controller.isAppearanceLightStatusBars = previousIsAppearanceLightStatusBars
+            }
+        } else {
+            onDispose {}
+        }
+    }
+
     // Pre-scroll once the user's tier resolves (Swift scrollToItem).
     LaunchedEffect(state.resolvedTierIndex) {
         state.resolvedTierIndex?.let { pagerState.scrollToPage(it) }
@@ -255,11 +277,18 @@ private fun TierPageContent(tier: TierPage) {
                 contentDescription = null,
                 modifier = Modifier.size(64.dp),
             )
+            var fontSize by remember(tier.name) { mutableStateOf(28.sp) }
             Text(
                 text = tier.name,
-                style = AirdropType.h5.copy(fontSize = 28.sp, lineHeight = 42.sp),
+                style = AirdropType.h5.copy(fontSize = fontSize, lineHeight = (fontSize.value * 1.5).sp),
                 color = Color.White,
                 maxLines = 1,
+                overflow = TextOverflow.Clip,
+                onTextLayout = { textLayoutResult ->
+                    if (textLayoutResult.hasVisualOverflow && fontSize.value > 20f) {
+                        fontSize = (fontSize.value - 1f).sp
+                    }
+                }
             )
         }
         Text(
