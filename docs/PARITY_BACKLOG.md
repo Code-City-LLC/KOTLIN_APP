@@ -536,21 +536,21 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [MEDIUM] Auction Product Details
+## [CLOSED] Auction Product Details
 `app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:257` — Hero image has no placeholder or error fallback — blank gray card when the product has no image or the load fails
 
 **Detail:** Swift buildHeroImage (FigmaAuctionProductDetailsViewController.swift:276-294) shows a 96pt gray400 airplane glyph placeholder whenever displayImageURL is nil, and un-hides it if sd_setImage returns a nil image. Kotlin renders a bare AsyncImage with no fallback, so null/blank imageUrl or a failed fetch leaves an empty gray150 box.
 
-**Fix:** Mirror ShopProductCard's pattern: when imageUrl.isNullOrBlank() or onError fires, show the placeholder glyph (airplane/logo drawable, ~96dp, tinted colors.gray400) centered in the card.
+**Fix:** Closed in current Android and re-verified with Swift precedence plus Figma MCP. Figma Product Details node `40002072:24025` confirms the 240dp hero area and Product Details visual structure; Swift `buildHeroImage` is the runtime authority for the fallback. Current Kotlin shows the centered gray400 airplane placeholder when `imageUrl` is blank and restores it from `AsyncImage.onError`. `AuctionProductDetailsRelatedParityTest` now locks null-image and failed-image fallback behavior, including the Swift 96dp placeholder size.
 
 ---
 
-## [MEDIUM] Feature Product Details
+## [CLOSED] Feature Product Details
 `app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:157` — 'Purchase Product' silently does nothing when amazonUrl is blank; Swift shows a 'Product link unavailable' alert
 
 **Detail:** Swift onPurchaseProduct (FigmaAuctionProductDetailsViewController.swift:817-831) presents an alert 'Product link unavailable' / 'No purchase link was returned for this feature product.' when the URL is empty, and a second alert when it's not a valid URL. Kotlin's CTA click checks `raw.isNotEmpty()` and simply no-ops otherwise — a dead-feeling button for featured products missing amazon_url.
 
-**Fix:** When amazonUrl is blank/invalid, surface the same AlertDialog used for addedDialog with title 'Product link unavailable' and Swift's message text instead of doing nothing.
+**Fix:** Closed in current Android and re-verified against Swift `onPurchaseProduct`. The featured CTA now shows `Product link unavailable` with Swift's exact missing-link message for blank URLs and Swift's invalid-link message for malformed URLs. `AuctionProductDetailsRelatedParityTest` now covers both blank and invalid purchase links.
 
 ---
 

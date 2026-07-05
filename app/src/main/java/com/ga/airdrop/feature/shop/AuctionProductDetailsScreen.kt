@@ -307,7 +307,10 @@ private fun DetailsContent(
                     painter = painterResource(R.drawable.ic_standard_shipping),
                     contentDescription = product.title,
                     colorFilter = ColorFilter.tint(colors.gray400),
-                    modifier = Modifier.align(Alignment.Center).size(96.dp),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(96.dp)
+                        .testTag("auction-details-hero-placeholder"),
                     contentScale = ContentScale.Fit,
                 )
             } else {

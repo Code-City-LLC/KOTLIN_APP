@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -91,6 +92,67 @@ class AuctionProductDetailsRelatedParityTest {
             "Product details should not use the old Android-only null-description copy",
             compose.onAllNodesWithText("No description available.").fetchSemanticsNodes().isEmpty(),
         )
+    }
+
+    @Test
+    fun nullHeroImageUsesSwiftAirplanePlaceholder() {
+        setDetailsContent(
+            featured = false,
+            product = SampleProduct.copy(
+                slug = "swift-null-hero-placeholder",
+                imageUrl = null,
+            ),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetails()
+
+        val placeholder = compose.onNodeWithTag("auction-details-hero-placeholder")
+        placeholder.assertIsDisplayed()
+        val bounds = placeholder.getUnclippedBoundsInRoot()
+        assertClose(96f, boundsWidth(bounds), "Swift hero placeholder width")
+        assertClose(96f, boundsHeight(bounds), "Swift hero placeholder height")
+        saveRootScreenshot("auction_details_hero_placeholder_swift_light.png")
+    }
+
+    @Test
+    fun failedHeroImageRestoresSwiftAirplanePlaceholder() {
+        setDetailsContent(
+            featured = false,
+            product = SampleProduct.copy(
+                slug = "swift-failed-hero-placeholder",
+                imageUrl = "file:///android_asset/missing_product_details_image.png",
+            ),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetails()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("auction-details-hero-placeholder").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        compose.onNodeWithTag("auction-details-hero-placeholder").assertIsDisplayed()
+    }
+
+    @Test
+    fun featuredBlankPurchaseLinkShowsSwiftUnavailableAlert() {
+        setDetailsContent(
+            featured = true,
+            product = SampleProduct.copy(
+                slug = "swift-blank-feature-link",
+                amazonUrl = "   ",
+            ),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetails()
+        compose.onNodeWithText("Purchase Product").performClick()
+
+        compose.onNodeWithText("Product link unavailable").assertIsDisplayed()
+        compose.onNodeWithText("No purchase link was returned for this feature product.").assertIsDisplayed()
     }
 
     @Test
@@ -187,6 +249,8 @@ class AuctionProductDetailsRelatedParityTest {
     }
 
     private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value
+
+    private fun boundsWidth(bounds: DpRect): Float = (bounds.right - bounds.left).value
 
     private fun assertClose(expected: Float, actual: Float, label: String, tolerance: Float = 1.5f) {
         assertTrue("$label expected $expected but was $actual", kotlin.math.abs(expected - actual) <= tolerance)
