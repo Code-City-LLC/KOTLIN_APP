@@ -242,7 +242,9 @@ fun ShopProductCard(
     product: ShopProduct,
     inCart: Boolean,
     onClick: () -> Unit,
-    onToggleCart: () -> Unit,
+    // Swift omits the cart toggle on Shop-root featured cards — pass null
+    // to hide the affordance entirely.
+    onToggleCart: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
@@ -260,20 +262,21 @@ fun ShopProductCard(
                 .clip(RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
                 .background(colors.gray150)
                 .border(1.dp, colors.iconShape, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
-                .padding(horizontal = Spacing.md, vertical = Spacing.lg),
+                // Swift: 11pt vertical inset → 113pt-tall image in the 135
+                // frame (the old 30dp inset shrank photos to ~75dp).
+                .padding(horizontal = Spacing.md, vertical = 11.dp),
             contentAlignment = Alignment.Center,
         ) {
             var failed by remember(product.imageUrl) {
                 mutableStateOf(product.imageUrl.isNullOrBlank())
             }
             if (failed) {
-                // "empty status" variant — Airdrop logo 64x67 placeholder.
+                // Swift: gray400-tinted airplane glyph placeholder.
                 Image(
-                    painter = painterResource(R.drawable.img_airdrop_logo),
+                    painter = painterResource(R.drawable.ic_standard_shipping),
                     contentDescription = product.title,
-                    modifier = Modifier
-                        .width(64.dp)
-                        .height(67.dp),
+                    colorFilter = ColorFilter.tint(colors.gray400),
+                    modifier = Modifier.size(64.dp),
                     contentScale = ContentScale.Fit,
                 )
             } else {
@@ -310,23 +313,25 @@ fun ShopProductCard(
                     style = AirdropType.title2,
                     color = BrandPalette.OrangeMain,
                 )
-                if (inCart) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_check_box),
-                        contentDescription = "Remove from cart",
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable(onClick = onToggleCart),
-                    )
-                } else {
-                    Image(
-                        painter = painterResource(R.drawable.ic_add),
-                        contentDescription = "Add to cart",
-                        colorFilter = ColorFilter.tint(colors.iconSelected),
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable(onClick = onToggleCart),
-                    )
+                if (onToggleCart != null) {
+                    if (inCart) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_check_box),
+                            contentDescription = "Remove from cart",
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable(onClick = onToggleCart),
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(R.drawable.ic_add),
+                            contentDescription = "Add to cart",
+                            colorFilter = ColorFilter.tint(colors.iconSelected),
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable(onClick = onToggleCart),
+                        )
+                    }
                 }
             }
         }

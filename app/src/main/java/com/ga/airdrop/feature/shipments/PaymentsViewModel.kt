@@ -22,7 +22,8 @@ data class PaymentsUiState(
     val loadingMore: Boolean = false,
     val hasMorePages: Boolean = true,
     val searchText: String = "",
-    val typeFilter: PaymentTypeFilter = PaymentTypeFilter.All,
+    // Swift/RN default the list to package payments, not All.
+    val typeFilter: PaymentTypeFilter = PaymentTypeFilter.Package,
     val showTypeFilter: Boolean = false,
     val downloadingInvoiceId: Int? = null,
     val error: String? = null,

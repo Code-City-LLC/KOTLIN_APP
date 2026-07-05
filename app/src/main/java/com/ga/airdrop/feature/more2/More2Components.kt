@@ -157,10 +157,12 @@ internal fun More2PrimaryButton(
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(14.dp))
+            // alpha must precede background — applied after, it no-ops on the
+            // already-drawn gradient and the disabled CTA looked enabled.
+            .alpha(if (enabled) 1f else 0.5f)
             .background(
                 Brush.horizontalGradient(listOf(Color(0xFFFF783E), Color(0xFFF15114)))
             )
-            .alpha(if (enabled) 1f else 0.5f)
             .clickable(enabled = enabled && !loading, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

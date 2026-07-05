@@ -23,7 +23,7 @@ data class DocumentSlot(
     val detailDescription: String,
 )
 
-/** Figma 40000975:7748 scroll order: Contract → 1583 → ID Card → TRN → Custom. */
+/** Swift/RN canonical order: Contract → 1583 → Custom Form → ID Card → TRN. */
 val DOCUMENT_SLOTS = listOf(
     DocumentSlot(
         docType = "airdrop_contract",
@@ -38,6 +38,12 @@ val DOCUMENT_SLOTS = listOf(
         detailDescription = "USPS Form 1583 is a U.S. Postal Service authorization form that allows a Commercial Mail Receiving Agency (CMRA)—such as a shipping or mailbox company—to receive mail on your behalf.\n\nIt’s a mandatory federal requirement for anyone opening a virtual mailbox, mail forwarding, or package receiving service in the United States.",
     ),
     DocumentSlot(
+        docType = "authorization_form",
+        title = "Custom Form",
+        description = "Authorizes AirDrop to handle customs clearance and duties on your behalf.",
+        detailDescription = "The Customs Form authorizes AirDrop Limited and/or its licensed customs agents to act on your behalf during customs clearance.\nThis includes submitting import documents, declaring shipment values, and paying duties or taxes as required by local customs authorities.\nIt ensures your shipments are cleared efficiently in compliance with Jamaica Customs and international trade regulations.",
+    ),
+    DocumentSlot(
         docType = "id_card_form",
         title = "ID Card",
         description = "Photo ID used to verify your identity.",
@@ -48,12 +54,6 @@ val DOCUMENT_SLOTS = listOf(
         title = "TRN",
         description = "Upload your Tax Registration Number (TRN) for customs and tax processing.",
         detailDescription = "Your TRN serves as your official identification number with the Jamaica Customs Agency and is used to identify you as the importer.\n\nAirDrop cannot make customs declarations or clear shipments on your behalf without a valid TRN on file.",
-    ),
-    DocumentSlot(
-        docType = "authorization_form",
-        title = "Custom Form",
-        description = "Authorizes AirDrop to handle customs clearance and duties on your behalf.",
-        detailDescription = "The Customs Form authorizes AirDrop Limited and/or its licensed customs agents to act on your behalf during customs clearance.\nThis includes submitting import documents, declaring shipment values, and paying duties or taxes as required by local customs authorities.\nIt ensures your shipments are cleared efficiently in compliance with Jamaica Customs and international trade regulations.",
     ),
 )
 

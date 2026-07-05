@@ -111,7 +111,9 @@ class PackageDetailsViewModel(
 
     fun addToCart() {
         val detail = _state.value.detail ?: return
-        ShipmentsCartStore.add(detail.id)
+        // Swift FigmaPackageDetailsViewController:1186-1224 — add the real
+        // line to the shared cart so MyCart renders it.
+        com.ga.airdrop.feature.cart.CartStore.add(detail.toCartLine())
         _state.update { it.copy(showAddedToCart = true) }
     }
 

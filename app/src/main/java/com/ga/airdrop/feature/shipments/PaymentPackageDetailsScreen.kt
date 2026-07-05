@@ -71,7 +71,7 @@ fun PaymentPackageDetailsScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
-                Spacer(Modifier.height(ShipmentsHeaderClearance))
+                Spacer(Modifier.height(shipmentsHeaderClearance()))
                 when {
                     state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
                     state.payment == null -> ShipmentsEmptyLabel(state.error ?: "Payment not found")
@@ -83,7 +83,7 @@ fun PaymentPackageDetailsScreen(
                 }
             }
             ShipmentsDetailHeader(
-                title = "Payment Details",
+                title = "Packages Payment Details",
                 onBack = onBack,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
@@ -289,7 +289,7 @@ private fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        Spacer(Modifier.height(ShipmentsHeaderClearance))
+        Spacer(Modifier.height(shipmentsHeaderClearance()))
         Column(
             Modifier
                 .fillMaxWidth()

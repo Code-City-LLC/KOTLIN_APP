@@ -59,9 +59,10 @@ class ShipmentsViewModel(
         }
     }
 
-    fun toggleCart(packageId: Int) {
-        ShipmentsCartStore.toggle(packageId)
-        // trigger recomposition of cart badges
-        _state.update { it.copy() }
+    fun toggleCart(pkg: ShipmentPackage) {
+        // Swift FigmaShipmentsViewController.onTapAddPackageToCart — the ONE
+        // shared cart; membership is observed via CartStore.items so the UI
+        // recomposes without a fake state write.
+        com.ga.airdrop.feature.cart.CartStore.toggle(pkg.toCartLine())
     }
 }

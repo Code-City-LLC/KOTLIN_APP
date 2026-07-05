@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
@@ -87,7 +89,8 @@ fun CartScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(colors.gray150)
+            // Swift FigmaCartViewController.swift:82 — page is gray100.
+            .background(colors.gray100)
             // Lift the billing form + payment bar above the keyboard.
             .imePadding()
     ) {
@@ -101,21 +104,25 @@ fun CartScreen(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            // Swift contentStack spacing 24 between sections.
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             if (isEmpty) {
                 EmptyCartCard(onShopNow = onShopNow)
             } else {
                 // ─── Packages — single combined list (Swift bug-fix parity) ───
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     CartSectionHeader("Packages")
                     items.forEach { line ->
                         CartItemCard(line = line, onRemove = { viewModel.removeItem(line.id) })
                     }
                 }
 
-                // ─── Your Note ───
-                NoteCard(note = state.note, onNoteChange = viewModel::updateNote)
+                // ─── Your Note — header ABOVE the 90dp note card (Swift) ───
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    CartSectionHeader("Your Note")
+                    NoteCard(note = state.note, onNoteChange = viewModel::updateNote)
+                }
 
                 // ─── Charges ───
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -137,84 +144,110 @@ fun CartScreen(
                     BillingFormCard(viewModel)
                 }
 
-                // ─── Payment Method row ───
+                // ─── Payment Method row — Swift buildPaymentMethodRow
+                // (:753-790): 56pt, radius 15, label + 16pt gray500 chevron,
+                // NO leading icon.
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .height(59.dp)
+                        .height(56.dp)
                         .background(colors.gray100, RoundedCornerShape(Radius.s))
                         .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
                         .clickable { viewModel.setPaymentMethodDialogVisible(true) }
-                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                        .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_payments),
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(colors.iconSelected),
-                            modifier = Modifier.size(24.dp),
-                        )
-                        Text(
-                            text = "Payment Method",
-                            style = AirdropType.subtitle1,
-                            color = colors.textDarkTitle,
-                        )
-                    }
-                    ShopChevronRight()
+                    Text(
+                        text = "Payment Method",
+                        style = AirdropType.subtitle1,
+                        color = colors.textDarkTitle,
+                    )
+                    Image(
+                        painter = painterResource(R.drawable.ic_small_arrow_down),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(colors.gray500),
+                        modifier = Modifier
+                            .size(16.dp)
+                            .rotate(-90f),
+                    )
                 }
             }
         }
 
-        // ─── Bottom checkout bar (hidden on empty cart) ───
+        // ─── Bottom checkout bar — Swift :183-252: OPAQUE gray100 +
+        // iconShape divider, Exchange Rate + Order Total rows (NO Tax row),
+        // solid orangeMain radius-10 52pt Make Payment button.
         if (!isEmpty) {
-            Column(Modifier.fillMaxWidth().background(colors.glassOverlay70)) {
-                Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
+            Column(Modifier.fillMaxWidth().background(colors.gray100)) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
                 Column(
                     Modifier
-                        .padding(Spacing.md)
+                        .padding(start = Spacing.md, end = Spacing.md, top = 12.dp, bottom = 8.dp)
                         .navigationBarsPadding(),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Column(Modifier.fillMaxWidth()) {
-                        BottomBarRow(
-                            label = "Exchange Rate",
-                            value = String.format(
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Exchange Rate",
+                            style = AirdropType.body3,
+                            color = colors.textDescription,
+                        )
+                        Text(
+                            text = String.format(
                                 Locale.US, "1 USD = %.2f JMD", state.exchangeUsdToJmd
                             ),
+                            style = AirdropType.body3,
+                            color = colors.textDarkTitle,
                         )
-                        BottomBarRow(label = "Tax", value = "$ 0.00")
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "Order Total",
-                                style = AirdropType.title2,
-                                color = colors.textDarkTitle,
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Order Total",
+                            style = AirdropType.subtitle1,
+                            color = colors.textDarkTitle,
+                        )
+                        Text(
+                            text = String.format(
+                                Locale.US,
+                                "USD %.2f  /  JMD %.2f",
+                                viewModel.totalUsd(),
+                                viewModel.totalJmd(),
+                            ),
+                            style = AirdropType.title2,
+                            color = BrandPalette.OrangeMain,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                            .clickable(enabled = !state.paying, onClick = viewModel::pay),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (state.paying) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                color = BrandPalette.White,
+                                strokeWidth = 2.dp,
                             )
+                        } else {
                             Text(
-                                text = String.format(
-                                    Locale.US,
-                                    "USD %.2f / JMD %.2f",
-                                    viewModel.totalUsd(),
-                                    viewModel.totalJmd(),
-                                ),
-                                style = AirdropType.title2,
-                                color = colors.textDarkTitle,
+                                text = "Make Payment",
+                                style = AirdropType.button,
+                                color = BrandPalette.White,
                             )
                         }
                     }
-                    GradientButton(
-                        text = "Make Payment",
-                        loading = state.paying,
-                        onClick = viewModel::pay,
-                    )
                 }
             }
         }
@@ -274,20 +307,8 @@ fun CartScreen(
 
 @Composable
 private fun CartSectionHeader(title: String) {
-    val colors = AirdropTheme.colors
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = title, style = AirdropType.title2, color = colors.textDarkTitle)
-        Image(
-            painter = painterResource(R.drawable.ic_info),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(colors.iconSelected),
-            modifier = Modifier.size(24.dp),
-        )
-    }
+    // Swift sectionHeader (:809-815) — bare SubTitle1 label, no icon.
+    Text(text = title, style = AirdropType.subtitle1, color = AirdropTheme.colors.textDarkTitle)
 }
 
 /* ─── Item card — Figma "Card Page" (drop number / description / price) ── */
@@ -295,53 +316,63 @@ private fun CartSectionHeader(title: String) {
 @Composable
 private fun CartItemCard(line: CartStore.CartLine, onRemove: () -> Unit) {
     val colors = AirdropTheme.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(colors.gray100, RoundedCornerShape(Radius.xs))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Column(
-            Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    // Swift makeDropRow (:448-536): TRANSPARENT row, 1dp iconShape bottom
+    // hairline — no fill, border, or radius. Labels SubTitle3; drop value
+    // SubTitle1; price SubTitle1 orange; 20pt trash tinted textDarkTitle.
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Column {
-                Text(text = "Drop Number", style = AirdropType.body3, color = colors.textDescription)
-                Text(
-                    // Swift FigmaCartViewController.swift:459 — "AIR" + %010d (Swift wins over Figma sample).
-                    text = String.format(Locale.US, "AIR%010d", line.id),
-                    style = AirdropType.body2,
-                    color = colors.textDarkTitle,
-                )
+            Column(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Column {
+                    Text(text = "Drop Number", style = AirdropType.subtitle3, color = colors.textDescription)
+                    Text(
+                        // Swift :459 — "AIR" + %010d (Swift wins over Figma sample).
+                        text = String.format(Locale.US, "AIR%010d", line.id),
+                        style = AirdropType.subtitle1,
+                        color = colors.textDarkTitle,
+                        maxLines = 1,
+                    )
+                }
+                Column {
+                    Text(text = "Description", style = AirdropType.subtitle3, color = colors.textDescription)
+                    Text(
+                        text = line.title,
+                        style = AirdropType.body2,
+                        color = colors.textDarkTitle,
+                        maxLines = 2,
+                    )
+                }
+                Column {
+                    Text(text = "Price", style = AirdropType.subtitle3, color = colors.textDescription)
+                    Text(
+                        text = formatUsdPlain(line.priceUsd),
+                        style = AirdropType.subtitle1,
+                        color = BrandPalette.OrangeMain,
+                    )
+                }
             }
-            Column {
-                Text(text = "Description", style = AirdropType.body3, color = colors.textDescription)
-                Text(
-                    text = line.title,
-                    style = AirdropType.body2,
-                    color = colors.textDarkTitle,
-                    maxLines = 2,
-                )
-            }
-            Column {
-                Text(text = "Price", style = AirdropType.body3, color = colors.textDescription)
-                Text(
-                    text = formatUsdPlain(line.priceUsd),
-                    style = AirdropType.title2,
-                    color = BrandPalette.OrangeMain,
+            Box(
+                Modifier
+                    .size(24.dp)
+                    .clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_trash),
+                    contentDescription = "Remove ${line.title}",
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
-        Image(
-            painter = painterResource(R.drawable.ic_trash),
-            contentDescription = "Remove ${line.title}",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
-            modifier = Modifier
-                .size(24.dp)
-                .clickable(onClick = onRemove),
-        )
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
     }
 }
 
@@ -350,31 +381,30 @@ private fun CartItemCard(line: CartStore.CartLine, onRemove: () -> Unit) {
 @Composable
 private fun NoteCard(note: String, onNoteChange: (String) -> Unit) {
     val colors = AirdropTheme.colors
-    Column(
+    // Swift buildNoteCard (:541-576): fixed 90pt gray100 radius-12 multiline
+    // field; the "Your Note" header lives ABOVE the card.
+    Box(
         Modifier
             .fillMaxWidth()
-            .background(colors.gray100, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            .heightIn(min = 90.dp)
+            .background(colors.gray100, RoundedCornerShape(12.dp))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
     ) {
-        Text(text = "Your Note", style = AirdropType.title2, color = colors.textDarkTitle)
-        Box(Modifier.fillMaxWidth()) {
-            if (note.isEmpty()) {
-                Text(
-                    text = "Add any delivery notes or special requests",
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                )
-            }
-            BasicTextField(
-                value = note,
-                onValueChange = onNoteChange,
-                textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-                cursorBrush = SolidColor(BrandPalette.OrangeMain),
-                modifier = Modifier.fillMaxWidth(),
+        if (note.isEmpty()) {
+            Text(
+                text = "Add any delivery notes or special requests",
+                style = AirdropType.body2,
+                color = colors.textPlaceholder,
             )
         }
+        BasicTextField(
+            value = note,
+            onValueChange = onNoteChange,
+            textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
+            cursorBrush = SolidColor(BrandPalette.OrangeMain),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -383,45 +413,35 @@ private fun NoteCard(note: String, onNoteChange: (String) -> Unit) {
 @Composable
 private fun ChargesCard(exchangeUsdToJmd: Double, totalPackages: Int, totalUsd: Double) {
     val colors = AirdropTheme.colors
+    // Swift renderChargesRows (:601-638): ONE gray150 card, rows spaced 10,
+    // then a 1dp divider and a "Total Charges" row with an ORANGE value —
+    // no invented footer band, no hardcoded colors.
     Column(
         Modifier
             .fillMaxWidth()
-            .background(colors.gray100, RoundedCornerShape(Radius.s))
+            .background(colors.gray150, RoundedCornerShape(Radius.s))
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            ChargeRow(label = "Payment Currency", value = "USD")
-            ChargeRow(label = "Tax", value = "USD 0.00")
-            ChargeRow(
-                label = "Exchange Rate (USD)",
-                value = String.format(Locale.US, "USD 1 = JMD %.2f", exchangeUsdToJmd),
-            )
-            ChargeRow(label = "Total Packages", value = totalPackages.toString())
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
-        // Total row — orange tertiary-6 footer, text #2C2825 (Figma).
-        val footerText = if (colors.isDark) colors.textDarkTitle else Color(0xFF2C2825)
+        ChargeRow(label = "Payment Currency", value = "USD")
+        ChargeRow(label = "Tax", value = "0")
+        ChargeRow(
+            label = "Exchange Rate (USD)",
+            value = String.format(Locale.US, "USD 1 = JMD %.2f", exchangeUsdToJmd),
+        )
+        ChargeRow(label = "Total Packages", value = totalPackages.toString())
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
         Row(
-            Modifier
-                .fillMaxWidth()
-                .background(
-                    BrandPalette.OrangeTertiary6.copy(alpha = if (colors.isDark) 0.1f else 1f),
-                    RoundedCornerShape(bottomStart = Radius.s, bottomEnd = Radius.s),
-                )
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+            Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "Total Charges", style = AirdropType.body2, color = footerText)
+            Text(text = "Total Charges", style = AirdropType.subtitle1, color = colors.textDarkTitle)
             Text(
                 text = formatUsdPlain(totalUsd),
-                style = AirdropType.body2.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                color = footerText,
+                style = AirdropType.subtitle1,
+                color = BrandPalette.OrangeMain,
             )
         }
     }
@@ -435,12 +455,8 @@ private fun ChargeRow(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = label, style = AirdropType.body2, color = colors.textDarkTitle)
-        Text(
-            text = value,
-            style = AirdropType.body2.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-            color = colors.textDarkTitle,
-        )
+        Text(text = label, style = AirdropType.body2, color = colors.textDescription)
+        Text(text = value, style = AirdropType.body2, color = colors.textDarkTitle)
     }
 }
 
@@ -454,12 +470,12 @@ private fun PromiseCard() {
             .fillMaxWidth()
             .background(
                 com.ga.airdrop.core.designsystem.theme.AlertPalette.Light.OnHold,
-                RoundedCornerShape(Radius.xs),
+                RoundedCornerShape(Radius.s),
             )
             .border(
                 1.dp,
                 com.ga.airdrop.core.designsystem.theme.AlertPalette.Middle.OnHold,
-                RoundedCornerShape(Radius.xs),
+                RoundedCornerShape(Radius.s),
             )
             .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -467,16 +483,17 @@ private fun PromiseCard() {
         Image(
             painter = painterResource(R.drawable.ic_info),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(Color(0xFF292929)),
-            modifier = Modifier.size(24.dp),
+            // Swift buildPromiseCard (:642-692): 20pt blueMain icon.
+            colorFilter = ColorFilter.tint(BrandPalette.BlueMain),
+            modifier = Modifier.size(20.dp),
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(text = "Our Promise", style = AirdropType.title2, color = Color(0xFF292929))
+            Text(text = "Our Promise", style = AirdropType.subtitle1, color = BrandPalette.BlueMain)
             Text(
-                text = "•  We do not store any card details in our system.\n" +
-                    "•  Your card details are safe and secure.",
+                text = "We do not store any card details in our system. " +
+                    "Your card details are safe and secure.",
                 style = AirdropType.body2,
-                color = Color(0xFF292929),
+                color = colors.textDescription,
             )
         }
     }
@@ -486,18 +503,15 @@ private fun PromiseCard() {
 
 @Composable
 private fun BillingFormCard(viewModel: CartViewModel) {
-    val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val form = state.form
+    // Swift buildBillingForm (:696-745): fields sit directly on the page —
+    // no wrapper card; name row + vertical spacing 12.
     Column(
-        Modifier
-            .fillMaxWidth()
-            .background(colors.gray100, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TypeInputField(
                 label = "First Name",
                 value = form.firstName,

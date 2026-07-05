@@ -30,7 +30,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -286,6 +288,27 @@ private fun formatNotificationDate(raw: String): String {
 @Composable
 private fun EmptyState(onOpenSettings: () -> Unit) {
     val colors = AirdropTheme.colors
+    // Swift FigmaNotificationsListViewController.applyContentForCurrentState
+    // (:268-282): when the master notifications toggle is ON the empty state
+    // flips to the "You're all set!" variant and drops the settings link.
+    // Re-read on every resume so returning from Settings updates the copy.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var notificationsOn by remember { mutableStateOf(false) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                notificationsOn = context
+                    .getSharedPreferences(
+                        com.ga.airdrop.feature.more.NotificationSettingsViewModel.PREFS,
+                        android.content.Context.MODE_PRIVATE,
+                    )
+                    .getBoolean("isNotifications", false)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     Column(Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -309,37 +332,44 @@ private fun EmptyState(onOpenSettings: () -> Unit) {
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxWidth(0.78f)
-                        .aspectRatio(1062f / 747f),
+                        // Swift letterboxes the hero in a 340:310 box.
+                        .aspectRatio(340f / 310f),
                 )
                 Text(
-                    text = "You’re all caught up.",
+                    text = if (notificationsOn) "You’re all set!" else "You’re all caught up.",
                     style = AirdropType.h5.copy(fontSize = 23.sp, lineHeight = 37.sp),
                     color = colors.textDarkTitle,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = Spacing.sm),
                 )
                 Text(
-                    text = "Turn on notifications to get real-time updates on package " +
-                        "tracking, status changes, pricing updates, and special offers.",
+                    text = if (notificationsOn) {
+                        "We’ll notify you about important activity."
+                    } else {
+                        "Turn on notifications to get real-time updates on package " +
+                            "tracking, status changes, pricing updates, and special offers."
+                    },
                     style = AirdropType.body1.copy(fontSize = 18.sp, lineHeight = 28.sp),
                     color = colors.textDescription,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = Spacing.sm),
                 )
-                Text(
-                    text = buildAnnotatedString {
-                        append("Not sure if it’s enabled? Check your ")
-                        withStyle(SpanStyle(color = BrandPalette.OrangeMain)) {
-                            append("notification settings.")
-                        }
-                    },
-                    style = AirdropType.body1.copy(fontSize = 18.sp, lineHeight = 28.sp),
-                    color = colors.textDescription,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .padding(top = Spacing.sm)
-                        .clickable(onClick = onOpenSettings),
-                )
+                if (!notificationsOn) {
+                    Text(
+                        text = buildAnnotatedString {
+                            append("Not sure if it’s enabled? Check your ")
+                            withStyle(SpanStyle(color = BrandPalette.OrangeMain)) {
+                                append("notification settings.")
+                            }
+                        },
+                        style = AirdropType.body1.copy(fontSize = 18.sp, lineHeight = 28.sp),
+                        color = colors.textDescription,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .padding(top = Spacing.sm)
+                            .clickable(onClick = onOpenSettings),
+                    )
+                }
             }
             Spacer(Modifier.height(Spacing.xl))
         }

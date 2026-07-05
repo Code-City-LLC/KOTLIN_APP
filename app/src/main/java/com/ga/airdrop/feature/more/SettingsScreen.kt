@@ -103,17 +103,28 @@ fun SettingsScreen(
                 MoreRowCard(
                     iconRes = R.drawable.ic_color_theme,
                     title = "Mode",
-                    onClick = {},
+                    // Swift flips the theme when the whole row is tapped.
+                    onClick = {
+                        com.ga.airdrop.core.designsystem.theme.ThemeController.set(
+                            if (colors.isDark) {
+                                com.ga.airdrop.core.designsystem.theme.ThemeController.Mode.LIGHT
+                            } else {
+                                com.ga.airdrop.core.designsystem.theme.ThemeController.Mode.DARK
+                            }
+                        )
+                    },
                     trailing = { ThemeToggle() },
                 )
-                Spacer(Modifier.weight(1f))
-                // Account Deletion sits above the logout bar — Figma 40007388:24354.
+                // Swift places Account Deletion 36pt directly below the Mode
+                // row (not pinned to the screen bottom).
+                Spacer(Modifier.height(26.dp))
                 MoreRowCard(
                     iconRes = R.drawable.ic_trash,
                     title = "Account Deletion",
                     tint = AlertPalette.Error,
                     onClick = { onNavigate(Routes.ACCOUNT_DELETION) },
                 )
+                Spacer(Modifier.weight(1f))
             }
             MoreBottomButtonBar(
                 text = "Logout",

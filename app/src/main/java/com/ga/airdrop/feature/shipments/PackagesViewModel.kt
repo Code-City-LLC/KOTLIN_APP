@@ -118,9 +118,10 @@ class PackagesViewModel(
 
     fun refresh() = load(reset = true)
 
-    fun toggleCart(packageId: Int) {
-        ShipmentsCartStore.toggle(packageId)
-        _state.update { it.copy() }
+    fun toggleCart(pkg: ShipmentPackage) {
+        // Swift FigmaPackagesViewController:715-731 — shared cart toggle;
+        // the screen observes CartStore.items, so no state write is needed.
+        com.ga.airdrop.feature.cart.CartStore.toggle(pkg.toCartLine())
     }
 
     private fun load(reset: Boolean) {

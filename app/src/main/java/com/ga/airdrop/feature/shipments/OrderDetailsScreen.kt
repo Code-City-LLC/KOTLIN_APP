@@ -28,6 +28,7 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
@@ -53,7 +54,7 @@ fun OrderDetailsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(Modifier.height(ShipmentsHeaderClearance))
+            Spacer(Modifier.height(shipmentsHeaderClearance()))
             when {
                 state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
                 order == null -> ShipmentsEmptyLabel(state.error ?: "Order not found")
@@ -108,6 +109,7 @@ fun OrderDetailsScreen(
                         // "USD 403.35 / JMD 64,680.20" — comma-grouped, 2 decimals.
                         TotalChargesBox(
                             value = ShipmentsFormat.usdJmd(order.invoiceAmountUsd, state.effectiveRate),
+                            textColor = BrandPalette.OrangeTertiary1,
                         )
 
                         Spacer(Modifier.height(Spacing.md))
@@ -118,6 +120,7 @@ fun OrderDetailsScreen(
 
         ShipmentsDetailHeader(
             title = "Order Details",
+            titleStyle = AirdropType.title2,
             onBack = onBack,
             modifier = Modifier.align(Alignment.TopCenter),
         )

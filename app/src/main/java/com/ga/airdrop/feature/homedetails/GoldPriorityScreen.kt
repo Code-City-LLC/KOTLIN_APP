@@ -242,7 +242,7 @@ private fun TierPageContent(tier: TierPage) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 30.dp)
+            .padding(horizontal = 24.dp)
             .padding(top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -253,7 +253,7 @@ private fun TierPageContent(tier: TierPage) {
             Image(
                 painter = painterResource(R.drawable.ic_homedet_tier_badge),
                 contentDescription = null,
-                modifier = Modifier.size(70.dp),
+                modifier = Modifier.size(64.dp),
             )
             Text(
                 text = tier.name,

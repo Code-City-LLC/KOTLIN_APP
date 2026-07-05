@@ -84,14 +84,14 @@ fun PaymentsScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    Box(Modifier.fillMaxSize().background(colors.gray100)) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = Spacing.md,
                 end = Spacing.md,
-                top = ShipmentsHeaderClearance + Spacing.md,
+                top = shipmentsHeaderClearance() + Spacing.md,
                 bottom = Spacing.xl,
             ),
         ) {
@@ -99,6 +99,7 @@ fun PaymentsScreen(
                 ShipmentsSearchField(
                     value = state.searchText,
                     onValueChange = viewModel::onSearchTextChange,
+                    placeholder = "Search by payment description",
                 )
                 Spacer(Modifier.height(Spacing.sm))
             }
@@ -126,6 +127,7 @@ fun PaymentsScreen(
 
         ShipmentsDetailHeader(
             title = "Payments",
+            titleStyle = AirdropType.title2,
             onBack = onBack,
             rightIconRes = R.drawable.ic_shipments_more_square,
             onRightClick = { viewModel.showTypeFilter(true) },

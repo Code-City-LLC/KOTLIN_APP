@@ -208,14 +208,8 @@ fun ProfileScreen(
                     required = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 )
-                TypeInputField(
-                    label = "Mobile Number",
-                    value = state.mobile,
-                    onValueChange = { v -> viewModel.set { it.copy(mobile = v) } },
-                    placeholder = "e.g. +1876-5290736",
-                    required = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                )
+                // Swift's Edit Profile form ends at Phone — it derives the
+                // mobile/country-code from the Phone value (no Mobile field).
                 Spacer(Modifier.height(Spacing.sm))
             }
             MoreBottomButtonBar(

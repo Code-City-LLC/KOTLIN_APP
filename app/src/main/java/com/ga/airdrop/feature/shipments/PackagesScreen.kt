@@ -39,6 +39,10 @@ fun PackagesScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    // Shared cart membership — Swift FigmaCartStore; drives the +/check icons.
+    val cartLines by com.ga.airdrop.feature.cart.CartStore.items.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { com.ga.airdrop.feature.cart.CartStore.init(context) }
     val listState = rememberLazyListState()
 
     // Infinite scroll: request the next page when the tail comes into view.
@@ -53,14 +57,14 @@ fun PackagesScreen(
         if (shouldLoadMore) viewModel.loadNextPage()
     }
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    Box(Modifier.fillMaxSize().background(colors.gray200)) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = Spacing.md,
                 end = Spacing.md,
-                top = ShipmentsHeaderClearance + Spacing.md,
+                top = shipmentsHeaderClearance() + Spacing.md,
                 bottom = Spacing.xl,
             ),
         ) {
@@ -69,6 +73,8 @@ fun PackagesScreen(
                     value = state.searchText,
                     onValueChange = viewModel::onSearchTextChange,
                     onSubmit = viewModel::onSearchSubmit,
+                    // Swift FigmaPackagesViewController:287-292.
+                    placeholder = "Search by Airdrop Tracking # or Courier #",
                 )
                 Spacer(Modifier.height(Spacing.sm))
             }
@@ -82,8 +88,8 @@ fun PackagesScreen(
                         pkg = pkg,
                         exchangeRate = state.exchangeRate,
                         onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
-                        onToggleCart = { viewModel.toggleCart(pkg.id) },
-                        inCart = ShipmentsCartStore.contains(pkg.id),
+                        onToggleCart = { viewModel.toggleCart(pkg) },
+                        inCart = cartLines.any { it.id == pkg.id },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = Spacing.sm),

@@ -30,8 +30,11 @@ class SettingsViewModel(
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state
 
-    /** RN storage.cleanAll parity — keys mirrored from the Swift cache sweep. */
+    /** RN storage.cleanAll parity — clears the persisted cart (the real
+     *  client-side cache) plus the legacy cache prefs sweep. */
     fun clearCache(context: Context) {
+        com.ga.airdrop.feature.cart.CartStore.init(context)
+        com.ga.airdrop.feature.cart.CartStore.clear()
         sweepCachePrefs(context)
         _state.update { it.copy(cacheCleared = true) }
     }

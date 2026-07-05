@@ -59,7 +59,7 @@ fun PackagesFilterSheet(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
-                Spacer(Modifier.height(ShipmentsHeaderClearance))
+                Spacer(Modifier.height(shipmentsHeaderClearance()))
                 Column(
                     Modifier
                         .fillMaxWidth()

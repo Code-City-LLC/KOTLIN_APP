@@ -42,10 +42,17 @@ private class DataShopProductsRepository(
         perPage: Int,
         search: String?,
     ): Result<List<ShopProduct>> =
+        // Swift auctionProducts: order=created_at desc + in_stock=1 so the
+        // grid hides out-of-stock items and matches the iOS ordering.
         repo.auctionProducts(
             page = page,
             perPage = perPage,
-            filters = com.ga.airdrop.data.model.ProductFilters(search = search),
+            filters = com.ga.airdrop.data.model.ProductFilters(
+                search = search,
+                order = "created_at",
+                direction = "desc",
+                inStock = true,
+            ),
         ).map { list -> list.map { it.toShopProduct() } }
 
     override suspend fun featuredProducts(
@@ -53,13 +60,19 @@ private class DataShopProductsRepository(
         perPage: Int,
         search: String?,
     ): Result<List<ShopProduct>> =
-        repo.featuredProducts(page = page, perPage = perPage)
-            .map { list ->
-                val mapped = list.map { it.toShopProduct() }
-                val query = search?.trim()?.takeIf { it.length >= 3 }?.lowercase()
-                if (query == null) mapped
-                else mapped.filter { it.title.lowercase().contains(query) }
-            }
+        // Swift featuredProducts sends search (>=3 chars) + in_stock/on_sale
+        // to the SERVER — client-side filtering broke pagination.
+        repo.featuredProducts(
+            page = page,
+            perPage = perPage,
+            filters = com.ga.airdrop.data.model.ProductFilters(
+                search = search?.trim()?.takeIf { it.length >= 3 },
+                order = "created_at",
+                direction = "desc",
+                inStock = true,
+                onSale = true,
+            ),
+        ).map { list -> list.map { it.toShopProduct() } }
 
     override suspend fun productBySlug(slug: String, featured: Boolean): Result<ShopProduct> =
         runCatching {

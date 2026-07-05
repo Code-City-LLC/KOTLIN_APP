@@ -55,7 +55,7 @@ fun PreferencesScreen(
                     label = "Email Address",
                     value = state.email,
                     placeholder = "your.email@example.com",
-                    required = true,
+                    required = false, // Swift Preferences rows show no asterisk
                     enabled = false,
                     onClick = null,
                     trailingIconRes = null,
@@ -64,14 +64,14 @@ fun PreferencesScreen(
                     label = "Set Pickup Location",
                     value = state.pickupLocation,
                     placeholder = "Select a pickup location",
-                    required = true,
+                    required = false, // Swift Preferences rows show no asterisk
                     onClick = { pickerFor = "pickup" },
                 )
                 MoreSelectField(
                     label = "Set Default Currency",
                     value = state.paymentCurrency,
                     placeholder = "Select a payment currency",
-                    required = true,
+                    required = false, // Swift Preferences rows show no asterisk
                     onClick = { pickerFor = "currency" },
                 )
             }

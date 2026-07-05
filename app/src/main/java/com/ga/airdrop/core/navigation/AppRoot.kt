@@ -50,6 +50,9 @@ fun AppRoot() {
         Routes.HOME -> AirdropTab.Home
         Routes.SHIPMENTS -> AirdropTab.Shipments
         Routes.SHOP -> AirdropTab.Shop
+        // Swift keeps the tab bar (Shop active) on the Auction and Feature
+        // Products full-list screens.
+        Routes.AUCTION, Routes.FEATURED_PRODUCTS -> AirdropTab.Shop
         Routes.CONTACTS -> AirdropTab.Help
         Routes.MORE -> AirdropTab.More
         else -> null

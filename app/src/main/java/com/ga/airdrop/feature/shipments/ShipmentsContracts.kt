@@ -232,34 +232,31 @@ object ShipmentsRepoProvider {
     }
 }
 
-/**
- * In-memory cart membership for the package "+" toggles.
- * RECONCILE: replace with the shared cart store once the SHOP feature group
- * lands (Swift: FigmaCartStore.shared.toggle(package:) / add(line:)).
+/*
+ * Package → shared-cart mapping — Swift FigmaCartStore.shared.toggle(package:)
+ * (FigmaShipmentsViewController.swift:1152-1172) and
+ * FigmaPackageDetailsViewController.swift:1186-1224: package cart actions go
+ * through the ONE persisted cart (feature.cart.CartStore) so MyCart renders
+ * the line items and the header badge never desyncs. The previous
+ * ShipmentsCartStore was an orphan id-set whose adds silently vanished.
  */
-object ShipmentsCartStore {
-    private val ids = linkedSetOf<Int>()
-    val count: Int get() = ids.size
 
-    /** @return true when the package is now in the cart. */
-    fun toggle(packageId: Int): Boolean {
-        val added = if (ids.contains(packageId)) {
-            ids.remove(packageId); false
-        } else {
-            ids.add(packageId); true
-        }
-        publish()
-        return added
-    }
+fun ShipmentPackage.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine =
+    com.ga.airdrop.feature.cart.CartStore.CartLine(
+        id = id,
+        packageId = id,
+        title = description?.replaceFirstChar { it.uppercase(java.util.Locale.US) }
+            ?: trackingCode ?: "Package #$id",
+        qty = 1,
+        priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
+    )
 
-    fun add(packageId: Int) {
-        ids.add(packageId)
-        publish()
-    }
-
-    fun contains(packageId: Int) = ids.contains(packageId)
-
-    private fun publish() {
-        com.ga.airdrop.core.session.SessionStore.update { it.copy(cartCount = ids.size) }
-    }
-}
+fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine =
+    com.ga.airdrop.feature.cart.CartStore.CartLine(
+        id = id,
+        packageId = id,
+        title = description?.replaceFirstChar { it.uppercase(java.util.Locale.US) }
+            ?: trackingCode ?: "Package #$id",
+        qty = 1,
+        priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
+    )

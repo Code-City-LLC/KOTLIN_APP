@@ -59,6 +59,7 @@ fun MoreDetailHeader(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
+    titleStyle: androidx.compose.ui.text.TextStyle = AirdropType.subtitle1,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -74,17 +75,20 @@ fun MoreDetailHeader(
                 .padding(horizontal = Spacing.md, vertical = 4.dp),
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_arrow),
+                // Swift inner headers draw a left-pointing CHEVRON, not the
+                // tailed arrow glyph.
+                painter = painterResource(R.drawable.ic_small_arrow_down),
                 contentDescription = "Back",
                 colorFilter = ColorFilter.tint(colors.textDarkTitle),
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .size(24.dp)
+                    .rotate(90f)
                     .clickable(onClick = onBack),
             )
             Text(
                 text = title,
-                style = AirdropType.subtitle1,
+                style = titleStyle,
                 color = colors.textDarkTitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -245,9 +249,10 @@ fun MoreSelectField(
     ) {
         if (label.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(text = label, style = AirdropType.subtitle1, color = colors.textDarkTitle)
+                // Swift labels: SubTitle-2 with an ORANGE asterisk.
+                Text(text = label, style = AirdropType.subtitle2, color = colors.textDarkTitle)
                 if (required) {
-                    Text(text = "*", style = AirdropType.subtitle1, color = AlertPalette.Error)
+                    Text(text = "*", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
                 }
             }
         }

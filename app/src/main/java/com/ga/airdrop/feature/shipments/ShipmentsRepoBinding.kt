@@ -255,7 +255,9 @@ private class DataShipmentsPaymentsRepository(
         repo.paymentInvoice(paymentId, cacheDir).map { location ->
             when (location) {
                 is InvoiceLocation.Remote -> location.url
-                is InvoiceLocation.Local -> location.file.toURI().toString()
+                // Uri.fromFile → "file:///..." (java.io.File.toURI() emits a
+                // single-slash "file:/..." the viewer's file:// gate rejects).
+                is InvoiceLocation.Local -> android.net.Uri.fromFile(location.file).toString()
             }
         }
 }

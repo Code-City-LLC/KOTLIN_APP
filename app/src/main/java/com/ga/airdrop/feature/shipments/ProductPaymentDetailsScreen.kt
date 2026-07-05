@@ -55,7 +55,7 @@ fun ProductPaymentDetailsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(Modifier.height(ShipmentsHeaderClearance))
+            Spacer(Modifier.height(shipmentsHeaderClearance()))
 
             when {
                 state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
@@ -158,7 +158,7 @@ fun ProductPaymentDetailsScreen(
         }
 
         ShipmentsDetailHeader(
-            title = "Auction Order Details",
+            title = "Product Payment Details",
             onBack = onBack,
             modifier = Modifier.align(Alignment.TopCenter),
         )

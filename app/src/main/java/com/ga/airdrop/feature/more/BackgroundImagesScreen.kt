@@ -57,7 +57,12 @@ fun BackgroundImagesScreen(
 
     Box(Modifier.fillMaxSize().background(colors.gray100)) {
         Column(Modifier.fillMaxSize()) {
-            MoreDetailHeader(title = "Background Images", onBack = onBack)
+            // Swift: this screen's header title is Title1 (Bold 18).
+            MoreDetailHeader(
+                title = "Background Images",
+                onBack = onBack,
+                titleStyle = AirdropType.title1,
+            )
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -66,13 +71,28 @@ fun BackgroundImagesScreen(
                     .padding(Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm1),
             ) {
-                BackgroundStore.choices.forEach { choice ->
-                    BackgroundTile(
-                        choice = choice,
-                        isDark = colors.isDark,
-                        selected = choice.id == selectedId,
-                        onClick = { selectedId = choice.id },
-                    )
+                // Swift: subtitle line above the grid.
+                Text(
+                    text = "Choose a background for your Home tab",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                )
+                // Swift: 2-column grid of 220pt portrait tiles.
+                BackgroundStore.choices.chunked(2).forEach { rowChoices ->
+                    androidx.compose.foundation.layout.Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm1),
+                    ) {
+                        rowChoices.forEach { choice ->
+                            BackgroundTile(
+                                choice = choice,
+                                isDark = colors.isDark,
+                                selected = choice.id == selectedId,
+                                onClick = { selectedId = choice.id },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (rowChoices.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
                 Spacer(Modifier.height(Spacing.sm))
             }
@@ -103,12 +123,13 @@ private fun BackgroundTile(
     isDark: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(140.dp)
+        modifier = modifier
+            // Swift: 220pt-tall portrait grid tiles.
+            .height(220.dp)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray300)
             .then(
@@ -129,8 +150,8 @@ private fun BackgroundTile(
         when {
             selected -> Box(
                 modifier = Modifier
-                    .padding(Spacing.md)
-                    .size(44.dp)
+                    .padding(Spacing.sm)
+                    .size(36.dp)
                     .background(BrandPalette.OrangeMain, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
@@ -143,7 +164,7 @@ private fun BackgroundTile(
             }
             choice.isDefault -> Box(
                 modifier = Modifier
-                    .padding(Spacing.md)
+                    .padding(Spacing.sm)
                     .height(28.dp)
                     .background(BrandPalette.OrangeMain, RoundedCornerShape(Radius.xs))
                     .padding(horizontal = 12.dp),
@@ -157,8 +178,8 @@ private fun BackgroundTile(
             }
             else -> Box(
                 modifier = Modifier
-                    .padding(Spacing.md)
-                    .size(44.dp)
+                    .padding(Spacing.sm)
+                    .size(36.dp)
                     .background(Color.White.copy(alpha = 0.9f), CircleShape)
                     .border(2.dp, AirdropTheme.colors.iconShape, CircleShape),
             )

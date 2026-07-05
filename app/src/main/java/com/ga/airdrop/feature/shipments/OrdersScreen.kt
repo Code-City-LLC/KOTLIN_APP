@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 
@@ -49,14 +50,14 @@ fun OrdersScreen(
         if (shouldLoadMore) viewModel.loadNextPage()
     }
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    Box(Modifier.fillMaxSize().background(colors.gray100)) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = Spacing.md,
                 end = Spacing.md,
-                top = ShipmentsHeaderClearance + Spacing.md,
+                top = shipmentsHeaderClearance() + Spacing.md,
                 bottom = Spacing.xl,
             ),
         ) {
@@ -64,6 +65,7 @@ fun OrdersScreen(
                 ShipmentsSearchField(
                     value = state.searchText,
                     onValueChange = viewModel::onSearchTextChange,
+                    placeholder = "Search by Order Description",
                 )
                 Spacer(Modifier.height(Spacing.sm))
             }
@@ -89,6 +91,7 @@ fun OrdersScreen(
 
         ShipmentsDetailHeader(
             title = "Orders",
+            titleStyle = AirdropType.title2,
             onBack = onBack,
             modifier = Modifier.align(Alignment.TopCenter),
         )

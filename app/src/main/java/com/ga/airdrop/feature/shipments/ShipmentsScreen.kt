@@ -56,6 +56,12 @@ fun ShipmentsScreen(
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val headerInfo by SessionStore.header.collectAsState()
+    // Shared cart membership — Swift FigmaCartStore; drives the +/check icons.
+    val cartLines by com.ga.airdrop.feature.cart.CartStore.items.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.ga.airdrop.feature.cart.CartStore.init(context)
+    }
 
     fun openPayment(payment: ShipmentPayment) {
         if (payment.paymentType.equals("product", ignoreCase = true)) {
@@ -103,8 +109,8 @@ fun ShipmentsScreen(
                                     pkg = pkg,
                                     exchangeRate = state.exchangeRate,
                                     onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
-                                    onToggleCart = { viewModel.toggleCart(pkg.id) },
-                                    inCart = ShipmentsCartStore.contains(pkg.id),
+                                    onToggleCart = { viewModel.toggleCart(pkg) },
+                                    inCart = cartLines.any { it.id == pkg.id },
                                     // Swift: 280-wide fixed cards.
                                     modifier = Modifier.width(280.dp),
                                 )

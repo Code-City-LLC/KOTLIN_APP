@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,9 +30,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
@@ -306,6 +312,9 @@ fun ShipmentsDetailHeader(
     modifier: Modifier = Modifier,
     rightIconRes: Int? = null,
     onRightClick: () -> Unit = {},
+    // Swift uses Title2 (Bold 16) on the Payments/Orders/Order Details
+    // headers and SubTitle1 elsewhere.
+    titleStyle: TextStyle = AirdropType.subtitle1,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -334,7 +343,7 @@ fun ShipmentsDetailHeader(
             )
             Text(
                 text = title,
-                style = AirdropType.subtitle1,
+                style = titleStyle,
                 color = colors.textDarkTitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -363,8 +372,17 @@ fun ShipmentsDetailHeader(
     }
 }
 
-/** Header clearance for content under the glass detail header (44 + 62). */
-val ShipmentsHeaderClearance = 106.dp
+/**
+ * Header clearance for content under the fixed detail header — the real
+ * status-bar inset + the 62dp bar + 1dp divider (the old hardcoded 106dp
+ * assumed an iOS 44pt status bar and left a dead gap on Android).
+ */
+@Composable
+fun shipmentsHeaderClearance(): androidx.compose.ui.unit.Dp {
+    val statusBar = androidx.compose.foundation.layout.WindowInsets.statusBars
+        .asPaddingValues().calculateTopPadding()
+    return statusBar + 63.dp
+}
 
 // ─── Type Input Field (search variant) — Figma 40001666:42200 ─────────────
 
@@ -377,16 +395,24 @@ fun ShipmentsSearchField(
     onSubmit: () -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
+    // Swift FigmaPackagesViewController:278-311 — LEADING 22pt magnifier
+    // (textDescription), gray150 pill, radius 12, 44pt tall.
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 50.dp)
-            .background(colors.gray100, RoundedCornerShape(Radius.xs))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
-            .padding(horizontal = Spacing.md, vertical = 13.dp),
+            .defaultMinSize(minHeight = 44.dp)
+            .background(colors.gray150, RoundedCornerShape(12.dp))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
+            .padding(horizontal = Spacing.md, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm1),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        Image(
+            painter = painterResource(R.drawable.ic_search),
+            contentDescription = "Search",
+            colorFilter = ColorFilter.tint(colors.textDescription),
+            modifier = Modifier.size(22.dp),
+        )
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) {
                 Text(text = placeholder, style = AirdropType.body2, color = colors.textDescription)
@@ -402,12 +428,6 @@ fun ShipmentsSearchField(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        Image(
-            painter = painterResource(R.drawable.ic_search),
-            contentDescription = "Search",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
-            modifier = Modifier.size(24.dp),
-        )
     }
 }
 
@@ -422,6 +442,8 @@ fun ShipmentsSectionCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = AirdropTheme.colors
+    // Swift: summary cards COLLAPSE on header tap, chevron rotates.
+    var expanded by remember { mutableStateOf(true) }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -433,7 +455,10 @@ fun ShipmentsSectionCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(colors.gray200)
-                .border(1.dp, colors.iconShape)
+                .then(
+                    if (showChevron) Modifier.clickable { expanded = !expanded }
+                    else Modifier
+                )
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
@@ -442,15 +467,17 @@ fun ShipmentsSectionCard(
             if (showChevron) {
                 Image(
                     painter = painterResource(R.drawable.ic_small_arrow_down),
-                    contentDescription = null,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
                     colorFilter = ColorFilter.tint(colors.iconSelected),
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(if (expanded) 180f else 0f),
                 )
             } else {
                 Spacer(Modifier.size(24.dp))
             }
         }
-        content()
+        if (expanded) content()
     }
 }
 
@@ -795,7 +822,13 @@ fun MetroStep(
 // ─── Total Airdrop Charges box — Figma 40001464:31296 ──────────────────────
 
 @Composable
-fun TotalChargesBox(value: String, modifier: Modifier = Modifier) {
+fun TotalChargesBox(
+    value: String,
+    modifier: Modifier = Modifier,
+    // Swift OrderDetails renders Total in orangeTertiary1 (#994D00);
+    // PackageDetails keeps orangeMain.
+    textColor: Color = BrandPalette.OrangeMain,
+) {
     val colors = AirdropTheme.colors
     Row(
         modifier = modifier
@@ -811,10 +844,10 @@ fun TotalChargesBox(value: String, modifier: Modifier = Modifier) {
         Text(
             text = "Total",
             style = AirdropType.title2,
-            color = BrandPalette.OrangeMain,
+            color = textColor,
             modifier = Modifier.weight(1f),
         )
-        Text(text = value, style = AirdropType.title2, color = BrandPalette.OrangeMain)
+        Text(text = value, style = AirdropType.title2, color = textColor)
     }
 }
 

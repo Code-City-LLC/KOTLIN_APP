@@ -139,7 +139,8 @@ fun ShopScreen(
                                     product = product,
                                     inCart = cartLines.any { it.id == product.id },
                                     onClick = { openDetails(product, featured = true) },
-                                    onToggleCart = { CartStore.toggle(product.toCartLine()) },
+                                    // Swift: no cart toggle on Shop-root featured cards.
+                                    onToggleCart = null,
                                     modifier = Modifier.width(160.dp),
                                 )
                             }

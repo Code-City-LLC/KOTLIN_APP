@@ -82,7 +82,9 @@ class AuctionProductDetailsViewModel(
 
     fun addToCart() {
         val product = _state.value.product ?: return
-        val added = CartStore.add(product.toCartLine(qty = _state.value.quantity))
+        // Swift adds qty 1 — Stripe hosted checkout charges a single unit,
+        // so storing the stepper qty inflated the cart's Order Total.
+        val added = CartStore.add(product.toCartLine(qty = 1))
         _state.update { it.copy(addedDialog = added) }
     }
 

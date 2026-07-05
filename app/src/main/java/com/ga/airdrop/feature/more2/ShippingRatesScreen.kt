@@ -40,7 +40,7 @@ private val FALLBACK_STANDARD_RATES: List<Pair<String, Double>> = listOf(
     "16" to 26.00, "17" to 28.00, "18" to 30.00, "19" to 32.00, "20" to 34.00,
 )
 
-private fun currency(value: Double): String = "$" + String.format("%.2f", value)
+private fun currency(value: Double): String = "$" + String.format(java.util.Locale.US, "%.2f", value)
 
 /**
  * Shipping Rates — Figma node 40001567:54206, behavior from
@@ -115,7 +115,7 @@ fun ShippingRatesScreen(
                         title = "Customs Fees",
                         body = "Packages classified by Customs as personal shipments with an " +
                             "assessed value exceeding US $" +
-                            String.format("%.0f", rates?.additionalFees?.customsThreshold ?: 100.0) +
+                            String.format(java.util.Locale.US, "%.0f", rates?.additionalFees?.customsThreshold ?: 100.0) +
                             " (C.I.F.) may be subject to Customs Charges. Customers are " +
                             "encouraged to stay informed about the latest Customs regulations, " +
                             "including applicable duties, taxes, and import requirements for " +

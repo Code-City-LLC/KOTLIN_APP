@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -90,7 +92,12 @@ fun MoreScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(130.dp)) // clearance under the solid header
+            Spacer(
+                Modifier.height(
+                    androidx.compose.foundation.layout.WindowInsets.statusBars
+                        .asPaddingValues().calculateTopPadding() + 76.dp
+                )
+            ) // clearance under the solid header
             Column(
                 Modifier
                     .fillMaxWidth()

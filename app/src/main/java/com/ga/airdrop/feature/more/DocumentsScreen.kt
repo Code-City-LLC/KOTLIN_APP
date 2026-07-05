@@ -205,7 +205,8 @@ private fun DocumentCard(
                 Text(
                     text = slot.description,
                     style = AirdropType.body2,
-                    color = colors.textDarkTitle,
+                    // Swift: slot descriptions are the gray textDescription.
+                    color = colors.textDescription,
                 )
             }
             if (hasFile) {

@@ -410,7 +410,7 @@ private fun InfoNoteCard(title: String, body: String, footer: String?) {
             Image(
                 painter = painterResource(R.drawable.ic_info),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(AlertPalette.OnHold),
+                colorFilter = ColorFilter.tint(colors.iconSelected),
                 modifier = Modifier.size(18.dp),
             )
             Text(text = title, style = AirdropType.subtitle2, color = textColor)
