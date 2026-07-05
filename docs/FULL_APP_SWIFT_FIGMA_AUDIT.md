@@ -145,6 +145,18 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_light_geometry.png`,
     `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_dark_geometry.png`,
     `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_warehouse_standard_after_tap_geometry.png`
+- Android checks run for the Home auction card/cart behavior proof:
+  - Figma MCP screenshot/context for Home node `40001464:28899` was used as the
+    plus-button/card visual reference.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaHomeViewController.swift`.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `HomeActivityTilesScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 9 tests passed
+  - manual `adb shell am instrument -w -r -e class
+    com.ga.airdrop.feature.home.HomeActivityTilesScreenshotTest ...`:
+    `OK (9 tests)`
 - Android checks run for the Documents card/action-row Swift-precedence pass:
   - Figma MCP design context and screenshot for Documents node `40000975:7748`.
   - Swift source compared:
@@ -729,6 +741,15 @@ Findings to verify/fix:
   Swift-equivalent routes; `HomeActivityTilesScreenshotTest` now locks the
   route callbacks in addition to the existing Standard-through-`AppRoot`
   warehouse proof.
+- Home auction card/cart behavior was rechecked against Swift
+  `FigmaHomeViewController.makeAuctionCard`, `onTapAuctionCard`, and
+  `onTapAddToCart`, with Figma Home node `40001464:28899` as the visual source
+  for the 34pt plus button pinned at the card bottom-trailing edge. Swift takes
+  behavior precedence: card taps open product details, and plus taps only toggle
+  `FigmaCartStore`/cart badge. Android keeps the existing slug detail route and
+  `CartStore` path, and `HomeActivityTilesScreenshotTest` now proves the plus
+  hit target toggles cart without leaking into the card route while the card
+  still opens `auctionProductDetails/{slug}`.
 - Activity/highlight boxes were measured against Figma and Swift. Android
   matches the Swift/Figma values: activity tiles are `(screen - 40 - 10) / 2`
   wide and `108` high, with `32` icons, `10` stack gap, and `10x20` padding;
@@ -878,7 +899,8 @@ Findings to verify/fix:
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
   CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
   balance/history, GoldPriority tier-name/status-bar, PackageDetails
-  Swift-precedence screen pass, Home chrome opacity, and Home route callbacks,
+  Swift-precedence screen pass, Home chrome opacity, Home route callbacks, and
+  Home auction card/cart behavior,
   PaymentPackageDetails footer/timeline/payment-copy,
   ProductPaymentDetails/OrderDetails hero/payment-copy geometry, and
   InvoiceViewer surface/share-file behavior, PackagesFilterSheet geometry plus
@@ -895,7 +917,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, activity icons, warehouse card tap/geometry, activity/highlight geometry, primary route callbacks, and bottom-tab state verified; remaining Home product-card/cart/live-data issues still open |
+| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, activity icons, warehouse card tap/geometry, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, and bottom-tab state verified; remaining Home live-data/full-page endpoint issues still open |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub reopened; PackageDetails, PackagesFilterSheet, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad hub/full-flow parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |

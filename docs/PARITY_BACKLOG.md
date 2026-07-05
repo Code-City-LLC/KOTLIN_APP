@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **24 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **25 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -239,7 +239,13 @@ light AND dark.
   and cart to their corresponding route destinations. Android already emitted
   the Swift-equivalent routes, and `HomeActivityTilesScreenshotTest` now locks
   those callbacks alongside the existing warehouse route/AppRoot proof. This
-  does not close the broader Home product-card/cart/live-data audit.
+  does not close the broader Home live-data audit.
+- **Home auction card/cart behavior:** Swift `makeAuctionCard` opens product
+  details from the card and toggles `FigmaCartStore` only from the plus button;
+  Figma Home node `40001464:28899` supplies the visual plus-button placement.
+  Android now exposes the existing plus hit target to instrumentation and locks
+  the Swift flow split: plus toggles `CartStore` without navigation, while the
+  card opens `auctionProductDetails/{slug}`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 

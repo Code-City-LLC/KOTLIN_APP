@@ -23,6 +23,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.data.model.AuctionProduct
+import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -156,6 +157,62 @@ class HomeActivityTilesScreenshotTest {
         val bounds = compose.onNodeWithTag("home-auction-card").getUnclippedBoundsInRoot()
         assertClose(160f, boundsWidth(bounds), "auction highlight card width")
         assertClose(245f, boundsHeight(bounds), "auction highlight card height")
+    }
+
+    @Test
+    fun auctionHighlightCardAndCartToggleKeepSwiftFlowsSeparate() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val product = AuctionProduct(
+            id = 42,
+            name = "Apple 2023 MacBook Pro Laptop M3 chip",
+            slug = "apple-2023-macbook-pro-laptop-m3-chip",
+            currentPrice = "1550.00",
+        )
+        val navigatedRoutes = mutableListOf<String>()
+
+        instrumentation.runOnMainSync {
+            CartStore.init(context)
+            CartStore.clear()
+        }
+
+        try {
+            compose.setContent {
+                AirdropTheme {
+                    ProductHighlightCard(
+                        product = product,
+                        onClick = {
+                            navigatedRoutes += Routes.auctionProductDetails(product.slug.orEmpty())
+                        },
+                    )
+                }
+            }
+
+            compose.onNodeWithTag("home-auction-cart-toggle").performClick()
+            compose.runOnIdle {
+                assertEquals(emptyList<String>(), navigatedRoutes)
+                assertEquals(1, CartStore.count)
+                assertEquals(product.id, CartStore.items.value.single().id)
+            }
+
+            compose.onNodeWithTag("home-auction-card").performClick()
+            compose.runOnIdle {
+                assertEquals(
+                    listOf(Routes.auctionProductDetails(product.slug.orEmpty())),
+                    navigatedRoutes,
+                )
+            }
+
+            compose.onNodeWithTag("home-auction-cart-toggle").performClick()
+            compose.runOnIdle {
+                assertEquals(0, CartStore.count)
+                assertEquals(1, navigatedRoutes.size)
+            }
+        } finally {
+            instrumentation.runOnMainSync {
+                CartStore.clear()
+            }
+        }
     }
 
     @Test

@@ -478,6 +478,7 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
                 .align(Alignment.BottomEnd)
                 .padding(end = 10.dp, bottom = 16.dp)
                 .size(34.dp)
+                .testTag("home-auction-cart-toggle")
                 .clickable(enabled = product.id != null) {
                     CartStore.toggle(product.toCartLine())
                 },
