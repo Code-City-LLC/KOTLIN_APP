@@ -743,12 +743,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Product details (featured mode)
+## [CLOSED] Product details (featured mode) — purchase-link unavailable alerts
 `app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:158` — 'Purchase Product' silently does nothing when the Amazon URL is missing; Swift shows a 'Product link unavailable' alert.
 
 **Detail:** Kotlin: `if (raw.isNotEmpty()) { ... }` with no else branch (AuctionProductDetailsScreen.kt:157-165). Swift presents UIAlertController(title: "Product link unavailable", message: "No purchase link was returned for this feature product.") for empty/invalid URLs (FigmaAuctionProductDetailsViewController.swift:817-831). A dead-feeling button is user-visible.
 
-**Fix:** Add an else branch that surfaces the same alert (reuse the existing AlertDialog state pattern, e.g. an errorTitle/errorMessage in ProductDetailsUiState).
+**Fix:** Closed. The empty-link branch was already present in current Android; this pass closes the remaining Swift runtime branch by validating the normalized purchase URL before launching it and surfacing `The purchase link is not a valid URL.` for invalid strings. Figma MCP Product Details node `40002072:24025` was checked for the visual surface, and Swift `onPurchaseProduct` takes precedence for the runtime alert behavior. `AuctionProductDetailsRelatedParityTest.featuredInvalidPurchaseLinkShowsSwiftUnavailableAlert` locks the invalid-link alert copy.
 
 ---
 

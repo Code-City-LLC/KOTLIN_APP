@@ -52,6 +52,7 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
+import java.net.URI
 import java.util.Locale
 
 private const val PRODUCT_DESCRIPTION_FALLBACK =
@@ -77,8 +78,8 @@ fun AuctionProductDetailsScreen(
 {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
-    // Swift onPurchaseProduct alert when a featured product has no amazon_url.
-    var showLinkUnavailable by remember { mutableStateOf(false) }
+    // Swift onPurchaseProduct alert when a featured product has no usable amazon_url.
+    var linkUnavailableMessage by remember { mutableStateOf<String?>(null) }
     val cartLines by CartStore.items.collectAsState()
     val context = LocalContext.current
     val product = state.product
@@ -165,17 +166,18 @@ fun AuctionProductDetailsScreen(
                         .clickable(enabled = product != null) {
                             if (featured) {
                                 val raw = product?.amazonUrl?.trim().orEmpty()
-                                if (raw.isNotEmpty()) {
-                                    val url = if (raw.startsWith("http://") || raw.startsWith("https://")) {
-                                        raw.replaceFirst("http://", "https://")
-                                    } else {
-                                        "https://$raw"
-                                    }
-                                    launchExternalUrl(context, url)
-                                } else {
+                                if (raw.isEmpty()) {
                                     // Swift onPurchaseProduct (:817-831): alert
                                     // instead of a dead no-op.
-                                    showLinkUnavailable = true
+                                    linkUnavailableMessage =
+                                        "No purchase link was returned for this feature product."
+                                } else {
+                                    val url = normalizedPurchaseUrl(raw)
+                                    if (url == null) {
+                                        linkUnavailableMessage = "The purchase link is not a valid URL."
+                                    } else {
+                                        launchExternalUrl(context, url)
+                                    }
                                 }
                             } else {
                                 viewModel.addToCart()
@@ -193,9 +195,10 @@ fun AuctionProductDetailsScreen(
         }
     }
 
-    if (showLinkUnavailable) {
+    val unavailableMessage = linkUnavailableMessage
+    if (unavailableMessage != null) {
         AlertDialog(
-            onDismissRequest = { showLinkUnavailable = false },
+            onDismissRequest = { linkUnavailableMessage = null },
             containerColor = colors.gray100,
             title = {
                 Text(
@@ -206,13 +209,13 @@ fun AuctionProductDetailsScreen(
             },
             text = {
                 Text(
-                    text = "No purchase link was returned for this feature product.",
+                    text = unavailableMessage,
                     style = AirdropType.body2,
                     color = colors.textDescription,
                 )
             },
             confirmButton = {
-                TextButton(onClick = { showLinkUnavailable = false }) {
+                TextButton(onClick = { linkUnavailableMessage = null }) {
                     Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
                 }
             },
@@ -573,6 +576,23 @@ private fun cleanDescription(raw: String?): String {
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .trim()
+}
+
+private fun normalizedPurchaseUrl(raw: String): String? {
+    val normalized = if (raw.startsWith("http://") || raw.startsWith("https://")) {
+        raw.replaceFirst("http://", "https://")
+    } else {
+        "https://$raw"
+    }
+    return runCatching {
+        val uri = URI(normalized)
+        val scheme = uri.scheme?.lowercase(Locale.US)
+        if ((scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()) {
+            uri.toString()
+        } else {
+            null
+        }
+    }.getOrNull()
 }
 
 /**

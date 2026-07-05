@@ -93,6 +93,25 @@ class AuctionProductDetailsRelatedParityTest {
         )
     }
 
+    @Test
+    fun featuredInvalidPurchaseLinkShowsSwiftUnavailableAlert() {
+        setDetailsContent(
+            featured = true,
+            product = SampleProduct.copy(
+                slug = "swift-invalid-feature-link",
+                amazonUrl = "not a valid url",
+            ),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetails()
+        compose.onNodeWithText("Purchase Product").performClick()
+
+        compose.onNodeWithText("Product link unavailable").assertIsDisplayed()
+        compose.onNodeWithText("The purchase link is not a valid URL.").assertIsDisplayed()
+    }
+
     private fun setDetailsContent(
         featured: Boolean,
         product: ShopProduct = SampleProduct,
@@ -187,6 +206,7 @@ class AuctionProductDetailsRelatedParityTest {
             regularPriceUsd = 12.00,
             inventory = 4,
             description = "Detailed product description for the Swift related-products parity check.",
+            amazonUrl = "https://www.amazon.com/sample",
             packageId = 8801,
         )
     }
