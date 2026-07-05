@@ -355,12 +355,12 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] OrderDetails / ProductPaymentDetails
+## [CLOSED] OrderDetails / ProductPaymentDetails
 `app/src/main/java/com/ga/airdrop/feature/shipments/OrderDetailsScreen.kt:62` — Hero product image is a fixed 245x149dp box; Swift renders a full-width image in a 209pt (OrderDetails, 20pt insets) / 219pt (ProductPaymentDetails, 30pt insets) panel
 
 **Detail:** Swift OrderDetails: imageWrap height 209 with 20pt insets on all sides → image ~169pt tall spanning screen width minus 40 (FigmaOrderDetailsViewController.swift:103-109). Swift ProductPaymentDetails: wrap height 219 with 30pt insets → ~159pt tall, width minus 60 (FigmaProductPaymentDetailsViewController.swift:118-124). Kotlin uses Modifier.size(245.dp, 149.dp) inside a Spacing.lg(30dp)-padded Box on both screens (OrderDetailsScreen.kt:61-82, ProductPaymentDetailsScreen.kt:64-85) — narrower and shorter than iOS on typical devices, and the padding is wrong (20 vs 30) on OrderDetails.
 
-**Fix:** OrderDetails: Box padding 20.dp, image fillMaxWidth().height(169.dp). ProductPaymentDetails: Box padding 30.dp, image fillMaxWidth().height(159.dp). Keep ContentScale.Fit.
+**Fix:** Done. OrderDetails now uses a 209dp wrap with 20dp insets and a fill-width 169dp image. ProductPaymentDetails now uses a 219dp wrap with 30dp insets and a fill-width 159dp image. `ProductOrderDetailsParityTest` verifies the Swift dimensions in light and dark, and screenshots are saved under `/tmp/kotlin_ui_proof/product_order_details/`. The Figma MCP nodes for this slice still show the old fixed 245x149 image geometry, so Swift is documented as the precedence source.
 
 ---
 
@@ -508,12 +508,12 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [LOW] ProductPaymentDetails
+## [CLOSED] ProductPaymentDetails
 `app/src/main/java/com/ga/airdrop/feature/shipments/ProductPaymentDetailsScreen.kt:96` — Section titles 'Product Summary'/'Payment Summary' overridden to subtitle1; Swift uses title2 (Bold)
 
 **Detail:** FigmaProductPaymentDetailsViewController.swift:288 and :370 set barTitle.font = Typography.title2(). Kotlin passes titleStyle = AirdropType.subtitle1 to both ShipmentsSectionCard calls (lines 96 and 126), diverging from every other section card that keeps the title2 default.
 
-**Fix:** Remove the titleStyle overrides so the cards use the default AirdropType.title2.
+**Fix:** Closed in the current Android tree and preserved in this pass. ProductPaymentDetails now renders both cards with `AirdropType.title2`, matching Swift; the top-state light/dark screenshots in `/tmp/kotlin_ui_proof/product_order_details/` show the bold section headers.
 
 ---
 
@@ -544,12 +544,12 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [LOW] PaymentPackageDetails / ProductPaymentDetails
+## [CLOSED] PaymentPackageDetails / ProductPaymentDetails
 `app/src/main/java/com/ga/airdrop/feature/shipments/ShipmentsUi.kt:198` — 'Amount Paid'/Total strings use comma-grouped numbers and render zero amounts; Swift prints ungrouped %.2f and shows '-' when the amount is 0
 
 **Detail:** Swift: String(format: "USD %.2f / JMD %.2f") (FigmaPaymentPackageDetailsViewController.swift:812, FigmaProductPaymentDetailsViewController.swift:592) → "JMD 64841.58" without thousands separators, and ProductPaymentDetails guards `usd > 0 else "-"` (lines 587-593, 617-623). Kotlin ShipmentsFormat.usdJmd groups with commas and formats any non-null value including 0.0. (Note OrderDetails is the opposite — Swift explicitly comma-groups there, which Kotlin already matches.)
 
-**Fix:** Partially done. PaymentPackageDetails now uses `ShipmentsFormat.usdJmdPlain` / `moneyPlain` for Amount Paid, Exchange Rate, charge table values, and Total, and the test asserts `USD 100.00 / JMD 16100.00` with no comma. ProductPaymentDetails still needs the same ungrouped/zero-handling pass.
+**Fix:** Done. PaymentPackageDetails uses `ShipmentsFormat.usdJmdPlain` / `moneyPlain`; ProductPaymentDetails now uses `usdJmdPlainPositive` for Amount Paid and Total and `moneyPlain` for Exchange Rate. `PaymentPackageDetailsParityTest` and `ProductOrderDetailsParityTest` assert the ungrouped `USD 100.00 / JMD 16100.00` form, reject the comma-grouped variant on payment-detail screens, and verify the ProductPaymentDetails zero guard returns `-`. OrderDetails intentionally keeps `ShipmentsFormat.usdJmd` because Swift groups JMD there.
 
 ---
 

@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,27 +60,40 @@ fun OrderDetailsScreen(
                 state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
                 order == null -> ShipmentsEmptyLabel(state.error ?: "Order not found")
                 else -> {
-                    // Hero product image — 245x149 in a 30dp padded panel.
+                    // Swift FigmaOrderDetailsViewController.swift: 209pt wrap,
+                    // 20pt insets, image fills remaining width.
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .padding(Spacing.md),
+                            .height(209.dp)
+                            .testTag("order-details-hero-wrap"),
                         contentAlignment = Alignment.Center,
                     ) {
-                        SubcomposeAsyncImage(
-                            model = order.productImage,
-                            contentDescription = order.title,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.size(width = 245.dp, height = 149.dp),
-                            error = {
-                                Image(
-                                    painter = painterResource(R.drawable.ic_shop),
-                                    contentDescription = null,
-                                    colorFilter = ColorFilter.tint(colors.gray400),
-                                    modifier = Modifier.size(80.dp),
-                                )
-                            },
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(209.dp)
+                                .padding(Spacing.md),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            SubcomposeAsyncImage(
+                                model = order.productImage,
+                                contentDescription = order.title,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(169.dp)
+                                    .testTag("order-details-hero-image"),
+                                error = {
+                                    Image(
+                                        painter = painterResource(R.drawable.ic_shop),
+                                        contentDescription = null,
+                                        colorFilter = ColorFilter.tint(colors.gray400),
+                                        modifier = Modifier.size(80.dp),
+                                    )
+                                },
+                            )
+                        }
                     }
 
                     Column(

@@ -215,6 +215,10 @@ object ShipmentsFormat {
     fun usdJmdPlain(usd: Double?, exchangeRate: Double): String =
         usd?.let { "USD ${moneyPlain(it)} / JMD ${moneyPlain(it * exchangeRate)}" } ?: "-"
 
+    /** Payment-detail Swift uses the same plain format, but guards zero values. */
+    fun usdJmdPlainPositive(usd: Double?, exchangeRate: Double): String =
+        usd?.takeIf { it > 0.0 }?.let { "USD ${moneyPlain(it)} / JMD ${moneyPlain(it * exchangeRate)}" } ?: "-"
+
     /** Weight rules: lbs → kg → raw → em dash. */
     fun weight(lbs: Double?, kg: String?, raw: String?): String = when {
         lbs != null -> "${compact(lbs)} lbs"

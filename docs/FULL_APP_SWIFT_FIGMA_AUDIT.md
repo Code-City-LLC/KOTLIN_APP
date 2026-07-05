@@ -313,6 +313,34 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/payment_package_details/payment_package_details_swift_dark.png`,
     `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_light.png`,
     `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_dark.png`
+- Android checks run for the ProductPaymentDetails / OrderDetails Swift/Figma
+  pass:
+  - Figma MCP design context/screenshots checked for ProductPaymentDetails
+    `Auction Order Details` node `40004950:25064` and OrderDetails node
+    `40001761:28814`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaProductPaymentDetailsViewController.swift`
+    and
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaOrderDetailsViewController.swift`.
+  - Swift precedence documented: both Figma nodes still show the older fixed
+    245x149 image geometry, but Swift uses a 219pt ProductPaymentDetails wrap
+    with 30pt insets/159pt image and a 209pt OrderDetails wrap with 20pt
+    insets/169pt image. Android follows Swift.
+  - ProductPaymentDetails also keeps Swift `title2` section headers and now
+    uses Swift's ungrouped, positive-only payment-detail USD/JMD formatter.
+    OrderDetails intentionally keeps the comma-grouped JMD total because Swift
+    does.
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `ProductOrderDetailsParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.shipments.ProductOrderDetailsParityTest ...`:
+    `OK (4 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/product_order_details/product_payment_details_swift_light.png`,
+    `/tmp/kotlin_ui_proof/product_order_details/product_payment_details_swift_dark.png`,
+    `/tmp/kotlin_ui_proof/product_order_details/order_details_swift_light.png`,
+    `/tmp/kotlin_ui_proof/product_order_details/order_details_swift_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -374,6 +402,12 @@ assets; only repair the parts that are visibly or functionally wrong.
   ungrouped payment-detail amount formatting, timeline `Pick Up` copy, `-`
   fallback, body3 dates, 74dp rows, status-colored connectors, and status-tinted
   timeline icons.
+- ProductPaymentDetails and OrderDetails now have Swift-precedence proof for
+  their hero geometry in app light/dark. Figma nodes `40004950:25064` and
+  `40001761:28814` still show stale 245x149 fixed images, so Android follows
+  Swift's 219/30/159 ProductPaymentDetails geometry and 209/20/169 OrderDetails
+  geometry. ProductPaymentDetails now uses the Swift no-grouping positive-only
+  payment formatter; OrderDetails keeps Swift's grouped JMD total.
 
 ### Help
 
@@ -624,8 +658,9 @@ Findings to verify/fix:
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
   CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
-  balance/history, and PaymentPackageDetails footer/timeline/payment-copy now
-  have Figma MCP + Swift comparison and targeted device-test proof.
+  balance/history, PaymentPackageDetails footer/timeline/payment-copy, and
+  ProductPaymentDetails/OrderDetails hero/payment-copy geometry now have Figma
+  MCP + Swift comparison and targeted device-test proof.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -638,7 +673,7 @@ For each page, fill this before claiming completion:
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, warehouse card tap/geometry, and activity/highlight geometry verified; remaining Home content/navigation issues still open |
-| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift` | `40000823:9633`, `40001761:29389` | summary/packages/payments/orders/package detail/payment detail | partial | yes | partial | BlueDeer/MagentaCastle | hub reopened; PaymentPackageDetails footer/timeline/payment-copy slice closed; InvoiceViewer/hero/filter/detail items still open |
+| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift` | `40000823:9633`, `40001761:29389`, `40004950:25064`, `40001761:28814` | summary/packages/payments/orders/package detail/payment detail/order detail | partial | yes | partial | BlueDeer/MagentaCastle | hub reopened; PaymentPackageDetails footer/timeline/payment-copy and ProductPaymentDetails/OrderDetails hero/payment-copy slices closed; InvoiceViewer/filter/remaining detail items still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |

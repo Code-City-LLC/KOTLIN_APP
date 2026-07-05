@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
@@ -61,27 +62,40 @@ fun ProductPaymentDetailsScreen(
                 state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
                 payment == null -> ShipmentsEmptyLabel(state.error ?: "Payment not found")
                 else -> {
-                    // Hero product image — 245x149 in a 30dp padded panel.
+                    // Swift FigmaProductPaymentDetailsViewController.swift:
+                    // 219pt wrap, 30pt insets, image fills remaining width.
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .padding(Spacing.lg),
+                            .height(219.dp)
+                            .testTag("product-payment-hero-wrap"),
                         contentAlignment = Alignment.Center,
                     ) {
-                        SubcomposeAsyncImage(
-                            model = order?.productImage,
-                            contentDescription = order?.title,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.size(width = 245.dp, height = 149.dp),
-                            error = {
-                                Image(
-                                    painter = painterResource(R.drawable.ic_shop),
-                                    contentDescription = null,
-                                    colorFilter = ColorFilter.tint(colors.gray400),
-                                    modifier = Modifier.size(80.dp),
-                                )
-                            },
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(219.dp)
+                                .padding(horizontal = 30.dp, vertical = 30.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            SubcomposeAsyncImage(
+                                model = order?.productImage,
+                                contentDescription = order?.title,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(159.dp)
+                                    .testTag("product-payment-hero-image"),
+                                error = {
+                                    Image(
+                                        painter = painterResource(R.drawable.ic_shop),
+                                        contentDescription = null,
+                                        colorFilter = ColorFilter.tint(colors.gray400),
+                                        modifier = Modifier.size(80.dp),
+                                    )
+                                },
+                            )
+                        }
                     }
 
                     Column(
@@ -137,19 +151,19 @@ fun ProductPaymentDetailsScreen(
                             )
                             ShipmentsListRow(
                                 "Amount Paid",
-                                ShipmentsFormat.usdJmd(
+                                ShipmentsFormat.usdJmdPlainPositive(
                                     payment.totalAmount ?: order?.salePriceUsd ?: order?.invoiceAmountUsd,
                                     rate,
                                 ),
                             )
                             ShipmentsListRow(
                                 "Exchange Rate",
-                                if (rate > 0) "USD 1 = JMD ${ShipmentsFormat.money(rate)}" else "-",
+                                if (rate > 0) "USD 1 = JMD ${ShipmentsFormat.moneyPlain(rate)}" else "-",
                                 showDivider = false,
                             )
                         }
 
-                        TotalChargesBox(value = ShipmentsFormat.usdJmd(state.totalUsd, rate))
+                        TotalChargesBox(value = ShipmentsFormat.usdJmdPlainPositive(state.totalUsd, rate))
 
                         Spacer(Modifier.height(Spacing.md))
                     }
