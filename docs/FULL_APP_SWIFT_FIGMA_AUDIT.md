@@ -367,6 +367,30 @@ assets; only repair the parts that are visibly or functionally wrong.
   - proof PNGs:
     `/tmp/kotlin_ui_proof/invoice_viewer/invoice_viewer_swift_light.png`,
     `/tmp/kotlin_ui_proof/invoice_viewer/invoice_viewer_swift_dark.png`
+- Android checks run for the PackagesFilterSheet Swift/Figma pass:
+  - Figma MCP design context checked for Packages filter node
+    `40006358:75618`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPackagesFilterViewController.swift`.
+  - Swift precedence documented: Figma still carries the older glass/header
+    frame and static list screenshot, but Swift is the shipped implementation
+    source for the opaque adaptive header, 56pt header row, 20pt content inset,
+    16pt card gap, 54pt collapsible bars, 50pt option rows, 24pt icons, no
+    rendered `All Packages` row, tap-again-to-clear behavior, and immediate
+    delegate apply on row taps.
+  - Android keeps the live `/package-statuses` order/cached data flow shared by
+    Swift and Android rather than hardcoding the Figma screenshot order.
+  - Android now renders the Swift/Figma filter label `AirDrop` without changing
+    the broader package-detail `AirDrop Standard` method label.
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `PackagesFilterSheetParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.shipments.PackagesFilterSheetParityTest ...`:
+    `OK (2 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_light.png`,
+    `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -440,6 +464,11 @@ assets; only repair the parts that are visibly or functionally wrong.
   Swift `FigmaInvoiceViewerScreenViewController.swift` remains authoritative for
   the viewer. Android keeps gray100 root / gray150 preview surfaces and now
   shares a FileProvider stream instead of a raw URL string.
+- PackagesFilterSheet now has Swift-precedence proof against Figma node
+  `40006358:75618` and `FigmaPackagesFilterViewController.swift`. Android uses
+  the Swift opaque header and geometry, the Figma/Swift `AirDrop` filter label,
+  no stale `All Packages` row, 24dp leading icons, 50dp option rows, iconShape
+  dividers/borders, and verified row/close callbacks in light and dark.
 
 ### Help
 
@@ -692,8 +721,9 @@ Findings to verify/fix:
   CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
   balance/history, PaymentPackageDetails footer/timeline/payment-copy,
   ProductPaymentDetails/OrderDetails hero/payment-copy geometry, and
-  InvoiceViewer surface/share-file behavior now have Figma MCP + Swift
-  comparison and targeted device-test proof.
+  InvoiceViewer surface/share-file behavior, and PackagesFilterSheet geometry
+  plus callbacks now have Figma MCP + Swift comparison and targeted device-test
+  proof.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -706,7 +736,7 @@ For each page, fill this before claiming completion:
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, warehouse card tap/geometry, and activity/highlight geometry verified; remaining Home content/navigation issues still open |
-| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/payments/orders/package detail/payment detail/order detail/invoice files | partial | yes | partial | BlueDeer/MagentaCastle | hub reopened; PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; filters/remaining detail items still open |
+| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages filter `40006358:75618`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | partial | yes | partial | BlueDeer/MagentaCastle | hub reopened; PackagesFilterSheet, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining detail items still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |

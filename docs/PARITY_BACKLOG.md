@@ -163,10 +163,21 @@ light AND dark.
   shares a `content://` FileProvider stream instead of a raw text URL. Proof:
   `/tmp/kotlin_ui_proof/invoice_viewer/invoice_viewer_swift_light.png`,
   `/tmp/kotlin_ui_proof/invoice_viewer/invoice_viewer_swift_dark.png`.
+- **PackagesFilterSheet Swift/Figma slice:** Figma MCP design context for node
+  `40006358:75618` and Swift
+  `FigmaPackagesFilterViewController.swift` were compared, with Swift taking
+  precedence where the Figma header/glass frame differs from the shipped iOS
+  implementation. Android now uses the Swift filter label/copy (`AirDrop`,
+  `Shipment Method`), no stale `All Packages` row, opaque adaptive header,
+  20dp content insets, 16dp card gap, 54dp collapsible bars, 50dp option rows,
+  24dp icons, iconShape borders/dividers, and preserved tap-to-clear/apply
+  callbacks. Proof:
+  `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_light.png`,
+  `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_dark.png`.
 
-**🔲 OPEN — BlueDeer (Shipments detail), priority order:** §27/§36 PackagesFilterSheet · §9/§18 GoldPriority · remaining PackageDetails/Payments/Orders/InvoiceViewer follow-ups not explicitly closed below.
+**🔲 OPEN — BlueDeer (Shipments detail), priority order:** §9/§18 GoldPriority · remaining PackageDetails/Payments/Orders follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, and PackagesFilterSheet Swift/Figma slices are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -248,21 +259,25 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] Packages filter sheet
+## [CLOSED] Packages filter sheet
 `app/src/main/java/com/ga/airdrop/feature/shipments/PackagesFilterSheet.kt:211` — Status rows place the status icon at the trailing edge; Swift places it leading (icon, then label)
 
 **Detail:** StatusRow (PackagesFilterSheet.kt:196-216) lays out Text(weight 1f) then Image — icon on the right. Swift makeOptionRow (FigmaPackagesFilterViewController.swift:498-511) pins the icon at leading (20pt inset) with the title 10pt after it, for both method and status rows. Kotlin's MethodRow already does leading-icon correctly, so the two lists inside the same sheet are visibly inconsistent with each other and with Swift.
 
-**Fix:** In StatusRow reorder to Image(24dp) first, then Text with Modifier.weight(1f), matching MethodRow's arrangement and Swift's 20dp leading inset / 10dp gap.
+**Fix:** Verified closed. Current Android already had the leading status icon; this pass locked that behavior with `PackagesFilterSheetParityTest`, which asserts the 24dp leading status icon and 10dp icon/text gap in light and dark.
 
 ---
 
-## [MEDIUM] Packages filter sheet
+## [CLOSED] Packages filter sheet
 `app/src/main/java/com/ga/airdrop/feature/shipments/PackagesFilterSheet.kt:74` — Method rows use inconsistent fonts: Standard row is title2 but SeaDrop and Express rows are title1 (18sp)
 
 **Detail:** PackagesFilterSheet.kt passes labelStyle = AirdropType.title2 for Standard (line 73) but AirdropType.title1 for SeaDrop (line 81) and Express (line 88), so adjacent rows render at 16sp vs 18sp. Swift renders all method rows with Typography.title2() (FigmaPackagesFilterViewController.swift:494, bold=true path).
 
-**Fix:** Pass AirdropType.title2 for all three MethodRow calls (or drop the labelStyle parameter and hardcode title2 inside MethodRow).
+**Fix:** Verified closed. Android now hardens all method rows to Swift's `title2`
+style in this sheet, renders the Swift/Figma `AirDrop` filter label instead of
+the package-detail `AirDrop Standard` label, and verifies the absence of stale
+`All Packages` / `AirDrop Standard` rows plus row-click callbacks in
+`PackagesFilterSheetParityTest`.
 
 ---
 
