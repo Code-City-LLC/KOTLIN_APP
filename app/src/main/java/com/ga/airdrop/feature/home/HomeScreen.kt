@@ -288,15 +288,20 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
 
 // ─── Activity grid — Swift makeActivitiesGrid (Figma 40000770:6493) ───────
 
-private data class Activity(val label: String, val iconRes: Int, val route: String)
+private data class Activity(
+    val label: String,
+    val lightIconRes: Int,
+    val darkIconRes: Int,
+    val route: String,
+)
 
 @Composable
 private fun ActivityGrid(onNavigate: (String) -> Unit) {
     val activities = listOf(
-        Activity("Services", R.drawable.ic_services, Routes.SERVICES),
-        Activity("Ship Tax", R.drawable.ic_ship_tax, Routes.SALES_TAXES),
-        Activity("Calculator", R.drawable.ic_calculator, Routes.CALCULATOR),
-        Activity("Drop Alert", R.drawable.ic_drop_alert, Routes.DROP_ALERT),
+        Activity("Services", R.drawable.ic_services, R.drawable.ic_services_dark, Routes.SERVICES),
+        Activity("Ship Tax", R.drawable.ic_ship_tax, R.drawable.ic_ship_tax_dark, Routes.SALES_TAXES),
+        Activity("Calculator", R.drawable.ic_calculator, R.drawable.ic_calculator_dark, Routes.CALCULATOR),
+        Activity("Drop Alert", R.drawable.ic_drop_alert, R.drawable.ic_drop_alert_dark, Routes.DROP_ALERT),
     )
     Column(
         // Swift wrap: grid inset top 20, horizontal 20; rows gap 10.
@@ -331,8 +336,9 @@ private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modi
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        val iconRes = if (colors.isDark) activity.darkIconRes else activity.lightIconRes
         Image(
-            painter = painterResource(activity.iconRes),
+            painter = painterResource(iconRes),
             contentDescription = null,
             modifier = Modifier.size(32.dp),
         )

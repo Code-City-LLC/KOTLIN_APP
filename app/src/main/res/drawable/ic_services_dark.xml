@@ -12,7 +12,7 @@
         android:strokeLineJoin="round" />
     <path
         android:pathData="M23.0007 19.3542V20.5732M23.0007 25.4489V26.6678M19.8306 21.1825L20.8823 21.7925M25.119 24.2297L26.1707 24.8398M19.8306 24.8394L20.8823 24.2294M25.119 21.7925L26.1707 21.1825M24.7248 21.286C25.6774 22.2385 25.6774 23.7825 24.7248 24.735C23.7735 25.6864 22.2294 25.6864 21.278 24.735C20.3255 23.7825 20.3255 22.2385 21.278 21.286C22.2294 20.3357 23.7735 20.3357 24.7248 21.286Z"
-        android:strokeColor="#FF292929"
+        android:strokeColor="#FFFFFFFF"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

@@ -11,9 +11,9 @@ No screen is done until it has been seen against all three sources:
 2. Figma MCP screenshot or design context for the exact screen node.
 3. Swift `Figma*ViewController.swift` behavior/layout source.
 
-Swift is the behavior and flow guide. Figma is the visual source of truth,
-especially where Swift is missing a designed element. If Swift and Figma
-conflict, follow the latest room mandate from BlueDeer: Swift wins as the
+Swift is the behavior, flow, and implementation-precedence guide. Figma is the
+pixel-measurement and visual-comparison source, especially where Swift is
+missing a designed element. If Swift and Figma conflict, Swift wins as the
 updated implementation truth, and the conflict must be documented in this file
 instead of silently choosing either side. Preserve working Android flows and
 assets; only repair the parts that are visibly or functionally wrong.
@@ -63,6 +63,18 @@ assets; only repair the parts that are visibly or functionally wrong.
 - Android checks run after pushed `HEAD a1768d2`:
   - `:app:compileStagingDebugKotlin :app:assembleStagingDebug`
   - staging debug APK installed on `emulator-5554`
+- Android checks run for the Home activity-icon dark-mode fix:
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:assembleStagingDebug`
+  - `:app:compileStagingDebugAndroidTestKotlin`
+  - targeted `HomeActivityTilesScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.home.HomeActivityTilesScreenshotTest ...`:
+    `OK (2 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_light_after_fix.png`,
+    `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_dark_after_fix.png`
 
 ## Latest Device/Figma Findings
 
@@ -78,6 +90,13 @@ assets; only repair the parts that are visibly or functionally wrong.
 - The Standard destination exists: fresh launch resumed on the Standard detail
   screen during inspection. The user-reported "nothing opens" bug must be
   reproduced from the Home card/Read More tap path before changing routes.
+- Home activity tile icon colors now match Swift/Figma in app light and app dark
+  mode. Swift `FigmaIcons.swift` keeps Services as orange person + secondary
+  gear and Ship Tax as orange package + secondary hull/waves; Figma Services
+  nodes `40001464:28913`/`40000798:6509` and Ship Tax nodes
+  `40001464:28914`/`40000798:6510` show the same light/dark split. Android now
+  selects explicit light/dark drawables from `ThemeController`-resolved app
+  theme, so app-dark no longer depends on Android resource-night mode.
 
 ### Shipments
 
@@ -160,9 +179,11 @@ Findings to verify/fix:
 - Header/footer opacity must be checked in light and dark. The bottom tab bar
   must be opaque where Swift uses an opaque surface and must not wash through
   content.
-- Dark-mode icon issue still open outside the header: the Home Services tile
-  gear layer is dark-on-dark in
-  `/tmp/kotlin_ui_proof/android_swift_precedence_home_header_app_dark.png`.
+- Dark-mode Home activity icon issue fixed: Services gear, Ship Tax hull/waves,
+  Calculator frame, and Drop Alert secondary strokes now flip to white in app
+  dark mode while primary orange layers remain orange. Proof:
+  `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_light_after_fix.png`,
+  `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_dark_after_fix.png`.
 - Functional bug observed during Codex inspection: a bottom-tab tap sequence
   appeared to leave More/FAQ content visible while Home was selected. Reproduce
   carefully and fix `AppRoot.switchTab` or navigation state if confirmed.
@@ -244,7 +265,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence patch verified; carousel/buttons/icons still open |
+| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence and activity icon patches verified; carousel/buttons/geometry still open |
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |

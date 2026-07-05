@@ -22,6 +22,11 @@ specified — apply, build, and verify on the emulator in light AND dark.
   Verified light and app-dark proof:
   `/tmp/kotlin_ui_proof/android_swift_precedence_home_header.png`,
   `/tmp/kotlin_ui_proof/android_swift_precedence_home_header_app_dark.png`.
+- **Home activity dark icons:** Services, Ship Tax, Calculator, and Drop Alert
+  activity icons now use explicit app-theme light/dark drawables matching Swift
+  `FigmaIcons.swift` and Figma tile nodes. Verified proof:
+  `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_light_after_fix.png`,
+  `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_dark_after_fix.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
@@ -29,9 +34,9 @@ specified — apply, build, and verify on the emulator in light AND dark.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
-**🔲 OPEN — Home dark icon follow-up:** Services tile gear layer is still
-dark-on-dark in app dark mode; compare the duotone activity icons against Swift
-and Figma before closing the Home dark-theme pass.
+**✅ CLOSED — Home dark icon follow-up:** Services tile gear layer is no longer
+dark-on-dark in app dark mode; the duotone activity icons were compared against
+Swift first and Figma second, then verified on emulator in light and dark.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
