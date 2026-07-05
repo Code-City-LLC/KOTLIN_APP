@@ -924,3 +924,23 @@ For each page, fill this before claiming completion:
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
+
+---
+
+## BlueDeer session log — 2026-07-05 (Swift-first; documented Figma↔Swift conflicts)
+
+Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented here; Figma wins only where Swift lacks a designed element (Kemar's Gov-Charges precedent).
+
+**Figma↔Swift CONFLICTS (Swift won):**
+- **Home header** — Figma `40001464:28926` = dark frosted translucent `rgba(41,41,41,0.7)` + blur + white text. Swift `FigmaTabHeader.swift:129-131` = OPAQUE `gray200` (`#f5f5f5` light / `#333333` dark) + `textDarkTitle`/`iconSelected`. **Swift wins → opaque gray200** (origin/main `0184744`). My earlier Figma-translucent attempt (`bc430a4`) was reverted. Both Swift+Android default to follow-system theme.
+- **Shipments search field** (shared `ShipmentsSearchField`) — Swift Packages `makeSearchCard` = LEADING 22pt magnifier; Swift Payments/Orders `makeSearchRow` = TRAILING 18pt. Component is shared by all three, so a blind flip breaks Packages. **DEFERRED** — needs an `iconTrailing`/`iconSize` param before applying (do NOT just flip it).
+
+**Figma WINS where Swift lacks (Kemar precedent):**
+- **Onboarding** — Swift `SceneDelegate` collapsed LaunchApp/ChooseYourLook/Onboarding/AuthLanding→Login. Figma "Onboarding - Design Done" `40006240:*` exists. Wired first-run flow (`92bdaf0`), device-verified: Splash→carousel→Choose-Your-Look→AuthLanding→Login. NOTE: any AppRoot reactive-logout effect must exclude SPLASH+ONBOARDING.
+- **Background Images** — Swift `FigmaBackgroundImagesViewController` = 13 `back_color` wallpapers, 2-col portrait grid. Figma `40006644:65735` = 32 wallpapers, 1-col 335×150 landscape-tile list. Built all 33 (default + 32) + list layout (`859f1d0`); assets exported pixel-perfect from Figma.
+
+**Swift-source-exact fixes proven (`34e9620`, adversarial audit + verify):** Home header icon spacing (14→20, 16→19dp), tier lineHeight (22→24); PackageDetails hero 262→240dp, CIF row 59→48dp, CIF icon 24→20dp, divider `#D9D9D9`→`gray300 #EBEBEB`; ShipmentsUi package-status always Completed-green (Swift :556), Order value `$`→`USD`, TotalChargesBox radius 15→10, borders→gray300, empty-label body2→body1; ProductPaymentDetails summary titles subtitle1→title2; InvoiceViewer Share button gradient→flat OrangeMain, height 50→52, 5 state labels body2→body1. + `6a21713` §108/§153/§99 (MagentaCastle verifier-accepted on device).
+
+**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620` + `859f1d0` background picker; §117 InvoiceViewer blocked by HTTP 403; the deferred search-field param; Orders decorative icon (low-confidence). CRITICAL payment bugs remain ON HOLD for Kemar.
+
+Health @ origin/main `c085c88`: `assembleStagingDebug` PASS, unit tests 9/0-fail, all BlueDeer commits intact.
