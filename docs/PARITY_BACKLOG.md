@@ -93,10 +93,21 @@ specified — apply, build, and verify on the emulator in light AND dark.
   `/tmp/kotlin_ui_proof/preferences_swift_field/figma_preferences_40000994_19044.png`,
   `/tmp/kotlin_ui_proof/preferences_swift_field/android_preferences_select_field_swift_light.png`,
   `/tmp/kotlin_ui_proof/preferences_swift_field/android_preferences_select_field_swift_dark.png`.
+- **Invite Friend contacts icon:** Invite Friend was compared against Swift
+  `FigmaInviteFriendViewController.swift` and `FigmaIcons.swift`; Figma MCP
+  confirmed the documented referral nodes `40001940:26797` and `40001940:26885`
+  are Refer-a-Friend landing frames, not the Send Invitation form. Android now
+  follows Swift's `contactNumber(primary: orangeMain, secondary: iconSelected)`
+  contract in both app light and app dark by reusing the existing white-handset
+  dark vector when `ThemeController` dark mode is active. Proof:
+  `/tmp/kotlin_ui_proof/invite_friend_icon/figma_referral_40001940_26797.png`,
+  `/tmp/kotlin_ui_proof/invite_friend_icon/figma_referral_40001940_26885.png`,
+  `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_light.png`,
+  `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_dark.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs. Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, and Preferences §243 are closed by Swift-precedence proof above.
+**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §252/§423/§432/§468/§477 Notification Settings · §270 Legal/T&C · §486 FAQs. Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, and Invite Friend §261 are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -141,6 +152,12 @@ Proof lives under `/tmp/kotlin_ui_proof/preferences_swift_field/`.
 now keeps the Swift-sized avatar geometry under instrumentation, tints the edit
 glyph orange for dark-mode visibility, and rejects future DOB dates like Swift's
 `dobPicker.maximumDate = Date()`.
+
+**✅ CLOSED — Invite Friend contacts icon follow-up:** Swift's
+`FigmaInviteFriendViewController` renders ContactNumber with orange signal arcs
+and an `iconSelected` handset. Android already removed the solid-orange tint;
+this pass also switches the handset to the existing white dark vector under
+app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
@@ -398,12 +415,12 @@ glyph orange for dark-mode visibility, and rejects future DOB dates like Swift's
 
 ---
 
-## [MEDIUM] Invite Friend
+## [CLOSED] Invite Friend
 `app/src/main/java/com/ga/airdrop/feature/more2/InviteFriendScreen.kt:129` — Contacts row icon is tinted solid orange, flattening the duotone glyph; Swift renders orange signal waves with a dark handset.
 
-**Detail:** InviteFriendScreen applies colorFilter = ColorFilter.tint(BrandPalette.OrangeMain) to ic_contact_number. The drawable is already correctly duotone (waves #F15114, handset @color/icon_duotone), so the tint overwrites the handset to orange as well. Swift uses FigmaIcon.contactNumber(primary: orangeMain, secondary: iconSelected) (FigmaInviteFriendViewController.swift lines 364-366), and FigmaIcon_ContactNumber paints the waves with primary (orange) and the handset with secondary (iconSelected/dark) (FigmaIcons.swift lines 968-973). The solid-orange tint also breaks dark mode, where the handset should flip to white via icon_duotone.
+**Detail:** Earlier Android builds applied `ColorFilter.tint(BrandPalette.OrangeMain)` to `ic_contact_number`, flattening the duotone glyph. Current Android had already removed that tint, so the remaining risk was app-dark mode: `@color/icon_duotone` follows Android resource-night, while this app flips themes through `ThemeController`. Swift uses `FigmaIcon.contactNumber(primary: orangeMain, secondary: iconSelected)` (FigmaInviteFriendViewController.swift lines 364-366), and `FigmaIcon_ContactNumber` paints the waves with primary orange and the handset with secondary iconSelected (FigmaIcons.swift lines 968-973). Figma MCP screenshots for documented nodes `40001940:26797` and `40001940:26885` both render the Refer-a-Friend landing screen, not the Send Invitation form, so Swift is the authoritative form/icon source for this item.
 
-**Fix:** Remove the colorFilter argument from the Contacts row Image so the duotone drawable renders with its own colors (orange waves + theme-aware handset).
+**Fix:** Done. The Contacts row keeps the untinted base vector in light mode and reuses the existing `ic_contacts_contact_number_dark` vector in app-dark mode, preserving orange arcs and switching the handset to Swift `iconSelected` white. `InviteFriendParityScreenshotTest` verifies 59dp row height, 24dp icon size, orange arcs, light dark-handset pixels, dark white-handset pixels, and emits light/dark screenshots.
 
 ---
 

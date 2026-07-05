@@ -214,6 +214,33 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/preferences_swift_field/figma_preferences_40000994_19044.png`,
     `/tmp/kotlin_ui_proof/preferences_swift_field/android_preferences_select_field_swift_light.png`,
     `/tmp/kotlin_ui_proof/preferences_swift_field/android_preferences_select_field_swift_dark.png`
+- Android checks run for the Invite Friend contacts-icon Swift pass:
+  - Figma MCP screenshot/design-context was checked for documented referral nodes
+    `40001940:26797` and `40001940:26885`; both render the Refer-a-Friend landing
+    frame, not the Send Invitation form. Keep this mismatch documented.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaInviteFriendViewController.swift`
+    and `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaIcons.swift`.
+  - Swift icon contract: `contactNumber(size: 24, primary: orangeMain,
+    secondary: iconSelected)` paints orange signal arcs plus an iconSelected
+    handset. Android had already removed the stale solid-orange tint, but
+    app-dark mode still needed a ThemeController-aware handset source.
+  - Android now reuses the existing `ic_contacts_contact_number_dark` vector for
+    app-dark mode while preserving the untinted base vector for light mode.
+  - `InviteFriendParityScreenshotTest` verifies 59dp row height, 24dp icon size,
+    orange arcs, light dark-handset pixels, and dark white-handset pixels.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `InviteFriendParityScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.more2.InviteFriendParityScreenshotTest ...`:
+    `OK (2 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/invite_friend_icon/figma_referral_40001940_26797.png`,
+    `/tmp/kotlin_ui_proof/invite_friend_icon/figma_referral_40001940_26885.png`,
+    `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_light.png`,
+    `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -351,6 +378,12 @@ assets; only repair the parts that are visibly or functionally wrong.
   chevron tinted `textDarkTitle`. Figma node `40000994:19044` shows required
   asterisks, but Swift does not render them, so Android keeps Preferences rows
   unstarred and documents the conflict.
+- Invite Friend contacts icon now follows Swift's duotone contract in app light
+  and app dark. The stale solid-tint backlog text described an older Android
+  implementation; the remaining defect was app-dark source selection because
+  `@color/icon_duotone` follows resource-night while `ThemeController` controls
+  the app theme. Android now selects the existing white-handset dark vector when
+  `colors.isDark` is true.
 
 ## Reopened Defects From User Review
 
@@ -474,9 +507,9 @@ Findings to verify/fix:
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
 - Codex/MagentaCastle is working through More/Legal/Profile. Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
-  avatar/DOB now have Figma MCP + Swift comparison and targeted device-test proof;
-  the rest of the More/Legal/Profile lane remains open until each screen has the
-  same evidence.
+  avatar/DOB, Preferences select fields, and Invite Friend contacts icon now have
+  Figma MCP + Swift comparison and targeted device-test proof; the rest of the
+  More/Legal/Profile lane remains open until each screen has the same evidence.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -492,5 +525,5 @@ For each page, fill this before claiming completion:
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, and Profile avatar/DOB verified; remaining More/Legal/Profile screens still open |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, and Invite Friend contacts icon verified; remaining More/Legal/Profile screens still open |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |

@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -107,6 +108,7 @@ fun InviteFriendScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(59.dp)
+                    .testTag("invite-friend-contacts-row")
                     .clip(RoundedCornerShape(Radius.s))
                     .background(colors.gray100)
                     .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -124,9 +126,17 @@ fun InviteFriendScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Image(
-                    painter = painterResource(R.drawable.ic_contact_number),
+                    painter = painterResource(
+                        if (colors.isDark) {
+                            R.drawable.ic_contacts_contact_number_dark
+                        } else {
+                            R.drawable.ic_contact_number
+                        },
+                    ),
                     contentDescription = null,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .testTag("invite-friend-contacts-icon"),
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(
