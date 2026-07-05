@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +59,7 @@ fun PromotionsScreen(
         Modifier
             .fillMaxSize()
             .background(colors.gray100)
+            .testTag("promotions-root")
     ) {
         More2InnerHeader(title = "Promotions", onBack = onBack)
 
@@ -98,11 +100,14 @@ fun PromotionsScreen(
                     Column(
                         Modifier
                             .fillMaxSize()
+                            .testTag("promotions-scroll")
                             .verticalScroll(rememberScrollState())
                             .padding(Spacing.md),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        state.banners.forEach { banner -> PromotionCard(banner) }
+                        state.banners.forEachIndexed { index, banner ->
+                            PromotionCard(banner = banner, index = index)
+                        }
                     }
                 }
             }
@@ -111,11 +116,12 @@ fun PromotionsScreen(
 }
 
 @Composable
-private fun PromotionCard(banner: PromotionalBanner) {
+private fun PromotionCard(banner: PromotionalBanner, index: Int) {
     val colors = AirdropTheme.colors
     var expanded by remember { mutableStateOf(false) }
+    val tag = "promotions-card-$index"
 
-    More2OuterCard {
+    More2OuterCard(Modifier.testTag(tag)) {
         AsyncImage(
             model = banner.imageUrl ?: banner.imagePath,
             contentDescription = banner.title,
@@ -123,7 +129,8 @@ private fun PromotionCard(banner: PromotionalBanner) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(160.dp)
-                .background(colors.gray200),
+                .background(colors.gray200)
+                .testTag("$tag-hero"),
         )
         Column(
             Modifier
@@ -138,11 +145,13 @@ private fun PromotionCard(banner: PromotionalBanner) {
                 color = colors.textDarkTitle,
                 maxLines = if (expanded) Int.MAX_VALUE else 3,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("$tag-description"),
             )
             Spacer(Modifier.height(10.dp))
             Row(
                 modifier = Modifier
                     .height(24.dp)
+                    .testTag("$tag-toggle")
                     .clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),

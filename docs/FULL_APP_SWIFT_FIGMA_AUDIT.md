@@ -42,6 +42,8 @@ assets; only repair the parts that are visibly or functionally wrong.
   - Packages filter live-flow slice:
     `/tmp/kotlin_ui_proof/packages_filter_flow/figma/packages_40001666_42198.png`,
     `/tmp/kotlin_ui_proof/packages_filter_flow/figma/packages_filter_40006358_75618.png`
+  - Promotions slice:
+    `/tmp/kotlin_ui_proof/promotions/figma/figma_promotions_40001646_14035.png`
 - Local proof screenshots:
   - `/tmp/kotlin_ui_proof/figma_home_light.png`
   - `/tmp/kotlin_ui_proof/android_home_light_correct.png`
@@ -693,6 +695,32 @@ assets; only repair the parts that are visibly or functionally wrong.
     existing 36dp tap target and `onBack` rail without duplicating headers.
   - `More2InnerHeaderParityTest` locks light/dark glyph size, chevron shape,
     active-theme tint, click dispatch, and proof screenshots.
+- Android checks run for the Promotions Swift/Figma proof pass:
+  - Figma MCP `get_design_context` for node `40001646:14035` returned HTTP 504,
+    so this pass used successful Figma MCP screenshot and metadata for the
+    visual comparison.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPromotionsViewController.swift`.
+  - Swift precedence documented: Figma's static Promotions node renders a
+    252px promotional hero image and still carries the older static arrow glyph,
+    while Swift runtime uses the shared More2 header plus a 160pt hero image,
+    14pt/10pt/14pt card body spacing, 3-line collapsed description, and
+    `View Details` / `View Less` expand rail. Android preserves Swift where the
+    two sources disagree.
+  - Android already reused the correct Promotions screen, ViewModel, repository,
+    active-only `GET /promotional-banners` filtering, card, dark theme, back,
+    and toggle rails; this pass added non-visual proof tags and
+    `PromotionsParityTest` rather than rebuilding or duplicating the UI.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `PromotionsParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 3 tests passed on
+    `airdrop_test2(AVD) - 15`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/promotions/figma/figma_promotions_40001646_14035.png`,
+    `/tmp/kotlin_ui_proof/promotions/android/promotions/promotions_swift_light_collapsed.png`,
+    `/tmp/kotlin_ui_proof/promotions/android/promotions/promotions_swift_light_expanded.png`,
+    `/tmp/kotlin_ui_proof/promotions/android/promotions/promotions_swift_dark.png`
 - Android checks run for the Shipping Rates Swift/Figma proof pass:
   - Figma MCP design context checked for node `40001567:54206`.
   - Swift source compared:
@@ -1524,6 +1552,27 @@ Findings verified/fixed:
   - isolated Home auction highlight test passed after an interrupted full
     system-light rerun stalled in runner state; no Home assertion regression was
     reproduced.
+
+### Promotions
+
+Source files:
+- Android: `feature/more2/PromotionsScreen.kt`,
+  `feature/more2/PromotionsViewModel.kt`
+- Swift: `FigmaPromotionsViewController.swift`
+- Figma: Promotions node `40001646:14035`
+
+Findings verified/fixed:
+- Swift is the precedence source for runtime Promotions layout and behavior.
+  Figma MCP screenshot/metadata shows the static node with a 252px hero image,
+  while Swift ships a 160pt hero image and the shared More2 inner header.
+  Android keeps Swift's 160dp hero rather than adopting the stale Figma value.
+- The existing Android screen already reused `More2InnerHeader`,
+  `More2OuterCard`, `PromotionsViewModel`, and `More2Repository` for active-only
+  `/promotional-banners` data. This pass added proof tags and
+  `PromotionsParityTest`; it did not duplicate cards, routes, or data flows.
+- `PromotionsParityTest` verifies 20dp gutters, 335dp card width, 160dp hero,
+  16dp body inset, 24dp toggle rail, active-only filtering, Swift empty state,
+  View Details/View Less expansion, Back dispatch, and light/dark screenshots.
 
 ### Account Deletion Reason
 

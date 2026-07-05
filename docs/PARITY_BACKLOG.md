@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **37 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **38 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -215,6 +215,21 @@ light AND dark.
   `/tmp/kotlin_ui_proof/home_details_header/figma/figma_sales_taxes_40001531_11704.png`,
   `/tmp/kotlin_ui_proof/home_details_header/android/home_details_header/home_details_header_sales_taxes_swift_light.png`,
   `/tmp/kotlin_ui_proof/home_details_header/android/home_details_header/home_details_header_sales_taxes_swift_dark.png`.
+- **Promotions Swift/Figma proof:** Promotions was compared against Swift
+  `FigmaPromotionsViewController.swift` first and Figma node
+  `40001646:14035` second. Figma `get_design_context` returned HTTP 504 on
+  this pass, but screenshot/metadata succeeded and confirmed the static node
+  still shows a 252px hero image. Swift takes precedence for the active app:
+  160pt hero image, shared More2 header, 3-line collapsed description,
+  `View Details` / `View Less` rail, and active-only
+  `/promotional-banners` filtering. Android already matched Swift visually and
+  functionally; this pass added non-visual tags plus `PromotionsParityTest` to
+  lock light/dark geometry, active filtering, empty state, expansion, and Back.
+  Proof:
+  `/tmp/kotlin_ui_proof/promotions/figma/figma_promotions_40001646_14035.png`,
+  `/tmp/kotlin_ui_proof/promotions/android/promotions/promotions_swift_light_collapsed.png`,
+  `/tmp/kotlin_ui_proof/promotions/android/promotions/promotions_swift_light_expanded.png`,
+  `/tmp/kotlin_ui_proof/promotions/android/promotions/promotions_swift_dark.png`.
 - **Payment Methods Swift-precedence empty-state/Cart rail:** Payment Methods
   was compared against Figma node `40001428:9188` and Swift
   `FigmaPaymentMethodsViewController`. Swift takes precedence over the visible
@@ -480,7 +495,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
@@ -635,6 +650,15 @@ takes precedence. Android now reuses `More2InnerHeader` with a 24dp
 theme-tinted rotated chevron instead of the stale 20dp tailed arrow, preserving
 the 36dp tap rail. `More2InnerHeaderParityTest` verifies light/dark tint,
 chevron shape, click dispatch, and screenshots.
+
+**✅ CLOSED — Promotions Swift/Figma proof follow-up:** Swift
+`FigmaPromotionsViewController.swift` is the runtime source of truth for Figma
+node `40001646:14035`. Figma still shows a stale 252px static hero image, while
+Swift ships a 160pt hero image with shared More2 header, 3-line collapsed
+description, active-only backend filtering, and the View Details/View Less
+toggle. Android already matched Swift; this pass added focused proof tags and
+`PromotionsParityTest`, with light/dark screenshots under
+`/tmp/kotlin_ui_proof/promotions/android/promotions/`.
 
 **✅ CLOSED — Shipping Rates Swift/Figma proof follow-up:** Swift's
 `FigmaShippingRatesViewController.swift` is the runtime source of truth for
