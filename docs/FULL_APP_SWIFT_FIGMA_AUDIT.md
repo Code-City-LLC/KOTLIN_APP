@@ -827,16 +827,21 @@ assets; only repair the parts that are visibly or functionally wrong.
 
 ### Home
 
-- Android dark proof does not match the Figma Home node. Figma uses the
-  shopping-icon hero image, compact white warehouse cards, and smaller service
-  tiles. Android dark proof currently shows a different orange-cart/books hero,
-  dark warehouse cards, and large highlight tiles.
-- The Android warehouse card title says `Standard`; Figma says `AirDrop`.
-  Swift source currently uses `Standard`, so this needs a source-of-truth
-  decision or a deliberate Swift-vs-Figma reconciliation before editing labels.
-- The Standard destination exists: fresh launch resumed on the Standard detail
-  screen during inspection. The user-reported "nothing opens" bug must be
-  reproduced from the Home card/Read More tap path before changing routes.
+- Home warehouse cards were rechecked on 2026-07-05 against Swift
+  `FigmaHomeViewController.swift` first and Figma Home node `40001464:28899`
+  second. The older Figma-vs-Android dark mismatch is now documented as a
+  Swift-precedence conflict, not an open Android edit: Swift explicitly keeps
+  Home card titles as `Standard`, `SeaDrop`, and `Express` without the
+  `AirDrop` prefix, uses the 346pt carousel / 326pt card row, and routes the
+  whole card through `openRoute("WarehouseView", detail: type)`. Android follows
+  Swift here. Fresh Figma proof:
+  `/tmp/kotlin_ui_proof/home_warehouse_recheck/figma/figma_home_40001464_28899.png`.
+- The user-reported "nothing opens" path was reproduced from the Home cards and
+  remains closed on current `origin/main`: `HomeActivityTilesScreenshotTest`
+  passed 11/11 and `WarehousesScreenParityTest` passed 3/3 on
+  `airdrop_test2(AVD) - 15` after rerunning serially. The first parallel attempt
+  crashed instrumentation because two focused suites competed for the same
+  emulator, so it is not counted as proof.
 - Home activity tile icon colors now match Swift/Figma in app light and app dark
   mode. Swift `FigmaIcons.swift` keeps Services as orange person + secondary
   gear and Ship Tax as orange package + secondary hull/waves; Figma Services
