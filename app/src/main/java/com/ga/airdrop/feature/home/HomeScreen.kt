@@ -86,8 +86,8 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Box {
-                // Hero photo — 534dp, aspect-fill, flat 10% black scrim
-                // (Swift :193-197). Honours the user-selected background.
+                // Hero photo — 534dp, aspect-fill, honours the user-selected
+                // background; overlaid by the two Figma gradients below.
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -104,27 +104,32 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
                     )
-                    // Flat 10% black scrim so the white cards read on the photo
-                    // (Swift FigmaHomeViewController.swift:193-197).
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.10f))
-                    )
-                    // Bottom fade: the hero dissolves into the page background
-                    // (gray200, theme-aware) as it approaches the warehouse
-                    // cards at y=326/534≈0.61. This is a designed element in
-                    // Figma 40001464:28899 (dark→light dissolve above the first
-                    // card); commit 48db012 wrongly flattened it to a plain
-                    // scrim — restored here per Kemar. Fully gray200 by the card
-                    // top so the cards sit on the page background, not the photo.
+                    // Hero overlays — EXACT Figma spec (Home 40001464:28899):
+                    // (A) node 40001464:28902 — full-height gradient darkening
+                    //     the lower photo: transparent @79.2% → #343538 @100%.
                     Box(
                         Modifier
                             .fillMaxSize()
                             .background(
                                 Brush.verticalGradient(
-                                    0.30f to Color.Transparent,
-                                    0.61f to colors.gray200,
+                                    0.792f to Color.Transparent,
+                                    1f to Color(0xFF343538),
+                                )
+                            )
+                    )
+                    // (B) node 40001464:28903 — 110dp band at y=424 that fades
+                    //     the photo into the page background: white-5% @21% →
+                    //     gray200 (#f5f5f5 light / dark page bg) @85.2%. gray200
+                    //     is theme-aware so this is correct in dark mode too.
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(110.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    0.21f to Color.White.copy(alpha = 0.05f),
+                                    0.852f to colors.gray200,
                                 )
                             )
                     )
@@ -566,13 +571,25 @@ private fun ReferAFriendCard(onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_refer),
-                contentDescription = null,
-                // Swift: TwoUsers icon single-tone textDarkTitle.
-                colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                modifier = Modifier.size(24.dp),
-            )
+            // Figma Home card 40001464:28925 uses the actual duotone "Refer a
+            // friend" asset (40000710:13310): two people in the theme icon
+            // color + brand-orange (#F15114) motion accents. Layered as two
+            // drawables — people tinted at the Compose level (theme-correct in
+            // light AND dark; a @color/icon_duotone stroke would not re-resolve
+            // to the in-app ThemeController mode), orange accents baked on top.
+            Box(Modifier.size(24.dp)) {
+                Image(
+                    painter = painterResource(R.drawable.ic_refer_a_friend),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Image(
+                    painter = painterResource(R.drawable.ic_refer_a_friend_accent),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             Text(
                 text = "Refer a friend",
                 style = AirdropType.subtitle1,
