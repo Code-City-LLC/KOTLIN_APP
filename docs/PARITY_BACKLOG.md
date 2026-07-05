@@ -17,12 +17,21 @@ specified — apply, build, and verify on the emulator in light AND dark.
 - Payments §81 (download top-right), Payments/Orders §90 (pull-to-refresh) → `6605dd4`
 - Shop root+lists §162 (245dp card + per-context title lines), Shop root §171 (top inset), ShopDropdownField §180/§207 (restyle), Auction Product Details §189 (hero placeholder), Feature Product Details §198 (link-unavailable alert) → `e7357a5`
 - **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
+- **Swift-precedence conflict:** Home header must use Swift's opaque `gray200`
+  semantic surface even though Figma node `40001464:28926` is translucent.
+  Verified light and app-dark proof:
+  `/tmp/kotlin_ui_proof/android_swift_precedence_home_header.png`,
+  `/tmp/kotlin_ui_proof/android_swift_precedence_home_header_app_dark.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
 **🔲 OPEN — MagentaCastle (More/Legal/Profile):** §216/§225 Documents · §234/§459 Edit Profile · §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
+
+**🔲 OPEN — Home dark icon follow-up:** Services tile gear layer is still
+dark-on-dark in app dark mode; compare the duotone activity icons against Swift
+and Figma before closing the Home dark-theme pass.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
@@ -513,4 +522,3 @@ specified — apply, build, and verify on the emulator in light AND dark.
 **Fix:** Add a `titleEndGap: Dp = Spacing.xs` parameter to AccordionCard and pass Spacing.sm from FaqScreen.kt:51 (keep the default for Terms/Privacy).
 
 ---
-

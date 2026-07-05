@@ -84,20 +84,16 @@ fun AirdropHeader(
 ) {
     val colors = AirdropTheme.colors
     val overImage = style == AirdropHeaderStyle.OverImage
-    // Figma Home header 40001464:28926: dark frosted glass — bg
-    // rgba(41,41,41,0.7) (#292929 @ 70%) + backdrop blur, WHITE title/icons.
-    // Swift FigmaTabHeader.hero = clear base + a BlurView/gray overlay (RN
-    // BlurView parity). Android had Color.Transparent + dark text, so over the
-    // gray-topped hero photo it read as a plain white header. Restore the
-    // dark 70% scrim + white content (Compose has no backdrop-blur; the scrim
-    // is the faithful colour match and guarantees legibility on any bg image).
-    val headerText = if (overImage) Color.White else colors.textDarkTitle
-    val headerIcon = if (overImage) Color.White else colors.iconSelected
+    // Swift takes precedence over Figma when they disagree: Figma Home header
+    // 40001464:28926 is translucent over the photo, but FigmaTabHeader.swift
+    // uses an opaque gray200 semantic surface for both hero and solid styles.
+    val headerText = colors.textDarkTitle
+    val headerIcon = colors.iconSelected
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (overImage) Color(0xFF292929).copy(alpha = 0.70f) else colors.gray200)
+            .background(colors.gray200)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(

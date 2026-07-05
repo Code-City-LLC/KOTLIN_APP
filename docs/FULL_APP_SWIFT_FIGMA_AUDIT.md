@@ -142,9 +142,13 @@ Source files:
 - Figma: node `40001464:28899`
 
 Findings to verify/fix:
-- Header treatment is not matching the Figma Home screenshot. Android currently
-  renders an opaque light header over Home, while the Figma node shows the
-  header integrated with the dark hero treatment.
+- Header treatment conflict resolved by Swift precedence: Figma node
+  `40001464:28926` shows a translucent dark Home header, but Swift
+  `FigmaTabHeader.swift` uses an opaque semantic `gray200` surface for both
+  hero and solid styles. Android must follow Swift here, not the Figma-only
+  translucent treatment. Device proof:
+  `/tmp/kotlin_ui_proof/android_swift_precedence_home_header.png` and
+  `/tmp/kotlin_ui_proof/android_swift_precedence_home_header_app_dark.png`.
 - Warehouse carousel vertical placement must be rechecked. User says the
   Standard/SeaDrop/Express section and Standard image are too high; the captured
   Android Home shows a large hero image band before the card row, so this needs
@@ -156,6 +160,9 @@ Findings to verify/fix:
 - Header/footer opacity must be checked in light and dark. The bottom tab bar
   must be opaque where Swift uses an opaque surface and must not wash through
   content.
+- Dark-mode icon issue still open outside the header: the Home Services tile
+  gear layer is dark-on-dark in
+  `/tmp/kotlin_ui_proof/android_swift_precedence_home_header_app_dark.png`.
 - Functional bug observed during Codex inspection: a bottom-tab tap sequence
   appeared to leave More/FAQ content visible while Home was selected. Reproduce
   carefully and fix `AppRoot.switchTab` or navigation state if confirmed.
@@ -237,7 +244,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | partial | yes | partial | unassigned | reopened; Figma/Swift conflict on Standard label |
+| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence patch verified; carousel/buttons/icons still open |
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
