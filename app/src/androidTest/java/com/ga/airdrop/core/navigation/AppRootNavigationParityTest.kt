@@ -80,6 +80,32 @@ class AppRootNavigationParityTest {
     }
 
     @Test
+    fun appRootShipmentTabOpensShipmentsHub() {
+        prepareApp(ThemeController.Mode.LIGHT)
+
+        try {
+            compose.setContent {
+                AirdropTheme {
+                    AppRoot()
+                }
+            }
+
+            waitForHome()
+            compose.onNodeWithContentDescription("Shipment").performClick()
+            compose.waitUntil(timeoutMillis = 10_000) {
+                compose.onAllNodesWithText("Shipments Summary").fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.waitUntil(timeoutMillis = 8_000) {
+                compose.onAllNodesWithTag("home-warehouse-standard").fetchSemanticsNodes().isEmpty()
+            }
+            assertEquals(0, compose.onAllNodesWithTag("home-warehouse-standard").fetchSemanticsNodes().size)
+            saveRootScreenshot("app_root_shipments_after_tab_click.png")
+        } finally {
+            clearAuth()
+        }
+    }
+
+    @Test
     fun switchTabRootSwapsEvenWhenHomeIsNotAlreadyInBackStack() {
         setNavigationHarness(startDestination = Routes.MORE)
 
