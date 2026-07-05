@@ -37,6 +37,8 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/auction_related_empty/figma/auction_product_details_40002072_24025.png`
   - Auction product details description fallback slice:
     `/tmp/kotlin_ui_proof/product_description_fallback/figma/auction_product_details_40002072_24025.png`
+  - Home live-data/viewDidAppear slice:
+    `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`
   - Packages filter live-flow slice:
     `/tmp/kotlin_ui_proof/packages_filter_flow/figma/packages_40001666_42198.png`,
     `/tmp/kotlin_ui_proof/packages_filter_flow/figma/packages_filter_40006358_75618.png`
@@ -124,6 +126,25 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`,
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_seadrop_after_tap.png`,
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_express_after_tap.png`
+- Android checks run for the Home live-data/viewDidAppear proof:
+  - Figma MCP screenshot for Home node `40001464:28899`.
+  - Swift source checked in
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaHomeViewController.swift`:
+    `viewDidAppear` calls `loadAuctionProducts()`, `loadAirCoins()`, and
+    `loadUserHeader()` on every appearance; auction fetch failure calls
+    `renderAuctionProducts([])`.
+  - Android now refreshes Home live data on lifecycle `ON_RESUME` while keeping
+    the existing init load, and clears stale auction highlights on auction
+    reload failure to match Swift's empty-card path.
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `HomeLiveDataParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed
+  - adjacent `HomeActivityTilesScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 11 tests passed
+  - adjacent `HomeChromeOpacityParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed
+  - proof PNG:
+    `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`
 - Android checks added for the Warehouse detail Swift-precedence pass:
   - Figma MCP design context for Warehouse node `40000944:3571`.
   - Swift source compared:
@@ -842,6 +863,13 @@ assets; only repair the parts that are visibly or functionally wrong.
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_seadrop_after_tap.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_express_after_tap.png`.
+- Home live-data reload now matches Swift's `viewDidAppear` behavior.
+  Swift reloads auction products, AirCoins, and the user header every time the
+  Home tab appears, and clears the auction row to the empty-card state if the
+  auction fetch fails. Android now refreshes on lifecycle `ON_RESUME` and
+  clears stale auction highlights on failed auction reload. `HomeLiveDataParityTest`
+  locks the resume reload and stale-auction clearing while the existing Home
+  visual/tap tests continue to pass.
 
 ### Shipments
 
@@ -1228,6 +1256,15 @@ Findings to verify/fix:
   `CartStore` path, and `HomeActivityTilesScreenshotTest` now proves the plus
   hit target toggles cart without leaking into the card route while the card
   still opens `auctionProductDetails/{slug}`.
+- Home live-data behavior was rechecked against Swift
+  `FigmaHomeViewController.viewDidAppear`, `loadAuctionProducts`,
+  `loadAirCoins`, and `loadUserHeader`, with Figma Home node `40001464:28899`
+  as the visual source. Swift takes behavior precedence: Home reloads auction
+  products, AirCoins, and user header data on every appearance, and failed
+  auction reloads call `renderAuctionProducts([])` instead of preserving stale
+  cards. Android now refreshes on lifecycle `ON_RESUME`, preserves the existing
+  initial ViewModel load, and clears stale auction highlights on failure.
+  `HomeLiveDataParityTest` locks both rails.
 - Activity/highlight boxes were measured against Figma and Swift. Android
   matches the Swift/Figma values: activity tiles are `(screen - 40 - 10) / 2`
   wide and `108` high, with `32` icons, `10` stack gap, and `10x20` padding;
@@ -1541,7 +1578,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, and bottom-tab state verified; remaining Home live-data/full-page endpoint issues still open |
+| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risk is full authenticated end-to-end Home data proof, not this lifecycle rail |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, backend pagination/search/reset contracts, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad live-auth/full-flow backend parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |

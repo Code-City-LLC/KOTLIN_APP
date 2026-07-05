@@ -8,6 +8,9 @@ import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.data.repo.MiscRepository
 import com.ga.airdrop.data.repo.ProductsRepository
 import com.ga.airdrop.data.repo.UserRepository
+import com.ga.airdrop.data.model.AirCoinsStatus
+import com.ga.airdrop.data.model.AirdropUser
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -24,23 +27,42 @@ data class HomeUiState(
     val loading: Boolean = false,
 )
 
-class HomeViewModel(
+interface HomeRepository {
+    suspend fun currentUser(): Result<AirdropUser>
+    suspend fun airCoinsStatus(): Result<AirCoinsStatus>
+    suspend fun auctionProductsShortlist(): Result<List<AuctionProduct>>
+}
+
+private class DefaultHomeRepository(
     private val userRepository: UserRepository = UserRepository(ApiClient.service),
     private val productsRepository: ProductsRepository = ProductsRepository(ApiClient.service),
     private val miscRepository: MiscRepository = MiscRepository(ApiClient.service),
+) : HomeRepository {
+    override suspend fun currentUser(): Result<AirdropUser> = userRepository.currentUser()
+
+    override suspend fun airCoinsStatus(): Result<AirCoinsStatus> = miscRepository.airCoinsStatus()
+
+    override suspend fun auctionProductsShortlist(): Result<List<AuctionProduct>> =
+        productsRepository.auctionProductsShortlist()
+}
+
+class HomeViewModel(
+    private val repository: HomeRepository = DefaultHomeRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState(greeting = greetingForNow()))
     val state: StateFlow<HomeUiState> = _state
+    private var refreshJob: Job? = null
 
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
             _state.update { it.copy(loading = true) }
-            userRepository.currentUser().onSuccess { user ->
+            repository.currentUser().onSuccess { user ->
                 _state.update {
                     it.copy(
                         firstName = user.firstName.orEmpty(),
@@ -55,14 +77,18 @@ class HomeViewModel(
                     )
                 }
             }
-            miscRepository.airCoinsStatus().onSuccess { status ->
+            repository.airCoinsStatus().onSuccess { status ->
                 val label = (status.available ?: status.balance)?.toString().orEmpty()
                 _state.update { it.copy(airCoins = label) }
                 SessionStore.update { it.copy(airCoins = label) }
             }
-            productsRepository.auctionProductsShortlist().onSuccess { products ->
-                _state.update { it.copy(auctionHighlights = products) }
-            }
+            repository.auctionProductsShortlist()
+                .onSuccess { products ->
+                    _state.update { it.copy(auctionHighlights = products) }
+                }
+                .onFailure {
+                    _state.update { it.copy(auctionHighlights = emptyList()) }
+                }
             _state.update { it.copy(loading = false) }
         }
     }

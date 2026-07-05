@@ -95,6 +95,16 @@ light AND dark.
   `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_top_dark_geometry.png`,
   `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_light_geometry.png`,
   `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_dark_geometry.png`.
+- **Home live-data/viewDidAppear reload:** Home live-data behavior was compared
+  against Swift `FigmaHomeViewController.viewDidAppear` first and Figma Home
+  node `40001464:28899` second. Swift reloads auction products, AirCoins, and
+  user header data on every appearance, and calls `renderAuctionProducts([])`
+  if the auction fetch fails. Android now refreshes on lifecycle `ON_RESUME`
+  while preserving the initial ViewModel load, and clears stale auction
+  highlights on failed auction reload. `HomeLiveDataParityTest` locks both
+  rails; adjacent `HomeActivityTilesScreenshotTest` and
+  `HomeChromeOpacityParityTest` still pass. Proof:
+  `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`.
 - **Documents card/action-row geometry:** Documents was compared against Figma
   node `40000975:7748` and Swift `FigmaDocumentsViewController.swift`. Swift
   takes precedence because Figma still shows the older edge-to-edge footer while
@@ -371,13 +381,21 @@ light AND dark.
   and cart to their corresponding route destinations. Android already emitted
   the Swift-equivalent routes, and `HomeActivityTilesScreenshotTest` now locks
   those callbacks alongside the existing warehouse route/AppRoot proof. This
-  does not close the broader Home live-data audit.
+  does not close full authenticated end-to-end Home data proof.
 - **Home auction card/cart behavior:** Swift `makeAuctionCard` opens product
   details from the card and toggles `FigmaCartStore` only from the plus button;
   Figma Home node `40001464:28899` supplies the visual plus-button placement.
   Android now exposes the existing plus hit target to instrumentation and locks
   the Swift flow split: plus toggles `CartStore` without navigation, while the
   card opens `auctionProductDetails/{slug}`.
+- **Home live-data/viewDidAppear reload:** Swift `FigmaHomeViewController`
+  calls `loadAuctionProducts()`, `loadAirCoins()`, and `loadUserHeader()` from
+  `viewDidAppear`, and clears stale auction products by calling
+  `renderAuctionProducts([])` on auction fetch failure. Android now refreshes
+  Home on lifecycle `ON_RESUME` and clears stale auction highlights on failed
+  auction reload. Figma Home node `40001464:28899` was refreshed through Figma
+  MCP as visual proof. `HomeLiveDataParityTest` passed 2/2, with adjacent Home
+  visual/tap and chrome tests still green.
 - **Shipments hub tap rails:** Shipments hub node `40000823:9633` was refreshed
   through Figma MCP and compared against Swift
   `FigmaShipmentsViewController.swift`. Swift takes precedence for behavior:
@@ -417,7 +435,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
