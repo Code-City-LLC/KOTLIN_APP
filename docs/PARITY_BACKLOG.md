@@ -389,6 +389,17 @@ light AND dark.
   `/tmp/kotlin_ui_proof/home_chrome_opacity/figma/figma_home_40001464_28899.png`,
   `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_swift_light.png`,
   `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_swift_dark.png`.
+- **Bottom-tab app-dark icon roles:** Shared tab chrome was compared against
+  Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma Home
+  node `40001464:28899`. Swift takes precedence: active icon + label are
+  `orangeMain`, inactive icons are `iconSelected` (black in app light, white in
+  app dark), and both icon primary/secondary paths are passed the same tint.
+  Android already matched through `ColorFilter.tint`, so no production bottom
+  bar code changed; `AirdropBottomBarIconParityTest` now pixel-checks every tab
+  icon and selected label in app light and app dark. Proof:
+  `/tmp/kotlin_ui_proof/bottom_tab_icons/figma/figma_home_40001464_28899.png`,
+  `/tmp/kotlin_ui_proof/bottom_tab_icons/android/bottom_tab_icons/bottom_tab_icons_swift_light.png`,
+  `/tmp/kotlin_ui_proof/bottom_tab_icons/android/bottom_tab_icons/bottom_tab_icons_swift_dark.png`.
 - **Home primary route callbacks:** Swift `FigmaHomeViewController` maps
   Services, Ship Tax, Calculator, Drop Alert, See More, Refer a friend, bell,
   and cart to their corresponding route destinations. Android already emitted
