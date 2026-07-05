@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -48,13 +49,27 @@ import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 
 private data class TaxStep(
     val iconRes: Int,
+    val darkIconRes: Int,
+    val iconTag: String,
     val title: String,
     val body: List<Pair<String, Boolean>>, // text to bold-flag runs
 )
 
+internal object SalesTaxesTags {
+    const val ROOT = "sales-taxes-root"
+    const val LOGIN_ICON = "sales-taxes-login-icon"
+    const val MARKETPLACE_ICON = "sales-taxes-marketplace-icon"
+    const val BUILDING_ICON = "sales-taxes-building-icon"
+    const val FILE_SETTINGS_ICON = "sales-taxes-file-settings-icon"
+    const val FOLDER_CURVE_ICON = "sales-taxes-folder-curve-icon"
+    const val SHOPPING_BAG_ICON = "sales-taxes-shopping-bag-icon"
+}
+
 private val taxSteps = listOf(
     TaxStep(
         iconRes = R.drawable.ic_login,
+        darkIconRes = R.drawable.ic_login_sales_tax_dark,
+        iconTag = SalesTaxesTags.LOGIN_ICON,
         title = "Sign in to your store account",
         body = listOf(
             "Log in to the U.S. online store where you plan to make purchases." to false,
@@ -62,6 +77,8 @@ private val taxSteps = listOf(
     ),
     TaxStep(
         iconRes = R.drawable.ic_marketplace,
+        darkIconRes = R.drawable.ic_marketplace_sales_tax_dark,
+        iconTag = SalesTaxesTags.MARKETPLACE_ICON,
         title = "Navigate to the marketplace’s tax-exemption section",
         body = listOf(
             "Look for options such as “" to false,
@@ -79,6 +96,8 @@ private val taxSteps = listOf(
     ),
     TaxStep(
         iconRes = R.drawable.ic_building,
+        darkIconRes = R.drawable.ic_building_sales_tax_dark,
+        iconTag = SalesTaxesTags.BUILDING_ICON,
         title = "Select the state and entity type",
         body = listOf(
             ("When prompted, choose Florida as your state and select the entity type " +
@@ -89,6 +108,8 @@ private val taxSteps = listOf(
     ),
     TaxStep(
         iconRes = R.drawable.ic_file_settings,
+        darkIconRes = R.drawable.ic_file_settings_sales_tax_dark,
+        iconTag = SalesTaxesTags.FILE_SETTINGS_ICON,
         title = "Upload your certificate",
         body = listOf(
             "Upload a clear copy of the " to false,
@@ -99,6 +120,8 @@ private val taxSteps = listOf(
     ),
     TaxStep(
         iconRes = R.drawable.ic_folder_curve,
+        darkIconRes = R.drawable.ic_folder_curve_sales_tax_dark,
+        iconTag = SalesTaxesTags.FOLDER_CURVE_ICON,
         title = "Submit and wait for verification",
         body = listOf(
             "The marketplace will review your submission. For example, " to false,
@@ -110,6 +133,8 @@ private val taxSteps = listOf(
     ),
     TaxStep(
         iconRes = R.drawable.ic_shopping_bag,
+        darkIconRes = R.drawable.ic_shopping_bag_sales_tax_dark,
+        iconTag = SalesTaxesTags.SHOPPING_BAG_ICON,
         title = "Start shopping tax-free",
         body = listOf(
             "Once approved, " to false,
@@ -133,6 +158,7 @@ fun SalesTaxesScreen(onBack: () -> Unit) {
         Modifier
             .fillMaxSize()
             .background(colors.gray100)
+            .testTag(SalesTaxesTags.ROOT)
     ) {
         HomeDetailsHeader(title = "Shop Tax-Free with AirDrop Limited", onBack = onBack)
 
@@ -199,6 +225,7 @@ private fun StepsCard() {
 @Composable
 private fun StepCard(step: TaxStep) {
     val colors = AirdropTheme.colors
+    val iconRes = if (colors.isDark) step.darkIconRes else step.iconRes
     Column(
         Modifier
             .fillMaxWidth()
@@ -208,9 +235,11 @@ private fun StepCard(step: TaxStep) {
             .padding(Spacing.md),
     ) {
         Image(
-            painter = painterResource(step.iconRes),
+            painter = painterResource(iconRes),
             contentDescription = null,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier
+                .size(40.dp)
+                .testTag(step.iconTag),
         )
         Spacer(Modifier.height(Spacing.md))
         Text(

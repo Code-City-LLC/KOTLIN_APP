@@ -194,6 +194,23 @@ light AND dark.
   and `MoreRootTapRailsParityTest` pixel-checks every icon in light and dark.
   Figma proof:
   `/tmp/kotlin_ui_proof/more_root_dark_icons/figma/figma_more_root_40001948_22354.png`.
+- **Sales Taxes / Ship Tax detail app-dark step icons:** Sales Taxes was
+  compared against Swift `FigmaSalesTaxesViewController.swift` first and Figma
+  node `40001531:11704` second. Swift step icons use orange primary paths plus
+  dynamic `textDarkTitle` secondary strokes (`#292929` light, `#FFFFFF` dark).
+  Android now selects explicit app-dark variants for all six step icons instead
+  of relying on Android resource-night, and `SalesTaxesParityTest`
+  pixel-checks every step icon in app light and app dark. Proof:
+  `/tmp/kotlin_ui_proof/sales_taxes_icons/figma/figma_sales_taxes_40001531_11704.png`,
+  `/tmp/kotlin_ui_proof/sales_taxes_icons/android/sales_taxes_icons/sales_taxes_icons_swift_light.png`,
+  `/tmp/kotlin_ui_proof/sales_taxes_icons/android/sales_taxes_icons/sales_taxes_icons_swift_dark.png`.
+- **Observed follow-up, not fixed in this icon slice:** the shared
+  `HomeDetailsHeader` long-title behavior still needs a Swift-first autoscale
+  pass. Swift `FigmaSalesTaxesViewController.buildHeader()` allows two title
+  lines but also `adjustsFontSizeToFitWidth` with `minimumScaleFactor = 0.8`;
+  Android currently allows the same two lines without shrink-to-fit, causing
+  long detail titles such as "Shop Tax-Free with AirDrop Limited" to wrap more
+  heavily in the emulator proof.
 - **Payment Methods Swift-precedence empty-state/Cart rail:** Payment Methods
   was compared against Figma node `40001428:9188` and Swift
   `FigmaPaymentMethodsViewController`. Swift takes precedence over the visible
