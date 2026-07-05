@@ -122,6 +122,23 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_light_geometry.png`,
     `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_dark_geometry.png`,
     `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_warehouse_standard_after_tap_geometry.png`
+- Android checks run for the Documents card/action-row Swift-precedence pass:
+  - Figma MCP design context and screenshot for Documents node `40000975:7748`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaDocumentsViewController.swift`.
+  - Swift/Figma conflict documented: the Figma node still shows the older
+    edge-to-edge action footer, but Swift uses an inset `48`pt bordered actions
+    row inside the card content; Swift wins.
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `DocumentsScreenScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 3 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.more.DocumentsScreenScreenshotTest ...`:
+    `OK (3 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/documents_swift_geometry/figma_documents_light.png`,
+    `/tmp/kotlin_ui_proof/documents_swift_geometry/android_documents_card_swift_geometry_light.png`,
+    `/tmp/kotlin_ui_proof/documents_swift_geometry/android_documents_card_swift_geometry_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -226,6 +243,20 @@ assets; only repair the parts that are visibly or functionally wrong.
 - This does not close Shop as pixel-perfect: root and detail geometry still need
   the owner/verifier pass against Swift + Figma in light and dark, and the
   add-to-cart/cart path still needs proof.
+
+### More/Profile/Legal
+
+- Documents card/action-row geometry now follows Swift precedence over the older
+  Figma node. Swift `FigmaDocumentsViewController.swift` uses `15`pt card
+  radius, `12`pt list spacing, `16x14` card content inset, a `48`pt inset
+  actions row with `10`pt radius and `1`pt iconShape border, and a center
+  divider inset `8`pt top/bottom. Android now matches those values.
+- Documents uploaded-file row now follows Swift: `56`pt height, `8`pt radius,
+  no border, `28`pt PDF icon, body2 filename, body3 textDescription metadata,
+  and `18`pt trash/eye glyphs in `28`pt hit boxes with `6`pt gap.
+- The Figma Documents node `40000975:7748` still shows the older edge-to-edge
+  footer. Keep that conflict documented; future edits must not revert Android
+  from the Swift implementation back to the stale Figma footer.
 
 ## Reopened Defects From User Review
 
@@ -347,8 +378,10 @@ Findings to verify/fix:
 ## Work Split Notes
 
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
-- Codex/MagentaCastle has claimed More/Legal/Profile work, but it remains
-  blocked from "done" until Figma MCP and device screenshots are completed.
+- Codex/MagentaCastle is working through More/Legal/Profile. Documents
+  card/action-row geometry now has Figma MCP, Swift, and light/dark device proof;
+  the rest of the More/Legal/Profile lane remains open until each screen has the
+  same evidence.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -364,5 +397,5 @@ For each page, fill this before claiming completion:
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | no | partial | Codex | in progress |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry verified; remaining More/Legal/Profile screens still open |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |

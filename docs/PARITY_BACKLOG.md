@@ -57,10 +57,20 @@ specified — apply, build, and verify on the emulator in light AND dark.
   `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_top_dark_geometry.png`,
   `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_light_geometry.png`,
   `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_dark_geometry.png`.
+- **Documents card/action-row geometry:** Documents was compared against Figma
+  node `40000975:7748` and Swift `FigmaDocumentsViewController.swift`. Swift
+  takes precedence because Figma still shows the older edge-to-edge footer while
+  Swift uses the newer inset actions row. Android now matches Swift card radius
+  `15`, list gap `12`, content inset `16x14`, inset bordered actions row
+  `48` high, and uploaded-file row `56` high with `28` PDF icon and `18` action
+  glyphs. Proof:
+  `/tmp/kotlin_ui_proof/documents_swift_geometry/figma_documents_light.png`,
+  `/tmp/kotlin_ui_proof/documents_swift_geometry/android_documents_card_swift_geometry_light.png`,
+  `/tmp/kotlin_ui_proof/documents_swift_geometry/android_documents_card_swift_geometry_dark.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §216/§225 Documents · §234/§459 Edit Profile · §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs.
+**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §234/§459 Edit Profile · §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs. Documents §216/§225 are closed by the Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -77,6 +87,11 @@ envelope glyph. Swift/Figma whole-layout conflicts remain open in
 **✅ CLOSED — Home activity/highlight geometry follow-up:** Activity tile and
 Auction Highlights card sizes were measured against Swift first and Figma
 second. Android already matched, so only regression tags/assertions were added.
+
+**✅ CLOSED — Documents card/action-row geometry follow-up:** Swift's newer
+`FigmaDocumentsViewController.swift` wins over the older Figma edge-to-edge
+footer. Android now uses the inset Swift action row and uploaded-file geometry,
+with light/dark instrumentation proof.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
@@ -289,21 +304,21 @@ second. Android already matched, so only regression tags/assertions were added.
 
 ---
 
-## [MEDIUM] Documents
+## [CLOSED] Documents
 `app/src/main/java/com/ga/airdrop/feature/more/DocumentsScreen.kt:221` — The Download|Upload action bar is a flush edge-to-edge card footer with a full-height divider; Swift renders it as an inset, bordered, radius-10, 48pt split row inside the card padding.
 
 **Detail:** FigmaDocumentsViewController.makeActionsRow (FigmaDocumentsViewController.swift:422-473): the actions row is its own view with cornerRadius 10, 1pt iconShape border, height 48, added INSIDE the card's 16pt-padded content stack; the vertical divider is inset 8pt top/bottom. Kotlin instead draws a full-width divider (colors.divider) across the card and a 54dp Row spanning the card edge-to-edge with a full-height 1dp separator (lines 220-248), which visibly changes the card design.
 
-**Fix:** Move the split actions Row inside the padded content Column, give it Modifier.height(48.dp).border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs)).clip(...), make the center divider 1.dp wide with 8.dp vertical padding, and delete the edge-to-edge top divider.
+**Fix:** Done. The split actions Row now lives inside the padded content Column, is 48dp high, has a radius-10 iconShape border, uses a 32dp center divider (8dp inset top/bottom), and no longer has an edge-to-edge top divider.
 
 ---
 
-## [MEDIUM] Documents
+## [CLOSED] Documents
 `app/src/main/java/com/ga/airdrop/feature/more/DocumentsScreen.kt:173` — Card and uploaded-file-row geometry drifts from Swift: card radius 10 vs 15, card gap 20dp vs 12pt, file row has an extra border and oversized trash/eye icons (24dp spaced 30dp vs 18pt spaced ~6pt).
 
 **Detail:** Swift: card cornerRadius 15 (FigmaDocumentsViewController.swift:252), listStack.spacing 12 (line 131); file row is peachLight, radius 8, height 56, NO border, pdf icon 28pt, name = body2, size line = body3 textDescription, trash/eye are 18pt glyphs in 28pt buttons 6pt apart (lines 330-419). Kotlin: card RoundedCornerShape(Radius.xs=10), verticalArrangement spacedBy(Spacing.md=20) (line 106), file row has 1dp iconShape border + radius 10, name = subtitle2, size line = textPlaceholder, trash/eye 24dp spaced Spacing.lg=30dp.
 
-**Fix:** Card: RoundedCornerShape(Radius.s=15); list spacing 12.dp. UploadedFileRow: drop the border, radius 8.dp, height 56.dp, name AirdropType.body2, size text colors.textDescription, trash/eye 18.dp glyphs with small (6-8dp) gap.
+**Fix:** Done. Card now uses RoundedCornerShape(Radius.s=15), list spacing 12.dp, and Swift content inset. UploadedFileRow drops the border, uses radius 8.dp and height 56.dp, renders the filename as AirdropType.body2, metadata as body3/textDescription, and uses 18.dp trash/eye glyphs in 28.dp hit boxes with a 6.dp gap.
 
 ---
 

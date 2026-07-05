@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -103,7 +104,8 @@ fun DocumentsScreen(
                     .verticalScroll(rememberScrollState())
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                // Swift listStack.spacing = 12; Figma's older 20px gap loses to Swift.
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (state.loading && state.files.isEmpty()) {
                     Box(Modifier.fillMaxWidth().padding(top = Spacing.xl), Alignment.Center) {
@@ -153,9 +155,9 @@ fun DocumentsScreen(
     }
 }
 
-/** Figma Component 37/41 — radius-10 card with split Download|Upload bar. */
+/** Swift FigmaDocumentsViewController card — radius-15 with inset split actions row. */
 @Composable
-private fun DocumentCard(
+internal fun DocumentCard(
     slot: DocumentSlot,
     file: MoreDocumentFile?,
     uploading: Boolean,
@@ -170,19 +172,23 @@ private fun DocumentCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.xs))
+            .testTag("documents-card-${slot.docType}")
+            .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs)),
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm1),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Row(
-                    Modifier.fillMaxWidth(),
+                    Modifier
+                        .fillMaxWidth()
+                        .height(30.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -193,14 +199,19 @@ private fun DocumentCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Image(
-                        painter = painterResource(R.drawable.ic_info),
-                        contentDescription = "${slot.title} info",
-                        colorFilter = ColorFilter.tint(colors.iconSelected),
+                    Box(
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(28.dp)
                             .clickable(onClick = onInfo),
-                    )
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_info),
+                            contentDescription = "${slot.title} info",
+                            colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
                 Text(
                     text = slot.description,
@@ -217,40 +228,42 @@ private fun DocumentCard(
                     onView = onView,
                 )
             }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(54.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SplitAction(
-                iconRes = R.drawable.ic_download_file,
-                label = "Download",
-                enabled = !file?.fileUrl.isNullOrBlank(),
-                onClick = onDownload,
-                modifier = Modifier.weight(1f),
-            )
-            Box(
+            Row(
                 Modifier
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(colors.iconShape),
-            )
-            SplitAction(
-                iconRes = R.drawable.ic_upload,
-                label = "Upload",
-                enabled = !uploading,
-                loading = uploading,
-                onClick = onUpload,
-                modifier = Modifier.weight(1f),
-            )
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("documents-actions-${slot.docType}")
+                    .clip(RoundedCornerShape(Radius.xs))
+                    .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs)),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SplitAction(
+                    iconRes = R.drawable.ic_download_file,
+                    label = "Download",
+                    enabled = !file?.fileUrl.isNullOrBlank(),
+                    onClick = onDownload,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .height(32.dp)
+                        .background(colors.iconShape),
+                )
+                SplitAction(
+                    iconRes = R.drawable.ic_upload,
+                    label = "Upload",
+                    enabled = !uploading,
+                    loading = uploading,
+                    onClick = onUpload,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
 
-/** Peach uploaded-file row — pdf glyph, name + "PDF files", trash + eye (30dp gap). */
+/** Peach uploaded-file row — Swift 56pt row, 28pt PDF, 18pt actions in 28pt buttons. */
 @Composable
 private fun UploadedFileRow(
     file: MoreDocumentFile,
@@ -266,28 +279,28 @@ private fun UploadedFileRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.xs))
+            .height(56.dp)
+            .testTag("documents-uploaded-file-row")
+            .clip(RoundedCornerShape(8.dp))
             .background(colors.peachLight)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Row(
             Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_pdf),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(28.dp),
             )
             Column(Modifier.weight(1f)) {
                 Text(
                     text = file.fileName ?: fallbackName,
-                    style = AirdropType.subtitle2,
+                    style = AirdropType.body2,
                     color = colors.textDarkTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -295,28 +308,38 @@ private fun UploadedFileRow(
                 Text(
                     text = "$extension files",
                     style = AirdropType.body3,
-                    color = colors.textPlaceholder,
+                    color = colors.textDescription,
                     maxLines = 1,
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-            Image(
-                painter = painterResource(R.drawable.ic_trash),
-                contentDescription = "Delete",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(28.dp)
                     .clickable(onClick = onDelete),
-            )
-            Image(
-                painter = painterResource(R.drawable.ic_eye),
-                contentDescription = "View",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_trash),
+                    contentDescription = "Delete",
+                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(28.dp)
                     .clickable(onClick = onView),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_eye),
+                    contentDescription = "View",
+                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
@@ -350,7 +373,7 @@ private fun SplitAction(
                 painter = painterResource(iconRes),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(color),
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
         Text(text = label, style = AirdropType.button, color = color)
