@@ -87,22 +87,40 @@ fun PackagesFilterSheet(
                         title = "Shipment Method",
                         modifier = Modifier.testTag("packages-filter-method-card"),
                     ) {
+                        // Swift toggles: re-tapping the active row resets to "All"
+                        // (FigmaPackagesFilterVC:257-261) — the only way to clear a
+                        // filter, since there is no explicit "All" row.
                         MethodRow(
                             method = ShipmentMethodUi.Standard,
                             selected = selectedMethod == ShipmentTypeFilter.Standard,
-                            onClick = { onSelectMethod(ShipmentTypeFilter.Standard) },
+                            onClick = {
+                                onSelectMethod(
+                                    if (selectedMethod == ShipmentTypeFilter.Standard) ShipmentTypeFilter.All
+                                    else ShipmentTypeFilter.Standard,
+                                )
+                            },
                             showDivider = true,
                         )
                         MethodRow(
                             method = ShipmentMethodUi.SeaDrop,
                             selected = selectedMethod == ShipmentTypeFilter.Seadrop,
-                            onClick = { onSelectMethod(ShipmentTypeFilter.Seadrop) },
+                            onClick = {
+                                onSelectMethod(
+                                    if (selectedMethod == ShipmentTypeFilter.Seadrop) ShipmentTypeFilter.All
+                                    else ShipmentTypeFilter.Seadrop,
+                                )
+                            },
                             showDivider = true,
                         )
                         MethodRow(
                             method = ShipmentMethodUi.Express,
                             selected = selectedMethod == ShipmentTypeFilter.Express,
-                            onClick = { onSelectMethod(ShipmentTypeFilter.Express) },
+                            onClick = {
+                                onSelectMethod(
+                                    if (selectedMethod == ShipmentTypeFilter.Express) ShipmentTypeFilter.All
+                                    else ShipmentTypeFilter.Express,
+                                )
+                            },
                             showDivider = false,
                         )
                     }
@@ -115,7 +133,10 @@ fun PackagesFilterSheet(
                             StatusRow(
                                 status = status,
                                 selected = selectedStatus == status.id,
-                                onClick = { onSelectStatus(status.id) },
+                                // Swift re-tap resets to 0/All (FigmaPackagesFilterVC:313-317).
+                                onClick = {
+                                    onSelectStatus(if (selectedStatus == status.id) 0 else status.id)
+                                },
                                 showDivider = index != statuses.lastIndex,
                             )
                         }
