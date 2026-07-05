@@ -92,10 +92,12 @@ fun InvoiceViewerScreen(
             ?: (title.ifBlank { "Invoice" } + if (isPdf) ".pdf" else ".jpg")
     }
 
+    // Swift FigmaInvoiceViewerScreenViewController.swift: view bg gray100 (:68),
+    // preview contentContainer gray150 (:86). The Kotlin had these swapped.
     Column(
         Modifier
             .fillMaxSize()
-            .background(colors.gray150)
+            .background(colors.gray100)
     ) {
         ShipmentsDetailHeader(title = "Invoice", onBack = onBack)
 
@@ -105,7 +107,7 @@ fun InvoiceViewerScreen(
                 .fillMaxWidth()
                 .padding(Spacing.md)
                 .clip(RoundedCornerShape(Radius.s))
-                .background(colors.gray100)
+                .background(colors.gray150)
                 .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
         ) {
             when {

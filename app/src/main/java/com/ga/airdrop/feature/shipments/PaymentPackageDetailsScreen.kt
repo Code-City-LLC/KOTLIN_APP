@@ -141,7 +141,8 @@ private fun PaymentPackageDetailsContent(
                 ShipmentsFormat.weight(detail?.weightLbs, detail?.weightKg, detail?.weight),
             )
             ShipmentsListRow(
-                "Invoice Amount",
+                // Swift FigmaPaymentPackageDetailsViewController.swift:794.
+                "Invoice Amount (Declared Value/Cost)",
                 when {
                     (detail?.amount ?: 0.0) > 0.0 -> ShipmentsFormat.price(detail?.amount)
                     (detail?.originalPrice ?: 0.0) > 0.0 -> ShipmentsFormat.price(detail?.originalPrice)
@@ -169,16 +170,18 @@ private fun PaymentPackageDetailsContent(
             )
         }
 
-        // CIF pill
+        // CIF pill — Swift makeCIFInfoPill (FigmaPaymentPackageDetailsViewController
+        // .swift:470-508): 48pt tall, radius 10, 16pt insets, infoCircle 20pt
+        // tinted textDarkTitle. (Was 59dp / radius 15 / 24dp iconSelected.)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(59.dp)
-                .clip(RoundedCornerShape(Radius.s))
+                .height(48.dp)
+                .clip(RoundedCornerShape(Radius.xs))
                 .background(colors.gray100)
-                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
                 .clickable(onClick = onCifInfo)
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -186,8 +189,8 @@ private fun PaymentPackageDetailsContent(
             Image(
                 painter = painterResource(R.drawable.ic_info),
                 contentDescription = "CIF info",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(24.dp),
+                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                modifier = Modifier.size(20.dp),
             )
         }
 
