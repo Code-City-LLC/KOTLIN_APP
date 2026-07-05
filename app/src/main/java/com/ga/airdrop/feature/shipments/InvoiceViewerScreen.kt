@@ -3,9 +3,13 @@ package com.ga.airdrop.feature.shipments
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.ParcelFileDescriptor
 import android.widget.Toast
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -41,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -50,13 +55,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import coil.compose.SubcomposeAsyncImage
+import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.R
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import java.io.File
+import java.io.InputStream
+import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -64,9 +73,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * Invoice viewer — behavior from FigmaInvoiceViewerScreenViewController
- * (no dedicated Figma node; modal viewer): renders the invoice URL (PDF via
- * an embedded viewer, images natively), with "Save to Files" (DownloadManager)
- * and "Share" actions.
+ * (no dedicated Figma node; modal viewer): downloads the invoice to a local
+ * action file, previews PDFs/images, then exposes "Save to Files" and "Share".
  */
 @Composable
 fun InvoiceViewerScreen(
@@ -93,6 +101,8 @@ fun InvoiceViewerScreen(
     var loadError by remember { mutableStateOf<String?>(null) }
     var localActionFile by remember(secureUrl) { mutableStateOf<File?>(null) }
     var actionFileError by remember(secureUrl) { mutableStateOf<String?>(null) }
+    var pdfPreview by remember(secureUrl) { mutableStateOf<Bitmap?>(null) }
+    var previewError by remember(secureUrl) { mutableStateOf<String?>(null) }
 
     val fileName = remember(secureUrl, title) {
         Uri.parse(secureUrl).lastPathSegment?.takeIf { it.contains('.') }
@@ -102,13 +112,28 @@ fun InvoiceViewerScreen(
     LaunchedEffect(secureUrl, fileName) {
         localActionFile = null
         actionFileError = null
+        pdfPreview = null
+        previewError = null
         if (secureUrl.isBlank()) return@LaunchedEffect
         runCatching {
             prepareInvoiceActionFile(context.applicationContext, secureUrl, fileName)
-        }.onSuccess {
-            localActionFile = it
+        }.onSuccess { file ->
+            localActionFile = file
+            if (isPdf) {
+                runCatching {
+                    withContext(Dispatchers.IO) { renderPdfFirstPage(file) }
+                }.onSuccess {
+                    pdfPreview = it
+                    loading = false
+                    loadError = null
+                }.onFailure {
+                    previewError = it.localizedMessage ?: "Unable to preview invoice file."
+                    loading = false
+                }
+            }
         }.onFailure {
             actionFileError = it.localizedMessage ?: "Unable to prepare invoice file."
+            loading = false
         }
     }
 
@@ -141,6 +166,60 @@ fun InvoiceViewerScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.align(Alignment.Center),
                     )
+                }
+                isPdf -> {
+                    when {
+                        pdfPreview != null -> {
+                            Image(
+                                bitmap = pdfPreview!!.asImageBitmap(),
+                                contentDescription = title,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(Spacing.sm),
+                            )
+                        }
+                        actionFileError != null -> {
+                            Text(
+                                text = "Couldn't download $fileName.\n$actionFileError",
+                                style = AirdropType.body1,
+                                color = colors.textDescription,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .padding(Spacing.md),
+                            )
+                        }
+                        previewError != null -> {
+                            Text(
+                                text = "Couldn't preview $fileName.\n$previewError",
+                                style = AirdropType.body1,
+                                color = colors.textDescription,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .padding(Spacing.md),
+                            )
+                        }
+                        else -> {
+                            Column(
+                                modifier = Modifier.align(Alignment.Center),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(28.dp),
+                                    color = BrandPalette.OrangeMain,
+                                    strokeWidth = 2.5.dp,
+                                )
+                                Text(
+                                    text = "Downloading $fileName...",
+                                    style = AirdropType.body1,
+                                    color = colors.textDescription,
+                                )
+                            }
+                        }
+                    }
                 }
                 isImage -> {
                     SubcomposeAsyncImage(
@@ -189,14 +268,7 @@ fun InvoiceViewerScreen(
                     }
                 }
                 else -> {
-                    // PDFs render through an embedded viewer page (WebView has
-                    // no native PDF support); other docs load directly.
-                    val target = if (isPdf) {
-                        "https://docs.google.com/gview?embedded=true&url=" +
-                            java.net.URLEncoder.encode(secureUrl, "UTF-8")
-                    } else {
-                        secureUrl
-                    }
+                    val target = secureUrl
                     AndroidView(
                         factory = { ctx ->
                             WebView(ctx).apply {
@@ -258,7 +330,7 @@ fun InvoiceViewerScreen(
         }
 
         // Bottom actions — Save to Files (secondary) + Share (primary).
-        val actionsEnabled = localActionFile != null && loadError == null && actionFileError == null
+        val actionsEnabled = localActionFile != null && actionFileError == null
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -389,11 +461,54 @@ internal suspend fun prepareInvoiceActionFile(context: Context, url: String, fil
             "http", "https" -> copyInvoiceStreamToCache(
                 context,
                 fileName,
-                URL(url).openStream(),
+                openRemoteInvoiceStream(url),
             )
             else -> error("Unsupported invoice URL")
         }
     }
+
+private fun openRemoteInvoiceStream(url: String): InputStream {
+    val connection = URL(url).openConnection().apply {
+        connectTimeout = 30_000
+        readTimeout = 60_000
+        setRequestProperty("Accept", "*/*")
+        if (shouldAttachAirdropAuth(url)) {
+            AuthTokenStore.token?.let { setRequestProperty("Authorization", "Bearer $it") }
+        }
+    }
+    val http = connection as? HttpURLConnection
+    if (http != null && http.responseCode !in 200..299) {
+        val code = http.responseCode
+        http.errorStream?.close()
+        error("Invoice download failed (HTTP $code)")
+    }
+    return connection.getInputStream()
+}
+
+internal fun shouldAttachAirdropAuth(url: String): Boolean {
+    val host = Uri.parse(url).host ?: return false
+    val apiHost = Uri.parse(BuildConfig.API_BASE_URL).host
+    val webHost = Uri.parse(BuildConfig.WEB_BASE_URL).host
+    return host == apiHost || host == webHost
+}
+
+internal fun renderPdfFirstPage(file: File, maxWidth: Int = 1200): Bitmap {
+    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+        PdfRenderer(descriptor).use { renderer ->
+            require(renderer.pageCount > 0) { "PDF has no pages" }
+            renderer.openPage(0).use { page ->
+                val scale = (maxWidth / page.width.toFloat()).coerceAtLeast(1f)
+                val width = (page.width * scale).toInt().coerceAtLeast(1)
+                val height = (page.height * scale).toInt().coerceAtLeast(1)
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                bitmap.eraseColor(android.graphics.Color.WHITE)
+                val matrix = Matrix().apply { postScale(scale, scale) }
+                page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                return bitmap
+            }
+        }
+    }
+}
 
 private fun copyInvoiceStreamToCache(
     context: Context,

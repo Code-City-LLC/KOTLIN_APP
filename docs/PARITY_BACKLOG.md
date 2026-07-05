@@ -290,7 +290,12 @@ light AND dark.
   `40001753:15716`; Swift `FigmaInvoiceViewerScreenViewController.swift` takes
   precedence for the viewer. Android now keeps the Swift gray100 page / gray150
   preview panel, prepares a local action file before enabling actions, and
-  shares a `content://` FileProvider stream instead of a raw text URL. Proof:
+  shares a `content://` FileProvider stream instead of a raw text URL. Follow-up
+  2026-07-05: Android also renders downloaded PDFs from that same local action
+  file with `PdfRenderer` instead of Google Docs Viewer, closing the lingering
+  HTTP 403 proof risk and matching Swift's local QuickLook path. Same-host
+  Airdrop invoice downloads receive bearer auth; external invoice URLs do not.
+  Proof:
   `/tmp/kotlin_ui_proof/invoice_viewer/invoice_viewer_swift_light.png`,
   `/tmp/kotlin_ui_proof/invoice_viewer/invoice_viewer_swift_dark.png`.
 - **PackagesFilterSheet Swift/Figma slice:** Figma MCP design context for node
@@ -731,7 +736,7 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 **Detail:** Swift downloads the invoice to cache and shares the file itself via UIActivityViewController (FigmaInvoiceViewerScreenViewController.swift:383-391), letting the user AirDrop/save the PDF. Kotlin shareInvoice() (InvoiceViewerScreen.kt:346-355) fires ACTION_SEND type text/plain with the raw URL — recipients get a link (possibly an auth-protected or file:/ URL that they cannot open), not the document.
 
-**Fix:** Done. `InvoiceViewerScreen` now prepares a local action file in cache for remote/content URLs and uses local files directly for `file://` URLs. The Share button stays disabled until that file exists, then `invoiceShareIntent` sends `ACTION_SEND` with `EXTRA_STREAM`, MIME type (`application/pdf`, `image/*`, or octet-stream fallback), `FLAG_GRANT_READ_URI_PERMISSION`, and `ClipData`; it no longer sends `EXTRA_TEXT` with the raw URL. `InvoiceViewerParityTest` verifies the stream intent, local-file path, MIME mapping, and light/dark rendered geometry.
+**Fix:** Done. `InvoiceViewerScreen` now prepares a local action file in cache for remote/content URLs and uses local files directly for `file://` URLs. The Share button stays disabled until that file exists, then `invoiceShareIntent` sends `ACTION_SEND` with `EXTRA_STREAM`, MIME type (`application/pdf`, `image/*`, or octet-stream fallback), `FLAG_GRANT_READ_URI_PERMISSION`, and `ClipData`; it no longer sends `EXTRA_TEXT` with the raw URL. Follow-up 2026-07-05: PDF preview now uses the downloaded local file through Android `PdfRenderer`, not Google Docs Viewer, and protected Airdrop-host invoice downloads attach the bearer header without leaking it to external invoice URLs. `InvoiceViewerParityTest` verifies the stream intent, local-file path, MIME mapping, local PDF preview, Airdrop-host auth guard, and light/dark rendered geometry.
 
 ---
 

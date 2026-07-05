@@ -2,12 +2,16 @@ package com.ga.airdrop.feature.shipments
 
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -18,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
@@ -50,6 +55,26 @@ class InvoiceViewerParityTest {
 
         assertInvoiceViewerGeometry()
         saveRootScreenshot("invoice_viewer_swift_dark.png")
+    }
+
+    @Test
+    fun localPdfRendersInsideViewerAndEnablesActions() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = File(context.cacheDir, "invoice-preview-screen.pdf").also(::writeSamplePdf)
+
+        setInvoiceViewerContent(
+            mode = ThemeController.Mode.LIGHT,
+            url = file.toUri().toString(),
+        )
+        compose.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                compose.onNodeWithTag("invoice-save-button").assertIsEnabled()
+                compose.onNodeWithTag("invoice-share-button").assertIsEnabled()
+                true
+            }.getOrDefault(false)
+        }
+
+        saveRootScreenshot("invoice_viewer_local_pdf_light.png")
     }
 
     @Test
@@ -94,7 +119,30 @@ class InvoiceViewerParityTest {
         assertEquals("application/octet-stream", invoiceMimeType("invoice.bin"))
     }
 
-    private fun setInvoiceViewerContent(mode: ThemeController.Mode) {
+    @Test
+    fun pdfPreviewRendersFromLocalFileLikeSwiftQuickLook() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = File(context.cacheDir, "invoice-preview-test.pdf").also(::writeSamplePdf)
+
+        val bitmap = renderPdfFirstPage(file, maxWidth = 600)
+
+        assertTrue(bitmap.width > 0)
+        assertTrue(bitmap.height > 0)
+        bitmap.recycle()
+    }
+
+    @Test
+    fun airdropAuthHeadersOnlyAttachToAirdropInvoiceHosts() {
+        assertTrue(shouldAttachAirdropAuth("${BuildConfig.API_BASE_URL}/packages/1/invoices/2"))
+        assertTrue(shouldAttachAirdropAuth("${BuildConfig.WEB_BASE_URL}/storage/invoices/invoice.pdf"))
+        assertTrue(!shouldAttachAirdropAuth("https://example.test/invoice.pdf"))
+    }
+
+    private fun setInvoiceViewerContent(
+        mode: ThemeController.Mode,
+        url: String = "",
+        title: String = "Invoice",
+    ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
         }
@@ -107,8 +155,8 @@ class InvoiceViewerParityTest {
                         .background(AirdropTheme.colors.gray100)
                 ) {
                     InvoiceViewerScreen(
-                        url = "",
-                        title = "Invoice",
+                        url = url,
+                        title = title,
                         onBack = {},
                     )
                 }
@@ -156,5 +204,18 @@ class InvoiceViewerParityTest {
 
     private fun assertClose(expected: Float, actual: Float, label: String, tolerance: Float = 1.5f) {
         assertTrue("$label expected $expected but was $actual", kotlin.math.abs(expected - actual) <= tolerance)
+    }
+
+    private fun writeSamplePdf(file: File) {
+        val document = PdfDocument()
+        val page = document.startPage(PdfDocument.PageInfo.Builder(240, 320, 1).create())
+        val paint = Paint().apply {
+            color = Color.BLACK
+            textSize = 24f
+        }
+        page.canvas.drawText("Invoice", 32f, 64f, paint)
+        document.finishPage(page)
+        file.outputStream().use { document.writeTo(it) }
+        document.close()
     }
 }

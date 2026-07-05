@@ -758,10 +758,13 @@ assets; only repair the parts that are visibly or functionally wrong.
   - Android already had the surface token swap in the current tree; this pass
     preserved it, added test tags/proof, changed Share from raw `text/plain`
     URL to a `content://` FileProvider stream, and disables Save/Share until a
-    local action file is prepared.
+    local action file is prepared. Follow-up 2026-07-05: Android now previews
+    downloaded PDFs from that local action file with `PdfRenderer` instead of
+    routing through Google Docs Viewer, and attaches bearer auth only for
+    Airdrop-host invoice downloads.
   - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
   - targeted `InvoiceViewerParityTest` through
-    `:app:connectedStagingDebugAndroidTest`: 5 tests passed
+    `:app:connectedStagingDebugAndroidTest`: 8 tests passed
   - manual `adb shell am instrument -w -e class
     com.ga.airdrop.feature.shipments.InvoiceViewerParityTest ...`:
     `OK (5 tests)`
@@ -945,7 +948,11 @@ assets; only repair the parts that are visibly or functionally wrong.
   related Package Details invoice-entry node `40001753:15716` was checked, while
   Swift `FigmaInvoiceViewerScreenViewController.swift` remains authoritative for
   the viewer. Android keeps gray100 root / gray150 preview surfaces and now
-  shares a FileProvider stream instead of a raw URL string.
+  shares a FileProvider stream instead of a raw URL string. Follow-up 2026-07-05:
+  Android now also follows Swift's local-file preview path for PDFs instead of
+  sending remote invoice URLs to Google Docs Viewer, which was the source of the
+  lingering HTTP 403 proof risk. Same-host Airdrop invoice downloads receive the
+  bearer header; external invoice URLs do not.
 - PackagesFilterSheet now has Swift-precedence proof against Figma node
   `40006358:75618` and `FigmaPackagesFilterViewController.swift`. Android uses
   the Swift opaque header and geometry, the Figma/Swift `AirDrop` filter label,
@@ -1609,7 +1616,17 @@ Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented he
 
 **Swift-source-exact fixes proven (`34e9620`, adversarial audit + verify):** Home header icon spacing (14→20, 16→19dp), tier lineHeight (22→24); PackageDetails hero 262→240dp, CIF row 59→48dp, CIF icon 24→20dp, divider `#D9D9D9`→`gray300 #EBEBEB`; ShipmentsUi package-status always Completed-green (Swift :556), Order value `$`→`USD`, TotalChargesBox radius 15→10, borders→gray300, empty-label body2→body1; ProductPaymentDetails summary titles subtitle1→title2; InvoiceViewer Share button gradient→flat OrangeMain, height 50→52, 5 state labels body2→body1. + `6a21713` §108/§153/§99 (MagentaCastle verifier-accepted on device).
 
-**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620`; §117 InvoiceViewer blocked by HTTP 403. CRITICAL payment bugs remain ON HOLD for Kemar.
+**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620`. CRITICAL payment bugs remain ON HOLD for Kemar.
+
+**InvoiceViewer 403 stale-risk repair (`83ae744`):** Rechecked Swift
+`FigmaInvoiceViewerScreenViewController.swift`; Swift downloads the invoice to
+a local file and previews/shares that file through QuickLook/system sheets.
+Android already prepared a local action file for Save/Share but still previewed
+remote PDFs through Google Docs Viewer, which can hit HTTP 403 and does not
+match Swift. Android now renders the downloaded local PDF with `PdfRenderer`,
+keeps Save/Share enabled from the same local file, and attaches bearer auth only
+for Airdrop-host invoice downloads. `InvoiceViewerParityTest` passed 8/8 on
+`airdrop_test2(AVD) - 15`.
 
 **Orders decorative icon stale-risk audit (`0ac793a`):** Rechecked Swift
 `FigmaOrdersViewController.swift`, refreshed Figma Orders node
