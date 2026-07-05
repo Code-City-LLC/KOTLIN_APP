@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -491,18 +492,25 @@ fun ShopDropdownField(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
     required: Boolean = false,
+    testTagPrefix: String? = null,
 ) {
     val colors = AirdropTheme.colors
     var expanded by remember { mutableStateOf(false) }
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         // Swift makeField (:542-618): label SubTitle2, ORANGE asterisk.
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(text = label, style = AirdropType.subtitle2, color = colors.textDarkTitle)
             if (required) {
-                Text(text = "*", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
+                Text(
+                    text = "*",
+                    style = AirdropType.subtitle2,
+                    color = BrandPalette.OrangeMain,
+                    modifier = testTagPrefix?.let { Modifier.testTag("$it-required") }
+                        ?: Modifier,
+                )
             }
         }
         Box {
@@ -511,11 +519,12 @@ fun ShopDropdownField(
                     .fillMaxWidth()
                     // Swift: gray100 fill, radius 12, height 48, value Body1,
                     // 20pt gray500 chevron.
-                    .defaultMinSize(minHeight = 48.dp)
+                    .height(48.dp)
                     .background(colors.gray100, RoundedCornerShape(12.dp))
                     .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
                     .clickable { expanded = true }
-                    .padding(horizontal = Spacing.md, vertical = 12.dp),
+                    .padding(horizontal = 14.dp)
+                    .then(testTagPrefix?.let { Modifier.testTag("$it-card") } ?: Modifier),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -524,7 +533,12 @@ fun ShopDropdownField(
                     painter = painterResource(R.drawable.ic_small_arrow_down),
                     contentDescription = null,
                     colorFilter = ColorFilter.tint(colors.gray500),
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier
+                        .size(20.dp)
+                        .then(
+                            testTagPrefix?.let { Modifier.testTag("$it-chevron") }
+                                ?: Modifier,
+                        ),
                 )
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

@@ -527,12 +527,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [MEDIUM] Auction checkout
+## [CLOSED] Auction checkout
 `app/src/main/java/com/ga/airdrop/feature/shop/ShopComponents.kt:474` — The Payment Currency field diverges from Swift's makeField spec in label typography, asterisk color, container color/radius/height, value font and chevron color.
 
 **Detail:** ShopDropdownField vs FigmaAuctionProductCheckoutViewController.makeField (:542-618): label subtitle1 vs subtitle2 (:553); required '*' AlertPalette.Error red vs orangeMain (:556-559); container gray150 / Radius.xs(10dp) / minHeight 50 vs gray100 / radius 12 / height 48 (:571-577); value text body2 vs body1 (:564); chevron tinted iconSelected (near-black light mode) vs gray500 (:585-587).
 
-**Fix:** In ShopDropdownField: label style AirdropType.subtitle2; asterisk color BrandPalette.OrangeMain; container background colors.gray100, RoundedCornerShape(12.dp), height 48.dp; value AirdropType.body1; chevron tint colors.gray500 (or the equivalent token).
+**Fix:** Closed with Swift precedence. Figma MCP `get_design_context` for the documented checkout node `40001846:54756` confirmed the node is actually Feature Products + sort sheet, not Auction Checkout; Figma Cart node `40008284:26547` still shows the older red-star/gray150/50px component. Swift wins here: `FigmaAuctionProductCheckoutViewController.makeField`, `FigmaCartViewController.makeField`, and `FigmaProfileViewController.makeField` all use subtitle2 labels, orange required stars, gray100 48pt cards, body1 field text, and gray500 trailing icons. Android now matches those reusable Swift tokens in `ShopDropdownField` and the shared `TypeInputField`; `AuctionCheckoutParityTest.sharedCheckoutAndCartFieldsUseSwiftMakeFieldTokens` locks the 48dp card height, orange required stars, gray100 card fill, 20dp gray500 dropdown chevron, and existing checkout behavior tests remain green.
 
 ---
 
@@ -554,12 +554,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [MEDIUM] Auction Checkout
+## [CLOSED] Auction Checkout
 `app/src/main/java/com/ga/airdrop/feature/shop/ShopComponents.kt:474` — ShopDropdownField (Payment Currency) diverges from Swift makeField: gray150 fill blends into the checkout background, label/value/radius/star tokens all drift
 
 **Detail:** Swift makeField (FigmaAuctionProductCheckoutViewController.swift:542-618, identical in FigmaCartViewController:1004-1080): label subtitle2 textDarkTitle with an ORANGE ' *' (orangeMain) when required; field card gray100, radius 12, height 48, value font body1, chevron 20pt gray500, label→card gap 6. Kotlin ShopDropdownField: label subtitle1, red AlertPalette.Error asterisk, gray150 fill (invisible against the gray150 Auction Checkout background — only the border shows), radius 10 (Radius.xs), minHeight 50, value body2, chevron 24dp iconSelected. TypeInputField (cart billing form) shares the same gray150/red-star/subtitle1 drift.
 
-**Fix:** In ShopDropdownField and TypeInputField: label → AirdropType.subtitle2; required star → BrandPalette.OrangeMain; box background → colors.gray100 with RoundedCornerShape(12.dp) and 48.dp height; value text → AirdropType.body1; chevron 20.dp tinted colors.gray500.
+**Fix:** Closed with the same shared-field patch as the duplicate Auction checkout row above. The dropdown and core `TypeInputField` now both follow Swift's active reusable `makeField` contract. Figma conflict is recorded explicitly: the checkout node maps to Feature Products, and the Cart screen node still contains the stale old Type Input Field, so Swift takes precedence.
 
 ---
 

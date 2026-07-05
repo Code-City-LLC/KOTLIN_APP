@@ -190,6 +190,7 @@ fun AuctionCheckoutScreen(
                 options = viewModel.currencyOptions,
                 onSelect = viewModel::setCurrency,
                 required = true,
+                testTagPrefix = "auction-checkout-currency",
             )
         }
 

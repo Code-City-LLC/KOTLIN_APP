@@ -1,8 +1,11 @@
 package com.ga.airdrop.feature.shop
 
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.remember
@@ -10,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -20,11 +24,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -79,6 +85,75 @@ class AuctionCheckoutParityTest {
         assertTrue(
             "Swift unauthenticated checkout should not surface the generic failure title",
             compose.onAllNodesWithText("Checkout failed").fetchSemanticsNodes().isEmpty(),
+        )
+    }
+
+    @Test
+    fun sharedCheckoutAndCartFieldsUseSwiftMakeFieldTokens() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                Column(
+                    modifier = Modifier
+                        .width(335.dp)
+                        .background(AirdropTheme.colors.gray150),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TypeInputField(
+                        label = "First Name",
+                        value = "John",
+                        onValueChange = {},
+                        required = true,
+                        testTagPrefix = "swift-type-input",
+                    )
+                    ShopDropdownField(
+                        label = "Payment Currency",
+                        value = "USD",
+                        options = listOf("USD", "JMD"),
+                        onSelect = {},
+                        required = true,
+                        testTagPrefix = "swift-dropdown",
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("swift-type-input-required", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("swift-dropdown-required", useUnmergedTree = true).assertIsDisplayed()
+        assertClose(
+            expected = 48f,
+            actual = boundsHeight("swift-type-input-card"),
+            label = "Swift TypeInputField card height",
+        )
+        assertClose(
+            expected = 48f,
+            actual = boundsHeight("swift-dropdown-card"),
+            label = "Swift dropdown card height",
+        )
+        assertClose(
+            expected = 20f,
+            actual = boundsHeight("swift-dropdown-chevron"),
+            label = "Swift dropdown chevron height",
+        )
+        assertNodeContainsColor("swift-type-input-card", 0xFFFFFFFF.toInt(), "TypeInputField gray100 card")
+        assertNodeContainsColor("swift-dropdown-card", 0xFFFFFFFF.toInt(), "Dropdown gray100 card")
+        assertNodeContainsColor(
+            "swift-type-input-required",
+            0xFFF15114.toInt(),
+            "TypeInputField orange required star",
+        )
+        assertNodeContainsColor(
+            "swift-dropdown-required",
+            0xFFF15114.toInt(),
+            "Dropdown orange required star",
+        )
+        assertNodeContainsColor(
+            "swift-dropdown-chevron",
+            0xFF9E9E9E.toInt(),
+            "Dropdown gray500 chevron",
         )
     }
 
@@ -151,6 +226,33 @@ class AuctionCheckoutParityTest {
         )
         dir.mkdirs()
         return dir
+    }
+
+    private fun boundsHeight(tag: String): Float =
+        compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+            .let { (it.bottom - it.top).value }
+
+    private fun assertClose(expected: Float, actual: Float, label: String) {
+        assertEquals(label, expected, actual, 0.75f)
+    }
+
+    private fun assertNodeContainsColor(tag: String, target: Int, label: String) {
+        val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+        for (y in 0 until bitmap.height) {
+            for (x in 0 until bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
+                val alpha = pixel ushr 24
+                if (alpha < 24) continue
+                val dr = kotlin.math.abs(AndroidColor.red(pixel) - AndroidColor.red(target))
+                val dg = kotlin.math.abs(AndroidColor.green(pixel) - AndroidColor.green(target))
+                val db = kotlin.math.abs(AndroidColor.blue(pixel) - AndroidColor.blue(target))
+                if (dr <= 20 && dg <= 20 && db <= 20) return
+            }
+        }
+        error("$label should contain #${Integer.toHexString(target)}")
     }
 
     private companion object {
