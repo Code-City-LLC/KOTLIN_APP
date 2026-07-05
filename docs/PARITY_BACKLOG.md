@@ -204,13 +204,17 @@ light AND dark.
   `/tmp/kotlin_ui_proof/sales_taxes_icons/figma/figma_sales_taxes_40001531_11704.png`,
   `/tmp/kotlin_ui_proof/sales_taxes_icons/android/sales_taxes_icons/sales_taxes_icons_swift_light.png`,
   `/tmp/kotlin_ui_proof/sales_taxes_icons/android/sales_taxes_icons/sales_taxes_icons_swift_dark.png`.
-- **Observed follow-up, not fixed in this icon slice:** the shared
-  `HomeDetailsHeader` long-title behavior still needs a Swift-first autoscale
-  pass. Swift `FigmaSalesTaxesViewController.buildHeader()` allows two title
-  lines but also `adjustsFontSizeToFitWidth` with `minimumScaleFactor = 0.8`;
-  Android currently allows the same two lines without shrink-to-fit, causing
-  long detail titles such as "Shop Tax-Free with AirDrop Limited" to wrap more
-  heavily in the emulator proof.
+- **Shared HomeDetailsHeader long-title autoscale:** Sales Taxes was compared
+  against Swift `FigmaSalesTaxesViewController.buildHeader()` first and Figma
+  node `40001531:11704` second. Figma's static header component is 16 semibold,
+  but Swift ships `DesignTokens.Typography.title1()` plus
+  `adjustsFontSizeToFitWidth` and `minimumScaleFactor = 0.8`, so Swift wins.
+  Android now preserves the existing 56dp bar, 36dp back rail, 24dp chevron,
+  52dp title gutters, screen-specific color/style overrides, and adds the
+  missing shrink-to-fit behavior before allowing the title to wrap. Proof:
+  `/tmp/kotlin_ui_proof/home_details_header/figma/figma_sales_taxes_40001531_11704.png`,
+  `/tmp/kotlin_ui_proof/home_details_header/android/home_details_header/home_details_header_sales_taxes_swift_light.png`,
+  `/tmp/kotlin_ui_proof/home_details_header/android/home_details_header/home_details_header_sales_taxes_swift_dark.png`.
 - **Payment Methods Swift-precedence empty-state/Cart rail:** Payment Methods
   was compared against Figma node `40001428:9188` and Swift
   `FigmaPaymentMethodsViewController`. Swift takes precedence over the visible

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,10 +24,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -38,6 +46,12 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
  * status bar, back chevron (24dp in a 36dp tap box, 12dp from the edge),
  * centered Title1 label, optional 24dp trailing action, 1dp divider.
  */
+internal object HomeDetailsHeaderTags {
+    const val TITLE = "home-details-header-title"
+    const val BACK = "home-details-header-back"
+    const val BACK_ICON = "home-details-header-back-icon"
+}
+
 @Composable
 fun HomeDetailsHeader(
     title: String,
@@ -74,17 +88,18 @@ fun HomeDetailsHeader(
                 onClick = onBack,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 12.dp),
+                    .padding(start = 12.dp)
+                    .testTag(HomeDetailsHeaderTags.BACK),
+                iconTag = HomeDetailsHeaderTags.BACK_ICON,
             )
-            Text(
+            AutoscalingHeaderTitle(
                 text = title,
                 style = titleStyle,
                 color = tint,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .padding(horizontal = 52.dp),
+                    .padding(horizontal = 52.dp)
+                    .testTag(HomeDetailsHeaderTags.TITLE),
             )
             if (trailingIconRes != null) {
                 HeaderIconButton(
@@ -117,6 +132,7 @@ private fun HeaderIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     rotation: Float = 0f,
+    iconTag: String? = null,
 ) {
     Box(
         modifier = modifier
@@ -134,10 +150,71 @@ private fun HeaderIconButton(
             colorFilter = ColorFilter.tint(tint),
             modifier = Modifier
                 .size(24.dp)
-                .rotate(rotation),
+                .rotate(rotation)
+                .then(if (iconTag != null) Modifier.testTag(iconTag) else Modifier),
         )
     }
 }
+
+@Composable
+private fun AutoscalingHeaderTitle(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+
+    BoxWithConstraints(modifier = modifier) {
+        val maxWidthPx = with(density) { maxWidth.roundToPx() }
+        val fit = remember(text, style, maxWidthPx, textMeasurer) {
+            if (maxWidthPx <= 0) {
+                HeaderTitleFit(scale = 1f, maxLines = 2)
+            } else {
+                HeaderTitleScaleSteps
+                    .firstOrNull { scale ->
+                        val result = textMeasurer.measure(
+                            text = AnnotatedString(text),
+                            style = style.scaledBy(scale),
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Clip,
+                            constraints = Constraints(maxWidth = maxWidthPx),
+                        )
+                        !result.hasVisualOverflow
+                    }
+                    ?.let { HeaderTitleFit(scale = it, maxLines = 1) }
+                    ?: HeaderTitleFit(scale = HEADER_TITLE_MIN_SCALE, maxLines = 2)
+            }
+        }
+
+        Text(
+            text = text,
+            style = style.scaledBy(fit.scale),
+            color = color,
+            textAlign = TextAlign.Center,
+            maxLines = fit.maxLines,
+            softWrap = fit.maxLines > 1,
+            overflow = TextOverflow.Clip,
+        )
+    }
+}
+
+private data class HeaderTitleFit(
+    val scale: Float,
+    val maxLines: Int,
+)
+
+private fun TextStyle.scaledBy(scale: Float): TextStyle =
+    copy(
+        fontSize = if (fontSize.isSpecified) fontSize * scale else fontSize,
+        lineHeight = if (lineHeight.isSpecified) lineHeight * scale else lineHeight,
+    )
+
+private const val HEADER_TITLE_MIN_SCALE = 0.8f
+
+private val HeaderTitleScaleSteps = listOf(1f, 0.95f, 0.9f, 0.85f, HEADER_TITLE_MIN_SCALE)
 
 /**
  * Copy-confirmation pill — Figma 40000944:3698 ("All the information is

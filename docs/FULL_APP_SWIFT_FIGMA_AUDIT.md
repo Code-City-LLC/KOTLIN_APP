@@ -162,6 +162,31 @@ assets; only repair the parts that are visibly or functionally wrong.
   - proof PNGs:
     `/tmp/kotlin_ui_proof/sales_taxes_icons/android/sales_taxes_icons/sales_taxes_icons_swift_light.png`,
     `/tmp/kotlin_ui_proof/sales_taxes_icons/android/sales_taxes_icons/sales_taxes_icons_swift_dark.png`.
+- Android checks run for the shared HomeDetailsHeader long-title autoscale pass:
+  - Figma MCP design context and screenshot checked for Sales Taxes node
+    `40001531:11704`:
+    `/tmp/kotlin_ui_proof/home_details_header/figma/figma_sales_taxes_40001531_11704.png`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaSalesTaxesViewController.swift`.
+  - Swift precedence documented: Figma's static header component renders the
+    Sales Taxes title as 16pt semibold, but Swift ships
+    `DesignTokens.Typography.title1()` plus `adjustsFontSizeToFitWidth` and
+    `minimumScaleFactor = 0.8`; Android follows Swift and preserves the
+    existing shared header rails while adding shrink-to-fit before wrapping.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - first focused `HomeDetailsHeaderParityTest` run failed because the test
+    threshold assumed a 29dp one-line bound while Compose/Cairo measured the
+    corrected one-line title at 32dp; assertion was corrected and rerun.
+  - targeted `HomeDetailsHeaderParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed
+  - adjacent HomeDetails regression run through
+    `:app:connectedStagingDebugAndroidTest`: `HomeDetailsHeaderParityTest`,
+    `SalesTaxesParityTest`, `AirCoinParityScreenshotTest`,
+    `WarehousesScreenParityTest`, and `GoldPriorityParityTest` passed 14 tests.
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/home_details_header/android/home_details_header/home_details_header_sales_taxes_swift_light.png`,
+    `/tmp/kotlin_ui_proof/home_details_header/android/home_details_header/home_details_header_sales_taxes_swift_dark.png`.
 - Android checks added for the Warehouse detail Swift-precedence pass:
   - Figma MCP design context for Warehouse node `40000944:3571`.
   - Swift source compared:
@@ -1595,6 +1620,11 @@ Findings to verify/fix:
   `40001531:11704` second. Android now uses explicit app-dark variants for the
   six 40dp step icons and `SalesTaxesParityTest` pixel-checks orange primary
   paths plus Swift `textDarkTitle` secondary strokes in app light and dark.
+- Shared `HomeDetailsHeader` long titles now follow Swift's shrink-to-fit rule:
+  Android keeps the `title1` default and 56dp header rail, then scales down to
+  Swift's `0.8` floor before allowing a two-line wrap. Figma node
+  `40001531:11704` is the visual reference, but Swift wins the 16 semibold vs
+  title1 conflict.
 - New icons added after the earlier dark pass must be audited for
   `@color/icon_duotone` or explicit Swift-matching orange/dark role colors.
 
@@ -1603,7 +1633,8 @@ Findings to verify/fix:
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
 - Codex/MagentaCastle is working through More/Legal/Profile/AirCoins/HomeDetails and narrow
   Shipments parity slices. More root tap rails, Documents
-  card/action-row geometry, info alert, refresh/reload behavior, plus Profile
+  card/action-row geometry, info alert, refresh/reload behavior, plus
+  HomeDetailsHeader long-title autoscale, Profile
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, More2
   shared inner header, Restricted
   Items search/list/detail icons and notes, Legal live CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
@@ -1628,7 +1659,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risks are full authenticated end-to-end Home data proof and a shared `HomeDetailsHeader` long-title autoscale pass |
+| Home | `feature/home/HomeScreen.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt`, `feature/homedetails/components/HomeDetailsComponents.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, shared HomeDetailsHeader long-title autoscale, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risk is full authenticated end-to-end Home data proof |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, backend pagination/search/reset contracts, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad live-auth/full-flow backend parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
