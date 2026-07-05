@@ -105,6 +105,29 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/help_contacts/android_help_top_dark_final.png`,
     `/tmp/kotlin_ui_proof/help_contacts/android_help_social_light_final.png`,
     `/tmp/kotlin_ui_proof/help_contacts/android_help_social_dark_final.png`
+- Android checks run for the Help full Swift-precedence layout/intent pass:
+  - Figma MCP design context and screenshot checked for Help node
+    `40001617:20377`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaContactsViewController.swift`.
+  - Swift/Figma conflict documented: Figma still shows a Live Chat row, grouped
+    Contact/WhatsApp/Email card, 10pt card gaps, 20pt card padding, and a
+    Business Hours copy icon. Swift ships no Live Chat row in the Help list,
+    separate Contact/WhatsApp/Email cards, 20pt card gaps, 15pt card padding,
+    no Business Hours copy button, and compact Business Hours copy; Swift wins.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `ContactsScreenScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 5 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.contacts.ContactsScreenScreenshotTest ...`:
+    `OK (5 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/help_contacts_swift/figma_help_contacts_40001617_20377.png`,
+    `/tmp/kotlin_ui_proof/help_contacts_swift/android_help_swift_top_light.png`,
+    `/tmp/kotlin_ui_proof/help_contacts_swift/android_help_swift_top_dark.png`,
+    `/tmp/kotlin_ui_proof/help_contacts_swift/android_help_swift_social_light.png`,
+    `/tmp/kotlin_ui_proof/help_contacts_swift/android_help_swift_social_dark.png`
 - Android checks run for the Home activity/highlight geometry proof:
   - Figma MCP design context and screenshot for Home node `40001464:28899`.
   - Swift source compared:
@@ -502,14 +525,13 @@ assets; only repair the parts that are visibly or functionally wrong.
   Swift `FigmaContactsViewController.swift` renders contact values, business
   hours, and social rows as `Typography.subtitle1()` with `iconSelected`, has no
   Live Chat row, has no Business Hours copy action, and separates Contact /
-  WhatsApp / Email into individual cards. This pass follows Swift for
-  typography and icon semantics, while preserving the existing Figma/Android
-  layout until the larger Help layout conflict is handled as a separate pass.
+  WhatsApp / Email into individual cards. The later full-layout pass now follows
+  Swift for those structural conflicts too.
 - Email now uses the Swift/Figma envelope glyph (`ic_mail`) instead of the
   message/chat glyph.
-- Functional coverage added for the safe Help actions: Live Chat route emission
-  and copy-toast behavior. External phone, WhatsApp, email, maps, and social URL
-  intents still need a deeper intent-intercept audit.
+- Functional coverage now covers copy-toast behavior, no stale Live Chat row,
+  11 Swift copy buttons, Swift's compact Business Hours copy, 20dp card gaps,
+  phone/email/social outbound URI rails, and light/dark screenshots.
 
 ### AirCoins
 
@@ -687,13 +709,14 @@ Findings to verify/fix:
 - Email icon corrected from message/chat bubble to the Swift/Figma mail envelope.
 - Dark-mode Help icons now use screen-specific dark variants because shared
   resource-night vectors do not follow app-level `ThemeController` dark mode.
-- Live Chat route and copy-toast behavior are covered by instrumentation.
-- Still open: resolve whole-layout Swift/Figma conflicts deliberately. Swift
-  source omits Live Chat and Business Hours copy and splits Contact / WhatsApp /
-  Email into separate cards; the saved Figma screen and current Android layout
-  include Live Chat, Business Hours copy, and the grouped contact card.
-- Still open: intent-intercept tests for phone, WhatsApp, email, maps, and
-  social URLs.
+- Whole-layout Swift/Figma conflicts are now resolved in Swift's favor: Android
+  removes the Figma-only Live Chat row from the Help list, splits Contact /
+  WhatsApp / Email into individual Swift cards, uses 20dp card gaps and 15dp
+  card padding, removes the Business Hours copy button, and uses Swift's compact
+  Business Hours text.
+- Instrumentation covers copy-toast behavior, no stale Live Chat row, 11 Swift
+  copy buttons, 20dp card gaps, phone/email/social outbound URI rails, and
+  light/dark screenshots.
 
 ### AirCoins
 
@@ -778,7 +801,7 @@ For each page, fill this before claiming completion:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, warehouse card tap/geometry, and activity/highlight geometry verified; remaining Home content/navigation issues still open |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages filter `40006358:75618`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | partial | yes | partial | BlueDeer/MagentaCastle | hub reopened; PackagesFilterSheet, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining detail items still open |
-| Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
+| Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |

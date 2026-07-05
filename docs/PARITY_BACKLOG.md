@@ -36,17 +36,23 @@ light AND dark.
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`.
-- **Help dark icons + Swift typography:** Help was compared against Figma node
-  `40001617:20377` and Swift `FigmaContactsViewController.swift`. Android now
-  uses Swift `subtitle1` parity for values/business-hours/social rows, corrects
-  Email from message bubble to the mail envelope, and uses Help-specific dark
-  icon variants so app-dark mode no longer shows dark glyphs on dark cards.
-  Instrumentation verified light/dark screenshots, Live Chat route emission,
-  and copy-toast behavior. Proof:
+- **Help full Swift-precedence layout/icons/intents:** Help was compared against
+  Figma node `40001617:20377` and Swift
+  `FigmaContactsViewController.swift`. Swift wins over Figma where they differ:
+  Android now removes the Figma-only Live Chat row from the Help list, splits
+  Contact / WhatsApp / Email into individual cards, uses Swift 20dp card gaps
+  and 15dp card padding, removes the Business Hours copy button, uses Swift's
+  compact Business Hours copy, keeps Swift `subtitle1` parity for values/social
+  rows, preserves Help-specific dark icon variants, and verifies phone/email/
+  social outbound URI rails. Proof:
   `/tmp/kotlin_ui_proof/help_contacts/android_help_top_light_final.png`,
   `/tmp/kotlin_ui_proof/help_contacts/android_help_top_dark_final.png`,
   `/tmp/kotlin_ui_proof/help_contacts/android_help_social_light_final.png`,
-  `/tmp/kotlin_ui_proof/help_contacts/android_help_social_dark_final.png`.
+  `/tmp/kotlin_ui_proof/help_contacts/android_help_social_dark_final.png`,
+  `/tmp/kotlin_ui_proof/help_contacts_swift/android_help_swift_top_light.png`,
+  `/tmp/kotlin_ui_proof/help_contacts_swift/android_help_swift_top_dark.png`,
+  `/tmp/kotlin_ui_proof/help_contacts_swift/android_help_swift_social_light.png`,
+  `/tmp/kotlin_ui_proof/help_contacts_swift/android_help_swift_social_dark.png`.
 - **Home activity/highlight geometry:** Activity tiles and Auction Highlights
   cards were compared against Figma Home node `40001464:28899` and Swift
   `FigmaHomeViewController.swift`. Android already matches the shared geometry:
@@ -185,11 +191,13 @@ light AND dark.
 dark-on-dark in app dark mode; the duotone activity icons were compared against
 Swift first and Figma second, then verified on emulator in light and dark.
 
-**✅ CLOSED — Help dark icon / Email glyph follow-up:** Contact, WhatsApp,
-Email, Location, Business Hours, Social Media, and social row icons now render
-with visible secondary strokes in app dark mode. Email uses the Swift/Figma
-envelope glyph. Swift/Figma whole-layout conflicts remain open in
-`docs/FULL_APP_SWIFT_FIGMA_AUDIT.md`.
+**✅ CLOSED — Help Swift layout / dark icon / Email glyph follow-up:** Contact,
+WhatsApp, Email, Location, Business Hours, Social Media, and social row icons
+now render with visible secondary strokes in app dark mode. Email uses the
+Swift/Figma envelope glyph. Android now follows Swift over Figma for the whole
+Help layout conflict: no Live Chat row in the list, separate Contact/WhatsApp/
+Email cards, 20dp card gaps, 15dp card padding, no Business Hours copy button,
+and Swift compact Business Hours copy.
 
 **✅ CLOSED — Home activity/highlight geometry follow-up:** Activity tile and
 Auction Highlights card sizes were measured against Swift first and Figma
