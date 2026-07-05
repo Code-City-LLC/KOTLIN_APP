@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -57,7 +58,7 @@ import com.ga.airdrop.core.navigation.Routes
 /**
  * Package details — Figma node 40001753:15716, behavior from
  * FigmaPackageDetailsViewController: method hero + circular badge, Summary
- * card, Shipment Timeline (Metro steps), invoice upload zone (multipart POST
+ * card, Shipment Timeline (bullet rows), invoice upload zone (multipart POST
  * /packages/{id}/invoices) + list + delete, CIF info, Breakdown of Charges
  * and Add to Cart (status >= 7).
  */
@@ -75,6 +76,7 @@ fun PackageDetailsScreen(
     val context = LocalContext.current
     val detail = state.detail
     val method = ShipmentMethodUi.from(detail?.shippingMethod)
+    val detailBrandTitle = packageDetailsBrandTitle(method)
 
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -127,6 +129,7 @@ fun PackageDetailsScreen(
                 Column(
                     Modifier
                         .fillMaxWidth()
+                        .testTag("package-details-sheet")
                         .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                         // Swift :110 — rounded body card is gray100 on the gray200 page.
                         .background(colors.gray100)
@@ -140,7 +143,7 @@ fun PackageDetailsScreen(
                             .padding(bottom = Spacing.md),
                     ) {
                         Text(
-                            text = method.title,
+                            text = detailBrandTitle,
                             style = AirdropType.h6,
                             color = method.tint,
                             textAlign = TextAlign.Center,
@@ -187,8 +190,11 @@ fun PackageDetailsScreen(
                 ) {
                     Image(
                         painter = painterResource(method.iconRes),
-                        contentDescription = method.title,
-                        modifier = Modifier.size(40.dp),
+                        contentDescription = detailBrandTitle,
+                        colorFilter = ColorFilter.tint(method.tint),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .testTag("package-details-hero-icon"),
                     )
                 }
             }
@@ -264,7 +270,13 @@ private fun PackageDetailsContent(
         // Summary — Swift makeSummaryPanel (:321-398): inline Title2 header +
         // 14pt chevron INSIDE a plain gray100 card, rows spaced 10, Title2
         // values, NO banded header, NO dividers.
-        DetailSectionCard(title = "Summary", trailingChevron = true) {
+        DetailSectionCard(
+            title = "Summary",
+            trailingChevron = true,
+            tag = "package-details-section-summary",
+            titleContentGap = 12.dp,
+            contentSpacing = Spacing.sm,
+        ) {
             val method = ShipmentMethodUi.from(detail.shippingMethod)
             val courier = listOfNotNull(
                 detail.shipper?.takeIf { it.isNotBlank() },
@@ -285,7 +297,12 @@ private fun PackageDetailsContent(
         // Shipment Timeline — Swift makeTimelineRow (:441-487): 10dp
         // status-tinted bullet + subtitle1 name in the same color, comment +
         // date as separate body3 textDescription lines, no connector.
-        DetailSectionCard(title = "Shipment Timeline") {
+        DetailSectionCard(
+            title = "Shipment Timeline",
+            tag = "package-details-section-timeline",
+            titleContentGap = 14.dp,
+            contentSpacing = 12.dp,
+        ) {
             val steps = detail.history.ifEmpty {
                 listOf(
                     PackageHistoryItem(
@@ -302,6 +319,7 @@ private fun PackageDetailsContent(
                     color = timelineStatusColor(statusName),
                     comment = item.comment?.takeIf { it.isNotBlank() },
                     date = ShipmentsFormat.timelineDate(item.changedDate).takeIf { it != "N/A" },
+                    tag = "package-details-timeline-row-${item.status ?: statusName}",
                 )
             }
         }
@@ -346,6 +364,7 @@ private fun PackageDetailsContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
+                .testTag("package-details-cif-row")
                 .clip(RoundedCornerShape(Radius.s))
                 .background(colors.gray100)
                 .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -370,7 +389,7 @@ private fun PackageDetailsContent(
         if (state.readyForPickup) {
             ChargesCard(state = state, detail = detail)
             val rate = state.effectiveRate
-            DetailRow(
+            DetailKeyValueRow(
                 "Exchange Rate",
                 "1 USD = ${ShipmentsFormat.money(rate)} JMD",
             )
@@ -381,9 +400,11 @@ private fun PackageDetailsContent(
             ) {
                 Text(text = "Total", style = AirdropType.title2, color = colors.textDarkTitle)
                 Text(
-                    text = ShipmentsFormat.usdJmd(state.chargesTotal, rate),
+                    text = ShipmentsFormat.usdJmd(state.chargesTotal ?: 0.0, rate),
                     style = AirdropType.title2,
                     color = BrandPalette.OrangeMain,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.testTag("package-details-total-value"),
                 )
             }
             GradientButton(text = "Add to Cart", onClick = onAddToCart)
@@ -405,9 +426,9 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
             .clickable(enabled = !uploading, onClick = onClick)
-            .padding(Spacing.md),
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(Modifier.fillMaxWidth()) {
             Text(
@@ -440,18 +461,22 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
                     cornerRadius = CornerRadius(10.dp.toPx()),
                     style = Stroke(
                         width = 1.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(4.dp.toPx(), 2.dp.toPx()),
+                            0f,
+                        ),
                     ),
                 )
             }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(90.dp)
                     .clip(RoundedCornerShape(Radius.xs))
                     .background(colors.gray150)
-                    .padding(horizontal = 49.dp, vertical = Spacing.md),
+                    .padding(horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
             ) {
                 if (uploading) {
                     CircularProgressIndicator(
@@ -461,10 +486,10 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
                     )
                 } else {
                     Image(
-                        painter = painterResource(R.drawable.ic_download_file),
+                        painter = painterResource(R.drawable.ic_upload),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(colors.iconSelected),
-                        modifier = Modifier.size(32.dp),
+                        colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                        modifier = Modifier.size(28.dp),
                     )
                 }
                 Text(
@@ -490,10 +515,12 @@ private fun InvoiceFileRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.s))
+            .height(56.dp)
+            .testTag("package-details-invoice-row-${doc.id}")
+            .clip(RoundedCornerShape(Radius.xs))
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
@@ -514,20 +541,22 @@ private fun InvoiceFileRow(
             Text(text = "PDF File", style = AirdropType.body3, color = colors.textPlaceholder)
         }
         Image(
-            painter = painterResource(R.drawable.ic_eye),
-            contentDescription = "View invoice",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
-            modifier = Modifier
-                .size(24.dp)
-                .clickable(onClick = onView),
-        )
-        Image(
             painter = painterResource(R.drawable.ic_trash),
             contentDescription = "Delete invoice",
             colorFilter = ColorFilter.tint(colors.iconSelected),
             modifier = Modifier
+                .testTag("package-details-invoice-delete-${doc.id}")
                 .size(24.dp)
                 .clickable(onClick = onDelete),
+        )
+        Image(
+            painter = painterResource(R.drawable.ic_eye),
+            contentDescription = "View invoice",
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier
+                .testTag("package-details-invoice-view-${doc.id}")
+                .size(24.dp)
+                .clickable(onClick = onView),
         )
     }
 }
@@ -538,7 +567,12 @@ private fun InvoiceFileRow(
 private fun ChargesCard(state: PackageDetailsUiState, detail: ShipmentPackageDetail) {
     val colors = AirdropTheme.colors
     val rate = state.effectiveRate
-    DetailSectionCard(title = "Breakdown of Charges") {
+    DetailSectionCard(
+        title = "Breakdown of Charges",
+        tag = "package-details-section-charges",
+        titleContentGap = 12.dp,
+        contentSpacing = Spacing.sm,
+    ) {
         Column(
             Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -579,11 +613,6 @@ private fun ChargesCard(state: PackageDetailsUiState, detail: ShipmentPackageDet
                     color = colors.textDarkTitle,
                 )
             }
-            Text(
-                text = "1 USD = ${ShipmentsFormat.money(rate)} JMD",
-                style = AirdropType.body3,
-                color = colors.textDescription,
-            )
         }
     }
 }
@@ -614,17 +643,21 @@ private fun ChargeRow(
 private fun DetailSectionCard(
     title: String,
     trailingChevron: Boolean = false,
+    tag: String? = null,
+    titleContentGap: androidx.compose.ui.unit.Dp = Spacing.sm,
+    contentSpacing: androidx.compose.ui.unit.Dp = Spacing.sm,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
     val colors = AirdropTheme.colors
     Column(
         Modifier
             .fillMaxWidth()
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(titleContentGap),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -642,7 +675,11 @@ private fun DetailSectionCard(
                 )
             }
         }
-        content()
+        Column(
+            Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(contentSpacing),
+            content = content,
+        )
     }
 }
 
@@ -656,6 +693,25 @@ private fun DetailRow(label: String, value: String) {
     }
 }
 
+/** Swift makeTotalAndCTAPanel exchange row — horizontal key/value pair. */
+@Composable
+private fun DetailKeyValueRow(label: String, value: String) {
+    val colors = AirdropTheme.colors
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, style = AirdropType.subtitle2, color = colors.textDescription)
+        Text(
+            text = value,
+            style = AirdropType.title2,
+            color = colors.textDarkTitle,
+            textAlign = TextAlign.End,
+        )
+    }
+}
+
 /** Swift makeTimelineRow — 10dp status-tinted bullet + subtitle1 name (same color),
  *  optional comment + date as body3 textDescription lines, 12dp row gap. */
 @Composable
@@ -664,10 +720,13 @@ private fun TimelineBulletRow(
     color: androidx.compose.ui.graphics.Color,
     comment: String?,
     date: String?,
+    tag: String? = null,
 ) {
     val colors = AirdropTheme.colors
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier
+            .fillMaxWidth()
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
@@ -688,3 +747,10 @@ private fun TimelineBulletRow(
         }
     }
 }
+
+private fun packageDetailsBrandTitle(method: ShipmentMethodUi): String =
+    when (method) {
+        ShipmentMethodUi.Standard -> "AirDrop"
+        ShipmentMethodUi.Express -> "Express"
+        ShipmentMethodUi.SeaDrop -> "SeaDrop"
+    }

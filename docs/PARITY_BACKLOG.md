@@ -181,9 +181,9 @@ light AND dark.
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_light.png`,
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_dark.png`.
 
-**🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining PackageDetails/Payments/Orders follow-ups not explicitly closed below.
+**🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Payments/Orders follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, and PackagesFilterSheet Swift/Figma slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, and PackagesFilterSheet Swift/Figma slices are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -289,39 +289,39 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [MEDIUM] Package details
+## [CLOSED] Package details
 `app/src/main/java/com/ga/airdrop/feature/shipments/PackageDetailsScreen.kt:130` — Details rounded sheet uses gray150 (screen gray150) but Swift's body card is gray100 on a gray200 screen
 
 **Detail:** PackageDetailsScreen.kt:103 sets the screen background to colors.gray150 and line 130 paints the rounded content sheet gray150. Swift truth: view background gray200 (FigmaPackageDetailsViewController.swift:72) and the rounded body card is gray100 (line 110). Because the inner section cards are gray100 with iconShape borders in both apps, on Android they melt into an equally-light sheet in light mode and the tonal hierarchy (gray200 page → gray100 card) is lost; also flips wrong in dark mode.
 
-**Fix:** Set the screen root background to colors.gray200 and the rounded top sheet (line 130) to colors.gray100, keeping section cards gray100 + border as-is per Swift.
+**Fix:** Verified closed. Android now keeps the page on `gray200` and the rounded body sheet on `gray100`, matching Swift `FigmaPackageDetailsViewController.swift`. `PackageDetailsParityTest` covers the sheet in light/dark, and proof lives under `/tmp/kotlin_ui_proof/package_details_swift/package_details/`.
 
 ---
 
-## [MEDIUM] Package details (Shipment Timeline)
+## [CLOSED] Package details (Shipment Timeline)
 `app/src/main/java/com/ga/airdrop/feature/shipments/PackageDetailsScreen.kt:286` — Timeline renders metro-style status icons with connector lines; the shipped Swift design renders 10pt status-tinted bullet dots with comment and raw date rows
 
 **Detail:** Kotlin builds MetroStep rows (icon glyph per status + 1dp connector, date formatted "12th Jan, 2024, 3:14pm" in textPlaceholder, comment merged into the same body2 Text — PackageDetailsScreen.kt:286-315, ShipmentsUi.kt:724-768). Swift's shipped screen (FigmaPackageDetailsViewController.swift:441-487, applyDetail:971-990) renders a 10x10 rounded bullet filled with statusColor, the status name in subtitle1 tinted the same color, then optional comment and date as separate body3 textDescription lines. The two renderings look completely different at a glance.
 
-**Fix:** Replace MetroStep usage here with a bullet-row composable: 10dp circle + status name (subtitle1, timelineStatusColor), comment (body3, textDescription) and date (body3, textDescription) as separate lines, 12dp row spacing, no connector — matching FigmaPackageDetailsViewController.makeTimelineRow. Keep MetroStep only if another screen (payment package details) actually uses it in Swift.
+**Fix:** Verified closed. Swift wins over Figma here: Figma node `40001753:15716` still shows the older metro/icon timeline, while Swift renders 10dp bullets, status-tinted subtitle1 labels, optional comment/date body3 rows, and no connector. Android now matches Swift and omits Figma's static `N/A` fallback for missing timeline dates. `PackageDetailsParityTest` covers this in light/dark.
 
 ---
 
-## [MEDIUM] Package details (Summary/Timeline/Charges cards)
+## [CLOSED] Package details (Summary/Timeline/Charges cards)
 `app/src/main/java/com/ga/airdrop/feature/shipments/PackageDetailsScreen.kt:263` — Section cards get a gray200 banded header and per-row dividers with subtitle1 values; Swift renders inline titles inside plain gray100 cards, no dividers, title2 values
 
 **Detail:** PackageDetailsContent uses ShipmentsSectionCard (ShipmentsUi.kt:413-451), which draws a full-width gray200 header band with its own border, and ShipmentsListRow (ShipmentsUi.kt:455-482) adds a 1dp divider under every row and styles values as subtitle1 (semibold). Swift's Summary panel (FigmaPackageDetailsViewController.swift:321-398) puts the 'Summary ▾' title INSIDE the gray100 card (16pt padding, small 14pt chevron), rows spaced 10pt with no dividers, and values in Typography.title2() (bold). Same inline-title pattern for 'Shipment Timeline' (402-438) and 'Breakdown of Charges' (748-780). The banded style belongs only to the filter sheet's collapsible cards (FigmaPackagesFilterViewController.swift:404-407).
 
-**Fix:** For the details screen, render section titles inline within the gray100 card (title2, 16dp padding, trailing 14dp chevron on Summary only), drop the gray200 header band and the row dividers, and change value text style from subtitle1 to title2.
+**Fix:** Verified closed. Swift wins over Figma's older banded header/card screenshot. Android now uses plain gray100 cards with inline title2 titles, Summary's 14dp chevron, no row dividers, title2 values, Swift card spacing, and test tags locked by `PackageDetailsParityTest`.
 
 ---
 
-## [MEDIUM] Package details (charges/total footer)
+## [CLOSED] Package details (charges/total footer)
 `app/src/main/java/com/ga/airdrop/feature/shipments/PackageDetailsScreen.kt:376` — Footer omits the 'Exchange Rate' row, wraps Total in an orange box instead of a plain row, and hides the charges panel entirely when there are no itemized charges
 
 **Detail:** Swift (FigmaPackageDetailsViewController.swift:834-890, 1004-1035) shows, when status >= 7: the Breakdown panel (always, with header row + bold Subtotal even if additionalCharges is empty), then an 'Exchange Rate' key/value row ('1 USD = 161.00 JMD', title2 dark) and a 'Total' row (title2 key dark / value orange, right-aligned) followed by the CTA — no orange background box. Kotlin (PackageDetailsScreen.kt:376-381) skips ChargesCard when charges are empty and total is 0 (losing the exchange-rate note that only lives inside ChargesCard at line 577), and renders Total via TotalChargesBox (orange OrangeTertiary6 pill, ShipmentsUi.kt:773-794) which is the Payment-details Figma component (40001464:31296), not this screen's design.
 
-**Fix:** When readyForPickup: always render the Breakdown card (header + Subtotal) per Swift; below it add an 'Exchange Rate' ShipmentsListRow-style pair and a plain Total row (title2, orange value 'USD x / JMD y') instead of TotalChargesBox, then the GradientButton.
+**Fix:** Verified closed. When ready for pickup, Android always renders the Breakdown card, removes the duplicate exchange-rate note inside the card, shows one horizontal `Exchange Rate` row, and renders a plain Total row with the orange value. Empty charges now show Swift's `USD 0.00 / JMD 0.00` instead of `-`. `PackageDetailsParityTest` covers zero-charge totals and single exchange-rate rendering.
 
 ---
 
@@ -523,12 +523,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Package details (invoice file rows)
+## [CLOSED] Package details (invoice file rows)
 `app/src/main/java/com/ga/airdrop/feature/shipments/PackageDetailsScreen.kt:508` — Invoice row action icons are ordered eye-then-trash; Swift orders trash-then-eye
 
 **Detail:** Kotlin InvoiceFileRow renders ic_eye then ic_trash (PackageDetailsScreen.kt:508-523). Swift stacks [icon, text, spacer, trashBtn, viewBtn] (FigmaPackageDetailsViewController.swift:687), i.e. trash first, eye at the far trailing edge.
 
-**Fix:** Swap the two trailing Images so the delete (trash) icon precedes the view (eye) icon.
+**Fix:** Verified closed. Android now renders the invoice row at Swift's 56dp height with the trailing actions ordered trash then eye, and keeps the existing view/delete callback rails. `PackageDetailsParityTest.invoiceAndCartButtonsKeepSwiftRuntimeRails` verifies invoice-view navigation, delete confirmation/repository call, and Add-to-Cart insertion.
 
 ---
 

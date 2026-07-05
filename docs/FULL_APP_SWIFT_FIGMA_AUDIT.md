@@ -512,6 +512,28 @@ assets; only repair the parts that are visibly or functionally wrong.
   the Swift opaque header and geometry, the Figma/Swift `AirDrop` filter label,
   no stale `All Packages` row, 24dp leading icons, 50dp option rows, iconShape
   dividers/borders, and verified row/close callbacks in light and dark.
+- PackageDetails now has Swift-precedence proof against Figma node
+  `40001753:15716` and
+  `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPackageDetailsViewController.swift`.
+  Figma still shows older banded section headers and a metro/icon timeline, so
+  Swift wins for the shipped detail screen. Android now uses Swift's Standard
+  hero title `AirDrop`, method-tinted hero glyph, gray200 page / gray100 rounded
+  sheet hierarchy, plain inline section cards, bullet timeline rows, upload
+  zone icon/dash sizing, 56dp invoice file rows ordered trash-then-eye, 48dp
+  CIF row, single exchange-rate row, zero-charge `USD 0.00 / JMD 0.00` total,
+  and the existing invoice view/delete/Add-to-Cart runtime rails.
+  Checks run:
+  `git diff --check`,
+  `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`,
+  targeted `PackageDetailsParityTest` through
+  `:app:connectedStagingDebugAndroidTest` (3 tests passed), and manual
+  `adb shell am instrument -w -r -e class
+  com.ga.airdrop.feature.shipments.PackageDetailsParityTest ...` (`OK (3 tests)`).
+  Proof PNGs:
+  `/tmp/kotlin_ui_proof/package_details_swift/package_details/package_details_swift_top_light.png`,
+  `/tmp/kotlin_ui_proof/package_details_swift/package_details/package_details_swift_top_dark.png`,
+  `/tmp/kotlin_ui_proof/package_details_swift/package_details/package_details_swift_charges_light.png`,
+  `/tmp/kotlin_ui_proof/package_details_swift/package_details/package_details_swift_charges_dark.png`.
 
 ### Help
 
@@ -782,7 +804,8 @@ Findings to verify/fix:
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
   CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
-  balance/history, GoldPriority tier-name/status-bar,
+  balance/history, GoldPriority tier-name/status-bar, PackageDetails
+  Swift-precedence screen pass,
   PaymentPackageDetails footer/timeline/payment-copy,
   ProductPaymentDetails/OrderDetails hero/payment-copy geometry, and
   InvoiceViewer surface/share-file behavior, and PackagesFilterSheet geometry
@@ -800,7 +823,7 @@ For each page, fill this before claiming completion:
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, warehouse card tap/geometry, and activity/highlight geometry verified; remaining Home content/navigation issues still open |
-| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages filter `40006358:75618`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | partial | yes | partial | BlueDeer/MagentaCastle | hub reopened; PackagesFilterSheet, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining detail items still open |
+| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Package Details `40001753:15716`, Packages filter `40006358:75618`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub reopened; PackageDetails, PackagesFilterSheet, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; Payments/Orders follow-ups still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
