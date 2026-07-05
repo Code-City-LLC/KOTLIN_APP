@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,7 +58,12 @@ fun PaymentPackageDetailsScreen(
     // Hardware back closes the history overlay before popping the route.
     BackHandler(enabled = state.showHistory) { viewModel.showHistory(false) }
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(colors.gray150)
+            .testTag("payment-package-root")
+    ) {
         if (state.showHistory) {
             PaymentShipmentTimeline(state = state)
             ShipmentsDetailHeader(
@@ -70,6 +76,7 @@ fun PaymentPackageDetailsScreen(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
+                    .testTag("payment-package-scroll")
             ) {
                 Spacer(Modifier.height(shipmentsHeaderClearance()))
                 when {
@@ -78,9 +85,14 @@ fun PaymentPackageDetailsScreen(
                     else -> PaymentPackageDetailsContent(
                         state = state,
                         onCifInfo = { viewModel.showCifInfo(true) },
-                        onViewHistory = { viewModel.showHistory(true) },
                     )
                 }
+            }
+            if (state.payment != null) {
+                PaymentPackageDetailsFooter(
+                    onViewHistory = { viewModel.showHistory(true) },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
             ShipmentsDetailHeader(
                 title = "Packages Payment Details",
@@ -102,10 +114,9 @@ fun PaymentPackageDetailsScreen(
 }
 
 @Composable
-private fun PaymentPackageDetailsContent(
+internal fun PaymentPackageDetailsContent(
     state: PaymentPackageDetailsUiState,
     onCifInfo: () -> Unit,
-    onViewHistory: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
     val payment = state.payment ?: return
@@ -153,7 +164,6 @@ private fun PaymentPackageDetailsContent(
                 "Status",
                 detail?.statusName ?: payment.packageStatusName ?: "-",
                 valueColor = AlertPalette.Completed,
-                valueStyle = AirdropType.title2,
                 showDivider = false,
             )
         }
@@ -162,10 +172,10 @@ private fun PaymentPackageDetailsContent(
         ShipmentsSectionCard(title = "Payment Summary") {
             ShipmentsListRow("Invoice Number", payment.invoiceId ?: "-")
             ShipmentsListRow("Payment Method", ShipmentsFormat.capitalizeFirstWord(payment.method))
-            ShipmentsListRow("Amount Paid", ShipmentsFormat.usdJmd(payment.totalAmount, rate))
+            ShipmentsListRow("Amount Paid", ShipmentsFormat.usdJmdPlain(payment.totalAmount, rate))
             ShipmentsListRow(
                 "Exchange Rate",
-                if (rate > 0) "USD 1 = JMD ${ShipmentsFormat.money(rate)}" else "-",
+                if (rate > 0) "USD 1 = JMD ${ShipmentsFormat.moneyPlain(rate)}" else "-",
                 showDivider = false,
             )
         }
@@ -210,8 +220,8 @@ private fun PaymentPackageDetailsContent(
                     charges.entries.sortedBy { it.key }.forEach { (name, amount) ->
                         ChargeTableRow(
                             name,
-                            "$" + ShipmentsFormat.money(amount),
-                            "$" + ShipmentsFormat.money(amount * rate),
+                            "$" + ShipmentsFormat.moneyPlain(amount),
+                            "$" + ShipmentsFormat.moneyPlain(amount * rate),
                             colors.textDarkTitle,
                         )
                     }
@@ -223,13 +233,13 @@ private fun PaymentPackageDetailsContent(
                             modifier = Modifier.weight(1f),
                         )
                         Text(
-                            text = "$" + ShipmentsFormat.money(chargesTotal ?: 0.0),
+                            text = "$" + ShipmentsFormat.moneyPlain(chargesTotal ?: 0.0),
                             style = AirdropType.title2,
                             color = colors.textDarkTitle,
                         )
                         Spacer(Modifier.size(Spacing.md))
                         Text(
-                            text = "$" + ShipmentsFormat.money((chargesTotal ?: 0.0) * rate),
+                            text = "$" + ShipmentsFormat.moneyPlain((chargesTotal ?: 0.0) * rate),
                             style = AirdropType.title2,
                             color = colors.textDarkTitle,
                         )
@@ -238,11 +248,38 @@ private fun PaymentPackageDetailsContent(
             }
         }
 
-        TotalChargesBox(value = ShipmentsFormat.usdJmd(state.totalUsd, rate))
+        TotalChargesBox(value = ShipmentsFormat.usdJmdPlain(state.totalUsd, rate))
 
-        OutlineButton(text = "View History", onClick = onViewHistory)
+        Spacer(Modifier.height(116.dp))
+    }
+}
 
-        Spacer(Modifier.height(Spacing.md))
+@Composable
+internal fun PaymentPackageDetailsFooter(
+    onViewHistory: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .background(colors.gray100)
+            .testTag("payment-package-footer"),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(colors.gray300)
+        )
+        OutlineButton(
+            text = "View History",
+            onClick = onViewHistory,
+            modifier = Modifier
+                .padding(start = Spacing.md, end = Spacing.md, top = Spacing.md)
+                .testTag("payment-package-view-history-button"),
+        )
     }
 }
 
@@ -265,7 +302,7 @@ private val timelineStops = listOf(
     3 to "Port of Departure MIA",
     4 to "Arrived at Port JAM",
     7 to "Ready for Pickup",
-    18 to "Paid and Ready for Pickup",
+    18 to "Paid and Ready for Pick Up",
     8 to "Delivered",
 )
 
@@ -273,7 +310,7 @@ private val timelineStops = listOf(
 private val InFlightOrange = Color(0xFFF07F17)
 
 @Composable
-private fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
+internal fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
     val colors = AirdropTheme.colors
     val detail = state.detail
     val statusInt = detail?.status?.toIntOrNull() ?: 0
@@ -291,6 +328,7 @@ private fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .testTag("payment-history-root")
     ) {
         Spacer(Modifier.height(shipmentsHeaderClearance()))
         Column(
@@ -318,12 +356,22 @@ private fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
                         iconRes = ShipmentStatusCatalog.iconRes(statusId),
                         title = title,
                         titleColor = color,
-                        date = if (date != null) ShipmentsFormat.timelineDate(date) else "N/A",
+                        date = timelineDateOrDash(date),
                         showConnector = index != timelineStops.lastIndex,
+                        connectorColor = color,
+                        modifier = Modifier.testTag("payment-history-step-$statusId"),
                     )
                 }
             }
         }
         Spacer(Modifier.height(Spacing.xl))
     }
+}
+
+private fun timelineDateOrDash(raw: String?): String {
+    val value = raw?.trim().orEmpty()
+    if (value.isEmpty()) return "-"
+    return ShipmentsFormat.timelineDate(value)
+        .takeUnless { it == "N/A" || it.isBlank() }
+        ?: "-"
 }

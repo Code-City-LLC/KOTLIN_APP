@@ -289,6 +289,30 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`
+- Android checks run for the PaymentPackageDetails Swift/Figma pass:
+  - Figma MCP design context checked for node `40001761:29389`; this node is
+    the `View History` timeline screen, not the full payment-detail screen.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPaymentPackageDetailsViewController.swift`.
+  - Swift precedence documented: full detail layout/behavior comes from Swift,
+    while the Figma node confirms the timeline visual. Android now pins the
+    `View History` action in a 96dp footer, keeps the full Swift invoice label
+    and 48dp CIF pill, uses subtitle1 for Status values, applies Swift's
+    ungrouped payment-detail USD/JMD format, and matches the Swift/Figma
+    timeline copy, `-` fallback, body3 date text, 74dp row minimum,
+    status-colored connectors, and status-tinted icons.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `PaymentPackageDetailsParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.shipments.PaymentPackageDetailsParityTest ...`:
+    `OK (4 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/payment_package_details/payment_package_details_swift_light.png`,
+    `/tmp/kotlin_ui_proof/payment_package_details/payment_package_details_swift_dark.png`,
+    `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_light.png`,
+    `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -342,6 +366,14 @@ assets; only repair the parts that are visibly or functionally wrong.
   lower in the scroll. Tap checks are still required for Track Shipment,
   Packages, Payments, Orders, View More links, package add-to-cart, and detail
   cards.
+- PaymentPackageDetails now has Swift-precedence proof for the footer,
+  payment-summary copy, and View History timeline. Figma node `40001761:29389`
+  is a timeline screen, so Swift `FigmaPaymentPackageDetailsViewController.swift`
+  remains authoritative for the full detail screen. Android keeps the existing
+  correct invoice label/CIF pill, fixes the pinned footer, Status value style,
+  ungrouped payment-detail amount formatting, timeline `Pick Up` copy, `-`
+  fallback, body3 dates, 74dp rows, status-colored connectors, and status-tinted
+  timeline icons.
 
 ### Help
 
@@ -587,12 +619,13 @@ Findings to verify/fix:
 ## Work Split Notes
 
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
-- Codex/MagentaCastle is working through More/Legal/Profile/AirCoins. Documents
+- Codex/MagentaCastle is working through More/Legal/Profile/AirCoins and narrow
+  Shipments parity slices. Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
-  CMS heading colors, FAQ accordion gap, Notification Settings, and AirCoins
-  balance/history now have Figma MCP + Swift comparison and targeted device-test
-  proof.
+  CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
+  balance/history, and PaymentPackageDetails footer/timeline/payment-copy now
+  have Figma MCP + Swift comparison and targeted device-test proof.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -605,7 +638,7 @@ For each page, fill this before claiming completion:
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, warehouse card tap/geometry, and activity/highlight geometry verified; remaining Home content/navigation issues still open |
-| Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
+| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift` | `40000823:9633`, `40001761:29389` | summary/packages/payments/orders/package detail/payment detail | partial | yes | partial | BlueDeer/MagentaCastle | hub reopened; PaymentPackageDetails footer/timeline/payment-copy slice closed; InvoiceViewer/hero/filter/detail items still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |

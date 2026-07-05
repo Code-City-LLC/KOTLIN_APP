@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -193,6 +194,10 @@ object ShipmentsFormat {
     /** "64,841.58" — decimal, grouped, always 2 fraction digits. */
     fun money(value: Double): String = decimal(2, 2).format(value)
 
+    /** "64841.58" — Swift payment-detail String(format:) style, no grouping. */
+    fun moneyPlain(value: Double): String =
+        String.format(Locale.US, "%.2f", value)
+
     /** "1.3" — 0–2 fraction digits (weights). */
     fun compact(value: Double): String = decimal(0, 2).format(value)
 
@@ -205,6 +210,10 @@ object ShipmentsFormat {
     /** "USD 403.35 / JMD 64,841.58" */
     fun usdJmd(usd: Double?, exchangeRate: Double): String =
         usd?.let { "USD ${money(it)} / JMD ${money(it * exchangeRate)}" } ?: "-"
+
+    /** "USD 403.35 / JMD 64841.58" — no grouping, per payment-detail Swift. */
+    fun usdJmdPlain(usd: Double?, exchangeRate: Double): String =
+        usd?.let { "USD ${moneyPlain(it)} / JMD ${moneyPlain(it * exchangeRate)}" } ?: "-"
 
     /** Weight rules: lbs → kg → raw → em dash. */
     fun weight(lbs: Double?, kg: String?, raw: String?): String = when {
@@ -795,11 +804,13 @@ fun MetroStep(
     date: String,
     showConnector: Boolean,
     modifier: Modifier = Modifier,
+    connectorColor: Color = titleColor,
 ) {
     val colors = AirdropTheme.colors
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 74.dp)
             .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm1),
     ) {
@@ -811,6 +822,7 @@ fun MetroStep(
                 Image(
                     painter = painterResource(iconRes),
                     contentDescription = null,
+                    colorFilter = ColorFilter.tint(titleColor),
                     modifier = Modifier.size(24.dp),
                 )
             }
@@ -819,7 +831,7 @@ fun MetroStep(
                     Modifier
                         .width(1.dp)
                         .weight(1f)
-                        .background(colors.divider)
+                        .background(connectorColor)
                 )
             }
         }
@@ -829,7 +841,7 @@ fun MetroStep(
                 .padding(bottom = Spacing.sm)
         ) {
             Text(text = title, style = AirdropType.subtitle1, color = titleColor)
-            Text(text = date, style = AirdropType.body2, color = colors.textPlaceholder)
+            Text(text = date, style = AirdropType.body3, color = colors.textPlaceholder)
         }
     }
 }

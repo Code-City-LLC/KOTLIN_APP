@@ -139,10 +139,24 @@ light AND dark.
   `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
   `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
   `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`.
+- **PaymentPackageDetails Swift/Figma slice:** Payment Package Details was
+  compared against Swift `FigmaPaymentPackageDetailsViewController.swift` and
+  Figma node `40001761:29389` for the View History timeline. Swift takes
+  precedence for the detail screen and runtime timeline behavior. Android now
+  keeps the Swift fixed 96dp footer with 50dp `View History` outline button,
+  keeps the already-correct full `Invoice Amount (Declared Value/Cost)` label
+  and 48dp CIF pill, removes the incorrect Status `title2` override, uses
+  Swift ungrouped `USD %.2f / JMD %.2f` formatting on this screen, and fixes
+  timeline `Pick Up` copy, `-` missing-date fallback, body3 dates, 74dp rows,
+  status-colored connectors, and status-tinted icons. Proof:
+  `/tmp/kotlin_ui_proof/payment_package_details/payment_package_details_swift_light.png`,
+  `/tmp/kotlin_ui_proof/payment_package_details/payment_package_details_swift_dark.png`,
+  `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_light.png`,
+  `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_dark.png`.
 
-**🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
+**🔲 OPEN — BlueDeer (Shipments detail), priority order:** §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, and AirCoins balance/history are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/PaymentPackageDetails):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, and PaymentPackageDetails footer/timeline/payment-copy slice are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -296,21 +310,21 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] PaymentPackageDetails
+## [CLOSED] PaymentPackageDetails
 `app/src/main/java/com/ga/airdrop/feature/shipments/PaymentPackageDetailsScreen.kt:240` — 'View History' button scrolls with the content; Swift pins it in a fixed 96pt footer with a top divider
 
 **Detail:** FigmaPaymentPackageDetailsViewController.swift:262-300 builds a fixed footer (gray100 bg, 1px gray300 divider on top, 50pt outline button inset 20pt, scrollView bottom anchored to footer top). Kotlin places OutlineButton inside the vertical scroll after TotalChargesBox (PaymentPackageDetailsScreen.kt:240), so on long content the primary action is off-screen.
 
-**Fix:** Restructure the screen as a Column: scrollable content in weight(1f), then an opaque gray100 footer (divider + OutlineButton, 20dp padding) that is always visible.
+**Fix:** Done. The button now lives in a bottom-aligned 96dp `PaymentPackageDetailsFooter` with a 1dp gray300 divider and 50dp outline button, while scroll content keeps footer clearance. `PaymentPackageDetailsParityTest` verifies the footer pin/height in light and dark.
 
 ---
 
-## [MEDIUM] PaymentPackageDetails
+## [CLOSED] PaymentPackageDetails
 `app/src/main/java/com/ga/airdrop/feature/shipments/PaymentPackageDetailsScreen.kt:144` — Row label 'Invoice Amount' truncates Swift's 'Invoice Amount (Declared Value/Cost)'
 
 **Detail:** FigmaPaymentPackageDetailsViewController.swift:794 labels the row "Invoice Amount (Declared Value/Cost)" (mirrors RN SummaryDetailsPaymentPackages). Kotlin shows just "Invoice Amount" (PaymentPackageDetailsScreen.kt:143-150).
 
-**Fix:** Change the label string to "Invoice Amount (Declared Value/Cost)".
+**Fix:** Verified closed. Android already had the full Swift label in the current tree; this pass added light/dark PaymentPackageDetails proof so it stays locked.
 
 ---
 
@@ -332,12 +346,12 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] PaymentPackageDetails › View History timeline
+## [CLOSED] PaymentPackageDetails › View History timeline
 `app/src/main/java/com/ga/airdrop/feature/shipments/ShipmentsUi.kt:755` — Timeline connector is always the gray divider color; Swift colors the connector with the step's status color, and the missing-date fallback/date font also drift
 
 **Detail:** Swift timeline row (FigmaPaymentPackageDetailsViewController.swift:1164-1166) sets line.backgroundColor = color — the same green/orange/placeholder color as the row title — so completed segments read as a colored progress spine. Kotlin MetroStep hardcodes colors.divider for the connector (ShipmentsUi.kt:750-757). Additionally Swift shows "-" for stops without a history date (line 1232-1238) while Kotlin shows "N/A" (PaymentPackageDetailsScreen.kt:318), and Swift renders the date in body3 (12pt, line 1178) while MetroStep uses body2 (14pt, ShipmentsUi.kt:765).
 
-**Fix:** Add a connectorColor (default titleColor) parameter to MetroStep and pass the step color from PaymentShipmentTimeline; change the fallback string to "-"; use AirdropType.body3 for the date label.
+**Fix:** Done. `MetroStep` now uses the step color for connector and icon tint, keeps a 74dp minimum row height, and renders dates in body3. `PaymentShipmentTimeline` now passes `-` for missing dates. Light/dark proof screenshots match Figma node `40001761:29389` where it applies to the timeline; Swift is the runtime source of truth.
 
 ---
 
@@ -350,12 +364,12 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] PaymentPackageDetails
+## [CLOSED] PaymentPackageDetails
 `app/src/main/java/com/ga/airdrop/feature/shipments/PaymentPackageDetailsScreen.kt:176` — CIF pill is 59dp tall with a 24dp info icon; Swift is 48pt with a 20pt icon
 
 **Detail:** FigmaPaymentPackageDetailsViewController.swift:479 sets the pill height to 48 and the infoCircle to 20pt tinted textDarkTitle (lines 487, 500-501). Kotlin uses .height(59.dp) and a 24dp ic_info tinted colors.iconSelected (PaymentPackageDetailsScreen.kt:173-192).
 
-**Fix:** Change the Row height to 48.dp, icon size to 20.dp and tint to colors.textDarkTitle.
+**Fix:** Verified closed. Android already had the Swift 48dp/20dp/textDarkTitle implementation in the current tree; this pass added light/dark PaymentPackageDetails proof around that row.
 
 ---
 
@@ -503,21 +517,21 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [LOW] PaymentPackageDetails › View History timeline
+## [CLOSED] PaymentPackageDetails › View History timeline
 `app/src/main/java/com/ga/airdrop/feature/shipments/PaymentPackageDetailsScreen.kt:265` — Timeline stop 18 labelled 'Paid and Ready for Pickup'; Swift timeline says 'Paid and Ready for Pick Up'
 
 **Detail:** FigmaPaymentShipmentTimelineViewController timelineOrder (FigmaPaymentPackageDetailsViewController.swift:977) uses "Paid and Ready for Pick Up" (with space). Kotlin timelineStops uses "Paid and Ready for Pickup".
 
-**Fix:** Change the label string for id 18 to "Paid and Ready for Pick Up".
+**Fix:** Done. Timeline stop 18 now uses Swift's `Paid and Ready for Pick Up`; `PaymentPackageDetailsParityTest` asserts the old `Pickup` string is absent.
 
 ---
 
-## [LOW] PaymentPackageDetails
+## [CLOSED] PaymentPackageDetails
 `app/src/main/java/com/ga/airdrop/feature/shipments/PaymentPackageDetailsScreen.kt:155` — Package-summary Status value uses title2 (Bold); Swift renders all summary values, including Status, in subtitle1
 
 **Detail:** Swift makeSummaryRow (FigmaPaymentPackageDetailsViewController.swift:671) uses Typography.subtitle1() for every value; the Status row only changes color to Alert.completed (line 795). Kotlin passes valueStyle = AirdropType.title2 for the Status row (PaymentPackageDetailsScreen.kt:151-157).
 
-**Fix:** Drop the valueStyle override on the Status ShipmentsListRow (keep valueColor = AlertPalette.Completed).
+**Fix:** Done. The Status row now keeps the shared `ShipmentsListRow` subtitle1 value style and only overrides the value color to `AlertPalette.Completed`.
 
 ---
 
@@ -535,7 +549,7 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 **Detail:** Swift: String(format: "USD %.2f / JMD %.2f") (FigmaPaymentPackageDetailsViewController.swift:812, FigmaProductPaymentDetailsViewController.swift:592) → "JMD 64841.58" without thousands separators, and ProductPaymentDetails guards `usd > 0 else "-"` (lines 587-593, 617-623). Kotlin ShipmentsFormat.usdJmd groups with commas and formats any non-null value including 0.0. (Note OrderDetails is the opposite — Swift explicitly comma-groups there, which Kotlin already matches.)
 
-**Fix:** For the two payment-details screens use an ungrouped two-decimal formatter for the USD/JMD pair, and in ProductPaymentDetails return "-" when the resolved amount is null or <= 0.
+**Fix:** Partially done. PaymentPackageDetails now uses `ShipmentsFormat.usdJmdPlain` / `moneyPlain` for Amount Paid, Exchange Rate, charge table values, and Total, and the test asserts `USD 100.00 / JMD 16100.00` with no comma. ProductPaymentDetails still needs the same ungrouped/zero-handling pass.
 
 ---
 
