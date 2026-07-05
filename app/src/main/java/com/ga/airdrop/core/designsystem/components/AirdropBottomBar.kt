@@ -61,8 +61,10 @@ fun AirdropBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            // Swift: opaque gray200 surface — never a transparent wash.
-            .background(colors.gray200)
+            // ⚠️ LOCKED per Kemar — TRANSLUCENT, not opaque. Single source of
+            // truth in AirdropChrome; AirdropChromeTest asserts alpha<1 so an
+            // opaque revert FAILS THE BUILD. Reverted 3x already — do not repeat.
+            .background(AirdropChrome.bottomBarBackground(colors.gray200))
     ) {
         Box(
             Modifier
