@@ -1242,6 +1242,41 @@ Findings verified/fixed:
     system-light rerun stalled in runner state; no Home assertion regression was
     reproduced.
 
+### Account Deletion Reason
+
+Source files:
+- Android: `feature/more2/AccountDeletionReasonScreen.kt`,
+  `AccountDeletionReasonViewModel.kt`, `feature/more/BackgroundStore.kt`
+- Swift: `FigmaAccountDeletionReasonViewController.swift`,
+  `FigmaAccountDeletionViewController.swift`
+- Figma: Account Deletion Reason `40007388:27504`; documented success-modal
+  node `40007462:64371`
+
+Findings verified/fixed:
+- Swift is the precedence source. Figma MCP for `40007388:27504` still shows
+  duplicated reason labels plus the typo "Why do you want you want...", and
+  shows a grab handle in the destructive sheet. Swift carries the canonical
+  reason list, corrected question text, and runtime confirmation sheet without
+  a drag handle; Android now follows Swift.
+- The confirmation sheet now starts the warning graphic 28dp below the rounded
+  sheet top without rendering the stale Figma handle, while preserving the
+  Swift 24dp top radius, 225dp warning graphic, H5 title, Body2 description,
+  full-bleed divider, and 50dp side-by-side destructive buttons.
+- Deactivation now performs Swift-level local logout hygiene: bearer token,
+  shared header session, persisted cart cache, background image selection
+  (`BACKGROUND_IMAGE_ID`), and the in-memory deletion credential handoff are
+  cleared after the backend success path.
+- Verification on 2026-07-05:
+  - Figma MCP design context checked for `40007388:27504` and `40007462:64371`
+  - Swift source compared in
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaAccountDeletionReasonViewController.swift`
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - Gradle focused device run:
+    `AccountDeletionReasonParityTest`: 2 tests passed
+  - proof PNG:
+    `/tmp/kotlin_ui_proof/account_deletion_reason/account_deletion_reason_confirm_swift_light.png`
+
 ### Dark Theme Icons
 
 Source files:

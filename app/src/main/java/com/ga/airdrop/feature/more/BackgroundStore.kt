@@ -45,6 +45,10 @@ object BackgroundStore {
         prefs(context).edit().putInt(KEY_ID, normalizedId).apply()
     }
 
+    fun clear(context: Context) {
+        prefs(context).edit().remove(KEY_ID).apply()
+    }
+
     /** Resolves the drawable for the saved choice, theme-aware for the default. */
     fun currentBackgroundRes(context: Context, isDark: Boolean): Int {
         val choice = choices.firstOrNull { it.id == selectedId(context) }

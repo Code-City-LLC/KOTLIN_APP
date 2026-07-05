@@ -1,10 +1,13 @@
 package com.ga.airdrop.feature.more2
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.api.toUserMessage
+import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.more.BackgroundStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -54,19 +57,22 @@ class AccountDeletionReasonViewModel(
     fun dismissModal() = _state.update { it.copy(showConfirmModal = false) }
     fun dismissError() = _state.update { it.copy(error = null) }
 
-    fun confirmDelete() {
+    fun confirmDelete(context: Context) {
         if (_state.value.deleting) return
+        val appContext = context.applicationContext
         _state.update { it.copy(showConfirmModal = false, deleting = true) }
         viewModelScope.launch {
             // The API ignores the reason (not part of the Laravel payload) —
             // kept client-side, matching RN/Swift.
             repository.deactivateAccount(password = AccountDeletionFlow.password)
                 .onSuccess {
-                    // Full logout hygiene: token + session caches.
-                    // RECONCILE: also clear FCM token + any local stores
-                    // (background image pref etc.) once those land on Android.
+                    // Full logout hygiene mirrors Swift AccountDeletionReason:
+                    // token/session plus local visual/cart state.
                     AuthTokenStore.clear()
                     SessionStore.clear()
+                    CartStore.init(appContext)
+                    CartStore.clear()
+                    BackgroundStore.clear(appContext)
                     AccountDeletionFlow.clear()
                     _state.update { it.copy(deleting = false, deleted = true) }
                 }

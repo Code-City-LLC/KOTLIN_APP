@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -61,6 +63,7 @@ fun AccountDeletionReasonScreen(
     viewModel: AccountDeletionReasonViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
+    val context = LocalContext.current
     val state by viewModel.state.collectAsState()
 
     LaunchedEffect(state.deleted) {
@@ -113,7 +116,7 @@ fun AccountDeletionReasonScreen(
     if (state.showConfirmModal) {
         DeletionConfirmationModal(
             onCancel = viewModel::dismissModal,
-            onConfirm = viewModel::confirmDelete,
+            onConfirm = { viewModel.confirmDelete(context) },
         )
     }
     state.error?.let { message ->
@@ -164,9 +167,9 @@ private fun ReasonRow(reason: String, selected: Boolean, onSelect: () -> Unit) {
 }
 
 /**
- * Bottom-sheet confirmation — Figma 40007462:64371: red warning halo,
- * H5 question, Body2 description, full-bleed divider, Cancel (outlined
- * #D71111) + Delete Account (solid #D71111) side by side.
+ * Bottom-sheet confirmation — Swift-precedence runtime sheet: no drag handle,
+ * red warning halo, H5 question, Body2 description, full-bleed divider, Cancel
+ * (outlined #D71111) + Delete Account (solid #D71111) side by side.
  */
 @Composable
 private fun DeletionConfirmationModal(onCancel: () -> Unit, onConfirm: () -> Unit) {
@@ -189,6 +192,7 @@ private fun DeletionConfirmationModal(onCancel: () -> Unit, onConfirm: () -> Uni
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .testTag("account-deletion-confirm-sheet")
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                     .background(colors.gray100)
                     .clickable(
@@ -199,15 +203,7 @@ private fun DeletionConfirmationModal(onCancel: () -> Unit, onConfirm: () -> Uni
                     .navigationBarsPadding(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.height(12.dp))
-                // Grab handle (Figma 40007462:64371).
-                Box(
-                    Modifier
-                        .size(width = 96.dp, height = 6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(colors.iconShape)
-                )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(28.dp))
                 DeletionWarningGraphic()
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -286,6 +282,7 @@ private fun DeletionWarningGraphic() {
     androidx.compose.foundation.Canvas(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("account-deletion-confirm-warning")
             .height(225.dp)
     ) {
         val scale = minOf(size.width / 294f, size.height / 220f)
