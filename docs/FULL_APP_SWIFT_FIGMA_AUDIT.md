@@ -88,6 +88,23 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`,
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`
+- Android checks run for the Help Swift/Figma pass:
+  - Figma MCP design context for Help node `40001617:20377`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaContactsViewController.swift`.
+  - `git diff --check`
+  - dark drawable vector path parity check for all 11 Help icon variants
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `ContactsScreenScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.contacts.ContactsScreenScreenshotTest ...`:
+    `OK (4 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/help_contacts/android_help_top_light_final.png`,
+    `/tmp/kotlin_ui_proof/help_contacts/android_help_top_dark_final.png`,
+    `/tmp/kotlin_ui_proof/help_contacts/android_help_social_light_final.png`,
+    `/tmp/kotlin_ui_proof/help_contacts/android_help_social_dark_final.png`
 
 ## Latest Device/Figma Findings
 
@@ -134,12 +151,24 @@ assets; only repair the parts that are visibly or functionally wrong.
 
 ### Help
 
-- Android dark proof confirms the user complaint that the screen reads too bold:
-  section labels and values are visually heavier than the Figma Help node.
-- Several dark-mode help/contact icons render as very low-contrast dark glyphs
-  on dark surfaces. They need duotone/tint correction, not duplicated rows.
-- Copy/tap actions still need a functional pass: phone, WhatsApp, email,
-  locations, business hours, socials, and Live Chat.
+- Help dark-mode icon rendering root cause was app-theme/resource-night drift:
+  the shared `@color/icon_duotone` vectors stayed dark when the app was in
+  `ThemeController` dark mode. Android now uses Help-specific dark vector
+  variants for the same glyph paths, preserving orange accents and turning the
+  secondary strokes white.
+- Swift/Figma conflict documented: Figma Help node `40001617:20377` labels
+  values as SubTitle2 and visually includes Live Chat plus Business Hours copy.
+  Swift `FigmaContactsViewController.swift` renders contact values, business
+  hours, and social rows as `Typography.subtitle1()` with `iconSelected`, has no
+  Live Chat row, has no Business Hours copy action, and separates Contact /
+  WhatsApp / Email into individual cards. This pass follows Swift for
+  typography and icon semantics, while preserving the existing Figma/Android
+  layout until the larger Help layout conflict is handled as a separate pass.
+- Email now uses the Swift/Figma envelope glyph (`ic_mail`) instead of the
+  message/chat glyph.
+- Functional coverage added for the safe Help actions: Live Chat route emission
+  and copy-toast behavior. External phone, WhatsApp, email, maps, and social URL
+  intents still need a deeper intent-intercept audit.
 
 ### AirCoins
 
@@ -241,11 +270,20 @@ Source files:
 - Figma: node `40001617:20377`
 
 Findings to verify/fix:
-- User still sees "everything bold." Recheck title/value/body typography against
-  Swift. Values should not all use heavy weights.
-- Verify every contact action: phone, WhatsApp, email, maps, social URLs, copy
-  buttons, and Live Chat route.
-- Check dark-mode icon rendering for all duotone contact icons.
+- Help typography/icon pass completed for the confirmed Swift-precedence items:
+  value rows, Business Hours, and social rows now use Android `AirdropType.subtitle1`
+  and `colors.iconSelected`, matching Swift `Typography.subtitle1()` /
+  `DesignTokens.Color.iconSelected`.
+- Email icon corrected from message/chat bubble to the Swift/Figma mail envelope.
+- Dark-mode Help icons now use screen-specific dark variants because shared
+  resource-night vectors do not follow app-level `ThemeController` dark mode.
+- Live Chat route and copy-toast behavior are covered by instrumentation.
+- Still open: resolve whole-layout Swift/Figma conflicts deliberately. Swift
+  source omits Live Chat and Business Hours copy and splits Contact / WhatsApp /
+  Email into separate cards; the saved Figma screen and current Android layout
+  include Live Chat, Business Hours copy, and the grouped contact card.
+- Still open: intent-intercept tests for phone, WhatsApp, email, maps, and
+  social URLs.
 
 ### AirCoins
 

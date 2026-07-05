@@ -59,8 +59,9 @@ import kotlinx.coroutines.delay
  *    SubTitle2 value rows with trailing copy], pb 10);
  *  - Component 37 x3: Location (3 addresses), Business Hours (multiline +
  *    copy), Social Media (4 handle rows).
- * Values are SubTitle2 (Cairo SemiBold 14/24) — NOT SubTitle1/16; that
- * heavier cut is what made the page read as "everything bold".
+ * Swift is the implementation-precedence guide when it conflicts with Figma:
+ * Figma labels values as SubTitle2, but FigmaContactsViewController renders
+ * value rows, business hours, and social rows with Typography.subtitle1().
  */
 @Composable
 fun ContactsScreen(
@@ -121,7 +122,9 @@ fun ContactsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Image(
-                            painter = painterResource(R.drawable.ic_chat),
+                            painter = painterResource(
+                                if (colors.isDark) R.drawable.ic_contacts_chat_dark else R.drawable.ic_chat
+                            ),
                             contentDescription = null,
                             modifier = Modifier.size(24.dp),
                         )
@@ -139,14 +142,27 @@ fun ContactsScreen(
 
                 // ── Component 36: Contact Number / WhatsApp / Email ──
                 ContactCard {
-                    SubSection(iconRes = R.drawable.ic_contact_number, title = "Contact Number") {
+                    SubSection(
+                        iconRes = R.drawable.ic_contact_number,
+                        darkIconRes = R.drawable.ic_contacts_contact_number_dark,
+                        title = "Contact Number",
+                    ) {
                         ValueRow("+876-676-6999", onOpen = { open("tel:+8766766999") }, onCopy = ::copy)
                         ValueRow("+833-676-6999", onOpen = { open("tel:+8336766999") }, onCopy = ::copy)
                     }
-                    SubSection(iconRes = R.drawable.ic_whatsapp, title = "WhatsApp") {
+                    SubSection(
+                        iconRes = R.drawable.ic_whatsapp,
+                        darkIconRes = R.drawable.ic_contacts_whatsapp_dark,
+                        title = "WhatsApp",
+                    ) {
                         ValueRow("+876-566-9339", onOpen = { open("https://wa.me/8765669339") }, onCopy = ::copy)
                     }
-                    SubSection(iconRes = R.drawable.ic_message, title = "Email Address", last = true) {
+                    SubSection(
+                        iconRes = R.drawable.ic_mail,
+                        darkIconRes = R.drawable.ic_contacts_mail_dark,
+                        title = "Email Address",
+                        last = true,
+                    ) {
                         ValueRow(
                             "support@airdropja.com",
                             onOpen = { open("mailto:support@airdropja.com") },
@@ -157,7 +173,12 @@ fun ContactsScreen(
 
                 // ── Component 37: Location ──
                 ContactCard {
-                    SubSection(iconRes = R.drawable.ic_location, title = "Location", last = true) {
+                    SubSection(
+                        iconRes = R.drawable.ic_location,
+                        darkIconRes = R.drawable.ic_contacts_location_dark,
+                        title = "Location",
+                        last = true,
+                    ) {
                         val addresses = listOf(
                             "Unit #1, Toma Place, 9-11 Phoenix Avenue, Kingston 10",
                             "Unit #14, Annex Complex, Fairview Shopping Center, Montego Bay",
@@ -184,7 +205,9 @@ fun ContactsScreen(
                             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         ) {
                             Image(
-                                painter = painterResource(R.drawable.ic_clock),
+                                painter = painterResource(
+                                    if (colors.isDark) R.drawable.ic_contacts_clock_dark else R.drawable.ic_clock
+                                ),
                                 contentDescription = null,
                                 modifier = Modifier.size(24.dp),
                             )
@@ -192,8 +215,8 @@ fun ContactsScreen(
                                 Text("Business Hours", style = AirdropType.title2, color = colors.textDarkTitle)
                                 Text(
                                     text = hoursText,
-                                    style = AirdropType.body2,
-                                    color = colors.textDarkTitle,
+                                    style = AirdropType.subtitle1,
+                                    color = colors.iconSelected,
                                 )
                             }
                         }
@@ -203,12 +226,41 @@ fun ContactsScreen(
 
                 // ── Component 37: Social Media ──
                 ContactCard {
-                    SubSection(iconRes = R.drawable.ic_social_media, title = "Social Media", last = true) {
+                    SubSection(
+                        iconRes = R.drawable.ic_social_media,
+                        darkIconRes = R.drawable.ic_contacts_social_media_dark,
+                        title = "Social Media",
+                        last = true,
+                    ) {
                         val socials = listOf(
-                            SocialEntry(R.drawable.ic_instagram, "Instagram: ", "@airdrop.ja", "https://www.instagram.com/airdrop.ja/"),
-                            SocialEntry(R.drawable.ic_facebook, "Facebook: ", "@airdrop.jamaica", "https://www.facebook.com/airdropja-2235323533226290/"),
-                            SocialEntry(R.drawable.ic_x, "X: ", "@airdropja", "https://twitter.com/airdropja"),
-                            SocialEntry(R.drawable.ic_tic_tok, "Tiktok: ", "@airdropja", "https://www.tiktok.com/@airdropja"),
+                            SocialEntry(
+                                iconRes = R.drawable.ic_instagram,
+                                darkIconRes = R.drawable.ic_contacts_instagram_dark,
+                                title = "Instagram: ",
+                                handle = "@airdrop.ja",
+                                url = "https://www.instagram.com/airdrop.ja/",
+                            ),
+                            SocialEntry(
+                                iconRes = R.drawable.ic_facebook,
+                                darkIconRes = R.drawable.ic_contacts_facebook_dark,
+                                title = "Facebook: ",
+                                handle = "@airdrop.jamaica",
+                                url = "https://www.facebook.com/airdropja-2235323533226290/",
+                            ),
+                            SocialEntry(
+                                iconRes = R.drawable.ic_x,
+                                darkIconRes = R.drawable.ic_contacts_x_dark,
+                                title = "X: ",
+                                handle = "@airdropja",
+                                url = "https://twitter.com/airdropja",
+                            ),
+                            SocialEntry(
+                                iconRes = R.drawable.ic_tic_tok,
+                                darkIconRes = R.drawable.ic_contacts_tic_tok_dark,
+                                title = "Tiktok: ",
+                                handle = "@airdropja",
+                                url = "https://www.tiktok.com/@airdropja",
+                            ),
                         )
                         socials.forEachIndexed { index, social ->
                             SocialRow(entry = social, onOpen = { open(social.url) }, onCopy = ::copy)
@@ -261,6 +313,7 @@ fun ContactsScreen(
 
 private data class SocialEntry(
     val iconRes: Int,
+    val darkIconRes: Int,
     val title: String,
     val handle: String,
     val url: String,
@@ -290,6 +343,7 @@ private fun ContactCard(content: @Composable androidx.compose.foundation.layout.
 @Composable
 private fun SubSection(
     iconRes: Int,
+    darkIconRes: Int,
     title: String,
     last: Boolean = false,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
@@ -302,7 +356,7 @@ private fun SubSection(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Image(
-            painter = painterResource(iconRes),
+            painter = painterResource(if (colors.isDark) darkIconRes else iconRes),
             contentDescription = null,
             modifier = Modifier.size(24.dp),
         )
@@ -340,7 +394,7 @@ private fun CopyButton(value: String, onCopy: (String) -> Unit) {
     )
 }
 
-/** Value row — Figma: SubTitle2 (14/24) dark-title + trailing 24 copy. */
+/** Value row — Swift: subtitle1 value + trailing 24 copy. */
 @Composable
 private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Unit) {
     val colors = AirdropTheme.colors
@@ -351,8 +405,8 @@ private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Un
     ) {
         Text(
             text = text,
-            style = AirdropType.body2,
-            color = colors.textDarkTitle,
+            style = AirdropType.subtitle1,
+            color = colors.iconSelected,
             modifier = Modifier
                 .weight(1f)
                 .then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier),
@@ -361,7 +415,7 @@ private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Un
     }
 }
 
-/** Social row — icon + "Title: @handle" SubTitle2; copy copies the handle. */
+/** Social row — icon + "Title: @handle" subtitle1; copy copies the handle. */
 @Composable
 private fun SocialRow(entry: SocialEntry, onOpen: () -> Unit, onCopy: (String) -> Unit) {
     val colors = AirdropTheme.colors
@@ -378,14 +432,14 @@ private fun SocialRow(entry: SocialEntry, onOpen: () -> Unit, onCopy: (String) -
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(
-                painter = painterResource(entry.iconRes),
+                painter = painterResource(if (colors.isDark) entry.darkIconRes else entry.iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(24.dp),
             )
             Text(
                 text = entry.title + entry.handle,
-                style = AirdropType.body2,
-                color = colors.textDarkTitle,
+                style = AirdropType.subtitle1,
+                color = colors.iconSelected,
             )
         }
         CopyButton(entry.handle, onCopy)

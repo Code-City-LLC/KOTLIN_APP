@@ -35,6 +35,17 @@ specified — apply, build, and verify on the emulator in light AND dark.
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`.
+- **Help dark icons + Swift typography:** Help was compared against Figma node
+  `40001617:20377` and Swift `FigmaContactsViewController.swift`. Android now
+  uses Swift `subtitle1` parity for values/business-hours/social rows, corrects
+  Email from message bubble to the mail envelope, and uses Help-specific dark
+  icon variants so app-dark mode no longer shows dark glyphs on dark cards.
+  Instrumentation verified light/dark screenshots, Live Chat route emission,
+  and copy-toast behavior. Proof:
+  `/tmp/kotlin_ui_proof/help_contacts/android_help_top_light_final.png`,
+  `/tmp/kotlin_ui_proof/help_contacts/android_help_top_dark_final.png`,
+  `/tmp/kotlin_ui_proof/help_contacts/android_help_social_light_final.png`,
+  `/tmp/kotlin_ui_proof/help_contacts/android_help_social_dark_final.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
@@ -45,6 +56,12 @@ specified — apply, build, and verify on the emulator in light AND dark.
 **✅ CLOSED — Home dark icon follow-up:** Services tile gear layer is no longer
 dark-on-dark in app dark mode; the duotone activity icons were compared against
 Swift first and Figma second, then verified on emulator in light and dark.
+
+**✅ CLOSED — Help dark icon / Email glyph follow-up:** Contact, WhatsApp,
+Email, Location, Business Hours, Social Media, and social row icons now render
+with visible secondary strokes in app dark mode. Email uses the Swift/Figma
+envelope glyph. Swift/Figma whole-layout conflicts remain open in
+`docs/FULL_APP_SWIFT_FIGMA_AUDIT.md`.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
