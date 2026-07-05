@@ -130,7 +130,7 @@ fun InviteFriendScreen(
                         if (colors.isDark) {
                             R.drawable.ic_contacts_contact_number_dark
                         } else {
-                            R.drawable.ic_contact_number
+                            R.drawable.ic_contacts_contact_number_light
                         },
                     ),
                     contentDescription = null,

@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Swift FigmaIcon_ChevronDown path M6 9l6 6 6-6, rotated pi/2 left. -->
+    <path
+        android:pathData="M 15,6 L 9,12 L 15,18"
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF292929"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -126,8 +126,9 @@ light AND dark.
   confirmed the documented referral nodes `40001940:26797` and `40001940:26885`
   are Refer-a-Friend landing frames, not the Send Invitation form. Android now
   follows Swift's `contactNumber(primary: orangeMain, secondary: iconSelected)`
-  contract in both app light and app dark by reusing the existing white-handset
-  dark vector when `ThemeController` dark mode is active. Proof:
+  contract in both app light and app dark with explicit app-theme light/dark
+  vectors, so a system-dark emulator cannot turn the app-light handset white.
+  Proof:
   `/tmp/kotlin_ui_proof/invite_friend_icon/figma_referral_40001940_26797.png`,
   `/tmp/kotlin_ui_proof/invite_friend_icon/figma_referral_40001940_26885.png`,
   `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_light.png`,
@@ -347,7 +348,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Authorized Users refresh/list rails, Background Images Swift-precedence picker, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Authorized Users refresh/list rails, Background Images Swift-precedence picker, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
 
 ## [CLOSED] Background Images
 `app/src/main/java/com/ga/airdrop/feature/more/BackgroundImagesScreen.kt` and `BackgroundStore.kt` — previous Android picker followed the Figma-expanded list instead of the Swift app that Kemar designated as the guide.
@@ -432,6 +433,15 @@ regressions passed 18/18 and the full connected staging suite passed 104/104.
 and an `iconSelected` handset. Android already removed the solid-orange tint;
 this pass also switches the handset to the existing white dark vector under
 app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
+
+**✅ CLOSED — More2 shared inner-header back-glyph follow-up:** Swift's
+drill-down controllers render the back affordance with
+`FigmaIcon.chevronDown(size: 24)` rotated `pi / 2`; Figma Promotions node
+`40001646:14035` still shows an `Arrow - Right`-derived left arrow, so Swift
+takes precedence. Android now reuses `More2InnerHeader` with a 24dp
+theme-tinted rotated chevron instead of the stale 20dp tailed arrow, preserving
+the 36dp tap rail. `More2InnerHeaderParityTest` verifies light/dark tint,
+chevron shape, click dispatch, and screenshots.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
@@ -689,7 +699,9 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 **Detail:** Swift (FigmaNotificationSettingsViewController.swift): master row uses FigmaIcon.bell(primary: orangeMain, secondary: iconSelected) and FigmaIcon_Bell paints ALL paths with `secondary` (FigmaIcons.swift lines 634-641), so the master bell renders entirely iconSelected (dark/white) — and it is the plain bell glyph, not a bell-with-sound-waves. Email rows use mail(primary: iconSelected, secondary: orangeMain) — FigmaIcon_Mail paints the flap with primary (dark) and the envelope body with secondary (orange) (FigmaIcons.swift lines 1011-1016). Push rows use bell(primary: iconSelected, secondary: orangeMain) → fully ORANGE bell. Kotlin instead uses: ic_settings_notifications (bell-with-waves, orange accent strokes + duotone body) for the master row; ic_mail whose flap is orange and body duotone (inverted vs Swift); ic_notifications whose every stroke is @color/icon_duotone (no orange at all) for Push. Only the SMS chat icon (orange dots, duotone bubble) matches Swift. Users comparing the two apps see three of the four icon styles wrong in both light and dark mode.
 
-**Fix:** Done. `NotificationSettingsScreen` now uses the plain bell tinted `iconSelected` for the master row, screen-specific mail vectors with `iconSelected` flap + orange body, existing chat light/dark vectors, and the plain bell tinted orange for Push. `NotificationSettingsParityTest` verifies the icon colors in app light and app dark.
+**Fix:** Done. `NotificationSettingsScreen` now uses the plain bell tinted `iconSelected` for the master row, screen-specific mail vectors with `iconSelected` flap + orange body, explicit app-light/app-dark chat vectors, and the plain bell tinted orange for Push. `NotificationSettingsParityTest` verifies the icon colors in app light and app dark, including the system-dark emulator case where `@color/icon_duotone` previously leaked a white SMS bubble into app light mode.
+
+**Verification 2026-07-05:** Direct instrumentation and Gradle targeted reruns passed on the original system-dark emulator. The full connected suite passed 112/112 on a system-dark emulator after this fix. The focused system-light gate for Notification Settings, Invite Friend, and More2 inner header passed 7/7.
 
 ---
 
@@ -698,7 +710,9 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 **Detail:** Earlier Android builds applied `ColorFilter.tint(BrandPalette.OrangeMain)` to `ic_contact_number`, flattening the duotone glyph. Current Android had already removed that tint, so the remaining risk was app-dark mode: `@color/icon_duotone` follows Android resource-night, while this app flips themes through `ThemeController`. Swift uses `FigmaIcon.contactNumber(primary: orangeMain, secondary: iconSelected)` (FigmaInviteFriendViewController.swift lines 364-366), and `FigmaIcon_ContactNumber` paints the waves with primary orange and the handset with secondary iconSelected (FigmaIcons.swift lines 968-973). Figma MCP screenshots for documented nodes `40001940:26797` and `40001940:26885` both render the Refer-a-Friend landing screen, not the Send Invitation form, so Swift is the authoritative form/icon source for this item.
 
-**Fix:** Done. The Contacts row keeps the untinted base vector in light mode and reuses the existing `ic_contacts_contact_number_dark` vector in app-dark mode, preserving orange arcs and switching the handset to Swift `iconSelected` white. `InviteFriendParityScreenshotTest` verifies 59dp row height, 24dp icon size, orange arcs, light dark-handset pixels, dark white-handset pixels, and emits light/dark screenshots.
+**Fix:** Done. The Contacts row uses explicit app-light/app-dark vectors, preserving orange arcs while switching the handset from Swift `iconSelected` dark to Swift `iconSelected` white from `ThemeController`, not Android resource-night. `InviteFriendParityScreenshotTest` verifies 59dp row height, 24dp icon size, orange arcs, light dark-handset pixels, dark white-handset pixels, and emits light/dark screenshots.
+
+**Verification 2026-07-05:** Direct instrumentation and Gradle targeted reruns passed on the original system-dark emulator. The full connected suite passed 112/112 on a system-dark emulator after this fix. The focused system-light gate for Notification Settings, Invite Friend, and More2 inner header passed 7/7.
 
 ---
 

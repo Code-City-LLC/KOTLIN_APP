@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -78,15 +79,20 @@ internal fun More2InnerHeader(
                     .align(Alignment.CenterStart)
                     .padding(start = 12.dp)
                     .size(36.dp)
+                    .testTag("more2-inner-header-back")
                     .clickable(onClick = onBack),
                 contentAlignment = Alignment.Center,
             ) {
-                // Figma renders a left arrow (not a chevron) in the inner header.
+                // Swift's Figma VCs build this from chevronDown rotated left.
+                // Figma's static Promotions node still shows an arrow asset, so
+                // this vector stores the Swift-equivalent final left chevron.
                 Image(
-                    painter = painterResource(R.drawable.ic_arrow),
+                    painter = painterResource(R.drawable.ic_more2_back_chevron),
                     contentDescription = "Back",
                     colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .testTag("more2-inner-header-back-chevron"),
                 )
             }
             Text(

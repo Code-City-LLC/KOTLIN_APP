@@ -353,8 +353,10 @@ assets; only repair the parts that are visibly or functionally wrong.
     secondary: iconSelected)` paints orange signal arcs plus an iconSelected
     handset. Android had already removed the stale solid-orange tint, but
     app-dark mode still needed a ThemeController-aware handset source.
-  - Android now reuses the existing `ic_contacts_contact_number_dark` vector for
-    app-dark mode while preserving the untinted base vector for light mode.
+  - Android now selects explicit app-theme light/dark contact-number vectors
+    instead of relying on Android resource-night resolution. This keeps the
+    Swift `iconSelected` handset dark in app light mode even on a system-dark
+    emulator, and white in app dark mode.
   - `InviteFriendParityScreenshotTest` verifies 59dp row height, 24dp icon size,
     orange arcs, light dark-handset pixels, and dark white-handset pixels.
   - `git diff --check`
@@ -500,6 +502,22 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_search_results_swift_light.png`,
     `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_restricted_detail_from_search_swift_light.png`,
     `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_permitted_detail_swift_dark.png`
+- Android checks run for the More2 shared inner-header back-glyph pass:
+  - Figma MCP design context checked for Promotions node `40001646:14035`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPromotionsViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaShippingRatesViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaAccountDeletionViewController.swift`,
+    and `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaIcons.swift`.
+  - Swift precedence documented: Figma's static Promotions node still renders an
+    `Arrow - Right`-derived left arrow, but the Swift controllers build the
+    runtime back affordance from `FigmaIcon.chevronDown(size: 24)` rotated
+    `pi / 2`; Swift wins.
+  - Android now reuses the existing shared `More2InnerHeader` path and renders a
+    24dp theme-tinted chevron instead of a 20dp tailed arrow, preserving the
+    existing 36dp tap target and `onBack` rail without duplicating headers.
+  - `More2InnerHeaderParityTest` locks light/dark glyph size, chevron shape,
+    active-theme tint, click dispatch, and proof screenshots.
 - Android checks run for the GoldPriority / Customer Tier Swift-precedence pass:
   - Figma MCP design context and screenshot checked for Customer Tier node
     `40001432:23506`.
@@ -1158,6 +1176,53 @@ Findings verified/fixed:
 - `RestrictedItemsParityTest` locks the Swift list/search/detail geometry, route
   behavior, absence of the Figma tab labels, and light/dark proof screenshots.
 
+### More2 Inner Header
+
+Source files:
+- Android: `feature/more2/More2Components.kt`
+- Swift: every More2/drill-down `Figma*ViewController` using
+  `FigmaIcon.chevronDown(size: 24)` rotated `pi / 2`; `FigmaIcons.swift`
+  `FigmaIcon_ChevronDown`
+- Figma: Promotions node `40001646:14035`
+
+Findings verified/fixed:
+- Swift is the precedence source for the shared back affordance. Figma MCP for
+  Promotions still shows a static `Arrow - Right`-derived left arrow, but Swift
+  runtime controllers render a 24pt rotated chevron for the active app.
+- `More2InnerHeader` now uses the existing chevron vector at 24dp, rotated left
+  and tinted through `AirdropTheme.colors.textDarkTitle`, so app dark mode follows
+  the Compose theme instead of resource-night assumptions.
+- `More2InnerHeaderParityTest` verifies the 36dp tap target, 24dp chevron, narrow
+  chevron shape rather than wide tailed arrow, light/dark tint, click dispatch,
+  and screenshots.
+- Full connected-suite parity on `airdrop_test` caught two remaining icon
+  failures after the header fix: Notification Settings SMS and Invite Friend
+  Contacts rendered their `@color/icon_duotone` secondary strokes from Android
+  resource-night while `ThemeController` was set to app light. The repaired
+  rows now use explicit Swift-role light vectors plus their existing dark
+  variants, so Swift/Figma duotone roles are controlled by app theme, not the
+  emulator's system theme.
+- Final verification on 2026-07-05:
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - direct instrumentation on the original failing system-dark emulator:
+    `NotificationSettingsParityTest` + `InviteFriendParityScreenshotTest`:
+    5 tests passed
+  - Gradle targeted on the original failing system-dark emulator:
+    `NotificationSettingsParityTest` + `InviteFriendParityScreenshotTest`:
+    5 tests passed
+  - More2 adjacent sweep on system-dark emulator:
+    `More2InnerHeaderParityTest`, `RestrictedItemsParityTest`,
+    `AuthorizedUsersParityTest`, `InviteFriendParityScreenshotTest`,
+    `LegalContentParityTest`: 16 tests passed
+  - full connected suite on system-dark emulator: 112 tests passed
+  - system-light focused gate after switching the remaining emulator back to
+    light: `NotificationSettingsParityTest`, `InviteFriendParityScreenshotTest`,
+    `More2InnerHeaderParityTest`: 7 tests passed
+  - isolated Home auction highlight test passed after an interrupted full
+    system-light rerun stalled in runner state; no Home assertion regression was
+    reproduced.
+
 ### Dark Theme Icons
 
 Source files:
@@ -1171,6 +1236,10 @@ Findings to verify/fix:
 - Notification Settings icon variants are closed with Swift-precedence proof.
   The stale Figma node mapping remains open as documentation debt only: node
   `40001587:18074` resolves to Home, not Notification Settings.
+- Notification Settings SMS and Invite Friend Contacts now have explicit
+  app-light resources (`ic_contacts_chat_light`,
+  `ic_contacts_contact_number_light`) paired with app-dark resources, preventing
+  resource-night leakage in app light mode.
 - New icons added after the earlier dark pass must be audited for
   `@color/icon_duotone` or explicit Swift-matching orange/dark role colors.
 
@@ -1180,7 +1249,8 @@ Findings to verify/fix:
 - Codex/MagentaCastle is working through More/Legal/Profile/AirCoins/HomeDetails and narrow
   Shipments parity slices. More root tap rails, Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
-  avatar/DOB, Preferences select fields, Invite Friend contacts icon, Restricted
+  avatar/DOB, Preferences select fields, Invite Friend contacts icon, More2
+  shared inner header, Restricted
   Items search/list/detail icons and notes, Legal live CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
   balance/history, GoldPriority tier-name/status-bar, PackageDetails
   Swift-precedence screen pass, Home chrome opacity, Home route callbacks, and
