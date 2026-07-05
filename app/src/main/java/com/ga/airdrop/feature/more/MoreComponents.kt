@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -30,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.ga.airdrop.R
@@ -240,6 +240,7 @@ fun MoreSelectField(
     required: Boolean = false,
     enabled: Boolean = true,
     trailingIconRes: Int? = R.drawable.ic_small_arrow_down,
+    testTagPrefix: String? = null,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -258,10 +259,11 @@ fun MoreSelectField(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 52.dp)
+                .height(52.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(colors.gray100)
                 .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
+                .then(testTagPrefix?.let { Modifier.testTag("$it-card") } ?: Modifier)
                 .then(
                     if (onClick != null && enabled) Modifier.clickable(onClick = onClick)
                     else Modifier,
@@ -287,7 +289,9 @@ fun MoreSelectField(
                     painter = painterResource(trailingIconRes),
                     contentDescription = null,
                     colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier
+                        .size(12.dp)
+                        .then(testTagPrefix?.let { Modifier.testTag("$it-chevron") } ?: Modifier),
                 )
             }
         }

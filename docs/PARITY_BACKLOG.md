@@ -10,7 +10,7 @@ specified — apply, build, and verify on the emulator in light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 @ HEAD `a1768d2` — BlueDeer)
 
-> The list below was catalogued at `08e36e2`. Since then **12 items are FIXED, on-device verified, and pushed.** Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **13 items are FIXED, on-device verified, and pushed.** Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -83,10 +83,20 @@ specified — apply, build, and verify on the emulator in light AND dark.
   avatar conflict because Figma still shows the older 107px avatar; Android now
   locks Swift's 88dp wrap / 80dp gray300 circle / 24dp edit badge geometry, uses
   Swift orange for the edit glyph in dark mode, and rejects future DOB dates.
+- **Preferences select fields:** Preferences was compared against Figma node
+  `40000994:19044` and Swift `FigmaPreferencesViewController.swift`. Android
+  now matches Swift `SelectableRow` geometry: subtitle2 labels, gray100 editable
+  cards, gray300 disabled email card, 12dp radius, exact 52dp card height, and
+  12dp textDarkTitle chevrons. Figma shows required asterisks on all labels, but
+  Swift does not render them, so Android keeps no asterisks by Swift precedence.
+  Proof:
+  `/tmp/kotlin_ui_proof/preferences_swift_field/figma_preferences_40000994_19044.png`,
+  `/tmp/kotlin_ui_proof/preferences_swift_field/android_preferences_select_field_swift_light.png`,
+  `/tmp/kotlin_ui_proof/preferences_swift_field/android_preferences_select_field_swift_dark.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs. Documents §216/§225, Documents refresh/reload, and Profile avatar/DOB are closed by Swift-precedence proof above.
+**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs. Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, and Preferences §243 are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -118,6 +128,13 @@ default label for other shared More alerts.
 `viewDidAppear` and attaches an orange refresh control. Android now reloads on
 lifecycle resume and pull-to-refresh through the same repository-backed
 DocumentsViewModel path.
+
+**✅ CLOSED — Preferences select-field follow-up:** Swift's
+`FigmaPreferencesViewController.SelectableRow` is the source of truth for the
+field shape and no-required-star behavior. Figma node `40000994:19044` still
+shows red asterisks, but Swift does not render them, so Android keeps them off.
+`PreferencesParityScreenshotTest` verifies light/dark geometry and row clicks.
+Proof lives under `/tmp/kotlin_ui_proof/preferences_swift_field/`.
 
 **✅ CLOSED — Profile avatar + DOB follow-up:** Swift's
 `FigmaProfileViewController.swift` wins over the older Figma avatar node. Android
@@ -363,12 +380,12 @@ glyph orange for dark-mode visibility, and rejects future DOB dates like Swift's
 
 ---
 
-## [MEDIUM] Preferences
+## [CLOSED] Preferences
 `app/src/main/java/com/ga/airdrop/feature/more/MoreComponents.kt:248` — MoreSelectField styling drifts from Swift's SelectableRow: label 16sp vs 14pt, box gray150 vs gray100, radius 10 vs 12, min-height 50 vs 52, chevron 24dp vs 12pt.
 
-**Detail:** Swift SelectableRow (FigmaPreferencesViewController.swift): titleLabel.font = Typography.subtitle2() (14pt SemiBold, line 478); editable card backgroundColor = gray100 with cornerRadius 12 (lines 483-484); card.heightAnchor >= 52 (line 512); trailing chevron is a 12x12 FigmaIcon.chevronDown tinted textDarkTitle (lines 520-521, 542-544); disabled value text uses textPlaceholder (line 537). Kotlin MoreSelectField uses AirdropType.subtitle1 (16sp) for the label (line 248), gray150 background with Radius.xs=10 (lines 258-260), defaultMinSize 50dp (line 257), a 24dp ic_small_arrow_down tinted iconSelected (lines 281-287), and textDescription for disabled values (line 274). Each drift is small but together the field block reads noticeably different from iOS, especially the oversized chevron and heavier label.
+**Detail:** Swift SelectableRow (FigmaPreferencesViewController.swift): titleLabel.font = Typography.subtitle2() (14pt SemiBold, line 478); editable card backgroundColor = gray100 with cornerRadius 12 (lines 483-484); disabled card backgroundColor = gray300 and value text uses textPlaceholder (lines 535-537); card.heightAnchor >= 52 (line 512); trailing chevron is a 12x12 FigmaIcon.chevronDown tinted textDarkTitle (lines 520-521, 542-544). Current Kotlin MoreSelectField already used AirdropType.subtitle2, colors.gray100, RoundedCornerShape(12.dp), a 12.dp chevron tinted colors.textDarkTitle, and colors.textPlaceholder for disabled values, but rendered proof showed the `defaultMinSize(52.dp)` row expanded to ~54.5dp from Compose text/padding. Figma Preferences node `40000994:19044` shows required asterisks on each label, but Swift's titleStack only adds titleLabel and no asterisk label; Swift takes precedence.
 
-**Fix:** In MoreSelectField: change the label style to AirdropType.subtitle2, use colors.gray100 for the enabled background, RoundedCornerShape(12.dp), minHeight 52.dp, shrink the trailing chevron to 12.dp tinted colors.textDarkTitle, and use colors.textPlaceholder for the disabled value color.
+**Fix:** Done. The stale backlog text described an older Kotlin implementation for most values. The real rendered drift was field height, so `MoreSelectField` now uses an exact 52.dp card height and exposes optional test tags for proof. `PreferencesParityScreenshotTest` verifies 335dp field width, 52dp field height, 12dp chevrons, no email chevron, no required asterisks by Swift precedence, and selectable-row click dispatch in light and dark.
 
 ---
 

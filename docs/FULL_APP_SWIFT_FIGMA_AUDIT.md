@@ -189,6 +189,31 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/profile_swift_geometry/figma_profile_40007189_63763.png`,
     `/tmp/kotlin_ui_proof/profile_swift_geometry/android_profile_avatar_swift_geometry_light.png`,
     `/tmp/kotlin_ui_proof/profile_swift_geometry/android_profile_avatar_swift_geometry_dark.png`
+- Android checks run for the Preferences select-field Swift-precedence pass:
+  - Figma MCP screenshot for Preferences node `40000994:19044`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPreferencesViewController.swift`.
+  - Swift/Figma conflict documented: Figma shows red required asterisks on all
+    three labels, but Swift `SelectableRow` only adds `titleLabel` to the
+    `titleStack` and never renders an asterisk; Swift wins, so Android keeps
+    Preferences labels unstarred.
+  - Rendered proof caught the real Android drift: `defaultMinSize(52.dp)`
+    allowed the field card to expand to about 54.5dp. Android now uses an exact
+    52dp card height to match the Swift row.
+  - `PreferencesParityScreenshotTest` verifies 335dp fields, 52dp card heights,
+    12dp chevrons, no email chevron, no required asterisks, and row click
+    dispatch in light and dark.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `PreferencesParityScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 3 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.more.PreferencesParityScreenshotTest ...`:
+    `OK (3 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/preferences_swift_field/figma_preferences_40000994_19044.png`,
+    `/tmp/kotlin_ui_proof/preferences_swift_field/android_preferences_select_field_swift_light.png`,
+    `/tmp/kotlin_ui_proof/preferences_swift_field/android_preferences_select_field_swift_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -320,6 +345,12 @@ assets; only repair the parts that are visibly or functionally wrong.
   and `44`dp placeholder. The edit badge glyph is orangeMain so it stays visible
   in dark mode. The DOB picker rejects future dates/years like Swift's
   `maximumDate`.
+- Preferences select fields now have Swift-precedence proof. Android matches
+  Swift `SelectableRow` geometry: `subtitle2` label, `gray100` editable field,
+  `gray300` disabled email field, `12` radius, exact `52` card height, and `12`
+  chevron tinted `textDarkTitle`. Figma node `40000994:19044` shows required
+  asterisks, but Swift does not render them, so Android keeps Preferences rows
+  unstarred and documents the conflict.
 
 ## Reopened Defects From User Review
 
