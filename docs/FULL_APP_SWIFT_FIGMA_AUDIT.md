@@ -1616,7 +1616,24 @@ Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented he
 
 **Swift-source-exact fixes proven (`34e9620`, adversarial audit + verify):** Home header icon spacing (14→20, 16→19dp), tier lineHeight (22→24); PackageDetails hero 262→240dp, CIF row 59→48dp, CIF icon 24→20dp, divider `#D9D9D9`→`gray300 #EBEBEB`; ShipmentsUi package-status always Completed-green (Swift :556), Order value `$`→`USD`, TotalChargesBox radius 15→10, borders→gray300, empty-label body2→body1; ProductPaymentDetails summary titles subtitle1→title2; InvoiceViewer Share button gradient→flat OrangeMain, height 50→52, 5 state labels body2→body1. + `6a21713` §108/§153/§99 (MagentaCastle verifier-accepted on device).
 
-**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620`. CRITICAL payment bugs remain ON HOLD for Kemar.
+**34e9620 deep-screen render proof closed (`e37c207` audit refresh):** The
+remaining render-proof line was rechecked Swift-first and Figma-second. Swift
+sources compared: `FigmaPackageDetailsViewController.swift`,
+`FigmaPaymentPackageDetailsViewController.swift`,
+`FigmaProductPaymentDetailsViewController.swift`,
+`FigmaOrderDetailsViewController.swift`,
+`FigmaInvoiceViewerScreenViewController.swift`, and `FigmaTabHeader.swift`.
+Figma MCP screenshots refreshed: Package Details
+`/tmp/kotlin_ui_proof/deep_screen_34e9620/figma/figma_package_details_40001753_15716.png`,
+Product Payment Details
+`/tmp/kotlin_ui_proof/deep_screen_34e9620/figma/figma_product_payment_details_40004950_25064.png`,
+and Order Details
+`/tmp/kotlin_ui_proof/deep_screen_34e9620/figma/figma_order_details_40001761_28814.png`.
+Device proof on `airdrop_test2(AVD) - 15`: `PackageDetailsParityTest` 3/3,
+`PaymentPackageDetailsParityTest` 4/4, `ProductOrderDetailsParityTest` 4/4,
+`InvoiceViewerParityTest` 8/8, and `HomeChromeOpacityParityTest` 2/2. No
+remaining device-proof gap for `34e9620`; CRITICAL payment bugs remain ON HOLD
+for Kemar.
 
 **InvoiceViewer 403 stale-risk repair (`83ae744`):** Rechecked Swift
 `FigmaInvoiceViewerScreenViewController.swift`; Swift downloads the invoice to
