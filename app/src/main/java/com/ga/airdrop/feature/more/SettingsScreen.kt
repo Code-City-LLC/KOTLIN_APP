@@ -3,7 +3,6 @@ package com.ga.airdrop.feature.more
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,6 +40,16 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.designsystem.theme.Spacing
+
+internal object SettingsTags {
+    const val CACHE = "settings-cache"
+    const val NOTIFICATIONS = "settings-notifications"
+    const val BACKGROUNDS = "settings-backgrounds"
+    const val MODE = "settings-mode"
+    const val MODE_TOGGLE = "settings-mode-toggle"
+    const val ACCOUNT_DELETION = "settings-account-deletion"
+    const val CACHE_SHEET = "settings-cache-sheet"
+}
 
 /**
  * Settings — Figma node 40007388:24260, behavior from
@@ -79,6 +89,7 @@ fun SettingsScreen(
                         colorFilter = ColorFilter.tint(colors.textDarkTitle),
                         modifier = Modifier
                             .size(24.dp)
+                            .testTag(SettingsTags.CACHE)
                             .clickable { viewModel.clearCache(context) },
                     )
                 },
@@ -88,21 +99,27 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 MoreRowCard(
                     iconRes = R.drawable.ic_settings_notifications,
                     title = "Notification Settings",
+                    tint = colors.iconSelected,
                     onClick = { onNavigate(Routes.NOTIFICATION_SETTINGS) },
+                    testTagPrefix = SettingsTags.NOTIFICATIONS,
                 )
+                Spacer(Modifier.height(14.dp))
                 MoreRowCard(
                     iconRes = R.drawable.ic_background,
                     title = "Background Images",
+                    tint = colors.iconSelected,
                     onClick = { onNavigate(Routes.BACKGROUNDS) },
+                    testTagPrefix = SettingsTags.BACKGROUNDS,
                 )
+                Spacer(Modifier.height(14.dp))
                 MoreRowCard(
                     iconRes = R.drawable.ic_color_theme,
                     title = "Mode",
+                    tint = colors.iconSelected,
                     // Swift flips the theme when the whole row is tapped.
                     onClick = {
                         com.ga.airdrop.core.designsystem.theme.ThemeController.set(
@@ -113,16 +130,18 @@ fun SettingsScreen(
                             }
                         )
                     },
-                    trailing = { ThemeToggle() },
+                    trailing = { ThemeToggle(Modifier.testTag(SettingsTags.MODE_TOGGLE)) },
+                    testTagPrefix = SettingsTags.MODE,
                 )
-                // Swift places Account Deletion 36pt directly below the Mode
-                // row (not pinned to the screen bottom).
-                Spacer(Modifier.height(26.dp))
+                // Swift uses stack.spacing = 14 and setCustomSpacing(36)
+                // after Mode; account deletion is not pinned to the bottom.
+                Spacer(Modifier.height(36.dp))
                 MoreRowCard(
                     iconRes = R.drawable.ic_trash,
                     title = "Account Deletion",
                     tint = AlertPalette.Error,
                     onClick = { onNavigate(Routes.ACCOUNT_DELETION) },
+                    testTagPrefix = SettingsTags.ACCOUNT_DELETION,
                 )
                 Spacer(Modifier.weight(1f))
             }
@@ -176,6 +195,7 @@ private fun CacheClearedSheet(
         Column(
             Modifier
                 .fillMaxWidth()
+                .testTag(SettingsTags.CACHE_SHEET)
                 .padding(bottom = Spacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

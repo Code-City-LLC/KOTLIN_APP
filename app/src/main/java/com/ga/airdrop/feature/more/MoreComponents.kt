@@ -121,6 +121,7 @@ fun MoreRowCard(
     modifier: Modifier = Modifier,
     tint: Color? = null,
     trailing: (@Composable () -> Unit)? = null,
+    testTagPrefix: String? = null,
 ) {
     val colors = AirdropTheme.colors
     Row(
@@ -130,6 +131,7 @@ fun MoreRowCard(
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .then(testTagPrefix?.let { Modifier.testTag("$it-row") } ?: Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -144,7 +146,9 @@ fun MoreRowCard(
                 painter = painterResource(iconRes),
                 contentDescription = null,
                 colorFilter = tint?.let { ColorFilter.tint(it) },
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier
+                    .size(24.dp)
+                    .then(testTagPrefix?.let { Modifier.testTag("$it-icon") } ?: Modifier),
             )
             Text(
                 text = title,
