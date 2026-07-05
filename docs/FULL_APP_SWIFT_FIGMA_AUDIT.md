@@ -530,6 +530,25 @@ assets; only repair the parts that are visibly or functionally wrong.
     existing 36dp tap target and `onBack` rail without duplicating headers.
   - `More2InnerHeaderParityTest` locks light/dark glyph size, chevron shape,
     active-theme tint, click dispatch, and proof screenshots.
+- Android checks run for the Shipping Rates Swift/Figma proof pass:
+  - Figma MCP design context checked for node `40001567:54206`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaShippingRatesViewController.swift`.
+  - Swift precedence documented: the static Figma node still shows translucent
+    header/footer chrome, pale table label rows, a static `0.5` / `$4.50`
+    first-row table, and `$2.00` fuel copy. Swift's executable controller uses
+    solid `gray100` chrome, orange table headers, backend-first rates, the
+    runtime fallback table starting at `1` / `$5.00`, and a pinned solid-orange
+    `Calculate Now` rail. Android already followed Swift visually; this pass
+    added non-visual test tags and focused proof rather than changing the UI.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `ShippingRatesParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed on
+    `airdrop_test2(AVD) - 15`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/shipping_rates/android/shipping_rates/shipping_rates_swift_fallback_light.png`,
+    `/tmp/kotlin_ui_proof/shipping_rates/android/shipping_rates/shipping_rates_live_dark.png`
 - Android checks run for the GoldPriority / Customer Tier Swift-precedence pass:
   - Figma MCP design context and screenshot checked for Customer Tier node
     `40001432:23506`.
@@ -1370,7 +1389,7 @@ For each page, fill this before claiming completion:
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data | partial | partial | partial | Codex | More root profile/menu/header tap rails, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates` | partial | partial | partial | Codex | More root profile/menu/header tap rails, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
 
 ---

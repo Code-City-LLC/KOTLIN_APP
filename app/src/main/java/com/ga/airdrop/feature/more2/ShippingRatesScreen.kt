@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -59,6 +60,7 @@ fun ShippingRatesScreen(
     Column(
         Modifier
             .fillMaxSize()
+            .testTag("shipping-rates-root")
             .background(colors.gray100)
     ) {
         More2InnerHeader(title = "Shipping Rates", onBack = onBack)
@@ -72,6 +74,7 @@ fun ShippingRatesScreen(
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
+                        .testTag("shipping-rates-scroll")
                         .padding(Spacing.md),
                     verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
@@ -79,6 +82,7 @@ fun ShippingRatesScreen(
                         text = "AirDrop Standard Rates",
                         style = AirdropType.subtitle1,
                         color = colors.textDarkTitle,
+                        modifier = Modifier.testTag("shipping-rates-standard-title"),
                     )
                     StandardRatesTable(
                         rows = rates?.airdropStandard?.rates
@@ -99,6 +103,7 @@ fun ShippingRatesScreen(
                             "${currency(rates?.additionalFees?.fuelSurcharge ?: 1.5)} " +
                             "applicable to each package.",
                         footer = "Note — Rates are subject to change without prior notice.",
+                        tag = "shipping-rates-estimate-card",
                     )
                     InfoSection(
                         title = "Other Fees",
@@ -110,6 +115,7 @@ fun ShippingRatesScreen(
                             "actual weight, then the dimensional weight may be used to determine " +
                             "the package’s charges.",
                         footer = null,
+                        tag = "shipping-rates-other-fees-card",
                     )
                     InfoSection(
                         title = "Customs Fees",
@@ -121,6 +127,7 @@ fun ShippingRatesScreen(
                             "including applicable duties, taxes, and import requirements for " +
                             "goods shipped to Jamaica.",
                         footer = null,
+                        tag = "shipping-rates-customs-card",
                     )
                 }
             }
@@ -132,6 +139,7 @@ fun ShippingRatesScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
+                    .testTag("shipping-rates-calculate")
                     .clip(RoundedCornerShape(Radius.xs))
                     .background(BrandPalette.OrangeMain)
                     .clickable { onNavigate(Routes.CALCULATOR) },
@@ -148,16 +156,22 @@ private fun formatWeight(value: Double): String =
 
 @Composable
 private fun StandardRatesTable(rows: List<Pair<String, Double>>, overTwentyRate: Double) {
-    More2OuterCard {
+    More2OuterCard(Modifier.testTag("shipping-rates-standard-card")) {
         TableHeader(left = "Package Weight (LBS)", right = "Rates (USD)")
         rows.forEachIndexed { index, (weight, rate) ->
-            TableRow(left = weight, right = currency(rate), alt = index % 2 == 1)
+            TableRow(
+                left = weight,
+                right = currency(rate),
+                alt = index % 2 == 1,
+                tag = "shipping-rates-standard-row-$index",
+            )
         }
         TableRow(
             left = "21 & Up",
             right = "${currency(overTwentyRate)} each additional lbs.",
             alt = rows.size % 2 == 0,
             isLast = true,
+            tag = "shipping-rates-standard-row-over-20",
         )
     }
 }
@@ -165,7 +179,7 @@ private fun StandardRatesTable(rows: List<Pair<String, Double>>, overTwentyRate:
 @Composable
 private fun InOutFeeCard() {
     val colors = AirdropTheme.colors
-    More2OuterCard {
+    More2OuterCard(Modifier.testTag("shipping-rates-inout-card")) {
         Column(Modifier.padding(16.dp)) {
             Text("In & Out Fee", style = AirdropType.subtitle1, color = colors.textDarkTitle)
             Spacer(Modifier.height(6.dp))
@@ -181,22 +195,39 @@ private fun InOutFeeCard() {
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .testTag("shipping-rates-inout-table")
                     .clip(RoundedCornerShape(12.dp))
                     .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
             ) {
                 TableHeader(left = "Packages", right = "Rates (USD)")
-                TableRow(left = "First Pound", right = currency(5.0), alt = false)
-                TableRow(left = "Additional", right = "${currency(0.5)} per pound", alt = true)
-                TableRow(left = "100 lbs. or more", right = currency(50.0), alt = false, isLast = true)
+                TableRow(
+                    left = "First Pound",
+                    right = currency(5.0),
+                    alt = false,
+                    tag = "shipping-rates-inout-row-first",
+                )
+                TableRow(
+                    left = "Additional",
+                    right = "${currency(0.5)} per pound",
+                    alt = true,
+                    tag = "shipping-rates-inout-row-additional",
+                )
+                TableRow(
+                    left = "100 lbs. or more",
+                    right = currency(50.0),
+                    alt = false,
+                    isLast = true,
+                    tag = "shipping-rates-inout-row-100",
+                )
             }
         }
     }
 }
 
 @Composable
-private fun InfoSection(title: String, body: String, footer: String?) {
+private fun InfoSection(title: String, body: String, footer: String?, tag: String) {
     val colors = AirdropTheme.colors
-    More2OuterCard {
+    More2OuterCard(Modifier.testTag(tag)) {
         Column(
             Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -231,13 +262,20 @@ private fun TableHeader(left: String, right: String) {
 }
 
 @Composable
-private fun TableRow(left: String, right: String, alt: Boolean, isLast: Boolean = false) {
+private fun TableRow(
+    left: String,
+    right: String,
+    alt: Boolean,
+    isLast: Boolean = false,
+    tag: String? = null,
+) {
     val colors = AirdropTheme.colors
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(44.dp)
+                .then(if (tag != null) Modifier.testTag(tag) else Modifier)
                 .background(if (alt) colors.gray200 else colors.gray100)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,

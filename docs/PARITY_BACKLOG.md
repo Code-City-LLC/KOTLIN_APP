@@ -476,6 +476,18 @@ theme-tinted rotated chevron instead of the stale 20dp tailed arrow, preserving
 the 36dp tap rail. `More2InnerHeaderParityTest` verifies light/dark tint,
 chevron shape, click dispatch, and screenshots.
 
+**✅ CLOSED — Shipping Rates Swift/Figma proof follow-up:** Swift's
+`FigmaShippingRatesViewController.swift` is the runtime source of truth for
+node `40001567:54206`. Figma still shows translucent chrome, pale table-label
+rows, a static `0.5` / `$4.50` first row, and `$2.00` fuel copy, while Swift
+uses solid `gray100` chrome, orange table headers, backend-first rates, the
+runtime fallback table starting at `1` / `$5.00`, and a pinned solid-orange
+`Calculate Now` rail. Android already matched Swift visually; this pass added
+only non-visual proof tags plus `ShippingRatesParityTest`. The test verifies
+fallback vs backend rows, dark rendering, 20dp gutters, 44dp rows, 52dp CTA,
+back rail, and calculator route. Proof lives under
+`/tmp/kotlin_ui_proof/shipping_rates/android/shipping_rates/`.
+
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
 ---
