@@ -138,6 +138,7 @@ fun DocumentsScreen(
         MoreAlertDialog(
             title = slot.title,
             message = slot.detailDescription,
+            confirmLabel = "Got it",
             onDismiss = { infoSlot = null },
         )
     }

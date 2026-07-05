@@ -299,6 +299,7 @@ fun MoreSelectField(
 fun MoreAlertDialog(
     title: String,
     message: String,
+    confirmLabel: String = "OK",
     onDismiss: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
@@ -309,7 +310,7 @@ fun MoreAlertDialog(
         text = { Text(message, style = AirdropType.body2, color = colors.textDescription) },
         confirmButton = {
             Text(
-                text = "OK",
+                text = confirmLabel,
                 style = AirdropType.button,
                 color = colors.textDarkTitle,
                 modifier = Modifier

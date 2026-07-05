@@ -67,6 +67,11 @@ specified — apply, build, and verify on the emulator in light AND dark.
   `/tmp/kotlin_ui_proof/documents_swift_geometry/figma_documents_light.png`,
   `/tmp/kotlin_ui_proof/documents_swift_geometry/android_documents_card_swift_geometry_light.png`,
   `/tmp/kotlin_ui_proof/documents_swift_geometry/android_documents_card_swift_geometry_dark.png`.
+- **Documents info alert label:** Documents info was compared against Swift
+  `FigmaDocumentsViewController.swift`; Swift uses `Got it`, and Android now
+  passes that label only for the Documents info alert. `MoreAlertDialog` keeps
+  default `OK` behavior for other callers. Verified by
+  `DocumentsScreenScreenshotTest` click coverage.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
@@ -92,6 +97,10 @@ second. Android already matched, so only regression tags/assertions were added.
 `FigmaDocumentsViewController.swift` wins over the older Figma edge-to-edge
 footer. Android now uses the inset Swift action row and uploaded-file geometry,
 with light/dark instrumentation proof.
+
+**✅ CLOSED — Documents info alert label follow-up:** Swift's Documents info
+alert uses `Got it`; Android now matches that one alert without changing the
+default label for other shared More alerts.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
@@ -529,12 +538,12 @@ with light/dark instrumentation proof.
 
 ---
 
-## [LOW] Documents
+## [CLOSED] Documents
 `app/src/main/java/com/ga/airdrop/feature/more/DocumentsScreen.kt:135` — Info dialog confirm button says 'OK'; Swift uses 'Got it' for the document info alert.
 
 **Detail:** FigmaDocumentsViewController.onInfoTapped (FigmaDocumentsViewController.swift:550-555) adds UIAlertAction(title: "Got it"). Kotlin reuses MoreAlertDialog whose confirm label is hard-coded 'OK'.
 
-**Fix:** Add a confirmLabel parameter (default "OK") to MoreAlertDialog and pass "Got it" for the info dialog.
+**Fix:** Done. `MoreAlertDialog` has a `confirmLabel` parameter defaulting to `OK`, and Documents info passes `Got it`. `DocumentsScreenScreenshotTest` verifies the real Documents info click path shows `Got it` and no `OK`.
 
 ---
 

@@ -6,10 +6,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -56,6 +61,22 @@ class DocumentsScreenScreenshotTest {
 
         assertUploadedFileAndActionsGeometry()
         saveRootScreenshot("documents_card_swift_geometry_dark.png")
+    }
+
+    @Test
+    fun documentsInfoDialogUsesSwiftConfirmLabel() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropTheme {
+                DocumentsScreen(onBack = {}, onNavigate = {})
+            }
+        }
+        compose.onNodeWithContentDescription("AirDrop Contract info").performClick()
+
+        compose.onNodeWithText("Got it").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithText("OK").fetchSemanticsNodes().size)
     }
 
     private fun setDocumentCard(

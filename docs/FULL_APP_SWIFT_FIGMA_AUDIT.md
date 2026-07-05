@@ -139,6 +139,19 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/documents_swift_geometry/figma_documents_light.png`,
     `/tmp/kotlin_ui_proof/documents_swift_geometry/android_documents_card_swift_geometry_light.png`,
     `/tmp/kotlin_ui_proof/documents_swift_geometry/android_documents_card_swift_geometry_dark.png`
+- Android checks run for the Documents info-alert Swift label pass:
+  - Figma MCP design context for Documents node `40000975:7748`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaDocumentsViewController.swift`.
+  - Swift `onInfoTapped` uses `UIAlertAction(title: "Got it")`; Android now
+    passes `confirmLabel = "Got it"` only for the Documents info alert while the
+    shared More alert keeps its default `OK` label.
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `DocumentsScreenScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.more.DocumentsScreenScreenshotTest ...`:
+    `OK (4 tests)`
 
 ## Latest Device/Figma Findings
 
@@ -257,6 +270,9 @@ assets; only repair the parts that are visibly or functionally wrong.
 - The Figma Documents node `40000975:7748` still shows the older edge-to-edge
   footer. Keep that conflict documented; future edits must not revert Android
   from the Swift implementation back to the stale Figma footer.
+- Documents info alert now follows Swift behavior: the button says `Got it`.
+  Other More alerts still use the shared default `OK` unless their Swift source
+  requires a different label.
 
 ## Reopened Defects From User Review
 
