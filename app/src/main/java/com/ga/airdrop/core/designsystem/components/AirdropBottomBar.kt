@@ -61,8 +61,11 @@ fun AirdropBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            // Swift: opaque gray200 surface — never a transparent wash.
-            .background(colors.gray200)
+            // ⚠️ LOCKED per Kemar (2026-07-05): the tab bar is TRANSLUCENT, NOT
+            // opaque. Figma tab chrome = backdrop-blur + gradiant/black/70
+            // (rgba(41,41,41,0.7)); the Swift opaque gray200 overlay was an author
+            // deviation. DO NOT revert to a solid gray200 background.
+            .background(colors.gray200.copy(alpha = 0.70f))
     ) {
         Box(
             Modifier
