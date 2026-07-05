@@ -32,6 +32,9 @@ interface CalculatorRepository {
         invoiceAmount: Double,
         weightLbs: Double?,
         numberOfPackages: Int = 1,
+        lengthInches: Double? = null,
+        widthInches: Double? = null,
+        heightInches: Double? = null,
     ): ShipmentCalculation
 
     /** GET /products?search=… — Swift `AirdropAPI.searchProducts` (RN parity). */
@@ -77,6 +80,9 @@ class RemoteCalculatorRepository(
         invoiceAmount: Double,
         weightLbs: Double?,
         numberOfPackages: Int,
+        lengthInches: Double?,
+        widthInches: Double?,
+        heightInches: Double?,
     ): ShipmentCalculation = withContext(Dispatchers.IO) {
         val body = json.encodeToString(
             ShipmentCalculationRequest.serializer(),
@@ -85,6 +91,9 @@ class RemoteCalculatorRepository(
                 number_of_packages = maxOf(1, numberOfPackages),
                 invoice_amount = invoiceAmount,
                 weight_lbs = weightLbs,
+                package_length = lengthInches,
+                package_width = widthInches,
+                package_height = heightInches,
             ),
         )
         val request = Request.Builder()

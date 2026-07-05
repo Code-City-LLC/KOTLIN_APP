@@ -186,6 +186,9 @@ class CalculatorEntryParityTest {
             invoiceAmount: Double,
             weightLbs: Double?,
             numberOfPackages: Int,
+            lengthInches: Double?,
+            widthInches: Double?,
+            heightInches: Double?,
         ): ShipmentCalculation =
             throw AssertionError("Unused in CalculatorEntryParityTest")
 

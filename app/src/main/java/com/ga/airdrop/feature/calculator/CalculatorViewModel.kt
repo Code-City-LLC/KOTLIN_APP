@@ -35,16 +35,7 @@ data class CalculatorUiState(
     val alert: CalcAlert? = null,
     /** One-shot: set when a calculation is ready for the results screen. */
     val navigateToResults: Boolean = false,
-) {
-    /** RN standard flow: read-only Total Weight = actual weight × packages. */
-    val totalWeightText: String
-        get() {
-            val weight = actualWeight.replace(',', '.').toDoubleOrNull() ?: return ""
-            val count = packages.toIntOrNull() ?: return ""
-            if (weight <= 0 || count <= 0) return ""
-            return String.format(java.util.Locale.US, "%.2f", weight * count)
-        }
-}
+)
 
 /**
  * Shared across the calculator nav graph (form → results → government
@@ -152,6 +143,7 @@ class CalculatorViewModel(
 
             ShippingMethod.SEADROP, ShippingMethod.EXPRESS -> {
                 _state.update { it.copy(calculating = true) }
+                val dimensions = parseDimensions(form)
                 viewModelScope.launch {
                     runCatching {
                         repository.calculateShipment(
@@ -159,6 +151,9 @@ class CalculatorViewModel(
                             invoiceAmount = invoice,
                             weightLbs = weightLbs,
                             numberOfPackages = packageCount,
+                            lengthInches = dimensions.first,
+                            widthInches = dimensions.second,
+                            heightInches = dimensions.third,
                         )
                     }.onSuccess { live ->
                         _state.update { it.copy(calculating = false) }
@@ -181,6 +176,14 @@ class CalculatorViewModel(
                 }
             }
         }
+    }
+
+    private fun parseDimensions(form: CalculatorUiState): Triple<Double?, Double?, Double?> {
+        val factor = if (form.lengthUnit == LengthUnit.FT) 12.0 else 1.0
+        val length = form.length.replace(',', '.').toDoubleOrNull()?.times(factor)
+        val width = form.width.replace(',', '.').toDoubleOrNull()?.times(factor)
+        val height = form.height.replace(',', '.').toDoubleOrNull()?.times(factor)
+        return Triple(length, width, height)
     }
 
     private fun publishResult(
