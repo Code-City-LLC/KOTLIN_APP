@@ -6,6 +6,28 @@ Kotlin vs Swift `Figma*ViewController`s vs Figma file N4k6jzpeLZgeRS5O1xfyIv),
 the 54 below remain. Each entry carries the exact fix the verifying agent
 specified — apply, build, and verify on the emulator in light AND dark.
 
+---
+
+## STATUS LEDGER (updated 2026-07-05 @ HEAD `a1768d2` — BlueDeer)
+
+> The list below was catalogued at `08e36e2`. Since then **12 items are FIXED, on-device verified, and pushed.** Do not redo them.
+
+**✅ DONE (pushed):**
+- Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
+- Payments §81 (download top-right), Payments/Orders §90 (pull-to-refresh) → `6605dd4`
+- Shop root+lists §162 (245dp card + per-context title lines), Shop root §171 (top inset), ShopDropdownField §180/§207 (restyle), Auction Product Details §189 (hero placeholder), Feature Product Details §198 (link-unavailable alert) → `e7357a5`
+- **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
+
+**🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
+
+**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §216/§225 Documents · §234/§459 Edit Profile · §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs.
+
+**🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
+
+(Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
+
+---
+
 ## [MEDIUM] GoldPriority / Customer Tier
 `app/src/main/java/com/ga/airdrop/feature/homedetails/GoldPriorityScreen.kt:258` — Tier name has no auto-shrink — 'Platinum Priority' at fixed 28sp Cairo Bold clips on narrow screens; Swift shrinks the font to fit.
 

@@ -28,6 +28,11 @@ assets; only repair the parts that are visibly or functionally wrong.
   - Shipments: `/tmp/kotlin_ui_proof/figma_shipments_light.png`
   - Help: `/tmp/kotlin_ui_proof/figma_help_light.png`
   - AirCoins: `/tmp/kotlin_ui_proof/figma_aircoins_light.png`
+  - Shop root: `/tmp/kotlin_ui_proof/figma_shop_light.png`
+  - Auction product details:
+    `/tmp/kotlin_ui_proof/figma_auction_product_details_light.png`
+  - Auction product details refreshed for commit `a1768d2` verification:
+    `/tmp/kotlin_ui_proof/figma_auction_product_details_a1768d2.png`
 - Local proof screenshots:
   - `/tmp/kotlin_ui_proof/figma_home_light.png`
   - `/tmp/kotlin_ui_proof/android_home_light_correct.png`
@@ -38,10 +43,25 @@ assets; only repair the parts that are visibly or functionally wrong.
   - `/tmp/kotlin_ui_proof/android_help_proof_dark.png`
   - `/tmp/kotlin_ui_proof/android_aircoins_proof_dark.png`
   - Matching UIAutomator XML files use the same names with `.xml`.
+- Pushed `a1768d2` Shop route proof:
+  - `/tmp/kotlin_ui_proof/android_shop_root_a1768d2.png`
+  - `/tmp/kotlin_ui_proof/android_product_detail_a1768d2.png`
+  - `/tmp/kotlin_ui_proof/android_product_detail_a1768d2.xml`
+  - `/tmp/kotlin_ui_proof/logcat_product_detail_a1768d2.filtered.txt`
+- Earlier installed-WIP Shop route proof:
+  - `/tmp/kotlin_ui_proof/android_shop_after_visual_product_tap.png`
+  - `/tmp/kotlin_ui_proof/android_shop_after_visual_product_tap.xml`
 - Android checks already run by Codex before this audit doc:
   - `:app:compileStagingDebugKotlin`
   - `:app:testProdDebugUnitTest`
   - `:app:assembleStagingDebug`
+  - staging debug APK installed on `emulator-5554`
+- Android checks run after `HEAD e7357a5` plus current WIP:
+  - `:app:compileStagingDebugKotlin`
+  - `:app:assembleStagingDebug`
+  - staging debug APK installed on `emulator-5554`
+- Android checks run after pushed `HEAD a1768d2`:
+  - `:app:compileStagingDebugKotlin :app:assembleStagingDebug`
   - staging debug APK installed on `emulator-5554`
 
 ## Latest Device/Figma Findings
@@ -87,6 +107,27 @@ assets; only repair the parts that are visibly or functionally wrong.
 - Data mapping works enough to render current values (`1 AirCoin`, `1 USD`,
   accumulated/redeemed/available rows), but endpoint verification and history
   tap proof are still outstanding.
+
+### Shop/Product Detail
+
+- Pushed commit `a1768d2` was checked against Figma MCP Shop node
+  `40001846:53519` and product-detail node `40002072:24025`.
+- After installing the `a1768d2` staging debug APK, a settled visual tap on the
+  first Auction card opened a real product detail page:
+  `/tmp/kotlin_ui_proof/android_product_detail_a1768d2.png`.
+- The UIAutomator XML for that proof does not contain `Product not found` and
+  contains the product detail fields (`Elegant Retro Velvet Clutch Bag`,
+  `Model: ELEGANT-RETRO-VELVET-CLUTCH-BAG`, `$9.20`, `Stock Quantity: 0`,
+  `Related Products`, `Add to Cart`). This verifies the tested route/data lookup
+  is no longer failing.
+- Filtered OkHttp proof confirms the backend path changed to the Laravel show
+  route and returned 200:
+  `GET https://pre-staging.airdropja.com/api/v1/products/elegant-retro-velvet-clutch-bag`
+  -> `200` in 317ms. Full filtered log is saved at
+  `/tmp/kotlin_ui_proof/logcat_product_detail_a1768d2.filtered.txt`.
+- This does not close Shop as pixel-perfect: root and detail geometry still need
+  the owner/verifier pass against Swift + Figma in light and dark, and the
+  add-to-cart/cart path still needs proof.
 
 ## Reopened Defects From User Review
 
@@ -201,4 +242,4 @@ For each page, fill this before claiming completion:
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | no | partial | Codex | in progress |
-| Shop | `feature/shop/*` | shop/auction/product detail Swift files | see backlog | products/auction/cart | no | no | no | BlueDeer/others | in progress elsewhere |
+| Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
