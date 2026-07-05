@@ -265,6 +265,30 @@ assets; only repair the parts that are visibly or functionally wrong.
   - proof PNGs:
     `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_light.png`,
     `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_dark.png`
+- Android checks run for the AirCoins Swift/Figma pass:
+  - Figma MCP design context checked for balance node `40001911:22972` and
+    history node `40006461:26563`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaAirCoinHistoryViewController.swift`.
+  - Swift precedence documented: Figma balance uses a circular arrow pill and
+    different tip/stat sizing, while Swift uses 120x44 conversion pills, a
+    standalone 24pt arrow, 40pt tip/stat icons, and `subtitle1` headers.
+    Figma history uses static mock labels/rows, while Swift uses `Invoice No`,
+    `Used Date`, unsigned text-colored amounts, a 170pt hero wrap, 150pt image,
+    and one clipped 15pt table card.
+  - `git diff --check`
+  - clean `:app:clean :app:compileStagingDebugKotlin
+    :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `AirCoinParityScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.homedetails.AirCoinParityScreenshotTest ...`:
+    `OK (4 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_light.png`,
+    `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
+    `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
+    `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -342,12 +366,21 @@ assets; only repair the parts that are visibly or functionally wrong.
 
 ### AirCoins
 
-- Android dark proof is not pixel-perfect against the Figma AirCoins node.
-  Android uses a much taller coin hero and dark radial background; Figma shows a
-  compact light hero, tighter conversion controls, and smaller stat/tip cards.
-- Data mapping works enough to render current values (`1 AirCoin`, `1 USD`,
-  accumulated/redeemed/available rows), but endpoint verification and history
-  tap proof are still outstanding.
+- AirCoins balance/history now has Swift-precedence proof. Figma balance node
+  `40001911:22972` conflicts with Swift on the conversion strip and tip/stat
+  sizing; Swift wins, so Android keeps the full-screen AirCoin art, 280dp hero
+  spacer, 120x44 conversion pills, standalone arrow, and 40dp tip/stat icons.
+- The AirCoins header typography was corrected only for this screen pair:
+  Swift uses `Typography.subtitle1()` for `AirCoin Balance` and `History`,
+  while other home-detail screens still keep their Swift `title1` headers.
+- History node `40006461:26563` is a static Figma mock; Swift wins for runtime
+  copy and ledger behavior. Android now uses `Invoice No`, `Used Date`, no
+  plus/minus amount coloring, a 170dp hero wrap, 150dp hero image, and one
+  clipped 15dp ledger card. The balance history button is covered by
+  instrumentation.
+- Backend request paths were preserved: balance still reads
+  `MiscRepository.airCoinsStatus()` / `/aircoins/status`, and history still reads
+  `MiscRepository.airCoinHistory()` / `/aircoins/history`.
 
 ### Shop/Product Detail
 
@@ -520,14 +553,20 @@ Findings to verify/fix:
 Source files:
 - Android: `feature/homedetails/AirCoinScreen.kt`
 - Swift: `FigmaAirCoinHistoryViewController.swift`
-- Figma: node `40001911:22972`
+- Figma: nodes `40001911:22972`, `40006461:26563`
 
 Findings to verify/fix:
-- User reports AirCoins is not pixel-perfect. Recheck hero spacer, conversion
-  pills, stat card rows, tip card, background image crop, header opacity, and
-  history navigation.
-- Verify `/aircoins/status` and history endpoint data mapping.
-- Verify light and dark screenshots.
+- Closed by Swift-precedence pass: balance and history were compared against
+  Swift first and Figma second. Android now matches Swift-specific header
+  typography, balance control/card geometry, history hero/table geometry, and
+  history-copy behavior where Figma conflicts.
+- History navigation is covered by instrumentation through the top-right balance
+  action.
+- `/aircoins/status` and `/aircoins/history` request paths were checked in code
+  and preserved; live authenticated endpoint validation remains outside this UI
+  slice unless a backend defect is separately assigned.
+- Light and dark screenshots are verified under
+  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/`.
 
 ### Dark Theme Icons
 
@@ -548,11 +587,12 @@ Findings to verify/fix:
 ## Work Split Notes
 
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
-- Codex/MagentaCastle is working through More/Legal/Profile. Documents
+- Codex/MagentaCastle is working through More/Legal/Profile/AirCoins. Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
-  CMS heading colors, FAQ accordion gap, and Notification Settings now have
-  Figma MCP + Swift comparison and targeted device-test proof.
+  CMS heading colors, FAQ accordion gap, Notification Settings, and AirCoins
+  balance/history now have Figma MCP + Swift comparison and targeted device-test
+  proof.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -567,6 +607,6 @@ For each page, fill this before claiming completion:
 | Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, warehouse card tap/geometry, and activity/highlight geometry verified; remaining Home content/navigation issues still open |
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
-| AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
+| AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |

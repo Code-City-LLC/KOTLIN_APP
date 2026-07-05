@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
@@ -44,6 +45,7 @@ fun HomeDetailsHeader(
     modifier: Modifier = Modifier,
     containerColor: Color? = null,
     contentColor: Color? = null,
+    titleStyle: TextStyle = AirdropType.title1,
     showDivider: Boolean = true,
     trailingIconRes: Int? = null,
     trailingContentDescription: String? = null,
@@ -76,7 +78,7 @@ fun HomeDetailsHeader(
             )
             Text(
                 text = title,
-                style = AirdropType.title1,
+                style = titleStyle,
                 color = tint,
                 textAlign = TextAlign.Center,
                 maxLines = 2,

@@ -127,10 +127,22 @@ light AND dark.
   `/tmp/kotlin_ui_proof/notification_settings/figma_node_40001587_18074_is_home_stale_mapping.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_light.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_dark.png`.
+- **AirCoins balance/history Swift parity:** AirCoins was compared against
+  Swift `FigmaAirCoinHistoryViewController.swift`, Figma balance node
+  `40001911:22972`, and Figma history node `40006461:26563`. Swift takes
+  precedence where Figma differs: balance keeps Swift's 120x44 conversion pills,
+  standalone 24dp arrow, 40dp tip icon, and `subtitle1` header title; history
+  keeps Swift's 170dp hero wrap / 150dp image, `Invoice No` / `Used Date`
+  ledger labels, unsigned text-colored amounts, and one clipped 15dp card.
+  The history button is covered by instrumentation. Proof:
+  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_light.png`,
+  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
+  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
+  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, and FAQs §486 are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, and AirCoins balance/history are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 

@@ -44,3 +44,8 @@ fun AirdropTheme(content: @Composable () -> Unit) {
         MaterialTheme(colorScheme = material, content = content)
     }
 }
+
+@Composable
+fun AirdropThemeProvider(content: @Composable () -> Unit) {
+    AirdropTheme(content)
+}

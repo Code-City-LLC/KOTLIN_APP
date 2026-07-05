@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,10 +43,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
-import com.ga.airdrop.data.model.AirCoinTransaction
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -64,14 +65,29 @@ fun AirCoinBalanceScreen(
     onOpenHistory: () -> Unit,
     viewModel: AirCoinBalanceViewModel = viewModel(),
 ) {
-    val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+
+    AirCoinBalanceContent(
+        state = state,
+        onBack = onBack,
+        onOpenHistory = onOpenHistory,
+    )
+}
+
+@Composable
+internal fun AirCoinBalanceContent(
+    state: AirCoinBalanceUiState,
+    onBack: () -> Unit,
+    onOpenHistory: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
 
     Box(
         Modifier
             .fillMaxSize()
             // Swift: view bg gray100 under the full-screen AirCoin art.
             .background(colors.gray100)
+            .testTag("aircoin-balance-root")
     ) {
         Image(
             painter = painterResource(R.drawable.img_homedet_aircoin_bg),
@@ -86,6 +102,7 @@ fun AirCoinBalanceScreen(
                 onBack = onBack,
                 // Swift makeHeader: OPAQUE gray100 (not a translucent wash).
                 containerColor = colors.gray100,
+                titleStyle = AirdropType.subtitle1,
                 trailingIconRes = R.drawable.ic_document_list,
                 trailingContentDescription = "AirCoin history",
                 onTrailingClick = onOpenHistory,
@@ -99,7 +116,11 @@ fun AirCoinBalanceScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 // Clearance so the baked-in coin cluster shows (RN paddingTop ≈ 300).
-                Spacer(Modifier.height(280.dp))
+                Spacer(
+                    Modifier
+                        .height(280.dp)
+                        .testTag("aircoin-balance-hero-spacer")
+                )
                 ConversionRow()
                 StatsCard(
                     accumulated = state.accumulated,
@@ -119,11 +140,13 @@ fun AirCoinBalanceScreen(
 private fun ConversionRow() {
     val colors = AirdropTheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("aircoin-balance-conversion-row"),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ConversionPill(text = "1 AirCoin")
+        ConversionPill(text = "1 AirCoin", testTag = "aircoin-balance-left-pill")
         Spacer(Modifier.width(16.dp))
         Image(
             painter = painterResource(R.drawable.ic_small_arrow_down),
@@ -134,17 +157,18 @@ private fun ConversionRow() {
                 .rotate(-90f),
         )
         Spacer(Modifier.width(16.dp))
-        ConversionPill(text = "1 USD")
+        ConversionPill(text = "1 USD", testTag = "aircoin-balance-right-pill")
     }
 }
 
 @Composable
-private fun ConversionPill(text: String, modifier: Modifier = Modifier) {
+private fun ConversionPill(text: String, testTag: String, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     Box(
         modifier = modifier
             .width(120.dp)
             .height(44.dp)
+            .testTag(testTag)
             .clip(RoundedCornerShape(22.dp))
             .background(colors.gray150)
             .border(1.dp, colors.iconShape, RoundedCornerShape(22.dp)),
@@ -168,24 +192,41 @@ private fun StatsCard(accumulated: Int, redeemed: Int, available: Int) {
     Column(
         Modifier
             .fillMaxWidth()
+            .testTag("aircoin-balance-stats-card")
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
     ) {
-        StatRow(R.drawable.img_homedet_wallet_2, "Accumulated AirCoin", accumulated)
+        StatRow(
+            R.drawable.img_homedet_wallet_2,
+            "Accumulated AirCoin",
+            accumulated,
+            "aircoin-stat-accumulated",
+        )
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
-        StatRow(R.drawable.img_homedet_wallet_3, "Redeemed AirCoin", redeemed)
+        StatRow(
+            R.drawable.img_homedet_wallet_3,
+            "Redeemed AirCoin",
+            redeemed,
+            "aircoin-stat-redeemed",
+        )
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
-        StatRow(R.drawable.img_homedet_wallet_4, "Available AirCoin", available)
+        StatRow(
+            R.drawable.img_homedet_wallet_4,
+            "Available AirCoin",
+            available,
+            "aircoin-stat-available",
+        )
     }
 }
 
 @Composable
-private fun StatRow(iconRes: Int, label: String, amount: Int) {
+private fun StatRow(iconRes: Int, label: String, amount: Int, testTag: String) {
     val colors = AirdropTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
+            .testTag(testTag)
             // Swift makeStatRow: 64pt row, img 40 at leading 16, label +12,
             // amount trailing -16.
             .height(64.dp)
@@ -226,6 +267,7 @@ private fun TipCard() {
     Row(
         Modifier
             .fillMaxWidth()
+            .testTag("aircoin-balance-tip-card")
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -236,7 +278,9 @@ private fun TipCard() {
         Image(
             painter = painterResource(R.drawable.img_homedet_wallet_1),
             contentDescription = null,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier
+                .size(40.dp)
+                .testTag("aircoin-balance-tip-icon"),
         )
         Text(
             text = "Earn 0.5 AirCoin for each package collected at the counter.",
@@ -254,8 +298,22 @@ fun AirCoinHistoryDetailScreen(
     onBack: () -> Unit,
     viewModel: AirCoinHistoryViewModel = viewModel(),
 ) {
-    val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+
+    AirCoinHistoryDetailContent(
+        state = state,
+        onBack = onBack,
+        onLoadMore = viewModel::loadMore,
+    )
+}
+
+@Composable
+internal fun AirCoinHistoryDetailContent(
+    state: AirCoinHistoryUiState,
+    onBack: () -> Unit,
+    onLoadMore: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
 
     val listState = rememberLazyListState()
     val shouldLoadMore by remember {
@@ -266,7 +324,7 @@ fun AirCoinHistoryDetailScreen(
         }
     }
     LaunchedEffect(shouldLoadMore, state.transactions.size) {
-        if (shouldLoadMore) viewModel.loadMore()
+        if (shouldLoadMore) onLoadMore()
     }
 
     Box(
@@ -276,17 +334,21 @@ fun AirCoinHistoryDetailScreen(
             // page — no full-screen coin art on the ledger (Figma
             // 40006461:26563 shows only the hero illustration up top).
             .background(colors.gray100)
+            .testTag("aircoin-history-root")
     ) {
         Column(Modifier.fillMaxSize()) {
             HomeDetailsHeader(
                 title = "History",
                 onBack = onBack,
                 containerColor = colors.gray100,
+                titleStyle = AirdropType.subtitle1,
             )
 
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("aircoin-history-list"),
                 contentPadding = PaddingValues(
                     start = Spacing.md, end = Spacing.md, top = Spacing.md, bottom = Spacing.lg,
                 ),
@@ -296,56 +358,36 @@ fun AirCoinHistoryDetailScreen(
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .height(190.dp),
+                                .height(170.dp)
+                                .testTag("aircoin-history-hero-wrap"),
                             contentAlignment = Alignment.Center,
                         ) {
                             Image(
                                 painter = painterResource(R.drawable.img_homedet_history_hero),
                                 contentDescription = null,
                                 contentScale = ContentScale.Fit,
-                                modifier = Modifier.size(170.dp),
+                                modifier = Modifier
+                                    .size(150.dp)
+                                    .testTag("aircoin-history-hero-image"),
                             )
                         }
                         Spacer(Modifier.height(Spacing.md))
                     }
                 }
-                item(key = "tableHeader") {
-                    LedgerRow(
-                        invoice = "Invoice No.",
-                        amount = "Air Coin Used",
-                        date = "Date",
-                        isHeader = true,
-                        isFirst = true,
-                        isLast = state.transactions.isEmpty() && !state.loading,
-                    )
+                item(key = "table") {
+                    LedgerCard(state)
                 }
-                if (state.loading && !state.loadedOnce) {
-                    item(key = "loading") {
-                        LedgerMessageRow("Loading…", isLast = true)
-                    }
-                } else if (state.error != null && state.transactions.isEmpty()) {
-                    item(key = "error") {
-                        LedgerMessageRow("Unable to load — ${state.error}", isLast = true)
-                    }
-                } else if (state.transactions.isEmpty()) {
-                    item(key = "empty") {
-                        LedgerMessageRow("No transactions found", isLast = true)
-                    }
-                } else {
-                    items(state.transactions.size, key = { "${state.transactions[it].id}-$it" }) { index ->
-                        val tx = state.transactions[index]
-                        LedgerRow(
-                            invoice = tx.referenceId ?: "-",
-                            amount = formatCoinAmount(abs(tx.amount ?: 0.0)),
-                            date = formatLedgerDate(tx.createdAt),
-                            credit = tx.isEarn,
-                            isLast = index == state.transactions.lastIndex && !state.loadingMore,
-                        )
-                    }
-                }
-                if (state.loadingMore) {
-                    item(key = "loadingMore") {
-                        LedgerMessageRow("Loading…", isLast = true)
+                if ((state.loading && !state.loadedOnce) || state.loadingMore) {
+                    item(key = "spinner") {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = Spacing.md)
+                                .testTag("aircoin-history-spinner"),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(color = BrandPalette.OrangeMain)
+                        }
                     }
                 }
             }
@@ -353,26 +395,70 @@ fun AirCoinHistoryDetailScreen(
     }
 }
 
-// Table rows share the card chrome: the first row rounds the top corners,
-// the last rounds the bottom, side borders in between — one visual card.
+@Composable
+private fun LedgerCard(state: AirCoinHistoryUiState) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .testTag("aircoin-history-table-card")
+            .clip(RoundedCornerShape(Radius.s))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
+    ) {
+        LedgerRow(
+            invoice = "Invoice No",
+            amount = "Air Coin Used",
+            date = "Used Date",
+            isHeader = true,
+            modifier = Modifier.testTag("aircoin-history-header-row"),
+        )
+        when {
+            state.loading && !state.loadedOnce -> Unit
+            state.error != null && state.transactions.isEmpty() -> {
+                LedgerRow(
+                    invoice = "Unable to load",
+                    amount = "-",
+                    date = state.error,
+                    modifier = Modifier.testTag("aircoin-history-error-row"),
+                )
+            }
+            state.transactions.isEmpty() -> {
+                LedgerRow(
+                    invoice = "No transactions found",
+                    amount = "-",
+                    date = "-",
+                    modifier = Modifier.testTag("aircoin-history-empty-row"),
+                )
+            }
+            else -> {
+                state.transactions.forEachIndexed { index, tx ->
+                    LedgerRow(
+                        invoice = tx.referenceId ?: "-",
+                        amount = formatCoinAmount(abs(tx.amount ?: 0.0)),
+                        date = formatLedgerDate(tx.createdAt),
+                        modifier = Modifier.testTag("aircoin-history-row-$index"),
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun LedgerRow(
     invoice: String,
     amount: String,
     date: String,
     isHeader: Boolean = false,
-    credit: Boolean? = null,
-    isFirst: Boolean = false,
-    isLast: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
-    val shape = ledgerShape(isFirst || isHeader, isLast)
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
-            .clip(shape)
             .background(if (isHeader) colors.gray200 else colors.gray100)
-            .border(1.dp, colors.iconShape, shape)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         val style = if (isHeader) AirdropType.subtitle2 else AirdropType.body3
@@ -380,16 +466,12 @@ private fun LedgerRow(
             text = invoice,
             style = style,
             color = colors.textDarkTitle,
-            modifier = Modifier.weight(1.2f),
+            modifier = Modifier.weight(1f),
         )
         Text(
-            text = if (isHeader || credit == null) amount else (if (credit) "+$amount" else "-$amount"),
+            text = amount,
             style = style,
-            color = when {
-                isHeader || credit == null -> colors.textDarkTitle
-                credit -> AlertPalette.Completed
-                else -> AlertPalette.Error
-            },
+            color = colors.textDarkTitle,
             textAlign = TextAlign.Center,
             modifier = Modifier.weight(1f),
         )
@@ -402,35 +484,6 @@ private fun LedgerRow(
         )
     }
 }
-
-@Composable
-private fun LedgerMessageRow(message: String, isLast: Boolean) {
-    val colors = AirdropTheme.colors
-    val shape = ledgerShape(first = false, last = isLast)
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(colors.gray100)
-            .border(1.dp, colors.iconShape, shape)
-            .padding(14.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            style = AirdropType.body3,
-            color = colors.textDescription,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-private fun ledgerShape(first: Boolean, last: Boolean) = RoundedCornerShape(
-    topStart = if (first) 10.dp else 0.dp,
-    topEnd = if (first) 10.dp else 0.dp,
-    bottomStart = if (last) 10.dp else 0.dp,
-    bottomEnd = if (last) 10.dp else 0.dp,
-)
 
 private fun formatCoinAmount(value: Double): String =
     if (abs(value - value.roundToLong()) < 0.001) {
