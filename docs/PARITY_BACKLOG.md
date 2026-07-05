@@ -153,10 +153,20 @@ light AND dark.
   `/tmp/kotlin_ui_proof/payment_package_details/payment_package_details_swift_dark.png`,
   `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_light.png`,
   `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_dark.png`.
+- **InvoiceViewer Swift/Figma slice:** Figma MCP has no dedicated reachable
+  InvoiceViewer frame in the app canvas; the full page metadata timed out and
+  Swift explicitly says this viewer follows the document-download shell. Figma
+  MCP was still checked through the related Package Details invoice-entry node
+  `40001753:15716`; Swift `FigmaInvoiceViewerScreenViewController.swift` takes
+  precedence for the viewer. Android now keeps the Swift gray100 page / gray150
+  preview panel, prepares a local action file before enabling actions, and
+  shares a `content://` FileProvider stream instead of a raw text URL. Proof:
+  `/tmp/kotlin_ui_proof/invoice_viewer/invoice_viewer_swift_light.png`,
+  `/tmp/kotlin_ui_proof/invoice_viewer/invoice_viewer_swift_dark.png`.
 
-**🔲 OPEN — BlueDeer (Shipments detail), priority order:** §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
+**🔲 OPEN — BlueDeer (Shipments detail), priority order:** §27/§36 PackagesFilterSheet · §9/§18 GoldPriority · remaining PackageDetails/Payments/Orders/InvoiceViewer follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/PaymentPackageDetails):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, and PaymentPackageDetails footer/timeline/payment-copy slice are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -328,21 +338,21 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] InvoiceViewer
+## [CLOSED] InvoiceViewer
 `app/src/main/java/com/ga/airdrop/feature/shipments/InvoiceViewerScreen.kt:98` — Page/content surface colors are inverted versus Swift (page should be gray100, preview panel gray150)
 
 **Detail:** Swift: view.backgroundColor = gray100 (FigmaInvoiceViewerScreenViewController.swift:68) and contentContainer.backgroundColor = gray150 with iconShape border (lines 86-89). Kotlin: Column background colors.gray150 (line 98) and inner Box background colors.gray100 (line 108) — swapped in both light and dark modes.
 
-**Fix:** Swap the two tokens: root Column → colors.gray100, preview Box → colors.gray150.
+**Fix:** Verified closed in the current tree and locked by `InvoiceViewerParityTest`: root Column is `colors.gray100`, preview Box is `colors.gray150` with iconShape border, 20dp side insets, 15dp radius, and 52dp action buttons. Light/dark proof is saved under `/tmp/kotlin_ui_proof/invoice_viewer/`.
 
 ---
 
-## [MEDIUM] InvoiceViewer
+## [CLOSED] InvoiceViewer
 `app/src/main/java/com/ga/airdrop/feature/shipments/InvoiceViewerScreen.kt:346` — 'Share' sends the invoice URL as plain text; Swift shares the actual downloaded file
 
 **Detail:** Swift downloads the invoice to cache and shares the file itself via UIActivityViewController (FigmaInvoiceViewerScreenViewController.swift:383-391), letting the user AirDrop/save the PDF. Kotlin shareInvoice() (InvoiceViewerScreen.kt:346-355) fires ACTION_SEND type text/plain with the raw URL — recipients get a link (possibly an auth-protected or file:/ URL that they cannot open), not the document.
 
-**Fix:** For remote URLs download to cacheDir first (or reuse the WebView-downloaded file), then share a FileProvider content:// URI with type application/pdf (or image/*) and FLAG_GRANT_READ_URI_PERMISSION; for file:// sources share the FileProvider URI directly.
+**Fix:** Done. `InvoiceViewerScreen` now prepares a local action file in cache for remote/content URLs and uses local files directly for `file://` URLs. The Share button stays disabled until that file exists, then `invoiceShareIntent` sends `ACTION_SEND` with `EXTRA_STREAM`, MIME type (`application/pdf`, `image/*`, or octet-stream fallback), `FLAG_GRANT_READ_URI_PERMISSION`, and `ClipData`; it no longer sends `EXTRA_TEXT` with the raw URL. `InvoiceViewerParityTest` verifies the stream intent, local-file path, MIME mapping, and light/dark rendered geometry.
 
 ---
 
