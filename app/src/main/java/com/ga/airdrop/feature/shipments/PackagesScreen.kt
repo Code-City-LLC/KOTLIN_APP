@@ -75,6 +75,8 @@ fun PackagesScreen(
                     onSubmit = viewModel::onSearchSubmit,
                     // Swift FigmaPackagesViewController:287-292.
                     placeholder = "Search by Airdrop Tracking # or Courier #",
+                    testTag = "packages-search-field",
+                    iconTestTag = "packages-search-icon",
                 )
                 Spacer(Modifier.height(Spacing.sm))
             }

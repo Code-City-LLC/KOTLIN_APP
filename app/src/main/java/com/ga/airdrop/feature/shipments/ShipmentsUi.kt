@@ -47,6 +47,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.ga.airdrop.R
@@ -404,6 +405,8 @@ fun shipmentsHeaderClearance(): androidx.compose.ui.unit.Dp {
 
 // ─── Type Input Field (search variant) — Figma 40001666:42200 ─────────────
 
+enum class ShipmentsSearchIconPlacement { Leading, Trailing }
+
 @Composable
 fun ShipmentsSearchField(
     value: String,
@@ -411,26 +414,43 @@ fun ShipmentsSearchField(
     modifier: Modifier = Modifier,
     placeholder: String = "Item search",
     onSubmit: () -> Unit = {},
+    iconPlacement: ShipmentsSearchIconPlacement = ShipmentsSearchIconPlacement.Leading,
+    iconSize: Dp = 22.dp,
+    horizontalPadding: Dp = Spacing.md,
+    iconTextGap: Dp = Spacing.sm,
+    testTag: String? = null,
+    iconTestTag: String? = null,
 ) {
     val colors = AirdropTheme.colors
-    // Swift FigmaPackagesViewController:278-311 — LEADING 22pt magnifier
-    // (textDescription), gray150 pill, radius 12, 44pt tall.
+    // Swift conflict: Packages uses FigmaPackagesViewController:278-311
+    // leading 22pt glass; Payments/Orders use trailing 18pt glass
+    // (FigmaPaymentsViewController:254-276, FigmaOrdersViewController:251-273).
+    @Composable
+    fun SearchIcon(modifier: Modifier = Modifier) {
+        Image(
+            painter = painterResource(R.drawable.ic_search),
+            contentDescription = "Search",
+            colorFilter = ColorFilter.tint(colors.textDescription),
+            modifier = modifier
+                .then(iconTestTag?.let { Modifier.testTag(it) } ?: Modifier)
+                .size(iconSize),
+        )
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 44.dp)
             .background(colors.gray150, RoundedCornerShape(12.dp))
             .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
-            .padding(horizontal = Spacing.md, vertical = 10.dp),
+            .then(testTag?.let { Modifier.testTag(it) } ?: Modifier)
+            .padding(horizontal = horizontalPadding, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(iconTextGap),
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_search),
-            contentDescription = "Search",
-            colorFilter = ColorFilter.tint(colors.textDescription),
-            modifier = Modifier.size(22.dp),
-        )
+        if (iconPlacement == ShipmentsSearchIconPlacement.Leading) {
+            SearchIcon()
+        }
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) {
                 Text(text = placeholder, style = AirdropType.body2, color = colors.textDescription)
@@ -445,6 +465,9 @@ fun ShipmentsSearchField(
                 keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+        if (iconPlacement == ShipmentsSearchIconPlacement.Trailing) {
+            SearchIcon()
         }
     }
 }

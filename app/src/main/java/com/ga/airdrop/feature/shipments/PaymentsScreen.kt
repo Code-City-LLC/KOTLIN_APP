@@ -120,6 +120,12 @@ fun PaymentsScreen(
                     value = state.searchText,
                     onValueChange = viewModel::onSearchTextChange,
                     placeholder = "Search by payment description",
+                    iconPlacement = ShipmentsSearchIconPlacement.Trailing,
+                    iconSize = 18.dp,
+                    horizontalPadding = 14.dp,
+                    iconTextGap = 8.dp,
+                    testTag = "payments-search-field",
+                    iconTestTag = "payments-search-icon",
                 )
                 Spacer(Modifier.height(Spacing.sm))
             }

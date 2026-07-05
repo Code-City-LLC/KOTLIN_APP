@@ -173,6 +173,33 @@ assets; only repair the parts that are visibly or functionally wrong.
     `OK (2 tests)`
   - adjacent manual regression:
     `ShipmentsSectionCardParityTest` + `PaymentsOrdersParityTest`: `OK (8 tests)`
+- Android checks run for the Shipments search-field Swift/Figma split:
+  - Figma MCP screenshots refreshed for Packages node `40001666:42198`,
+    Payments node `40001753:18909`, and Orders node `40001753:19595`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPackagesViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPaymentsViewController.swift`,
+    and `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaOrdersViewController.swift`.
+  - Swift/Figma conflict documented: Figma list nodes show static trailing
+    `Item search` fields, but Swift ships Packages with a leading 22pt magnifier
+    and long tracking/courier placeholder; Payments/Orders use trailing 18pt
+    magnifiers with runtime-specific placeholders. Swift wins.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `ShipmentsSearchFieldParityTest` + `PaymentsOrdersParityTest`
+    through `:app:connectedStagingDebugAndroidTest`: 7 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.shipments.ShipmentsSearchFieldParityTest,com.ga.airdrop.feature.shipments.PaymentsOrdersParityTest ...`:
+    `OK (7 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/shipments_search_field/figma/packages_40001666_42198.png`,
+    `/tmp/kotlin_ui_proof/shipments_search_field/figma/payments_40001753_18909.png`,
+    `/tmp/kotlin_ui_proof/shipments_search_field/figma/orders_40001753_19595.png`,
+    `/tmp/kotlin_ui_proof/shipments_search_field/android/packages_search_swift_light.png`,
+    `/tmp/kotlin_ui_proof/shipments_search_field/android/payments_search_swift_light.png`,
+    `/tmp/kotlin_ui_proof/shipments_search_field/android/payments_search_swift_dark.png`,
+    `/tmp/kotlin_ui_proof/shipments_search_field/android/orders_search_swift_light.png`,
+    `/tmp/kotlin_ui_proof/shipments_search_field/android/orders_search_swift_dark.png`
 - Android checks run for the Documents card/action-row Swift-precedence pass:
   - Figma MCP design context and screenshot for Documents node `40000975:7748`.
   - Swift source compared:
@@ -531,6 +558,23 @@ assets; only repair the parts that are visibly or functionally wrong.
   com.ga.airdrop.feature.shipments.ShipmentsHubTapRailsParityTest ...`
   (`OK (2 tests)`), and adjacent manual
   `ShipmentsSectionCardParityTest` + `PaymentsOrdersParityTest` (`OK (8 tests)`).
+- Shipments search fields now have Swift-precedence proof for the known shared
+  component conflict. Figma MCP screenshots for Packages `40001666:42198`,
+  Payments `40001753:18909`, and Orders `40001753:19595` show a static trailing
+  `Item search` field; Swift is the shipped runtime source. Android now keeps
+  Packages on `FigmaPackagesViewController.makeSearchCard` behavior (leading
+  22dp magnifier and tracking/courier placeholder) while Payments and Orders use
+  `makeSearchRow` behavior (trailing 18dp magnifier, 14dp trailing inset, 8dp
+  text/icon gap, screen-specific placeholders). The shared `ShipmentsSearchField`
+  is parameterized rather than duplicated, preserving working callers.
+  Checks run:
+  `git diff --check`,
+  `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`,
+  targeted `ShipmentsSearchFieldParityTest` + `PaymentsOrdersParityTest` through
+  `:app:connectedStagingDebugAndroidTest` (7 tests passed), and manual
+  `adb shell am instrument -w -e class
+  com.ga.airdrop.feature.shipments.ShipmentsSearchFieldParityTest,com.ga.airdrop.feature.shipments.PaymentsOrdersParityTest ...`
+  (`OK (7 tests)`).
 - PaymentPackageDetails now has Swift-precedence proof for the footer,
   payment-summary copy, and View History timeline. Figma node `40001761:29389`
   is a timeline screen, so Swift `FigmaPaymentPackageDetailsViewController.swift`
@@ -838,6 +882,8 @@ Findings to verify/fix:
   Swift-precedence tap proof. Remaining tap checks are deeper flows: filters,
   detail rows, invoice actions, detail-screen CTAs, and backend-backed refresh or
   pagination paths.
+- Shared Shipments search-field icon placement is now closed: Packages keeps
+  Swift's leading 22pt icon and Payments/Orders use Swift's trailing 18pt icon.
 - Existing backlog already flags package detail surfaces, timeline rendering,
   charges footer, filter sheet row icons/fonts, payments refresh/invoice button,
   and multiple detail-screen parity issues.
@@ -952,7 +998,7 @@ For each page, fill this before claiming completion:
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, activity icons, warehouse card tap/geometry, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, and bottom-tab state verified; remaining Home live-data/full-page endpoint issues still open |
-| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails now verified against Swift/Figma; PackageDetails, PackagesFilterSheet, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad visual/full-flow/backend parity still open |
+| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails and shared search-field split now verified against Swift/Figma; PackageDetails, PackagesFilterSheet, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad visual/full-flow/backend parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
@@ -967,7 +1013,7 @@ Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented he
 
 **Figma↔Swift CONFLICTS (Swift won):**
 - **Home header** — Figma `40001464:28926` = dark frosted translucent `rgba(41,41,41,0.7)` + blur + white text. Swift `FigmaTabHeader.swift:129-131` = OPAQUE `gray200` (`#f5f5f5` light / `#333333` dark) + `textDarkTitle`/`iconSelected`. **Swift wins → opaque gray200** (origin/main `0184744`). My earlier Figma-translucent attempt (`bc430a4`) was reverted. Both Swift+Android default to follow-system theme.
-- **Shipments search field** (shared `ShipmentsSearchField`) — Swift Packages `makeSearchCard` = LEADING 22pt magnifier; Swift Payments/Orders `makeSearchRow` = TRAILING 18pt. Component is shared by all three, so a blind flip breaks Packages. **DEFERRED** — needs an `iconTrailing`/`iconSize` param before applying (do NOT just flip it).
+- **Shipments search field** (shared `ShipmentsSearchField`) — Swift Packages `makeSearchCard` = LEADING 22pt magnifier; Swift Payments/Orders `makeSearchRow` = TRAILING 18pt. Component is shared by all three, so a blind flip breaks Packages. **CLOSED by parameterized shared component** — Figma nodes `40001666:42198`, `40001753:18909`, and `40001753:19595` were refreshed; Swift wins over static Figma search copy/icon-side conflicts.
 
 **Figma WINS where Swift lacks (Kemar precedent):**
 - **Onboarding** — Swift `SceneDelegate` collapsed LaunchApp/ChooseYourLook/Onboarding/AuthLanding→Login. Figma "Onboarding - Design Done" `40006240:*` exists. Wired first-run flow (`92bdaf0`), device-verified: Splash→carousel→Choose-Your-Look→AuthLanding→Login. NOTE: any AppRoot reactive-logout effect must exclude SPLASH+ONBOARDING.
@@ -975,6 +1021,6 @@ Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented he
 
 **Swift-source-exact fixes proven (`34e9620`, adversarial audit + verify):** Home header icon spacing (14→20, 16→19dp), tier lineHeight (22→24); PackageDetails hero 262→240dp, CIF row 59→48dp, CIF icon 24→20dp, divider `#D9D9D9`→`gray300 #EBEBEB`; ShipmentsUi package-status always Completed-green (Swift :556), Order value `$`→`USD`, TotalChargesBox radius 15→10, borders→gray300, empty-label body2→body1; ProductPaymentDetails summary titles subtitle1→title2; InvoiceViewer Share button gradient→flat OrangeMain, height 50→52, 5 state labels body2→body1. + `6a21713` §108/§153/§99 (MagentaCastle verifier-accepted on device).
 
-**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620` + `859f1d0` background picker; §117 InvoiceViewer blocked by HTTP 403; the deferred search-field param; Orders decorative icon (low-confidence). CRITICAL payment bugs remain ON HOLD for Kemar.
+**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620` + `859f1d0` background picker; §117 InvoiceViewer blocked by HTTP 403; Orders decorative icon (low-confidence). CRITICAL payment bugs remain ON HOLD for Kemar.
 
 Health @ origin/main `c085c88`: `assembleStagingDebug` PASS, unit tests 9/0-fail, all BlueDeer commits intact.

@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -86,6 +87,12 @@ fun OrdersScreen(
                     value = state.searchText,
                     onValueChange = viewModel::onSearchTextChange,
                     placeholder = "Search by Order Description",
+                    iconPlacement = ShipmentsSearchIconPlacement.Trailing,
+                    iconSize = 18.dp,
+                    horizontalPadding = 14.dp,
+                    iconTextGap = 8.dp,
+                    testTag = "orders-search-field",
+                    iconTestTag = "orders-search-icon",
                 )
                 Spacer(Modifier.height(Spacing.sm))
             }

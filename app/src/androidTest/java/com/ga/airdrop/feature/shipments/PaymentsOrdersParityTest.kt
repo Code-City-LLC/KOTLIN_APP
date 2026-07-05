@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -174,6 +176,7 @@ class PaymentsOrdersParityTest {
         compose.onNodeWithText("Payments").assertIsDisplayed()
         compose.onNodeWithTag("payments-header-more").assertIsDisplayed()
         compose.onNodeWithText("Search by payment description").assertIsDisplayed()
+        assertTrailingSearchIcon("payments-search-field", "payments-search-icon")
         compose.onNodeWithText("INV-900").assertIsDisplayed()
         compose.onNodeWithContentDescription("Download invoice").assertIsDisplayed()
 
@@ -190,8 +193,22 @@ class PaymentsOrdersParityTest {
         compose.onNodeWithText("Orders").assertIsDisplayed()
         compose.onNodeWithTag("orders-header-more").assertIsDisplayed()
         compose.onNodeWithText("Search by Order Description").assertIsDisplayed()
+        assertTrailingSearchIcon("orders-search-field", "orders-search-icon")
         compose.onNodeWithText("Studio Monitor").assertIsDisplayed()
         compose.onNodeWithText("Processing").assertIsDisplayed()
+    }
+
+    private fun assertTrailingSearchIcon(fieldTag: String, iconTag: String) {
+        val field = compose.onNodeWithTag(fieldTag).getUnclippedBoundsInRoot()
+        val icon = compose.onNodeWithTag(iconTag, useUnmergedTree = true).getUnclippedBoundsInRoot()
+
+        assertClose(18f, boundsWidth(icon), "$fieldTag Swift trailing icon width")
+        assertClose(18f, boundsHeight(icon), "$fieldTag Swift trailing icon height")
+        assertClose(14f, boundsRight(field) - boundsRight(icon), "$fieldTag Swift trailing icon inset")
+        assertTrue(
+            "$fieldTag icon should be on the trailing half",
+            boundsLeft(icon) > boundsLeft(field) + (boundsWidth(field) / 2f),
+        )
     }
 
     private class FakePaymentsRepository(
@@ -267,5 +284,17 @@ class PaymentsOrdersParityTest {
 
     private fun assertTextMissing(text: String) {
         assertEquals(0, compose.onAllNodesWithText(text).fetchSemanticsNodes().size)
+    }
+
+    private fun boundsWidth(bounds: DpRect): Float = (bounds.right - bounds.left).value
+
+    private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value
+
+    private fun boundsLeft(bounds: DpRect): Float = bounds.left.value
+
+    private fun boundsRight(bounds: DpRect): Float = bounds.right.value
+
+    private fun assertClose(expected: Float, actual: Float, label: String, tolerance: Float = 1.5f) {
+        assertTrue("$label expected $expected but was $actual", kotlin.math.abs(expected - actual) <= tolerance)
     }
 }
