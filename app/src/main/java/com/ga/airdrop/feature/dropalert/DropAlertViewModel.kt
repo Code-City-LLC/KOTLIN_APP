@@ -64,6 +64,7 @@ class DropAlertViewModel(
     fun onCourierNumberChange(value: String) = _state.update { it.copy(courierNumber = value) }
     fun onShippingMethodSelected(value: String) = _state.update { it.copy(shippingMethod = value) }
     fun onShipperChange(value: String) = _state.update { it.copy(shipper = value) }
+    fun onConsigneeChange(value: String) = _state.update { it.copy(consignee = value) }
     fun onPackageValueChange(value: String) = _state.update { it.copy(packageValue = value) }
     fun onCourierCompanySelected(value: String) = _state.update { it.copy(courierCompany = value) }
     fun onDescriptionChange(value: String) = _state.update { it.copy(description = value) }
@@ -132,11 +133,9 @@ class DropAlertViewModel(
             }.onSuccess { result ->
                 val confirmation = result.message?.trim().takeUnless { it.isNullOrEmpty() }
                     ?: "Your drop alert was created."
-                // Reset the form after a successful submit (Swift parity),
-                // keeping the prefetched consignee.
+                // Swift resetFormAfterSubmit clears every field, including Consignee.
                 _state.update {
                     DropAlertUiState(
-                        consignee = it.consignee,
                         dialog = DropAlertDialog("Submitted", confirmation),
                     )
                 }

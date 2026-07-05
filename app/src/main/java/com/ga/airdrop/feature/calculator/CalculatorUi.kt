@@ -177,6 +177,7 @@ internal fun CalcInputField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    inputTestTag: String? = null,
     placeholder: String = "",
     required: Boolean = false,
     enabled: Boolean = true,
@@ -216,7 +217,9 @@ internal fun CalcInputField(
                     singleLine = true,
                     enabled = enabled,
                     keyboardOptions = keyboardOptions,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (inputTestTag != null) Modifier.testTag(inputTestTag) else Modifier),
                 )
             }
             trailing?.invoke()

@@ -46,6 +46,8 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/promotions/figma/figma_promotions_40001646_14035.png`
   - Calculator Standard entry slice:
     `/tmp/kotlin_ui_proof/calculator_cta/figma/figma_calculator_standard_40001464_29102.png`
+  - Drop Alert consignee/profile-failure slice:
+    `/tmp/kotlin_ui_proof/drop_alert/figma/figma_drop_alert_40001826_22497.png`
 - Local proof screenshots:
   - `/tmp/kotlin_ui_proof/figma_home_light.png`
   - `/tmp/kotlin_ui_proof/android_home_light_correct.png`
@@ -746,6 +748,33 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/calculator_cta/figma/figma_calculator_standard_40001464_29102.png`,
     `/tmp/kotlin_ui_proof/calculator_cta/android/calculator_entry/calculator_standard_swift_light.png`,
     `/tmp/kotlin_ui_proof/calculator_cta/android/calculator_entry/calculator_standard_swift_dark.png`
+- Android checks run for the Drop Alert consignee/profile-failure Swift/Figma
+  proof pass:
+  - Figma MCP design context and screenshot checked for Drop Alert node
+    `40001826:22497`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaDropAlertViewController.swift`.
+  - Swift precedence documented: Figma's static Drop Alert node shows a filled,
+    disabled-looking Consignee value and sticky translucent footer, while Swift
+    `prefillConsignee()` leaves Consignee blank when profile fetch fails, lets
+    the user type it, submits that manual value, and `resetFormAfterSubmit`
+    clears every field after success. Android follows Swift where they conflict.
+  - Android reused the existing Drop Alert route, ViewModel, repository,
+    multipart upload, image-picker, shipping-method, courier-company, submit,
+    and dialog rails; this pass repaired Consignee editability/reset behavior
+    and added a nonvisual optional shared `CalcInputField` input tag for proof.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `DropAlertConsigneeParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed on
+    `airdrop_test2(AVD) - 15`
+  - adjacent `CalculatorEntryParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed after the shared
+    field hook change
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/drop_alert/figma/figma_drop_alert_40001826_22497.png`,
+    `/tmp/kotlin_ui_proof/drop_alert/android/drop_alert/drop_alert_consignee_manual_light.png`,
+    `/tmp/kotlin_ui_proof/drop_alert/android/drop_alert/drop_alert_consignee_manual_dark.png`
 - Android checks run for the Shipping Rates Swift/Figma proof pass:
   - Figma MCP design context checked for node `40001567:54206`.
   - Swift source compared:
@@ -1735,6 +1764,7 @@ For each page, fill this before claiming completion:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `feature/home/HomeScreen.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt`, `feature/homedetails/components/HomeDetailsComponents.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, shared HomeDetailsHeader long-title autoscale, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risk is full authenticated end-to-end Home data proof |
 | Calculator | `feature/calculator/CalculatorScreen.kt`, `CalculatorUi.kt`, `CalculatorViewModel.kt` | `FigmaCalculatorViewController.swift` | Standard `40001464:29102`, SeaDrop `40001464:30381`, Express `40001464:30723` | calculator estimate path preserved through existing repository/ViewModel | yes | yes | yes | MagentaCastle | Standard entry closed by Swift-precedence proof: full-width invoice + actual weight, no stale Figma `Select Unit`/`Total Weight`, solid in-scroll CTA, 32dp/24dp inner-header back rail, Swift field/info-card primitives; SeaDrop/Express branches preserved |
+| Drop Alert | `feature/dropalert/DropAlertScreen.kt`, `DropAlertViewModel.kt`, `DropAlertRepository.kt` | `FigmaDropAlertViewController.swift` | `40001826:22497`, related `40001836:22971` | `/drop-alerts`, `/user/profile`, multipart image upload path preserved | yes | yes | yes | MagentaCastle | Consignee profile-failure manual-entry flow closed by Swift-precedence proof: field remains editable when prefill fails, submitted manual value is preserved, and success reset clears Consignee like Swift; existing method/company/image/upload rails preserved; broader live authenticated backend proof still not rerun |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, backend pagination/search/reset contracts, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad live-auth/full-flow backend parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |

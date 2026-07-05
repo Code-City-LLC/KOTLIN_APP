@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **39 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **40 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -243,6 +243,17 @@ light AND dark.
   `/tmp/kotlin_ui_proof/calculator_cta/figma/figma_calculator_standard_40001464_29102.png`,
   `/tmp/kotlin_ui_proof/calculator_cta/android/calculator_entry/calculator_standard_swift_light.png`,
   `/tmp/kotlin_ui_proof/calculator_cta/android/calculator_entry/calculator_standard_swift_dark.png`.
+- **Drop Alert consignee/profile-failure Swift/Figma proof:** Drop Alert was
+  compared against Swift `FigmaDropAlertViewController.swift` first and Figma
+  node `40001826:22497` second. Figma still shows a filled, disabled-looking
+  Consignee value and sticky translucent footer, while Swift leaves Consignee
+  editable when profile prefill fails, submits the manual value, and clears
+  every field after success. Android now follows Swift on the existing Drop
+  Alert path, keeps the repository/multipart upload/picker/method/company rails,
+  and adds only nonvisual proof tags to lock the manual Consignee flow. Proof:
+  `/tmp/kotlin_ui_proof/drop_alert/figma/figma_drop_alert_40001826_22497.png`,
+  `/tmp/kotlin_ui_proof/drop_alert/android/drop_alert/drop_alert_consignee_manual_light.png`,
+  `/tmp/kotlin_ui_proof/drop_alert/android/drop_alert/drop_alert_consignee_manual_dark.png`.
 - **Payment Methods Swift-precedence empty-state/Cart rail:** Payment Methods
   was compared against Figma node `40001428:9188` and Swift
   `FigmaPaymentMethodsViewController`. Swift takes precedence over the visible
@@ -508,7 +519,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Calculator/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Calculator Standard entry Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Calculator/Drop Alert/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Calculator Standard entry Swift/Figma proof, Drop Alert consignee/profile-failure Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
@@ -681,6 +692,15 @@ footer CTA; Swift ships full-width Invoice + Actual Weight fields and the
 solid orange Calculate button in the scroll stack. Android now matches Swift on
 the existing Calculator path, with `CalculatorEntryParityTest` covering light,
 dark, row removal, button geometry, and back dispatch.
+
+**✅ CLOSED — Drop Alert consignee Swift/Figma proof follow-up:** Swift
+`FigmaDropAlertViewController.swift` is the runtime source of truth for Drop
+Alert node `40001826:22497`. Figma still shows a prefilled/disabled-looking
+Consignee field and sticky translucent footer, while Swift keeps Consignee
+editable when profile prefill fails, submits the user-entered value, and clears
+the field after success. Android now matches that existing flow with
+`DropAlertConsigneeParityTest` covering light, dark, manual input, submit, and
+post-submit reset.
 
 **✅ CLOSED — Shipping Rates Swift/Figma proof follow-up:** Swift's
 `FigmaShippingRatesViewController.swift` is the runtime source of truth for

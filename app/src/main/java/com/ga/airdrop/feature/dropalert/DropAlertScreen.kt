@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -124,6 +125,7 @@ fun DropAlertScreen(
                 label = "Courier Number",
                 value = state.courierNumber,
                 onValueChange = viewModel::onCourierNumberChange,
+                inputTestTag = "drop-alert-courier-number-input",
                 placeholder = "e.g. 3498534580",
                 required = true,
             )
@@ -142,18 +144,19 @@ fun DropAlertScreen(
                 label = "Shipper/Merchant",
                 value = state.shipper,
                 onValueChange = viewModel::onShipperChange,
+                inputTestTag = "drop-alert-shipper-input",
                 placeholder = "e.g. Amazon",
                 required = true,
             )
 
-            // Read-only, prefilled from the profile (Swift prefillConsignee).
-            // Figma shows the filled value in Body 1 (16/26) on the disabled box.
+            // Swift prefillConsignee fills from the profile when available, but
+            // leaves the field editable when that fetch fails.
             CalcInputField(
                 label = "Consignee",
                 value = state.consignee,
-                onValueChange = {},
+                onValueChange = viewModel::onConsigneeChange,
                 required = true,
-                enabled = false,
+                inputTestTag = "drop-alert-consignee-input",
                 textStyle = AirdropType.body1,
             )
 
@@ -161,6 +164,7 @@ fun DropAlertScreen(
                 label = "Package Value (USD)",
                 value = state.packageValue,
                 onValueChange = viewModel::onPackageValueChange,
+                inputTestTag = "drop-alert-package-value-input",
                 placeholder = "e.g. 84",
                 required = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -241,7 +245,9 @@ fun DropAlertScreen(
                     text = if (state.submitting) "Submitting…" else "Drop Alert",
                     loading = state.submitting,
                     onClick = viewModel::submit,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("drop-alert-submit-button"),
                 )
             }
         }
