@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.auth
 
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
@@ -15,20 +16,26 @@ import com.ga.airdrop.core.navigation.Routes
  * REGISTRATION_SUCCESS (AUTH_LANDING and LOGIN stay in AppRoot's authGraph).
  * No new route constants needed — all exist in Routes.kt already.
  *
- * Launch flow mirrors Swift SceneDelegate.swift:57 (FigmaRouteViewController
- * collapses LaunchApp/ChooseYourLook/Onboarding/AuthLanding/SignIn all to
- * FigmaLoginViewController): token → HOME, otherwise → LOGIN directly. The
- * ONBOARDING/AUTH_LANDING/REGISTRATION_SUCCESS destinations stay registered
- * (valid Figma designs, reachable by route) but are not in the launch path,
- * matching Swift's shipped flow.
+ * Launch flow (RN LaunchAppView; Figma "Onboarding - Design Done"
+ * 40006240:*): token → HOME; first run (onboarding not seen) → ONBOARDING
+ * carousel + "Choose Your Look" → AUTH_LANDING; returning-but-signed-out →
+ * AUTH_LANDING. Swift's SceneDelegate collapsed this straight to login, but the
+ * Onboarding + Choose-Your-Look + AuthLanding are shipped Figma designs, so
+ * Figma wins where Swift dropped them (per Kemar's Government-Charges ruling).
+ * NOTE: AppRoot's reactive-logout effect must EXCLUDE SPLASH + ONBOARDING or it
+ * yanks the first-run flow to AUTH_LANDING the moment it sees token == null.
  */
 fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
 
     composable(Routes.SPLASH) {
+        val context = LocalContext.current
         SplashScreen(
             onFinished = {
-                val target = if (AuthTokenStore.tokenFlow.value != null) Routes.HOME
-                else Routes.LOGIN
+                val target = when {
+                    AuthTokenStore.tokenFlow.value != null -> Routes.HOME
+                    !OnboardingStore.hasSeen(context) -> Routes.ONBOARDING
+                    else -> Routes.AUTH_LANDING
+                }
                 navController.navigate(target) {
                     popUpTo(Routes.SPLASH) { inclusive = true }
                 }
@@ -39,7 +46,7 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
     composable(Routes.ONBOARDING) {
         OnboardingScreen(
             onFinished = {
-                navController.navigate(Routes.LOGIN) {
+                navController.navigate(Routes.AUTH_LANDING) {
                     popUpTo(Routes.ONBOARDING) { inclusive = true }
                 }
             },
