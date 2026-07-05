@@ -152,6 +152,8 @@ fun PaymentsScreen(
             onBack = onBack,
             rightIconRes = R.drawable.ic_shipments_more_square,
             onRightClick = { viewModel.showTypeFilter(true) },
+            rightIconContentDescription = "Filter payments",
+            rightIconTestTag = "payments-header-more",
             modifier = Modifier.align(Alignment.TopCenter),
         )
 
@@ -164,7 +166,7 @@ fun PaymentsScreen(
         }
         state.error?.let { message ->
             ShipmentsAlertDialog(
-                title = "Payments",
+                title = "Download failed",
                 message = message,
                 confirmText = "OK",
                 onConfirm = viewModel::consumeError,

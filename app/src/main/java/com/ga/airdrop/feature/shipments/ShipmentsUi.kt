@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -324,7 +325,9 @@ fun ShipmentsDetailHeader(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     rightIconRes: Int? = null,
-    onRightClick: () -> Unit = {},
+    onRightClick: (() -> Unit)? = null,
+    rightIconContentDescription: String? = null,
+    rightIconTestTag: String? = null,
     // Swift uses Title2 (Bold 16) on the Payments/Orders/Order Details
     // headers and SubTitle1 elsewhere.
     titleStyle: TextStyle = AirdropType.subtitle1,
@@ -364,13 +367,15 @@ fun ShipmentsDetailHeader(
                 modifier = Modifier.weight(1f),
             )
             if (rightIconRes != null) {
+                val iconModifier = Modifier
+                    .size(24.dp)
+                    .then(if (rightIconTestTag != null) Modifier.testTag(rightIconTestTag) else Modifier)
+                    .then(if (onRightClick != null) Modifier.clickable(onClick = onRightClick) else Modifier)
                 Image(
                     painter = painterResource(rightIconRes),
-                    contentDescription = null,
+                    contentDescription = rightIconContentDescription,
                     colorFilter = ColorFilter.tint(colors.iconSelected),
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable(onClick = onRightClick),
+                    modifier = iconModifier,
                 )
             } else {
                 Spacer(Modifier.size(24.dp))

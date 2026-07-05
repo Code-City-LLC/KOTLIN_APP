@@ -114,6 +114,8 @@ fun OrdersScreen(
             title = "Orders",
             titleStyle = AirdropType.title2,
             onBack = onBack,
+            rightIconRes = com.ga.airdrop.R.drawable.ic_shipments_more_square,
+            rightIconTestTag = "orders-header-more",
             modifier = Modifier.align(Alignment.TopCenter),
         )
     }

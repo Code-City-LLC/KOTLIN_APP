@@ -137,9 +137,12 @@ class PaymentsViewModel(
                     )
                 }
                 currentPage = requestedPage + 1
-            }.onFailure { e ->
+            }.onFailure {
                 _state.update {
-                    it.copy(loading = false, loadingMore = false, error = e.message)
+                    // Swift FigmaPaymentsViewController prints list-load
+                    // failures and lets the empty/list state render. Only
+                    // invoice download failures surface an alert.
+                    it.copy(loading = false, loadingMore = false)
                 }
             }
         }

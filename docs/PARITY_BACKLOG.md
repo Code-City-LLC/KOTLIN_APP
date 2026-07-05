@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **18 items are FIXED, on-device verified, and pushed.** Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **20 items are FIXED, on-device verified, and pushed.** Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -180,10 +180,26 @@ light AND dark.
   callbacks. Proof:
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_light.png`,
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_dark.png`.
+- **Payments/Orders Swift/Figma follow-up:** Payments node `40001753:18909`
+  and Orders node `40001753:19595` were refreshed through Figma MCP, then
+  compared against Swift
+  `FigmaPaymentsViewController.swift` /
+  `FigmaOrdersViewController.swift`. Swift takes precedence where Figma lacks
+  the runtime invoice download glyph and uses static search copy/sample data.
+  Android now keeps Payments' top-right invoice download, orange
+  pull-to-refresh, filter accessory, and Swift `Download failed` invoice alert,
+  suppresses list-load failure modals to the empty state, and adds the Orders
+  trailing more-square accessory as a decorative visual element. Proof:
+  `/tmp/kotlin_ui_proof/payments_orders_swift/figma/figma_payments_40001753_18909.png`,
+  `/tmp/kotlin_ui_proof/payments_orders_swift/figma/figma_orders_40001753_19595.png`,
+  `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/payments_swift_light.png`,
+  `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/payments_swift_dark.png`,
+  `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/orders_swift_light.png`,
+  `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/orders_swift_dark.png`.
 
-**🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Payments/Orders follow-ups not explicitly closed below.
+**🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, and PackagesFilterSheet Swift/Figma slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, and Payments/Orders header/error follow-up slices are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -325,21 +341,21 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [MEDIUM] Payments
+## [CLOSED] Payments
 `app/src/main/java/com/ga/airdrop/feature/shipments/ShipmentsUi.kt:642` — Invoice download button sits bottom-right beside Amount; Swift places it in the card's top-right corner, smaller and gray
 
 **Detail:** Swift (FigmaPaymentsViewController.swift:328-355): download button pinned top-right (trailing -16, top 14, 28pt hit area, 22pt DownloadFile glyph tinted textDescription), with the key/value rows inset 52pt on the right to clear it. Kotlin renders the icon in the Amount row at the card bottom (ShipmentsUi.kt:634-651), 24dp tinted iconSelected.
 
-**Fix:** Move the download control to a top-right overlay of PaymentCard (Box alignment TopEnd, ~14dp top / 16dp end offsets), size the glyph 22dp, tint colors.textDescription, and keep the busy spinner swap in place.
+**Fix:** Verified closed. `PaymentCard` now renders the invoice download as a top-right overlay with a 22dp glyph tinted `colors.textDescription`, matching Swift's runtime implementation even though the static Figma Payments node does not show the glyph. `PaymentsOrdersParityTest` asserts the control in light/dark and preserves the invoice viewer rail.
 
 ---
 
-## [MEDIUM] Payments / Orders
+## [CLOSED] Payments / Orders
 `app/src/main/java/com/ga/airdrop/feature/shipments/PaymentsScreen.kt:88` — No pull-to-refresh on either list; Swift attaches a UIRefreshControl (orange tint) that resets to page 1
 
 **Detail:** FigmaPaymentsViewController.swift:72-74 and FigmaOrdersViewController.swift:72-74 wire refreshControl → loadPayments/loadOrders(reset: true). Kotlin PaymentsScreen/OrdersScreen expose viewModel.refresh() but nothing in the UI triggers it — swipe-down does nothing.
 
-**Fix:** Wrap both LazyColumns in a PullToRefreshBox (material3) with indicator color BrandPalette.OrangeMain calling viewModel.refresh(); drive isRefreshing from state.loading.
+**Fix:** Verified closed. Both lists are wrapped in `PullToRefreshBox` with `BrandPalette.OrangeMain` indicators wired to `viewModel.refresh()`, preserving the existing pagination/search rails. The same follow-up proof now verifies the Payments filter header accessory and Orders trailing accessory in light/dark.
 
 ---
 
@@ -532,12 +548,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Orders
+## [CLOSED] Orders
 `app/src/main/java/com/ga/airdrop/feature/shipments/OrdersScreen.kt:90` — Orders header is missing the trailing rounded-square ellipsis accessory that Swift renders for Figma parity
 
 **Detail:** FigmaOrdersViewController.swift:154-181 draws the same more-square icon as Payments in the header trailing slot (decorative, no action — comment: 'Figma renders the same trailing accessory for visual parity'). Kotlin OrdersScreen calls ShipmentsDetailHeader without rightIconRes, leaving an empty spacer.
 
-**Fix:** Pass rightIconRes = R.drawable.ic_shipments_more_square (no-op onRightClick) to ShipmentsDetailHeader in OrdersScreen.
+**Fix:** Verified closed. `OrdersScreen` passes the Swift/Figma more-square glyph into `ShipmentsDetailHeader` as a non-clicking decorative accessory, matching Swift's visual parity comment without adding a fake action. `PaymentsOrdersParityTest` asserts the accessory in light and dark.
 
 ---
 
@@ -586,12 +602,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Payments
+## [CLOSED] Payments
 `app/src/main/java/com/ga/airdrop/feature/shipments/PaymentsScreen.kt:142` — List fetch failures pop a modal alert; Swift fails silently to the empty state (alerts only for invoice-download failures)
 
 **Detail:** Kotlin surfaces every repo error (including pagination/search failures) as a ShipmentsAlertDialog titled 'Payments' (PaymentsScreen.kt:142-150 wired to state.error set in PaymentsViewModel.load onFailure). Swift only prints list-fetch errors and shows 'No payments found' (FigmaPaymentsViewController.swift:563-571); the only alert is 'Download failed' for the invoice action (lines 393-400). A flaky connection on Android interrupts the user with modals iOS never shows.
 
-**Fix:** Only set state.error from downloadInvoice (title it 'Download failed'); on list-load failure just clear loading flags and let the empty label show, matching Swift.
+**Fix:** Verified closed. `PaymentsViewModel.load` no longer writes list-load failures into `state.error`; it clears loading flags and lets `No payments found` render. `downloadInvoice` remains the only path that raises the alert, now titled `Download failed` like Swift. `PaymentsOrdersParityTest` covers both failure paths.
 
 ---
 
