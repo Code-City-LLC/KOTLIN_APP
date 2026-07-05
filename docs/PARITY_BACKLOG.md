@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **34 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **35 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -199,6 +199,15 @@ light AND dark.
   Activate/Deactivate, and pops after Delete. Proof:
   `/tmp/kotlin_ui_proof/authorized_user_detail/android/authorized_user_detail/authorized_user_detail_swift_light.png`,
   `/tmp/kotlin_ui_proof/authorized_user_detail/android/authorized_user_detail/authorized_user_detail_swift_dark.png`.
+- **Add Authorized User add/edit payload rails:** Add Authorized User was
+  compared against Figma node `40001541:45296` and Swift
+  `FigmaAddAuthorizedUserViewController.swift`. Swift takes precedence over the
+  Figma conflict: the static node omits `Email Address`, while Swift/RN include
+  Email and send `user_email` to Laravel. Android keeps Email, preserves the
+  existing add form, and locks the hidden edit-mode prefill/PUT rail without
+  adding an Edit button to the read-only detail page. Proof:
+  `/tmp/kotlin_ui_proof/add_authorized_user/android/add_authorized_user/add_authorized_user_swift_light.png`,
+  `/tmp/kotlin_ui_proof/add_authorized_user/android/add_authorized_user/add_authorized_user_edit_swift_dark.png`.
 - **Background Images Swift-precedence picker:** Background Images was compared
   against Figma section `40006644:65735` / frame `40006644:67051` and Swift
   `FigmaBackgroundImagesViewController.swift`. Swift takes precedence over the
@@ -369,7 +378,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
@@ -480,6 +489,15 @@ the existing ViewModel-owned load/mutation/delete rails: one GET on entry,
 Activate/Deactivate refreshes detail, Delete pops back, and no Edit action is
 rendered. `AuthorizedUserDetailParityTest` verifies light/dark detail geometry,
 one-load behavior, status mutation refreshes, and delete navigation.
+
+**✅ CLOSED — Add Authorized User add/edit follow-up:** Swift
+`FigmaAddAuthorizedUserViewController.swift` wins where Figma node
+`40001541:45296` conflicts. Figma omits Email Address, but Swift/RN include it
+and send `user_email`, so Android keeps the Email row and accepts the lower
+initial TRN position caused by the extra Swift field. `AddAuthorizedUserParityTest`
+verifies the 20dp gutters, 12dp name-row gap, 50dp field cards, 52dp CTA,
+add-mode POST payload parsing, edit-mode prefill/PUT payload, and no detail-page
+Edit affordance regression.
 
 **✅ CLOSED — Invite Friend contacts icon follow-up:** Swift's
 `FigmaInviteFriendViewController` renders ContactNumber with orange signal arcs

@@ -267,6 +267,8 @@ internal fun More2Field(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    fieldTag: String? = null,
+    cardTag: String? = null,
     placeholder: String = "",
     required: Boolean = false,
     asteriskColor: Color = AlertPalette.Error,
@@ -296,6 +298,7 @@ internal fun More2Field(
                 .then(
                     if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
                 )
+                .then(if (cardTag != null) Modifier.testTag(cardTag) else Modifier)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -321,7 +324,9 @@ internal fun More2Field(
                     } else {
                         VisualTransformation.None
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (fieldTag != null) Modifier.testTag(fieldTag) else Modifier),
                 )
             }
             if (isPassword && onTogglePasswordVisibility != null) {

@@ -30,9 +30,8 @@ data class AddAuthorizedUserUiState(
 )
 
 /**
- * FigmaAddAuthorizedUserViewController: POST /authorized-users, plus the edit
- * mode Swift never wired — PUT /authorized-users/{id} with the same payload,
- * prefilled from GET /authorized-users/{id}.
+ * FigmaAddAuthorizedUserViewController: POST /authorized-users in add mode, or
+ * PUT /authorized-users/{id} with the same payload in edit mode after prefill.
  */
 class AddAuthorizedUserViewModel(
     private val editId: Int?,

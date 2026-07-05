@@ -12,7 +12,11 @@
 | 3 | **React Native app** (old) | `../AD-REACT_NATIVE_APP-OLD` | Reference: route structure, Android identity (`com.ga.airdrop.app`), Cairo fonts, assets, behaviors Swift missed (debounce, logout hygiene). |
 | 4 | **Laravel backend** | `../AIRDROP-LARAVEL` | Contract: `/api/v1` (Sanctum bearer), 60+ endpoints, models, envs (prod `app.airdropja.com`, pre-staging `pre-staging.airdropja.com`). |
 
-Conflict rule: Figma wins visuals; Swift wins behavior (RN fills Swift's gaps); Laravel wins data contract.
+Conflict rule update (2026-07-05): Swift is the precedence guide whenever
+Swift and Figma disagree. Figma remains the pixel-measurement source where
+Swift has no designed element or the two agree; RN fills Swift gaps; Laravel
+wins data contract. Document every Swift/Figma conflict instead of silently
+choosing Figma.
 
 ## 2. Screen inventory (52 screens) with Figma nodes
 

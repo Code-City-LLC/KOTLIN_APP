@@ -26,8 +26,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -35,13 +37,12 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.Spacing
-import androidx.compose.ui.unit.dp
 
 /**
  * Add/Edit Authorized User — Figma node 40001541:45296, behavior from
  * FigmaAddAuthorizedUserViewController: name row, ID-type picker, ID number,
  * email, mobile ("+CC number"), TRN; POST /authorized-users, or edit mode via
- * PUT /authorized-users/{editId} (gap Swift left unwired — implemented here).
+ * PUT /authorized-users/{editId} when an existing authorized user is supplied.
  */
 @Composable
 fun AddAuthorizedUserScreen(
@@ -63,6 +64,7 @@ fun AddAuthorizedUserScreen(
     Column(
         Modifier
             .fillMaxSize()
+            .testTag("add-authorized-user-root")
             .background(colors.gray100)
             .imePadding()
     ) {
@@ -76,15 +78,21 @@ fun AddAuthorizedUserScreen(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
+                    .testTag("add-authorized-user-scroll")
                     .padding(Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 // First / Last name side-by-side (RN nameRow, 12dp gap).
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.testTag("add-authorized-user-name-row"),
+                ) {
                     More2Field(
                         label = "First Name",
                         value = state.firstName,
                         onValueChange = viewModel::onFirstName,
+                        fieldTag = "add-authorized-user-first-name-input",
+                        cardTag = "add-authorized-user-first-name-card",
                         placeholder = "e.g. John",
                         required = true,
                         modifier = Modifier.weight(1f),
@@ -93,6 +101,8 @@ fun AddAuthorizedUserScreen(
                         label = "Last Name",
                         value = state.lastName,
                         onValueChange = viewModel::onLastName,
+                        fieldTag = "add-authorized-user-last-name-input",
+                        cardTag = "add-authorized-user-last-name-card",
                         placeholder = "e.g. Maat",
                         required = true,
                         modifier = Modifier.weight(1f),
@@ -104,6 +114,8 @@ fun AddAuthorizedUserScreen(
                         label = "Identity Type",
                         value = state.idType,
                         onValueChange = {},
+                        fieldTag = "add-authorized-user-id-type-input",
+                        cardTag = "add-authorized-user-id-type-card",
                         placeholder = "Select identity type",
                         required = true,
                         onClick = { idTypeMenuOpen = true },
@@ -142,6 +154,8 @@ fun AddAuthorizedUserScreen(
                     label = "Identification Number",
                     value = state.idNumber,
                     onValueChange = viewModel::onIdNumber,
+                    fieldTag = "add-authorized-user-id-number-input",
+                    cardTag = "add-authorized-user-id-number-card",
                     placeholder = "e.g. 194049512",
                     required = true,
                 )
@@ -149,6 +163,8 @@ fun AddAuthorizedUserScreen(
                     label = "Email Address",
                     value = state.email,
                     onValueChange = viewModel::onEmail,
+                    fieldTag = "add-authorized-user-email-input",
+                    cardTag = "add-authorized-user-email-card",
                     placeholder = "e.g. jane.smith@example.com",
                     required = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -157,6 +173,8 @@ fun AddAuthorizedUserScreen(
                     label = "Mobile Number",
                     value = state.mobileNumber,
                     onValueChange = viewModel::onMobileNumber,
+                    fieldTag = "add-authorized-user-mobile-input",
+                    cardTag = "add-authorized-user-mobile-card",
                     placeholder = "+1 876-5290736",
                     required = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -165,6 +183,8 @@ fun AddAuthorizedUserScreen(
                     label = "Tax Registration Number",
                     value = state.trn,
                     onValueChange = viewModel::onTrn,
+                    fieldTag = "add-authorized-user-trn-input",
+                    cardTag = "add-authorized-user-trn-card",
                     placeholder = "e.g. 194049512",
                     required = true,
                 )
@@ -178,6 +198,7 @@ fun AddAuthorizedUserScreen(
                 text = if (state.isEditMode) "Save Changes" else "Add User",
                 onClick = viewModel::save,
                 loading = state.saving,
+                modifier = Modifier.testTag("add-authorized-user-primary"),
             )
         }
     }
