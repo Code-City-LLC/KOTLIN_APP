@@ -600,25 +600,17 @@ private fun ReferAFriendCard(onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Figma Home card 40001464:28925 uses the actual duotone "Refer a
-            // friend" asset (40000710:13310): two people in the theme icon
-            // color + brand-orange (#F15114) motion accents. Layered as two
-            // drawables — people tinted at the Compose level (theme-correct in
-            // light AND dark; a @color/icon_duotone stroke would not re-resolve
-            // to the in-app ThemeController mode), orange accents baked on top.
-            Box(Modifier.size(24.dp)) {
-                Image(
-                    painter = painterResource(R.drawable.ic_refer_a_friend),
-                    contentDescription = null,
-                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Image(
-                    painter = painterResource(R.drawable.ic_refer_a_friend_accent),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            // Swift FigmaHomeViewController.makeReferAFriend uses TwoUsers with
+            // both icon roles forced to textDarkTitle, even though Figma's
+            // static node still shows the orange-accent ReferAFriend asset.
+            Image(
+                painter = painterResource(R.drawable.ic_more_users),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                modifier = Modifier
+                    .size(24.dp)
+                    .testTag("home-refer-friend-icon"),
+            )
             Text(
                 text = "Refer a friend",
                 style = AirdropType.subtitle1,

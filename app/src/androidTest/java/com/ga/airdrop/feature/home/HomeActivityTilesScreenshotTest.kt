@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.home
 
+import android.content.ContentValues
 import android.graphics.Bitmap
+import android.provider.MediaStore
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -27,6 +29,7 @@ import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -216,6 +219,24 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
+    fun referFriendCardUsesSwiftSingleToneIconLight() {
+        assertReferFriendIconPalette(
+            mode = ThemeController.Mode.LIGHT,
+            targetColor = SWIFT_TEXT_DARK_TITLE,
+            screenshot = "home_refer_friend_swift_light.png",
+        )
+    }
+
+    @Test
+    fun referFriendCardUsesSwiftSingleToneIconDark() {
+        assertReferFriendIconPalette(
+            mode = ThemeController.Mode.DARK,
+            targetColor = SWIFT_TEXT_DARK_TITLE_DARK,
+            screenshot = "home_refer_friend_swift_dark.png",
+        )
+    }
+
+    @Test
     fun standardWarehouseCardOpensWarehouseScreenFromAppRoot() {
         assertWarehouseCardOpensFromAppRoot(
             WarehouseAppRootCase(
@@ -303,6 +324,30 @@ class HomeActivityTilesScreenshotTest {
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        saveProofScreenshot(bitmap, filename)
+    }
+
+    @Suppress("InlinedApi")
+    private fun saveProofScreenshot(bitmap: Bitmap, filename: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val resolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, PROOF_SCREENSHOT_DIR)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = requireNotNull(
+            resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values),
+        ) { "Unable to create proof screenshot $filename" }
+
+        resolver.openOutputStream(uri).use { output ->
+            requireNotNull(output) { "Unable to open proof screenshot $filename" }
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        values.clear()
+        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+        resolver.update(uri, values, null, null)
     }
 
     private fun setHomeContent(onNavigate: (String) -> Unit = {}) {
@@ -315,6 +360,27 @@ class HomeActivityTilesScreenshotTest {
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithText("Services").fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    private fun assertReferFriendIconPalette(
+        mode: ThemeController.Mode,
+        targetColor: Int,
+        screenshot: String,
+    ) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync { ThemeController.set(mode) }
+
+        setHomeContent()
+        compose.onNodeWithText("Refer a friend").performScrollTo()
+        compose.waitForIdle()
+
+        assertIconContainsColor("home-refer-friend-icon", targetColor, "Swift textDarkTitle refer icon")
+        assertIconDoesNotContainColor(
+            tag = "home-refer-friend-icon",
+            target = STALE_FIGMA_ORANGE,
+            label = "Figma orange accent must not render on Swift-precedence Home refer icon",
+        )
+        saveRootScreenshot(screenshot)
     }
 
     private fun screenshotDir(): File {
@@ -332,9 +398,55 @@ class HomeActivityTilesScreenshotTest {
     private fun boundsHeight(bounds: androidx.compose.ui.unit.DpRect): Float =
         (bounds.bottom - bounds.top).value
 
+    private fun assertIconContainsColor(tag: String, target: Int, label: String) {
+        val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+        assertTrue(label, bitmap.hasPixelNear(target))
+    }
+
+    private fun assertIconDoesNotContainColor(tag: String, target: Int, label: String) {
+        val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+        assertTrue(label, !bitmap.hasPixelNear(target))
+    }
+
+    private fun Bitmap.hasPixelNear(target: Int): Boolean {
+        val targetRed = (target shr 16) and 0xFF
+        val targetGreen = (target shr 8) and 0xFF
+        val targetBlue = target and 0xFF
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                val pixel = getPixel(x, y)
+                val alpha = (pixel ushr 24) and 0xFF
+                if (alpha < 180) continue
+                val red = (pixel shr 16) and 0xFF
+                val green = (pixel shr 8) and 0xFF
+                val blue = pixel and 0xFF
+                if (
+                    kotlin.math.abs(red - targetRed) <= COLOR_TOLERANCE &&
+                    kotlin.math.abs(green - targetGreen) <= COLOR_TOLERANCE &&
+                    kotlin.math.abs(blue - targetBlue) <= COLOR_TOLERANCE
+                ) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     private data class WarehouseAppRootCase(
         val type: String,
         val expectedTitle: String,
         val screenshot: String,
     )
+
+    private companion object {
+        private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
+        private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
+        private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
+        private const val COLOR_TOLERANCE = 8
+        private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/home_refer_icon"
+    }
 }

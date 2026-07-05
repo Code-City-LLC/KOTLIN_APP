@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **40 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **41 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -105,6 +105,17 @@ light AND dark.
   rails; adjacent `HomeActivityTilesScreenshotTest` and
   `HomeChromeOpacityParityTest` still pass. Proof:
   `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`.
+- **Home Refer-a-friend icon Swift/Figma proof:** Home refer card node
+  `40001464:28925` was checked through Figma MCP and Swift
+  `FigmaHomeViewController.makeReferAFriend()` was checked first for runtime
+  truth. Figma still shows the orange-accent ReferAFriend asset, but Swift
+  ships `FigmaIcon.twoUsers(size: 24, primary: textDarkTitle, secondary:
+  textDarkTitle)`, so Swift wins. Android now reuses the existing TwoUsers
+  glyph and theme-tints it from `textDarkTitle`; pixel checks reject the stale
+  Figma orange in app light and app dark. Proof:
+  `/tmp/kotlin_ui_proof/home_refer_icon/figma/figma_home_refer_card_40001464_28925.png`,
+  `/tmp/kotlin_ui_proof/home_refer_icon/android/home_refer_friend_swift_light.png`,
+  `/tmp/kotlin_ui_proof/home_refer_icon/android/home_refer_friend_swift_dark.png`.
 - **Documents card/action-row geometry:** Documents was compared against Figma
   node `40000975:7748` and Swift `FigmaDocumentsViewController.swift`. Swift
   takes precedence because Figma still shows the older edge-to-edge footer while
@@ -519,7 +530,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Calculator/Drop Alert/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Calculator Standard entry Swift/Figma proof, Drop Alert consignee/profile-failure Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Calculator/Drop Alert/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Calculator Standard entry Swift/Figma proof, Drop Alert consignee/profile-failure Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, Home Refer-a-friend icon Swift-precedence proof, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
@@ -568,6 +579,13 @@ and Swift compact Business Hours copy.
 **✅ CLOSED — Home activity/highlight geometry follow-up:** Activity tile and
 Auction Highlights card sizes were measured against Swift first and Figma
 second. Android already matched, so only regression tags/assertions were added.
+
+**✅ CLOSED — Home Refer-a-friend icon follow-up:** Figma refer card node
+`40001464:28925` still shows an orange-accent ReferAFriend icon, but Swift
+`FigmaHomeViewController.makeReferAFriend()` ships the single-tone TwoUsers icon
+with both color roles forced to `textDarkTitle`. Android now follows Swift,
+reuses the existing TwoUsers drawable, and verifies light/dark pixels reject the
+stale Figma orange.
 
 **✅ CLOSED — Documents card/action-row geometry follow-up:** Swift's newer
 `FigmaDocumentsViewController.swift` wins over the older Figma edge-to-edge

@@ -39,6 +39,8 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/product_description_fallback/figma/auction_product_details_40002072_24025.png`
   - Home live-data/viewDidAppear slice:
     `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`
+  - Home Refer-a-friend icon slice:
+    `/tmp/kotlin_ui_proof/home_refer_icon/figma/figma_home_refer_card_40001464_28925.png`
   - Packages filter live-flow slice:
     `/tmp/kotlin_ui_proof/packages_filter_flow/figma/packages_40001666_42198.png`,
     `/tmp/kotlin_ui_proof/packages_filter_flow/figma/packages_filter_40006358_75618.png`
@@ -151,6 +153,25 @@ assets; only repair the parts that are visibly or functionally wrong.
     `:app:connectedStagingDebugAndroidTest`: 2 tests passed
   - proof PNG:
     `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`
+- Android checks run for the Home Refer-a-friend icon Swift/Figma proof:
+  - Figma MCP design context and screenshot for Home refer card node
+    `40001464:28925`:
+    `/tmp/kotlin_ui_proof/home_refer_icon/figma/figma_home_refer_card_40001464_28925.png`.
+  - Swift source checked in
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaHomeViewController.swift`:
+    `makeReferAFriend()` uses `FigmaIcon.twoUsers(size: 24, primary:
+    textDarkTitle, secondary: textDarkTitle)`.
+  - Conflict documented: Figma still renders an orange-accent ReferAFriend asset
+    on the static Home card, while Swift ships the single-tone TwoUsers glyph.
+    Swift wins. Android now reuses the existing `ic_more_users` TwoUsers asset
+    and tints it from `textDarkTitle`.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `HomeActivityTilesScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 13 tests passed
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/home_refer_icon/android/home_refer_friend_swift_light.png`,
+    `/tmp/kotlin_ui_proof/home_refer_icon/android/home_refer_friend_swift_dark.png`.
 - Android checks run for the Sales Taxes / Ship Tax detail app-dark icon pass:
   - Figma MCP screenshot checked for Sales Taxes node `40001531:11704`:
     `/tmp/kotlin_ui_proof/sales_taxes_icons/figma/figma_sales_taxes_40001531_11704.png`.
@@ -1002,6 +1023,15 @@ assets; only repair the parts that are visibly or functionally wrong.
   clears stale auction highlights on failed auction reload. `HomeLiveDataParityTest`
   locks the resume reload and stale-auction clearing while the existing Home
   visual/tap tests continue to pass.
+- Home Refer-a-friend icon now follows Swift over stale Figma. Figma refer card
+  node `40001464:28925` still shows the orange-accent ReferAFriend asset, but
+  Swift `FigmaHomeViewController.makeReferAFriend()` renders
+  `FigmaIcon.twoUsers` at 24pt with both primary and secondary colors forced to
+  `textDarkTitle`. Android now reuses the existing TwoUsers drawable and tints
+  it from the active app theme; pixel checks reject the stale Figma orange in
+  both light and dark proof screenshots:
+  `/tmp/kotlin_ui_proof/home_refer_icon/android/home_refer_friend_swift_light.png`,
+  `/tmp/kotlin_ui_proof/home_refer_icon/android/home_refer_friend_swift_dark.png`.
 
 ### Shipments
 
@@ -1390,6 +1420,13 @@ Findings to verify/fix:
   Swift-equivalent routes; `HomeActivityTilesScreenshotTest` now locks the
   route callbacks in addition to the all-three Standard/SeaDrop/Express-through
   `AppRoot` warehouse proof.
+- Home Refer-a-friend icon was rechecked against Figma refer card node
+  `40001464:28925` and Swift `FigmaHomeViewController.makeReferAFriend()`.
+  Figma still shows the orange-accent ReferAFriend asset; Swift ships
+  `FigmaIcon.twoUsers(size: 24, primary: textDarkTitle, secondary:
+  textDarkTitle)`. Swift wins. Android now uses the existing `ic_more_users`
+  TwoUsers glyph and theme-tints it to `textDarkTitle`, with light/dark pixel
+  tests proving the stale orange does not render.
 - Home auction card/cart behavior was rechecked against Swift
   `FigmaHomeViewController.makeAuctionCard`, `onTapAuctionCard`, and
   `onTapAddToCart`, with Figma Home node `40001464:28899` as the visual source
@@ -1742,7 +1779,8 @@ Findings to verify/fix:
   shared inner header, Restricted
   Items search/list/detail icons and notes, Legal live CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
   balance/history, GoldPriority tier-name/status-bar, PackageDetails
-  Swift-precedence screen pass, Home chrome opacity, Home route callbacks, and
+  Swift-precedence screen pass, Home chrome opacity, Home route callbacks,
+  Home Refer-a-friend icon Swift-precedence proof, and
   Home auction card/cart behavior,
   PaymentPackageDetails footer/timeline/payment-copy,
   ProductPaymentDetails/OrderDetails hero/payment-copy geometry, and
@@ -1762,7 +1800,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt`, `feature/homedetails/components/HomeDetailsComponents.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, shared HomeDetailsHeader long-title autoscale, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risk is full authenticated end-to-end Home data proof |
+| Home | `feature/home/HomeScreen.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt`, `feature/homedetails/components/HomeDetailsComponents.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, shared HomeDetailsHeader long-title autoscale, activity/highlight geometry, primary route callbacks, Refer-a-friend icon Swift-precedence, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risk is full authenticated end-to-end Home data proof |
 | Calculator | `feature/calculator/CalculatorScreen.kt`, `CalculatorUi.kt`, `CalculatorViewModel.kt` | `FigmaCalculatorViewController.swift` | Standard `40001464:29102`, SeaDrop `40001464:30381`, Express `40001464:30723` | calculator estimate path preserved through existing repository/ViewModel | yes | yes | yes | MagentaCastle | Standard entry closed by Swift-precedence proof: full-width invoice + actual weight, no stale Figma `Select Unit`/`Total Weight`, solid in-scroll CTA, 32dp/24dp inner-header back rail, Swift field/info-card primitives; SeaDrop/Express branches preserved |
 | Drop Alert | `feature/dropalert/DropAlertScreen.kt`, `DropAlertViewModel.kt`, `DropAlertRepository.kt` | `FigmaDropAlertViewController.swift` | `40001826:22497`, related `40001836:22971` | `/drop-alerts`, `/user/profile`, multipart image upload path preserved | yes | yes | yes | MagentaCastle | Consignee profile-failure manual-entry flow closed by Swift-precedence proof: field remains editable when prefill fails, submitted manual value is preserved, and success reset clears Consignee like Swift; existing method/company/image/upload rails preserved; broader live authenticated backend proof still not rerun |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, backend pagination/search/reset contracts, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad live-auth/full-flow backend parity still open |
