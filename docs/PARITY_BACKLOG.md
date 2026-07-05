@@ -50,10 +50,13 @@ light AND dark.
   compared against Figma Home node `40001464:28899` and Swift
   `FigmaHomeViewController.swift`; both sources agree on y=326, carousel 346,
   card 238x326. Android already matched those values. Instrumentation verified
-  all three card routes and Standard-through-`AppRoot` detail opening. Proof:
+  all three card routes and Standard/SeaDrop/Express-through-`AppRoot` detail
+  opening with the Swift detail title selected. Proof:
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`,
-  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`.
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`,
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_seadrop_after_tap.png`,
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_express_after_tap.png`.
 - **Help full Swift-precedence layout/icons/intents:** Help was compared against
   Figma node `40001617:20377` and Swift
   `FigmaContactsViewController.swift`. Swift wins over Figma where they differ:

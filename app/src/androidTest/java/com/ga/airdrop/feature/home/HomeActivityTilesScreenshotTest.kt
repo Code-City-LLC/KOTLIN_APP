@@ -217,6 +217,38 @@ class HomeActivityTilesScreenshotTest {
 
     @Test
     fun standardWarehouseCardOpensWarehouseScreenFromAppRoot() {
+        assertWarehouseCardOpensFromAppRoot(
+            WarehouseAppRootCase(
+                type = "standard",
+                expectedTitle = "AirDrop (Air Freight)",
+                screenshot = "home_warehouse_standard_after_tap.png",
+            )
+        )
+    }
+
+    @Test
+    fun seadropWarehouseCardOpensWarehouseScreenFromAppRoot() {
+        assertWarehouseCardOpensFromAppRoot(
+            WarehouseAppRootCase(
+                type = "seadrop",
+                expectedTitle = "SeaDrop (Sea Freight)",
+                screenshot = "home_warehouse_seadrop_after_tap.png",
+            )
+        )
+    }
+
+    @Test
+    fun expressWarehouseCardOpensWarehouseScreenFromAppRoot() {
+        assertWarehouseCardOpensFromAppRoot(
+            WarehouseAppRootCase(
+                type = "express",
+                expectedTitle = "Express (Air Express)",
+                screenshot = "home_warehouse_express_after_tap.png",
+            )
+        )
+    }
+
+    private fun assertWarehouseCardOpensFromAppRoot(warehouseCase: WarehouseAppRootCase) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
@@ -230,14 +262,16 @@ class HomeActivityTilesScreenshotTest {
                 }
             }
             compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithTag("home-warehouse-standard").fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodesWithTag("home-warehouse-carousel").fetchSemanticsNodes().isNotEmpty()
             }
-            compose.onNodeWithTag("home-warehouse-standard").performClick()
+            compose.onNodeWithTag("home-warehouse-carousel")
+                .performScrollToNode(hasTestTag("home-warehouse-${warehouseCase.type}"))
+            compose.onNodeWithTag("home-warehouse-${warehouseCase.type}").performClick()
             compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithText("AirDrop (Air Freight)").fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodesWithText(warehouseCase.expectedTitle).fetchSemanticsNodes().isNotEmpty()
             }
             val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
-            val output = File(screenshotDir(), "home_warehouse_standard_after_tap.png")
+            val output = File(screenshotDir(), warehouseCase.screenshot)
             FileOutputStream(output).use {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
             }
@@ -297,4 +331,10 @@ class HomeActivityTilesScreenshotTest {
 
     private fun boundsHeight(bounds: androidx.compose.ui.unit.DpRect): Float =
         (bounds.bottom - bounds.top).value
+
+    private data class WarehouseAppRootCase(
+        val type: String,
+        val expectedTitle: String,
+        val screenshot: String,
+    )
 }

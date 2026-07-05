@@ -73,7 +73,7 @@ assets; only repair the parts that are visibly or functionally wrong.
     `SWIFT_APP/Airdrop/FigmaAuctionProductDetailsViewController.swift`:
     `mode == .auction` always adds the related header/row, and the row renders
     two skeleton placeholders until a related endpoint exists.
-  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - `:app:compileStagingDebugAndroidTestKotlin`
   - targeted `AuctionProductDetailsRelatedParityTest` through
     `:app:connectedStagingDebugAndroidTest`: 2 tests passed
   - manual `adb shell am instrument -w -e class
@@ -106,17 +106,21 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_dark_after_fix.png`
 - Android checks run for the Home warehouse-card tap/geometry proof:
   - Figma MCP metadata for Home node `40001464:28899`.
-  - Figma MCP design context for Standard card node `40001464:28907`.
+  - Figma MCP design context for Home node `40001464:28899` and Standard card
+    node `40001464:28907`.
   - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
   - targeted `HomeActivityTilesScreenshotTest` through
-    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+    `:app:connectedStagingDebugAndroidTest`: 11 tests passed
   - manual `adb shell am instrument -w -e class
     com.ga.airdrop.feature.home.HomeActivityTilesScreenshotTest ...`:
-    `OK (4 tests)`
+    `OK (11 tests)`
+  - full `:app:connectedStagingDebugAndroidTest`: 95 tests passed
   - proof PNGs:
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`,
-    `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`
+    `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`,
+    `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_seadrop_after_tap.png`,
+    `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_express_after_tap.png`
 - Android checks run for the Help Swift/Figma pass:
   - Figma MCP design context for Help node `40001617:20377`.
   - Swift source compared:
@@ -556,10 +560,12 @@ assets; only repair the parts that are visibly or functionally wrong.
   already matched those values, so the code change only adds test tags and
   geometry regression coverage.
 - Home warehouse tap path is verified in instrumentation: Standard/SeaDrop/
-  Express cards emit `warehouses?type=standard|seadrop|express`, and a Standard
-  tap through `AppRoot` opens the Warehouse detail screen with the Standard tab
-  selected. Proof:
-  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`.
+  Express cards emit `warehouses?type=standard|seadrop|express`, and all three
+  taps through `AppRoot` open the Warehouse detail screen with the matching Swift
+  detail title selected. Proof:
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`,
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_seadrop_after_tap.png`,
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_express_after_tap.png`.
 
 ### Shipments
 
@@ -851,7 +857,7 @@ Findings to verify/fix:
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`.
 - Standard/SeaDrop/Express cards are tappable as whole cards and route to the
-  warehouse detail flow with the correct type in instrumentation. Standard was
+  warehouse detail flow with the correct type in instrumentation. All three were
   additionally verified through `AppRoot`.
 - Home route buttons were rechecked against Swift `FigmaHomeViewController`
   callbacks and Figma Home node `40001464:28899`: Services -> `SERVICES`,
@@ -859,8 +865,8 @@ Findings to verify/fix:
   `DROP_ALERT`, See More -> `AUCTION`, Refer a friend -> `REFER_A_FRIEND`,
   bell -> `NOTIFICATIONS`, and cart -> `CART`. Android already emitted the
   Swift-equivalent routes; `HomeActivityTilesScreenshotTest` now locks the
-  route callbacks in addition to the existing Standard-through-`AppRoot`
-  warehouse proof.
+  route callbacks in addition to the all-three Standard/SeaDrop/Express-through
+  `AppRoot` warehouse proof.
 - Home auction card/cart behavior was rechecked against Swift
   `FigmaHomeViewController.makeAuctionCard`, `onTapAuctionCard`, and
   `onTapAddToCart`, with Figma Home node `40001464:28899` as the visual source
