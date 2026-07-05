@@ -922,6 +922,16 @@ assets; only repair the parts that are visibly or functionally wrong.
   keeps the Swift/Figma 20dp content gutters, 56dp card header, active/inactive
   section layout, card-detail taps, bottom-only `Add User` action, and adds the
   missing Swift orange pull-to-refresh rail through the existing repository path.
+- Background Images now has Swift-precedence proof against Figma section
+  `40006644:65735` / frame `40006644:67051` and Swift
+  `FigmaBackgroundImagesViewController.swift`. Figma shows a one-column `335x150`
+  landscape list with extra wallpaper IDs, but Swift ships a two-column `220`pt
+  portrait picker with IDs `0..13`. Android now follows Swift, preserves the
+  existing Home background store path, and normalizes stale Figma-only IDs back
+  to the default image. Proof:
+  `/tmp/kotlin_ui_proof/background_images/figma/figma_background_images_40006644_67051.png`,
+  `/tmp/kotlin_ui_proof/background_images/android/background_images/background_images_swift_light.png`,
+  `/tmp/kotlin_ui_proof/background_images/android/background_images/background_images_swift_dark.png`.
 
 ## Reopened Defects From User Review
 
@@ -1128,8 +1138,9 @@ Findings to verify/fix:
   ProductPaymentDetails/OrderDetails hero/payment-copy geometry, and
   InvoiceViewer surface/share-file behavior, PackagesFilterSheet geometry plus
   callbacks, Payments/Orders header/error follow-ups, and Shipments section-card
-  dividers, plus Authorized Users refresh/list tap rails, now have Figma MCP +
-  Swift comparison and targeted device-test proof.
+  dividers, plus Authorized Users refresh/list tap rails and Background Images
+  Swift-precedence picker, now have Figma MCP + Swift comparison and targeted
+  device-test proof.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -1146,7 +1157,7 @@ For each page, fill this before claiming completion:
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Authorized Users `40000975:7859` | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | More root profile/menu/header tap rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Authorized Users `40000975:7859`, Background Images `40006644:65735`/`40006644:67051` | user/profile/content/faqs/etc., device-tokens/register, local background prefs | partial | partial | partial | Codex | More root profile/menu/header tap rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Background Images Swift-precedence picker, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
 
 ---
@@ -1158,13 +1169,20 @@ Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented he
 **Figma↔Swift CONFLICTS (Swift won):**
 - **Home header** — Figma `40001464:28926` = dark frosted translucent `rgba(41,41,41,0.7)` + blur + white text. Swift `FigmaTabHeader.swift:129-131` = OPAQUE `gray200` (`#f5f5f5` light / `#333333` dark) + `textDarkTitle`/`iconSelected`. **Swift wins → opaque gray200** (origin/main `0184744`). My earlier Figma-translucent attempt (`bc430a4`) was reverted. Both Swift+Android default to follow-system theme.
 - **Shipments search field** (shared `ShipmentsSearchField`) — Swift Packages `makeSearchCard` = LEADING 22pt magnifier; Swift Payments/Orders `makeSearchRow` = TRAILING 18pt. Component is shared by all three, so a blind flip breaks Packages. **CLOSED by parameterized shared component** — Figma nodes `40001666:42198`, `40001753:18909`, and `40001753:19595` were refreshed; Swift wins over static Figma search copy/icon-side conflicts.
+- **Background Images** — Swift `FigmaBackgroundImagesViewController` =
+  default + 13 `back_color` wallpapers, two-column `220`pt portrait grid, 44pt
+  selection controls, and bottom Save. Figma `40006644:65735` /
+  `40006644:67051` = one-column `335x150` landscape list with extra wallpaper
+  IDs. **Swift wins → 14-choice two-column picker.** Android keeps the exported
+  assets but exposes only Swift IDs `0..13`, normalizes stale Figma-only saved
+  IDs back to default, and preserves Home background resolution through
+  `BackgroundStore`.
 
 **Figma WINS where Swift lacks (Kemar precedent):**
 - **Onboarding** — Swift `SceneDelegate` collapsed LaunchApp/ChooseYourLook/Onboarding/AuthLanding→Login. Figma "Onboarding - Design Done" `40006240:*` exists. Wired first-run flow (`92bdaf0`), device-verified: Splash→carousel→Choose-Your-Look→AuthLanding→Login. NOTE: any AppRoot reactive-logout effect must exclude SPLASH+ONBOARDING.
-- **Background Images** — Swift `FigmaBackgroundImagesViewController` = 13 `back_color` wallpapers, 2-col portrait grid. Figma `40006644:65735` = 32 wallpapers, 1-col 335×150 landscape-tile list. Built all 33 (default + 32) + list layout (`859f1d0`); assets exported pixel-perfect from Figma.
 
 **Swift-source-exact fixes proven (`34e9620`, adversarial audit + verify):** Home header icon spacing (14→20, 16→19dp), tier lineHeight (22→24); PackageDetails hero 262→240dp, CIF row 59→48dp, CIF icon 24→20dp, divider `#D9D9D9`→`gray300 #EBEBEB`; ShipmentsUi package-status always Completed-green (Swift :556), Order value `$`→`USD`, TotalChargesBox radius 15→10, borders→gray300, empty-label body2→body1; ProductPaymentDetails summary titles subtitle1→title2; InvoiceViewer Share button gradient→flat OrangeMain, height 50→52, 5 state labels body2→body1. + `6a21713` §108/§153/§99 (MagentaCastle verifier-accepted on device).
 
-**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620` + `859f1d0` background picker; §117 InvoiceViewer blocked by HTTP 403; Orders decorative icon (low-confidence). CRITICAL payment bugs remain ON HOLD for Kemar.
+**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620`; §117 InvoiceViewer blocked by HTTP 403; Orders decorative icon (low-confidence). CRITICAL payment bugs remain ON HOLD for Kemar.
 
 Health @ origin/main `c085c88`: `assembleStagingDebug` PASS, unit tests 9/0-fail, all BlueDeer commits intact.

@@ -9,9 +9,6 @@ import com.ga.airdrop.R
  * "BACKGROUND_IMAGE_ID"). ID 0 is the theme-aware default (Figma
  * 40000710:5347 light / 40000710:5667 dark); IDs 1–13 map to the bundled
  * back_color set copied verbatim from the iOS asset catalog.
- *
- * RECONCILE: HomeScreen should replace its hard-coded hero drawable with
- * `BackgroundStore.currentBackgroundRes(context, isDark)` (orchestrator).
  */
 object BackgroundStore {
 
@@ -36,32 +33,16 @@ object BackgroundStore {
         Choice(11, R.drawable.img_more_bg_11, R.drawable.img_more_bg_11, false),
         Choice(12, R.drawable.img_more_bg_12, R.drawable.img_more_bg_12, false),
         Choice(13, R.drawable.img_more_bg_13, R.drawable.img_more_bg_13, false),
-        Choice(14, R.drawable.img_more_bg_14, R.drawable.img_more_bg_14, false),
-        Choice(15, R.drawable.img_more_bg_15, R.drawable.img_more_bg_15, false),
-        Choice(16, R.drawable.img_more_bg_16, R.drawable.img_more_bg_16, false),
-        Choice(17, R.drawable.img_more_bg_17, R.drawable.img_more_bg_17, false),
-        Choice(18, R.drawable.img_more_bg_18, R.drawable.img_more_bg_18, false),
-        Choice(19, R.drawable.img_more_bg_19, R.drawable.img_more_bg_19, false),
-        Choice(20, R.drawable.img_more_bg_20, R.drawable.img_more_bg_20, false),
-        Choice(21, R.drawable.img_more_bg_21, R.drawable.img_more_bg_21, false),
-        Choice(22, R.drawable.img_more_bg_22, R.drawable.img_more_bg_22, false),
-        Choice(23, R.drawable.img_more_bg_23, R.drawable.img_more_bg_23, false),
-        Choice(24, R.drawable.img_more_bg_24, R.drawable.img_more_bg_24, false),
-        Choice(25, R.drawable.img_more_bg_25, R.drawable.img_more_bg_25, false),
-        Choice(26, R.drawable.img_more_bg_26, R.drawable.img_more_bg_26, false),
-        Choice(27, R.drawable.img_more_bg_27, R.drawable.img_more_bg_27, false),
-        Choice(28, R.drawable.img_more_bg_28, R.drawable.img_more_bg_28, false),
-        Choice(29, R.drawable.img_more_bg_29, R.drawable.img_more_bg_29, false),
-        Choice(30, R.drawable.img_more_bg_30, R.drawable.img_more_bg_30, false),
-        Choice(31, R.drawable.img_more_bg_31, R.drawable.img_more_bg_31, false),
-        Choice(32, R.drawable.img_more_bg_32, R.drawable.img_more_bg_32, false),
     )
 
-    fun selectedId(context: Context): Int =
-        prefs(context).getInt(KEY_ID, DEFAULT_ID)
+    fun selectedId(context: Context): Int {
+        val savedId = prefs(context).getInt(KEY_ID, DEFAULT_ID)
+        return if (choices.any { it.id == savedId }) savedId else DEFAULT_ID
+    }
 
     fun save(context: Context, id: Int) {
-        prefs(context).edit().putInt(KEY_ID, id).apply()
+        val normalizedId = if (choices.any { it.id == id }) id else DEFAULT_ID
+        prefs(context).edit().putInt(KEY_ID, normalizedId).apply()
     }
 
     /** Resolves the drawable for the saved choice, theme-aware for the default. */

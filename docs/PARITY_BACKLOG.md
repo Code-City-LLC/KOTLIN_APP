@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **31 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **32 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -177,6 +177,16 @@ light AND dark.
   `/tmp/kotlin_ui_proof/authorized_users_figma.png`,
   `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_light.png`,
   `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_dark.png`.
+- **Background Images Swift-precedence picker:** Background Images was compared
+  against Figma section `40006644:65735` / frame `40006644:67051` and Swift
+  `FigmaBackgroundImagesViewController.swift`. Swift takes precedence over the
+  Figma-only expanded wallpaper list: Android now uses the two-column `220`dp
+  portrait picker, 44dp selection controls, bottom Save rail, and Swift IDs
+  `0..13`; stale saved IDs from the previous Figma-only `14..32` set normalize
+  to the default image. Proof:
+  `/tmp/kotlin_ui_proof/background_images/figma/figma_background_images_40006644_67051.png`,
+  `/tmp/kotlin_ui_proof/background_images/android/background_images/background_images_swift_light.png`,
+  `/tmp/kotlin_ui_proof/background_images/android/background_images/background_images_swift_dark.png`.
 - **AirCoins balance/history Swift parity:** AirCoins was compared against
   Swift `FigmaAirCoinHistoryViewController.swift`, Figma balance node
   `40001911:22972`, and Figma history node `40006461:26563`. Swift takes
@@ -320,7 +330,14 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Authorized Users refresh/list rails, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Authorized Users refresh/list rails, Background Images Swift-precedence picker, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
+
+## [CLOSED] Background Images
+`app/src/main/java/com/ga/airdrop/feature/more/BackgroundImagesScreen.kt` and `BackgroundStore.kt` — previous Android picker followed the Figma-expanded list instead of the Swift app that Kemar designated as the guide.
+
+**Detail:** Figma section `40006644:65735` / frame `40006644:67051` shows a one-column `335x150` landscape list and extra wallpaper IDs. Swift `FigmaBackgroundImagesViewController.swift` ships default + IDs `1..13`, a two-column grid, `220`pt portrait tiles, 44pt selection controls, the "Default Image" pill only when the default tile is unselected, and a bottom Save rail. Swift takes precedence for this conflict.
+
+**Fix:** Closed. Android now uses the Swift two-column picker, limits `BackgroundStore.choices` to IDs `0..13`, preserves the existing Home background resolution path, and normalizes stale Figma-only saved IDs back to default. `BackgroundImagesParityTest` verifies light/dark geometry, save behavior, tile reachability, and stale-ID migration; full `connectedStagingDebugAndroidTest` passed 107/107.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 

@@ -8,16 +8,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
@@ -41,11 +44,10 @@ import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
- * Background Images — Figma frame 40006644:67051 (section 40006644:65735),
- * behavior from FigmaBackgroundImagesViewController: full-width hero
- * thumbnails, orange check badge on the selected tile, "Default Image" pill
- * on the default tile when unselected, pinned Save CTA persisting the
- * choice via BackgroundStore (Home re-reads it — RECONCILE).
+ * Background Images — Swift FigmaBackgroundImagesViewController takes
+ * precedence over Figma frame 40006644:67051 where they conflict: Swift uses a
+ * 2-column 220dp portrait grid of IDs 0-13, while Figma shows 335x150
+ * single-column landscape tiles.
  */
 @Composable
 fun BackgroundImagesScreen(
@@ -63,23 +65,32 @@ fun BackgroundImagesScreen(
                 onBack = onBack,
                 titleStyle = AirdropType.title1,
             )
-            Column(
-                Modifier
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm1),
+                    .testTag("background-images-grid"),
+                contentPadding = PaddingValues(
+                    start = Spacing.md,
+                    top = Spacing.md,
+                    end = Spacing.md,
+                    bottom = 40.dp,
+                ),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Swift: subtitle line above the grid.
-                Text(
-                    text = "Choose a background for your Home tab",
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                )
-                // Figma 40006644: single-column list of full-width 150dp
-                // landscape tiles (radius 15), 20dp gap (Column spacedBy).
-                BackgroundStore.choices.forEach { choice ->
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column {
+                        Text(
+                            text = "Choose a background for your Home tab",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                        )
+                        Box(Modifier.height(4.dp))
+                    }
+                }
+                items(BackgroundStore.choices, key = { it.id }) { choice ->
                     BackgroundTile(
                         choice = choice,
                         isDark = colors.isDark,
@@ -88,7 +99,6 @@ fun BackgroundImagesScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                Spacer(Modifier.height(Spacing.sm))
             }
             MoreBottomButtonBar(
                 text = "Save",
@@ -107,9 +117,9 @@ fun BackgroundImagesScreen(
 }
 
 /**
- * Full-width tile: 140dp, radius 15; top-left 44dp selection circle (orange
- * + white check when selected, white/90 ring otherwise) or the orange
- * "Default Image" pill on the unselected default tile.
+ * Swift tile: 220dp portrait thumbnail, radius 15; top-left 44dp selection
+ * circle (orange + white check when selected, white/90 ring otherwise) or the
+ * orange "Default Image" pill on the unselected default tile.
  */
 @Composable
 private fun BackgroundTile(
@@ -122,8 +132,8 @@ private fun BackgroundTile(
     val colors = AirdropTheme.colors
     Box(
         modifier = modifier
-            // Figma 40006644: 150dp landscape tile, radius 15, image object-cover.
-            .height(150.dp)
+            .testTag("background-tile-${choice.id}")
+            .height(220.dp)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray300)
             .clickable(onClick = onClick),
@@ -135,11 +145,11 @@ private fun BackgroundTile(
             modifier = Modifier.fillMaxSize(),
         )
         when {
-            // Figma: 30dp selection glyph, 20dp inset (top-left).
             selected -> Box(
                 modifier = Modifier
                     .padding(Spacing.md)
-                    .size(30.dp)
+                    .size(44.dp)
+                    .testTag("background-selected-${choice.id}")
                     .background(BrandPalette.OrangeMain, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
@@ -147,29 +157,29 @@ private fun BackgroundTile(
                     painter = painterResource(R.drawable.ic_check),
                     contentDescription = "Selected",
                     colorFilter = ColorFilter.tint(BrandPalette.White),
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             }
-            // Figma: orange "Default Image" pill — 28dp, radius 50, px15,
-            // Cairo Regular 14 (body2) white.
             choice.isDefault -> Box(
                 modifier = Modifier
                     .padding(Spacing.md)
                     .height(28.dp)
-                    .background(BrandPalette.OrangeMain, RoundedCornerShape(50.dp))
-                    .padding(horizontal = 15.dp),
+                    .testTag("background-default-pill")
+                    .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "Default Image",
-                    style = AirdropType.body2,
+                    style = AirdropType.subtitle3,
                     color = BrandPalette.White,
                 )
             }
             else -> Box(
                 modifier = Modifier
                     .padding(Spacing.md)
-                    .size(30.dp)
+                    .size(44.dp)
+                    .testTag("background-unselected-${choice.id}")
                     .background(Color.White.copy(alpha = 0.9f), CircleShape)
                     .border(2.dp, AirdropTheme.colors.iconShape, CircleShape),
             )
