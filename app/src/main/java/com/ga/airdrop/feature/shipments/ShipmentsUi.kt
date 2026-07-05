@@ -598,8 +598,10 @@ fun PackageCard(
 ) {
     val colors = AirdropTheme.colors
     val method = ShipmentMethodUi.from(pkg.shippingMethod)
-    val chargesTotal = pkg.additionalChargesTotal
-        ?: pkg.additionalCharges.values.sum().takeIf { pkg.additionalCharges.isNotEmpty() }
+    // Swift (FigmaPackagesViewController.swift:358) falls back to 0 when there
+    // are no additional charges, so the row always shows a money string
+    // ("USD 0.00 / JMD 0.00"), never "-". An empty map sums to 0.0.
+    val chargesTotal = pkg.additionalChargesTotal ?: pkg.additionalCharges.values.sum()
     val rate = pkg.exchangeRate ?: exchangeRate
 
     Column(
@@ -832,9 +834,9 @@ fun OrderCard(
             )
             CardFieldColumn(
                 label = "Package Value",
-                // Swift formats as "$1,550.00" currency, not "USD 1,550.00".
+                // Swift makeKeyValue (FigmaOrdersViewController.swift:349) renders
+                // this in text.dark_title, NOT orange; formatUSD already gives "USD".
                 value = ShipmentsFormat.usd(order.invoiceAmountUsd),
-                valueColor = BrandPalette.OrangeMain,
                 valueMaxLines = 1,
             )
             CardFieldColumn(
