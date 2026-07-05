@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -69,6 +70,52 @@ class HomeActivityTilesScreenshotTest {
             compose.runOnIdle {
                 assertEquals(route, navigatedRoutes.lastOrNull())
             }
+        }
+    }
+
+    @Test
+    fun homeActionCardsEmitSwiftRoutes() {
+        val navigatedRoutes = mutableListOf<String>()
+        setHomeContent { route -> navigatedRoutes += route }
+
+        listOf(
+            "home-activity-services" to Routes.SERVICES,
+            "home-activity-ship-tax" to Routes.SALES_TAXES,
+            "home-activity-calculator" to Routes.CALCULATOR,
+            "home-activity-drop-alert" to Routes.DROP_ALERT,
+        ).forEach { (tag, route) ->
+            compose.onNodeWithTag(tag).performClick()
+            compose.runOnIdle {
+                assertEquals(route, navigatedRoutes.lastOrNull())
+            }
+        }
+
+        compose.onNodeWithText("See More").performScrollTo()
+        compose.onNodeWithText("See More").performClick()
+        compose.runOnIdle {
+            assertEquals(Routes.AUCTION, navigatedRoutes.lastOrNull())
+        }
+
+        compose.onNodeWithText("Refer a friend").performScrollTo()
+        compose.onNodeWithText("Refer a friend").performClick()
+        compose.runOnIdle {
+            assertEquals(Routes.REFER_A_FRIEND, navigatedRoutes.lastOrNull())
+        }
+    }
+
+    @Test
+    fun homeHeaderButtonsEmitSwiftRoutes() {
+        val navigatedRoutes = mutableListOf<String>()
+        setHomeContent { route -> navigatedRoutes += route }
+
+        compose.onNodeWithContentDescription("Notifications").performClick()
+        compose.runOnIdle {
+            assertEquals(Routes.NOTIFICATIONS, navigatedRoutes.lastOrNull())
+        }
+
+        compose.onNodeWithContentDescription("Cart").performClick()
+        compose.runOnIdle {
+            assertEquals(Routes.CART, navigatedRoutes.lastOrNull())
         }
     }
 
