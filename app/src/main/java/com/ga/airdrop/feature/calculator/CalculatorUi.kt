@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -33,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,7 +59,8 @@ internal fun formatDecimal(value: Double): String = String.format(Locale.US, "%,
 
 /**
  * Inner detail header — Swift FigmaCalculatorViewController.swift:149-168:
- * 56dp bar, back arrow left, centered Title1 (Bold 18), 1dp iconShape divider.
+ * 56dp bar, 32dp back rail with 24dp rotated chevron, centered Title1,
+ * 1dp iconShape divider.
  */
 @Composable
 internal fun InnerScreenHeader(title: String, onBack: () -> Unit) {
@@ -74,17 +75,25 @@ internal fun InnerScreenHeader(title: String, onBack: () -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .padding(horizontal = Spacing.md),
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_arrow),
-                contentDescription = "Back",
-                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+            Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .size(24.dp)
+                    .padding(start = 16.dp)
+                    .size(32.dp)
+                    .testTag("calculator-inner-header-back")
                     .clickable(onClick = onBack),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_more2_back_chevron),
+                    contentDescription = "Back",
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .testTag("calculator-inner-header-back-chevron"),
+                )
+            }
             Text(
                 text = title,
                 style = AirdropType.title1,
@@ -103,8 +112,8 @@ internal fun InnerScreenHeader(title: String, onBack: () -> Unit) {
 }
 
 /**
- * Blue info card — Figma "Erroring & Alerts": #E3ECFF fill, #97AFDD border,
- * radius 10, 20/15 padding, 24dp info-square icon, optional bold title.
+ * Blue info card — Swift makeInfoCard/makePackageDimensionsInfoCard:
+ * #E3ECFF fill, #97AFDD border, radius 15, 16/14 padding, 20dp info icon.
  */
 @Composable
 internal fun BlueInfoCard(
@@ -116,16 +125,16 @@ internal fun BlueInfoCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(AlertPalette.Light.OnHold, RoundedCornerShape(Radius.xs))
-            .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(Radius.xs))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            .background(AlertPalette.Light.OnHold, RoundedCornerShape(Radius.s))
+            .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(Radius.s))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Image(
             painter = painterResource(R.drawable.ic_info),
             contentDescription = null,
             colorFilter = ColorFilter.tint(colors.textDarkTitle),
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(20.dp),
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (title != null) {
@@ -146,21 +155,21 @@ internal fun BlueInfoCard(text: String, modifier: Modifier = Modifier, title: St
     )
 }
 
-/** Field label row — Cairo SemiBold 16 + red asterisk (Figma error #D92A2A). */
+/** Field label row — Swift makeField: Cairo SemiBold 14 + orange asterisk. */
 @Composable
 internal fun FieldLabel(label: String, required: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Text(text = label, style = AirdropType.subtitle1, color = AirdropTheme.colors.textDarkTitle)
+        Text(text = label, style = AirdropType.subtitle2, color = AirdropTheme.colors.textDarkTitle)
         if (required) {
-            Text(text = "*", style = AirdropType.subtitle1, color = AlertPalette.Error)
+            Text(text = "*", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
         }
     }
 }
 
 /**
- * Figma Type Input Field with trailing-slot support (search / `$` /
- * dropdown chevron) — same 50dp box, gray150 fill, iconShape border,
- * radius 10, 20/12 padding as core TypeInputField.
+ * Swift calculator FieldRow with trailing-slot support (search / `$` /
+ * dropdown chevron): 48dp gray100 card, radius 12, iconShape border,
+ * body1 input text, 14dp leading/right inset.
  */
 @Composable
 internal fun CalcInputField(
@@ -172,32 +181,32 @@ internal fun CalcInputField(
     required: Boolean = false,
     enabled: Boolean = true,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    textStyle: androidx.compose.ui.text.TextStyle = AirdropType.body2,
+    textStyle: androidx.compose.ui.text.TextStyle = AirdropType.body1,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         FieldLabel(label, required)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 50.dp)
+                .height(48.dp)
                 .background(
-                    if (enabled) colors.gray150 else colors.gray300,
-                    RoundedCornerShape(Radius.xs),
+                    if (enabled) colors.gray100 else colors.gray300,
+                    RoundedCornerShape(12.dp),
                 )
                 .border(
                     width = 1.dp,
-                    color = if (enabled) colors.iconShape else colors.gray400,
-                    shape = RoundedCornerShape(Radius.xs),
+                    color = colors.iconShape,
+                    shape = RoundedCornerShape(12.dp),
                 )
-                .padding(horizontal = Spacing.md, vertical = 12.dp),
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm1),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(Modifier.weight(1f)) {
                 if (value.isEmpty() && placeholder.isNotEmpty()) {
-                    Text(text = placeholder, style = AirdropType.body2, color = colors.textPlaceholder)
+                    Text(text = placeholder, style = AirdropType.body1, color = colors.textPlaceholder)
                 }
                 BasicTextField(
                     value = value,
@@ -230,30 +239,30 @@ internal fun CalcSelectField(
     required: Boolean = false,
 ) {
     val colors = AirdropTheme.colors
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         FieldLabel(label, required)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 50.dp)
-                .background(colors.gray150, RoundedCornerShape(Radius.xs))
-                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+                .height(48.dp)
+                .background(colors.gray100, RoundedCornerShape(12.dp))
+                .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
                 .clickable(onClick = onClick)
-                .padding(horizontal = Spacing.md, vertical = 12.dp),
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm1),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (value.isEmpty()) {
                 Text(
                     text = placeholder,
-                    style = AirdropType.body2,
+                    style = AirdropType.body1,
                     color = colors.textPlaceholder,
                     modifier = Modifier.weight(1f),
                 )
             } else {
                 Text(
                     text = value,
-                    style = AirdropType.subtitle1,
+                    style = AirdropType.body1,
                     color = colors.textDarkTitle,
                     modifier = Modifier.weight(1f),
                 )
@@ -262,7 +271,7 @@ internal fun CalcSelectField(
                 painter = painterResource(R.drawable.ic_small_arrow_down),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }
@@ -343,9 +352,9 @@ internal fun SimpleAlertDialog(title: String, message: String, onDismiss: () -> 
 internal fun DollarTrailing() {
     Text(
         text = "$",
-        style = AirdropType.subtitle1,
+        style = AirdropType.subtitle2,
         color = AirdropTheme.colors.textDarkTitle,
-        modifier = Modifier.width(24.dp),
+        modifier = Modifier.width(20.dp),
         textAlign = TextAlign.Center,
     )
 }

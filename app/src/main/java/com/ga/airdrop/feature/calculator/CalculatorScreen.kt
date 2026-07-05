@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -33,13 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
-import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
@@ -50,7 +49,8 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
  * Shipping Calculator — Figma nodes 40001464:29102 (Standard),
  * 40001464:30381 (SeaDrop), 40001464:30723 (Express). Behavior from
  * FigmaCalculatorViewController + RN CalculatorView:
- *  • Standard: [Invoice | weight unit] + [Actual Weight | computed Total Weight]
+ *  • Standard: full-width Invoice + full-width Actual Weight (Swift wins over
+ *    Figma 40001464:29102's stale Select Unit / Total Weight columns)
  *  • SeaDrop:  [Invoice | length unit] + [L | W | H] + dimensions info card
  *  • Express:  [Invoice | length unit] + [Actual Weight | weight unit] + [L|W|H]
  */
@@ -79,6 +79,7 @@ fun CalculatorScreen(
             .fillMaxSize()
             .background(colors.gray100)
             .imePadding()
+            .testTag("calculator-root")
     ) {
         InnerScreenHeader(title = "Shipping Calculator", onBack = onBack)
 
@@ -86,9 +87,10 @@ fun CalculatorScreen(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .testTag("calculator-scroll")
                 .verticalScroll(rememberScrollState())
                 .padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Method + delivery-time info (Figma group gap 10)
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -135,38 +137,20 @@ fun CalculatorScreen(
             // ─── Method-dependent rows ───
             when (state.method) {
                 ShippingMethod.STANDARD -> {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        InvoiceField(state.invoiceUsd, viewModel::onInvoiceChange, Modifier.weight(1f))
-                        CalcSelectField(
-                            label = "Select Unit",
-                            value = state.weightUnit.label,
-                            required = true,
-                            placeholder = "eg: lbs",
-                            onClick = { weightUnitPicker = true },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        CalcInputField(
-                            label = "Actual Weight (lbs)", // Swift FigmaCalculatorViewController.swift:198
-                            value = state.actualWeight,
-                            onValueChange = viewModel::onActualWeightChange,
-                            placeholder = "e.g. 843",
-                            required = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(1f),
-                        )
-                        // Read-only: actual weight × number of packages (RN parity).
-                        CalcInputField(
-                            label = "Total Weight",
-                            value = state.totalWeightText,
-                            onValueChange = {},
-                            placeholder = "e.g. 843",
-                            required = true,
-                            enabled = false,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                    InvoiceField(
+                        value = state.invoiceUsd,
+                        onValueChange = viewModel::onInvoiceChange,
+                        modifier = Modifier.testTag("calculator-invoice-field"),
+                    )
+                    CalcInputField(
+                        label = "Actual Weight (lbs)",
+                        value = state.actualWeight,
+                        onValueChange = viewModel::onActualWeightChange,
+                        placeholder = "e.g. 843",
+                        required = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.testTag("calculator-actual-weight-field"),
+                    )
                 }
 
                 ShippingMethod.SEADROP -> {
@@ -220,27 +204,14 @@ fun CalculatorScreen(
                     PackageDimensionsCard()
                 }
             }
-        }
 
-        // Sticky footer — Figma "Button Type": glass bar, top divider, 20dp padding.
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(colors.glassOverlay70)
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(colors.divider)
-            )
-            GradientButton(
+            CalculatorPrimaryButton(
                 text = if (state.calculating) "Calculating..." else "Calculate",
                 loading = state.calculating,
                 onClick = viewModel::calculate,
                 modifier = Modifier
-                    .padding(Spacing.md)
-                    .navigationBarsPadding(),
+                    .padding(top = 12.dp)
+                    .testTag("calculator-calculate-button"),
             )
         }
     }
@@ -281,6 +252,34 @@ fun CalculatorScreen(
 
     state.alert?.let { alert ->
         SimpleAlertDialog(title = alert.title, message = alert.message, onDismiss = viewModel::dismissAlert)
+    }
+}
+
+@Composable
+private fun CalculatorPrimaryButton(
+    text: String,
+    loading: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(Radius.xs))
+            .background(BrandPalette.OrangeMain)
+            .clickable(enabled = !loading, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = BrandPalette.White,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text(text = text, style = AirdropType.button, color = BrandPalette.White)
+        }
     }
 }
 
