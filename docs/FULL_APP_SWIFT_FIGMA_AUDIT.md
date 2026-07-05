@@ -75,6 +75,19 @@ assets; only repair the parts that are visibly or functionally wrong.
   - proof PNGs:
     `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_light_after_fix.png`,
     `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_dark_after_fix.png`
+- Android checks run for the Home warehouse-card tap/geometry proof:
+  - Figma MCP metadata for Home node `40001464:28899`.
+  - Figma MCP design context for Standard card node `40001464:28907`.
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `HomeActivityTilesScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.home.HomeActivityTilesScreenshotTest ...`:
+    `OK (4 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
+    `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`,
+    `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`
 
 ## Latest Device/Figma Findings
 
@@ -97,6 +110,16 @@ assets; only repair the parts that are visibly or functionally wrong.
   `40001464:28914`/`40000798:6510` show the same light/dark split. Android now
   selects explicit light/dark drawables from `ThemeController`-resolved app
   theme, so app-dark no longer depends on Android resource-night mode.
+- Home warehouse carousel geometry matches Swift and Figma for the inspected
+  values: Figma Home node `40001464:28899` places the warehouse section at
+  `y=326`, height `346`, inner row `x=20/y=20`, cards `238x326` with 10 gap;
+  Swift `FigmaHomeViewController.swift` uses the same constraints. Android
+  `HomeScreen.kt` already matched those numbers, so no geometry churn was made.
+- Home warehouse tap path is verified in instrumentation: Standard/SeaDrop/
+  Express cards emit `warehouses?type=standard|seadrop|express`, and a Standard
+  tap through `AppRoot` opens the Warehouse detail screen with the Standard tab
+  selected. Proof:
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`.
 
 ### Shipments
 
@@ -168,12 +191,15 @@ Findings to verify/fix:
   translucent treatment. Device proof:
   `/tmp/kotlin_ui_proof/android_swift_precedence_home_header.png` and
   `/tmp/kotlin_ui_proof/android_swift_precedence_home_header_app_dark.png`.
-- Warehouse carousel vertical placement must be rechecked. User says the
-  Standard/SeaDrop/Express section and Standard image are too high; the captured
-  Android Home shows a large hero image band before the card row, so this needs
-  exact Figma and Swift y-coordinate measurement rather than trusting comments.
-- Standard/SeaDrop/Express cards must be tappable as whole cards and route to
-  the warehouse detail flow with the correct type.
+- Warehouse carousel vertical placement rechecked against Figma and Swift:
+  both sources place the section at `y=326` over the 534pt hero, with 20pt top
+  inset inside a 346pt carousel and 238x326 cards. Android matches those values;
+  no movement was made. Proof:
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`.
+- Standard/SeaDrop/Express cards are tappable as whole cards and route to the
+  warehouse detail flow with the correct type in instrumentation. Standard was
+  additionally verified through `AppRoot`.
 - Activity/highlight boxes need measured size and spacing against Figma/Swift;
   user reports they are too large.
 - Header/footer opacity must be checked in light and dark. The bottom tab bar
@@ -265,7 +291,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence and activity icon patches verified; carousel/buttons/geometry still open |
+| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, and warehouse card tap/geometry verified; remaining Home sizing/content issues still open |
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |

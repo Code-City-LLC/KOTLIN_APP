@@ -27,6 +27,14 @@ specified — apply, build, and verify on the emulator in light AND dark.
   `FigmaIcons.swift` and Figma tile nodes. Verified proof:
   `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_light_after_fix.png`,
   `/tmp/kotlin_ui_proof/home_activity_tiles/android_home_activity_tiles_dark_after_fix.png`.
+- **Home warehouse cards:** Standard/SeaDrop/Express carousel geometry was
+  compared against Figma Home node `40001464:28899` and Swift
+  `FigmaHomeViewController.swift`; both sources agree on y=326, carousel 346,
+  card 238x326. Android already matched those values. Instrumentation verified
+  all three card routes and Standard-through-`AppRoot` detail opening. Proof:
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_light_warehouse_geometry.png`,
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_top_dark_warehouse_geometry.png`,
+  `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 

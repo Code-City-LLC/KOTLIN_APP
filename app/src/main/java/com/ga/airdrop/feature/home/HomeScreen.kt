@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -218,7 +219,8 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
         // Swift: row top = scroll top + 20, leading/trailing 20, gap 10.
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = Spacing.md),
+            .padding(top = Spacing.md)
+            .testTag("home-warehouse-carousel"),
         contentPadding = PaddingValues(horizontal = Spacing.md),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
@@ -228,6 +230,7 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     // Swift: fixed 238x326 (Figma Components 36/37/38).
                     .width(238.dp)
                     .height(326.dp)
+                    .testTag("home-warehouse-${card.type}")
                     .clip(RoundedCornerShape(Spacing.sm1)) // radius 15 (Figma 2xs)
                     .background(colors.gray150)
                     .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))

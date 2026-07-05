@@ -3,17 +3,26 @@ package com.ga.airdrop.feature.home
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.navigation.AppRoot
+import com.ga.airdrop.core.navigation.Routes
 import java.io.File
 import java.io.FileOutputStream
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,43 +35,106 @@ class HomeActivityTilesScreenshotTest {
 
     @Test
     fun captureHomeActivityTilesLight() {
-        captureHomeActivityTiles(
+        captureHomeScreens(
             mode = ThemeController.Mode.LIGHT,
-            filename = "home_activity_tiles_light.png",
+            topFilename = "home_top_light.png",
+            activityTilesFilename = "home_activity_tiles_light.png",
         )
     }
 
     @Test
     fun captureHomeActivityTilesDark() {
-        captureHomeActivityTiles(
+        captureHomeScreens(
             mode = ThemeController.Mode.DARK,
-            filename = "home_activity_tiles_dark.png",
+            topFilename = "home_top_dark.png",
+            activityTilesFilename = "home_activity_tiles_dark.png",
         )
     }
 
-    private fun captureHomeActivityTiles(
+    @Test
+    fun warehouseCardsEmitSwiftRoutes() {
+        val navigatedRoutes = mutableListOf<String>()
+        setHomeContent { route -> navigatedRoutes += route }
+
+        listOf(
+            "standard" to "${Routes.WAREHOUSES}?type=standard",
+            "seadrop" to "${Routes.WAREHOUSES}?type=seadrop",
+            "express" to "${Routes.WAREHOUSES}?type=express",
+        ).forEach { (type, route) ->
+            compose.onNodeWithTag("home-warehouse-carousel")
+                .performScrollToNode(hasTestTag("home-warehouse-$type"))
+            compose.onNodeWithTag("home-warehouse-$type").performClick()
+            compose.runOnIdle {
+                assertEquals(route, navigatedRoutes.lastOrNull())
+            }
+        }
+    }
+
+    @Test
+    fun standardWarehouseCardOpensWarehouseScreenFromAppRoot() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            AuthTokenStore.save("ui-proof-token")
+        }
+
+        try {
+            compose.setContent {
+                AirdropTheme {
+                    AppRoot()
+                }
+            }
+            compose.waitUntil(timeoutMillis = 8_000) {
+                compose.onAllNodesWithTag("home-warehouse-standard").fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithTag("home-warehouse-standard").performClick()
+            compose.waitUntil(timeoutMillis = 8_000) {
+                compose.onAllNodesWithText("AirDrop (Air Freight)").fetchSemanticsNodes().isNotEmpty()
+            }
+            val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+            val output = File(screenshotDir(), "home_warehouse_standard_after_tap.png")
+            FileOutputStream(output).use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+        } finally {
+            instrumentation.runOnMainSync {
+                AuthTokenStore.clear()
+            }
+        }
+    }
+
+    private fun captureHomeScreens(
         mode: ThemeController.Mode,
-        filename: String,
+        topFilename: String,
+        activityTilesFilename: String,
     ) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync { ThemeController.set(mode) }
 
+        setHomeContent()
+        saveRootScreenshot(topFilename)
+        compose.onNodeWithText("Services").performScrollTo()
+        compose.waitForIdle()
+        saveRootScreenshot(activityTilesFilename)
+    }
+
+    private fun saveRootScreenshot(filename: String) {
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val output = File(screenshotDir(), filename)
+        FileOutputStream(output).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
+
+    private fun setHomeContent(onNavigate: (String) -> Unit = {}) {
         compose.setContent {
             AirdropTheme {
-                HomeScreen(onNavigate = {})
+                HomeScreen(onNavigate = onNavigate)
             }
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithText("Services").fetchSemanticsNodes().isNotEmpty()
-        }
-        compose.onNodeWithText("Services").performScrollTo()
-        compose.waitForIdle()
-
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
-        val output = File(screenshotDir(), filename)
-        FileOutputStream(output).use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }
 
