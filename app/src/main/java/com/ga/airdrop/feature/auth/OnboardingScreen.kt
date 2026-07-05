@@ -85,7 +85,7 @@ private val introPages = listOf(
     OnboardIntroPage(
         imageRes = R.drawable.img_auth_onboard_2,
         imageWidth = 253.dp, imageHeight = 282.dp, imageTop = 144.dp,
-        title = listOf("Smart Pickup & " to false, "Tracking" to true),
+        title = listOf("Smart Pickup &\n" to false, "Tracking" to true),
         description = "Select pickup points, schedule pickups, and track your parcels in real time.",
     ),
     OnboardIntroPage(
@@ -97,7 +97,7 @@ private val introPages = listOf(
     OnboardIntroPage(
         imageRes = R.drawable.img_auth_onboard_4,
         imageWidth = 253.67.dp, imageHeight = 282.dp, imageTop = 144.dp,
-        title = listOf("Manage Deliveries " to false, "Securely" to true),
+        title = listOf("Manage Deliveries\n" to false, "Securely" to true),
         description = "Stay updated with shipment stages, customs clearance, and delivery confirmation",
     ),
     OnboardIntroPage(
@@ -195,44 +195,45 @@ fun OnboardingScreen(onFinished: () -> Unit) {
     }
 }
 
-/** Illustration + two-tone H4 title + Body-1 description of an intro slide. */
+/**
+ * Illustration + two-tone H4 title + Body-1 description of an intro slide.
+ *
+ * Figma 40006240:23774… lays these out top-down at fixed offsets: the
+ * illustration group at [OnboardIntroPage.imageTop], the title 13dp below it
+ * and the description 10dp under the title. The illustrations are transparent
+ * PNGs (re-exported from the Figma group fills) so the 3D objects float on the
+ * auth gradient — they must NOT sit inside a white plate, and the title must
+ * hug the illustration rather than drift to the bottom of the screen.
+ */
 @Composable
 private fun OnboardIntroPageContent(page: OnboardIntroPage) {
     val colors = AirdropTheme.colors
-    Box(Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(page.imageTop))
         Image(
             painter = painterResource(page.imageRes),
             contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = page.imageTop)
-                .size(page.imageWidth, page.imageHeight),
+            modifier = Modifier.size(page.imageWidth, page.imageHeight),
             contentScale = ContentScale.Fit,
         )
-        // Sits above indicator(3) + gaps(61+61) + buttons(46) + bottom(30).
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(horizontal = Spacing.lg)
-                .padding(bottom = 201.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Text(
-                text = onboardTitle(page.title, colors.isDark),
-                style = AirdropType.h4,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = page.description,
-                style = AirdropType.body1,
-                color = colors.textDescription,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        Spacer(Modifier.height(13.dp))
+        Text(
+            text = onboardTitle(page.title, colors.isDark),
+            style = AirdropType.h4,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg),
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = page.description,
+            style = AirdropType.body1,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg),
+        )
     }
 }
 
