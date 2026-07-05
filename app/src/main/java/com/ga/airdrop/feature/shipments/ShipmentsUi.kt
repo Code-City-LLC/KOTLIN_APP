@@ -570,6 +570,8 @@ fun PackageCard(
     onToggleCart: () -> Unit,
     inCart: Boolean,
     modifier: Modifier = Modifier,
+    testTag: String? = null,
+    cartToggleTestTag: String? = null,
 ) {
     val colors = AirdropTheme.colors
     val method = ShipmentMethodUi.from(pkg.shippingMethod)
@@ -586,6 +588,7 @@ fun PackageCard(
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .then(testTag?.let { Modifier.testTag(it) } ?: Modifier)
             .clickable(onClick = onClick),
     ) {
         // Method strip — Swift topBar (54pt): icon + label BOTH in the
@@ -645,16 +648,22 @@ fun PackageCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Image(
-                    painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
-                    contentDescription = if (inCart) "In cart" else "Add to cart",
-                    colorFilter = ColorFilter.tint(
-                        if (inCart) BrandPalette.OrangeMain else colors.iconSelected
-                    ),
+                Box(
                     modifier = Modifier
                         .size(24.dp)
+                        .then(cartToggleTestTag?.let { Modifier.testTag(it) } ?: Modifier)
                         .clickable(onClick = onToggleCart),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
+                        contentDescription = if (inCart) "In cart" else "Add to cart",
+                        colorFilter = ColorFilter.tint(
+                            if (inCart) BrandPalette.OrangeMain else colors.iconSelected
+                        ),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
         }
     }
@@ -669,6 +678,7 @@ fun PaymentCard(
     modifier: Modifier = Modifier,
     onDownloadInvoice: (() -> Unit)? = null,
     downloadingInvoice: Boolean = false,
+    testTag: String? = null,
 ) {
     val colors = AirdropTheme.colors
     // Swift FigmaPaymentsViewController.swift:328-355 — download button pinned
@@ -679,6 +689,7 @@ fun PaymentCard(
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .then(testTag?.let { Modifier.testTag(it) } ?: Modifier)
             .clickable(onClick = onClick),
     ) {
         Column(
@@ -747,6 +758,7 @@ fun OrderCard(
     order: ShipmentOrder,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    testTag: String? = null,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -755,6 +767,7 @@ fun OrderCard(
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .then(testTag?.let { Modifier.testTag(it) } ?: Modifier)
             .clickable(onClick = onClick),
     ) {
         Box(
@@ -960,7 +973,12 @@ fun ShipmentsAlertDialog(
  * + underlined Body2 "View More" in orangeMain, baseline-aligned.
  */
 @Composable
-fun SectionHeaderRow(title: String, actionText: String, onAction: () -> Unit) {
+fun SectionHeaderRow(
+    title: String,
+    actionText: String,
+    onAction: () -> Unit,
+    actionTestTag: String? = null,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -973,7 +991,9 @@ fun SectionHeaderRow(title: String, actionText: String, onAction: () -> Unit) {
                 textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
             ),
             color = BrandPalette.OrangeMain,
-            modifier = Modifier.clickable(onClick = onAction),
+            modifier = Modifier
+                .then(actionTestTag?.let { Modifier.testTag(it) } ?: Modifier)
+                .clickable(onClick = onAction),
         )
     }
 }

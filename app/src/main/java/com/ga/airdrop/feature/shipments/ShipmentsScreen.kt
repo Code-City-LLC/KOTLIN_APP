@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
@@ -94,6 +95,7 @@ fun ShipmentsScreen(
                             title = "Packages",
                             actionText = "View More",
                             onAction = { onNavigate(Routes.PACKAGES) },
+                            actionTestTag = "shipments-packages-view-more",
                         )
                     }
                     if (state.packages.isEmpty()) {
@@ -111,6 +113,8 @@ fun ShipmentsScreen(
                                     onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
                                     onToggleCart = { viewModel.toggleCart(pkg) },
                                     inCart = cartLines.any { it.id == pkg.id },
+                                    testTag = "shipments-package-card-${pkg.id}",
+                                    cartToggleTestTag = "shipments-package-cart-toggle-${pkg.id}",
                                     // Swift: 280-wide fixed cards.
                                     modifier = Modifier.width(280.dp),
                                 )
@@ -128,6 +132,7 @@ fun ShipmentsScreen(
                         title = "Payments",
                         actionText = "View More",
                         onAction = { onNavigate(Routes.PAYMENTS) },
+                        actionTestTag = "shipments-payments-view-more",
                     )
                     if (state.payments.isEmpty()) {
                         if (state.loading) ShipmentsLoadingIndicator()
@@ -138,6 +143,7 @@ fun ShipmentsScreen(
                                 PaymentCard(
                                     payment = payment,
                                     onClick = { openPayment(payment) },
+                                    testTag = "shipments-payment-card-${payment.id}",
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
@@ -152,6 +158,7 @@ fun ShipmentsScreen(
                             title = "Orders",
                             actionText = "View More",
                             onAction = { onNavigate(Routes.ORDERS) },
+                            actionTestTag = "shipments-orders-view-more",
                         )
                     }
                     if (state.orders.isEmpty()) {
@@ -166,6 +173,7 @@ fun ShipmentsScreen(
                                 OrderCard(
                                     order = order,
                                     onClick = { onNavigate(Routes.orderDetails(order.id.toString())) },
+                                    testTag = "shipments-order-card-${order.id}",
                                     modifier = Modifier.width(280.dp),
                                 )
                             }
@@ -197,16 +205,21 @@ fun ShipmentsScreen(
 
 // ─── Shipments Summary — 2x2 "Card Page" tiles ─────────────────────────────
 
-private data class SummaryTile(val label: String, val iconRes: Int, val route: String)
+private data class SummaryTile(
+    val label: String,
+    val iconRes: Int,
+    val route: String,
+    val testTag: String,
+)
 
 @Composable
 private fun SummarySection(state: ShipmentsUiState, onNavigate: (String) -> Unit) {
     val colors = AirdropTheme.colors
     val tiles = listOf(
-        SummaryTile("Track Shipment", R.drawable.ic_joinery, Routes.PACKAGES) to state.summary.totalShipments,
-        SummaryTile("Packages", R.drawable.ic_packages, Routes.PACKAGES) to state.summary.totalPackages,
-        SummaryTile("Payments", R.drawable.ic_payments, Routes.PAYMENTS) to state.summary.totalPayments,
-        SummaryTile("Orders", R.drawable.ic_orders, Routes.ORDERS) to state.summary.totalOrders,
+        SummaryTile("Track Shipment", R.drawable.ic_joinery, Routes.PACKAGES, "track-shipment") to state.summary.totalShipments,
+        SummaryTile("Packages", R.drawable.ic_packages, Routes.PACKAGES, "packages") to state.summary.totalPackages,
+        SummaryTile("Payments", R.drawable.ic_payments, Routes.PAYMENTS, "payments") to state.summary.totalPayments,
+        SummaryTile("Orders", R.drawable.ic_orders, Routes.ORDERS, "orders") to state.summary.totalOrders,
     )
     Column(
         Modifier.padding(horizontal = Spacing.md),
@@ -252,6 +265,7 @@ private fun SummaryTileCard(
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray150)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .testTag("shipments-summary-${tile.testTag}")
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp),
     ) {
