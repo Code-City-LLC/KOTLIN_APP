@@ -71,7 +71,9 @@ fun ShopScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(Spacing.md),
+                    // Swift: 20pt SIDE insets only — the 126 top is the spacer
+                    // above; adding vertical padding double-counted the top.
+                    .padding(horizontal = Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 ShopSearchField(
@@ -110,6 +112,9 @@ fun ShopScreen(
                                             onClick = { openDetails(product, featured = false) },
                                             onToggleCart = { CartStore.toggle(product.toCartLine()) },
                                             modifier = Modifier.weight(1f),
+                                            // Swift Shop root: 1-line title, 15/10 insets.
+                                            titleLines = 1,
+                                            rootInsets = true,
                                         )
                                     }
                                     if (rowItems.size == 1) Spacer(Modifier.weight(1f))
@@ -131,7 +136,8 @@ fun ShopScreen(
                             repeat(3) { ShopSkeletonCard(Modifier.width(160.dp)) }
                         }
                     } else if (state.featured.isEmpty()) {
-                        ShopEmptyCard(text = "No featured products")
+                        // Swift: fixed 240pt-wide empty card inside the row.
+                        ShopEmptyCard(text = "No featured products", modifier = Modifier.width(240.dp))
                     } else {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                             items(state.featured, key = { it.id }) { product ->
@@ -142,6 +148,9 @@ fun ShopScreen(
                                     // Swift: no cart toggle on Shop-root featured cards.
                                     onToggleCart = null,
                                     modifier = Modifier.width(160.dp),
+                                    // Swift Shop root: 1-line title, 15/10 insets.
+                                    titleLines = 1,
+                                    rootInsets = true,
                                 )
                             }
                         }

@@ -1,7 +1,11 @@
 package com.ga.airdrop.feature.more2
 
 import android.graphics.Typeface
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.method.LinkMovementMethod
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.util.TypedValue
 import android.widget.TextView
 import androidx.compose.foundation.Image
@@ -23,6 +27,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.res.ResourcesCompat
@@ -87,14 +92,37 @@ internal fun prepareLegalHtml(raw: String): String {
     return stripInlineColors(body)
 }
 
+private fun colorLegalHeadings(source: Spanned, headingColor: Int): SpannableStringBuilder {
+    val builder = SpannableStringBuilder(source)
+    builder.getSpans(0, builder.length, RelativeSizeSpan::class.java)
+        .filter { it.sizeChange > 1f }
+        .forEach { span ->
+            val start = builder.getSpanStart(span)
+            val end = builder.getSpanEnd(span)
+            if (start >= 0 && end > start) {
+                builder.setSpan(
+                    ForegroundColorSpan(headingColor),
+                    start,
+                    end,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                )
+            }
+        }
+    return builder
+}
+
 /** Live CMS content body — TextView so HTML lists/headings/links render. */
 @Composable
 internal fun LegalHtmlContent(html: String, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     val bodyColor = colors.textDescription.toArgb()
+    val headingColor = colors.textDarkTitle.toArgb()
     val linkColor = BrandPalette.OrangeMain.toArgb()
-    val prepared = remember(html) {
-        HtmlCompat.fromHtml(prepareLegalHtml(html), HtmlCompat.FROM_HTML_MODE_LEGACY)
+    val prepared = remember(html, bodyColor, headingColor) {
+        colorLegalHeadings(
+            HtmlCompat.fromHtml(prepareLegalHtml(html), HtmlCompat.FROM_HTML_MODE_LEGACY),
+            headingColor,
+        )
     }
     AndroidView(
         modifier = modifier.fillMaxWidth(),
@@ -109,9 +137,9 @@ internal fun LegalHtmlContent(html: String, modifier: Modifier = Modifier) {
             }
         },
         update = { view ->
-            view.text = prepared
             view.setTextColor(bodyColor)
             view.setLinkTextColor(linkColor)
+            view.text = prepared
         },
     )
 }
@@ -126,6 +154,7 @@ internal fun AccordionCard(
     title: String,
     expanded: Boolean,
     onToggle: () -> Unit,
+    titleEndGap: Dp = Spacing.xs,
     content: (@Composable () -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
@@ -143,7 +172,7 @@ internal fun AccordionCard(
                 color = colors.textDarkTitle,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = Spacing.xs),
+                    .padding(end = titleEndGap),
             )
             Image(
                 painter = painterResource(R.drawable.ic_chevron),

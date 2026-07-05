@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -118,28 +119,22 @@ fun AirCoinBalanceScreen(
 private fun ConversionRow() {
     val colors = AirdropTheme.colors
     Row(
-        Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ConversionPill(text = "1 AirCoin", modifier = Modifier.weight(1f))
-        Box(
-            Modifier
-                .size(51.dp)
-                .clip(RoundedCornerShape(100.dp))
-                .background(colors.gray100)
-                .border(1.dp, colors.iconShape, RoundedCornerShape(100.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                painter = painterResource(R.drawable.ic_small_arrow_down),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier
-                    .size(24.dp)
-                    .rotate(-90f),
-            )
-        }
-        ConversionPill(text = "1 USD", modifier = Modifier.weight(1f))
+        ConversionPill(text = "1 AirCoin")
+        Spacer(Modifier.width(16.dp))
+        Image(
+            painter = painterResource(R.drawable.ic_small_arrow_down),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.textDarkTitle),
+            modifier = Modifier
+                .size(24.dp)
+                .rotate(-90f),
+        )
+        Spacer(Modifier.width(16.dp))
+        ConversionPill(text = "1 USD")
     }
 }
 
@@ -148,15 +143,16 @@ private fun ConversionPill(text: String, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     Box(
         modifier = modifier
-            .height(51.dp)
-            .clip(RoundedCornerShape(100.dp))
-            .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(100.dp)),
+            .width(120.dp)
+            .height(44.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(colors.gray150)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(22.dp)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            style = AirdropType.h6,
+            style = AirdropType.title2,
             color = colors.textDarkTitle,
         )
     }

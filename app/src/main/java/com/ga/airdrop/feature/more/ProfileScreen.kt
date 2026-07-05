@@ -24,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -48,6 +49,7 @@ import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -270,8 +272,8 @@ fun ProfileScreen(
 }
 
 /**
- * Figma 40007210:64109 — 107dp avatar circle (gray200 fill, iconShape ring)
- * with the 28dp white edit badge (orange pencil) overlapping bottom-right.
+ * Swift FigmaProfileViewController.makeAvatar: 80dp gray300 circle in an
+ * 88dp wrap, plus a 24dp edit badge tucked 2dp past the bottom-right corner.
  */
 @Composable
 private fun ProfileAvatar(
@@ -280,13 +282,13 @@ private fun ProfileAvatar(
     onClick: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
-    Box(Modifier.size(107.dp)) {
+    Box(Modifier.size(88.dp)) {
         Box(
             modifier = Modifier
-                .size(107.dp)
+                .align(Alignment.TopCenter)
+                .size(80.dp)
                 .clip(CircleShape)
-                .background(colors.gray200)
-                .border(1.dp, colors.iconShape, CircleShape)
+                .background(colors.gray300)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
@@ -307,7 +309,7 @@ private fun ProfileAvatar(
             }
             if (loading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(24.dp),
                     color = colors.gray100,
                     strokeWidth = 2.dp,
                 )
@@ -315,9 +317,8 @@ private fun ProfileAvatar(
         }
         Box(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset(x = 79.dp, y = 79.dp)
-                .size(28.dp)
+                .offset(x = 62.dp, y = 58.dp)
+                .size(24.dp)
                 .clip(CircleShape)
                 .background(colors.gray100)
                 .border(1.dp, colors.iconShape, CircleShape),
@@ -338,7 +339,17 @@ private fun DobPickerDialog(
     onPicked: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val pickerState = rememberDatePickerState()
+    val todayMillis = remember { System.currentTimeMillis() }
+    val selectableDates = remember(todayMillis) {
+        object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                utcTimeMillis <= todayMillis
+
+            override fun isSelectableYear(year: Int): Boolean =
+                year <= Calendar.getInstance(TimeZone.getTimeZone("UTC")).get(Calendar.YEAR)
+        }
+    }
+    val pickerState = rememberDatePickerState(selectableDates = selectableDates)
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {

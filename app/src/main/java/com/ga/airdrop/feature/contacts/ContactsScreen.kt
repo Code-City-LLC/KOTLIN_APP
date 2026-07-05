@@ -192,7 +192,7 @@ fun ContactsScreen(
                                 Text("Business Hours", style = AirdropType.title2, color = colors.textDarkTitle)
                                 Text(
                                     text = hoursText,
-                                    style = AirdropType.subtitle2,
+                                    style = AirdropType.body2,
                                     color = colors.textDarkTitle,
                                 )
                             }
@@ -351,7 +351,7 @@ private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Un
     ) {
         Text(
             text = text,
-            style = AirdropType.subtitle2,
+            style = AirdropType.body2,
             color = colors.textDarkTitle,
             modifier = Modifier
                 .weight(1f)
@@ -384,7 +384,7 @@ private fun SocialRow(entry: SocialEntry, onOpen: () -> Unit, onCopy: (String) -
             )
             Text(
                 text = entry.title + entry.handle,
-                style = AirdropType.subtitle2,
+                style = AirdropType.body2,
                 color = colors.textDarkTitle,
             )
         }

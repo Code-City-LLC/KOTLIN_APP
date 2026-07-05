@@ -215,15 +215,17 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                 // Swift stack spacing 10 between text rows.
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Image(
-                    painter = painterResource(card.imageRes),
-                    contentDescription = card.title,
-                    modifier = Modifier
-                        .size(80.dp)
-                        // Swift customSpacing 30 after icon (10 base + 20 here).
-                        .padding(bottom = 0.dp),
-                    contentScale = ContentScale.Fit,
-                )
+                Box(
+                    modifier = Modifier.size(80.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(card.imageRes),
+                        contentDescription = card.title,
+                        modifier = Modifier.size(80.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
                 Spacer(Modifier.height(Spacing.md - Spacing.sm)) // icon→title 30 total
                 Text(
                     text = card.title,
@@ -252,7 +254,6 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     // Swift: Body2 underlined in orangeDark.
                     style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
                     color = BrandPalette.OrangeDark,
-                    modifier = Modifier.clickable { onOpen(card.type) },
                 )
             }
         }

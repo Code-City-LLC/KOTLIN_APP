@@ -52,6 +52,7 @@ fun FaqScreen(
                         title = faq.question,
                         expanded = faq.id in state.expandedIds,
                         onToggle = { viewModel.toggle(faq.id) },
+                        titleEndGap = Spacing.sm,
                     ) {
                         Text(
                             text = faq.answer,

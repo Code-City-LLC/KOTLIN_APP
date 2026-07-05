@@ -60,8 +60,9 @@ open class ProductListViewModel(
     fun onQueryChange(value: String) {
         _state.update { it.copy(query = value) }
         searchJob?.cancel()
-        val trimmed = value.trim()
-        if (trimmed.isNotEmpty() && trimmed.length < 3) return
+        // Swift list VCs debounce-reload on EVERY change (searchQuery() drops
+        // sub-3-char values from the request), so backspacing 'abc'->'ab'
+        // restores the unfiltered list instead of stale results.
         searchJob = viewModelScope.launch {
             delay(400) // Swift auction/featured debounce
             loadFirstPage()

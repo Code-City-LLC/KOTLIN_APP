@@ -130,10 +130,20 @@ private fun ProductListScreen(
             )
         }
 
+        val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
         PullToRefreshBox(
             isRefreshing = state.refreshing,
             onRefresh = { viewModel.loadFirstPage(refreshing = true) },
+            state = ptrState,
             modifier = Modifier.weight(1f),
+            indicator = {
+                androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                    state = ptrState,
+                    isRefreshing = state.refreshing,
+                    color = BrandPalette.OrangeMain,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            },
         ) {
             if (!state.loading && state.products.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(Spacing.md), contentAlignment = Alignment.Center) {

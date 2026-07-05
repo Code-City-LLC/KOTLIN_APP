@@ -28,6 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
@@ -69,6 +72,8 @@ fun AuctionProductDetailsScreen(
 {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    // Swift onPurchaseProduct alert when a featured product has no amazon_url.
+    var showLinkUnavailable by remember { mutableStateOf(false) }
     val cartLines by CartStore.items.collectAsState()
     val context = LocalContext.current
     val product = state.product
@@ -162,6 +167,10 @@ fun AuctionProductDetailsScreen(
                                         "https://$raw"
                                     }
                                     launchExternalUrl(context, url)
+                                } else {
+                                    // Swift onPurchaseProduct (:817-831): alert
+                                    // instead of a dead no-op.
+                                    showLinkUnavailable = true
                                 }
                             } else {
                                 viewModel.addToCart()
@@ -177,6 +186,32 @@ fun AuctionProductDetailsScreen(
                 }
             }
         }
+    }
+
+    if (showLinkUnavailable) {
+        AlertDialog(
+            onDismissRequest = { showLinkUnavailable = false },
+            containerColor = colors.gray100,
+            title = {
+                Text(
+                    text = "Product link unavailable",
+                    style = AirdropType.title2,
+                    color = colors.textDarkTitle,
+                )
+            },
+            text = {
+                Text(
+                    text = "No purchase link was returned for this feature product.",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showLinkUnavailable = false }) {
+                    Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                }
+            },
+        )
     }
 
     // "Added to cart" / "Already in cart" alert (Swift onAddToCart).
@@ -254,14 +289,30 @@ private fun DetailsContent(
                 .background(colors.gray150, RoundedCornerShape(15.dp))
                 .border(1.dp, colors.iconShape, RoundedCornerShape(15.dp)),
         ) {
-            AsyncImage(
-                model = product.imageUrl,
-                contentDescription = product.title,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                contentScale = ContentScale.Fit,
-            )
+            // Swift buildHeroImage (:276-294): gray400 airplane placeholder
+            // when the URL is missing or the fetch fails.
+            var heroFailed by remember(product.imageUrl) {
+                mutableStateOf(product.imageUrl.isNullOrBlank())
+            }
+            if (heroFailed) {
+                Image(
+                    painter = painterResource(R.drawable.ic_standard_shipping),
+                    contentDescription = product.title,
+                    colorFilter = ColorFilter.tint(colors.gray400),
+                    modifier = Modifier.align(Alignment.Center).size(96.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            } else {
+                AsyncImage(
+                    model = product.imageUrl,
+                    contentDescription = product.title,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    contentScale = ContentScale.Fit,
+                    onError = { heroFailed = true },
+                )
+            }
         }
         Spacer(Modifier.height(16.dp))
 
@@ -385,7 +436,7 @@ private fun DetailsContent(
         Text(text = "Description", style = AirdropType.subtitle1, color = colors.textDarkTitle)
         Spacer(Modifier.height(8.dp))
         Text(
-            text = cleanDescription(product.description),
+            text = descriptionAnnotated(product.description),
             style = AirdropType.body2,
             color = colors.textDescription,
             maxLines = if (expanded) Int.MAX_VALUE else 4,
@@ -486,12 +537,34 @@ private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) {
  * renderProductDescription): <br>/<p> to newlines, drop other tags and
  * `**bold**` markers.
  */
+/** Strips HTML but PRESERVES the `**...**` markers for the annotated builder. */
 private fun cleanDescription(raw: String?): String {
     if (raw.isNullOrBlank()) return "No description available."
     return raw
         .replace(Regex("<br\\s*/?>"), "\n")
         .replace(Regex("</p>"), "\n\n")
         .replace(Regex("<[^>]+>"), "")
-        .replace("**", "")
         .trim()
+}
+
+/**
+ * Swift renderProductDescription (:840-891): `**text**` spans render Cairo-Bold
+ * (an explicit user-flagged iOS fix) instead of stripping the markers.
+ */
+private fun descriptionAnnotated(raw: String?): androidx.compose.ui.text.AnnotatedString {
+    val cleaned = cleanDescription(raw)
+    return buildAnnotatedString {
+        var i = 0
+        val re = Regex("\\*\\*(.+?)\\*\\*")
+        for (m in re.findAll(cleaned)) {
+            if (m.range.first > i) append(cleaned.substring(i, m.range.first))
+            withStyle(
+                androidx.compose.ui.text.SpanStyle(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+            ) { append(m.groupValues[1]) }
+            i = m.range.last + 1
+        }
+        if (i < cleaned.length) append(cleaned.substring(i))
+    }
 }

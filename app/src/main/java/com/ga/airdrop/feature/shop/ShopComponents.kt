@@ -246,10 +246,15 @@ fun ShopProductCard(
     // to hide the affordance entirely.
     onToggleCart: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    // Swift Shop-root cards use a 1-line title + 15pt/10 insets; grid/list
+    // cells use a 2-line title + 12x10/6 insets. All cards are fixed 245pt.
+    titleLines: Int = 2,
+    rootInsets: Boolean = false,
 ) {
     val colors = AirdropTheme.colors
     Column(
         modifier = modifier
+            .height(245.dp)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -289,18 +294,21 @@ fun ShopProductCard(
                 )
             }
         }
+        val textHPad = if (rootInsets) 15.dp else 12.dp
+        val textTopPad = if (rootInsets) 15.dp else 10.dp
+        val textSpacing = if (rootInsets) 10.dp else 6.dp
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.sm1, vertical = Spacing.sm1),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                .padding(start = textHPad, end = textHPad, top = textTopPad, bottom = textHPad),
+            verticalArrangement = Arrangement.spacedBy(textSpacing),
         ) {
             Text(
                 text = product.title,
                 style = AirdropType.body2,
                 color = colors.textDarkTitle,
-                minLines = 2,
-                maxLines = 2,
+                minLines = titleLines,
+                maxLines = titleLines,
                 overflow = TextOverflow.Ellipsis,
             )
             Row(
@@ -490,30 +498,33 @@ fun ShopDropdownField(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
+        // Swift makeField (:542-618): label SubTitle2, ORANGE asterisk.
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(text = label, style = AirdropType.subtitle1, color = colors.textDarkTitle)
+            Text(text = label, style = AirdropType.subtitle2, color = colors.textDarkTitle)
             if (required) {
-                Text(text = "*", style = AirdropType.subtitle1, color = AlertPalette.Error)
+                Text(text = "*", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
             }
         }
         Box {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .defaultMinSize(minHeight = 50.dp)
-                    .background(colors.gray150, RoundedCornerShape(Radius.xs))
-                    .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+                    // Swift: gray100 fill, radius 12, height 48, value Body1,
+                    // 20pt gray500 chevron.
+                    .defaultMinSize(minHeight = 48.dp)
+                    .background(colors.gray100, RoundedCornerShape(12.dp))
+                    .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
                     .clickable { expanded = true }
                     .padding(horizontal = Spacing.md, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(text = value, style = AirdropType.body2, color = colors.textDarkTitle)
+                Text(text = value, style = AirdropType.body1, color = colors.textDarkTitle)
                 Image(
                     painter = painterResource(R.drawable.ic_small_arrow_down),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(colors.iconSelected),
-                    modifier = Modifier.size(24.dp),
+                    colorFilter = ColorFilter.tint(colors.gray500),
+                    modifier = Modifier.size(20.dp),
                 )
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

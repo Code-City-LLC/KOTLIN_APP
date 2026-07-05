@@ -126,7 +126,6 @@ fun InviteFriendScreen(
                 Image(
                     painter = painterResource(R.drawable.ic_contact_number),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
                     modifier = Modifier.size(24.dp),
                 )
                 Spacer(Modifier.width(12.dp))

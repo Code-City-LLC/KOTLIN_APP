@@ -226,10 +226,9 @@ fun MoreBottomButtonBar(
 }
 
 /**
- * Type-Input-Field-shaped picker/read-only row: SemiBold-16 label with
- * red asterisk, 50dp min box (radius 10, iconShape border), value or
- * placeholder, optional trailing glyph. Matches TypeInputField visuals so
- * form screens mix both seamlessly.
+ * Swift SelectableRow picker/read-only row: SubTitle-2 label with orange
+ * asterisk, 52dp min box (radius 12, iconShape border), value or placeholder,
+ * optional trailing glyph.
  */
 @Composable
 fun MoreSelectField(
@@ -259,10 +258,10 @@ fun MoreSelectField(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 50.dp)
-                .clip(RoundedCornerShape(Radius.xs))
-                .background(if (enabled) colors.gray150 else colors.gray300)
-                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+                .defaultMinSize(minHeight = 52.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.gray100)
+                .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
                 .then(
                     if (onClick != null && enabled) Modifier.clickable(onClick = onClick)
                     else Modifier,
@@ -276,7 +275,7 @@ fun MoreSelectField(
                 style = if (value.isEmpty()) AirdropType.body2 else AirdropType.body1,
                 color = when {
                     value.isEmpty() -> colors.textPlaceholder
-                    !enabled -> colors.textDescription
+                    !enabled -> colors.textPlaceholder
                     else -> colors.textDarkTitle
                 },
                 maxLines = 1,
@@ -287,8 +286,8 @@ fun MoreSelectField(
                 Image(
                     painter = painterResource(trailingIconRes),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(colors.iconSelected),
-                    modifier = Modifier.size(24.dp),
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier.size(12.dp),
                 )
             }
         }

@@ -87,7 +87,7 @@ fun AirdropHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.gray200)
+            .background(if (style == AirdropHeaderStyle.OverImage) Color.Transparent else colors.gray200)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(
