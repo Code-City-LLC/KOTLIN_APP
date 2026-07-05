@@ -121,6 +121,18 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`,
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_seadrop_after_tap.png`,
     `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_express_after_tap.png`
+- Android checks added for the Warehouse detail Swift-precedence pass:
+  - Figma MCP design context for Warehouse node `40000944:3571`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaWarehousesViewController.swift`.
+  - Conflict documented: Figma still shows a larger `90`px badge/shorter photo,
+    while Swift ships a `240`pt hero, `60`pt overlapping circle, `28`pt method
+    glyph, and `h5` method title. Android follows Swift.
+  - Focused proof test:
+    `WarehousesScreenParityTest` (light/dark hero geometry plus tab switching).
+  - Visual proof:
+    `/tmp/kotlin_ui_proof/warehouse_detail_swift/warehouses_swift/warehouse_express_swift_light.png`,
+    `/tmp/kotlin_ui_proof/warehouse_detail_swift/warehouses_swift/warehouse_standard_swift_dark.png`.
 - Android checks run for the Help Swift/Figma pass:
   - Figma MCP design context for Help node `40001617:20377`.
   - Swift source compared:
@@ -1010,6 +1022,13 @@ Findings to verify/fix:
 - Standard/SeaDrop/Express cards are tappable as whole cards and route to the
   warehouse detail flow with the correct type in instrumentation. All three were
   additionally verified through `AppRoot`.
+- Warehouse detail hero/badge conflict fixed by Swift precedence: Figma node
+  `40000944:3571` shows a `90`px badge and shorter photo, but Swift
+  `FigmaWarehousesViewController.makeHero` ships a `240`pt hero, `60`pt
+  overlapping circle, `28`pt glyph, and `h5` title. Android now matches Swift
+  while preserving the approved Standard/SeaDrop/Express tab strip. Proof:
+  `/tmp/kotlin_ui_proof/warehouse_detail_swift/warehouses_swift/warehouse_express_swift_light.png`,
+  `/tmp/kotlin_ui_proof/warehouse_detail_swift/warehouses_swift/warehouse_standard_swift_dark.png`.
 - Home route buttons were rechecked against Swift `FigmaHomeViewController`
   callbacks and Figma Home node `40001464:28899`: Services -> `SERVICES`,
   Ship Tax -> `SALES_TAXES`, Calculator -> `CALCULATOR`, Drop Alert ->
@@ -1273,7 +1292,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, activity icons, warehouse card tap/geometry, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, and bottom-tab state verified; remaining Home live-data/full-page endpoint issues still open |
+| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, and bottom-tab state verified; remaining Home live-data/full-page endpoint issues still open |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, and shared search-field split now verified against Swift/Figma; PackageDetails, PackagesFilterSheet, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad visual/full-flow/backend parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |

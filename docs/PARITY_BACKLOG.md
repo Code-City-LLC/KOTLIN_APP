@@ -57,6 +57,16 @@ light AND dark.
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_standard_after_tap.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_seadrop_after_tap.png`,
   `/tmp/kotlin_ui_proof/home_warehouse/android_home_warehouse_express_after_tap.png`.
+- **Warehouse detail Swift-precedence hero/badge:** Figma Warehouse node
+  `40000944:3571` still shows the larger `90`px badge over a shorter photo
+  area, but Swift `FigmaWarehousesViewController.makeHero` is the shipped
+  guide: `240`pt hero photo, `60`pt overlapping circle, `28`pt method glyph,
+  and `h5` method title. Android now follows Swift while preserving the
+  approved Standard/SeaDrop/Express tab addition and existing data/copy path.
+  `WarehousesScreenParityTest` locks light/dark hero geometry and tab switching.
+  Proof:
+  `/tmp/kotlin_ui_proof/warehouse_detail_swift/warehouses_swift/warehouse_express_swift_light.png`,
+  `/tmp/kotlin_ui_proof/warehouse_detail_swift/warehouses_swift/warehouse_standard_swift_dark.png`.
 - **Help full Swift-precedence layout/icons/intents:** Help was compared against
   Figma node `40001617:20377` and Swift
   `FigmaContactsViewController.swift`. Swift wins over Figma where they differ:

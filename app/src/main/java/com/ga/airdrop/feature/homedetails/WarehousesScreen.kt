@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -139,7 +141,12 @@ fun WarehousesScreen(
     val warehouse = viewModel.warehouseFor(type.key)
     val fields = warehouseFields(type, state, warehouse)
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(colors.gray150)
+            .testTag("warehouse-root")
+    ) {
         Column(Modifier.fillMaxSize()) {
             HomeDetailsHeader(
                 title = type.prettyName,
@@ -161,7 +168,8 @@ fun WarehousesScreen(
             ) {
                 TypeTabs(current = type, onSelect = { current = it.key })
                 WarehouseHero(type)
-                // Title block — H6 tinted, Body2 subtitle, bottom divider.
+                // Title block — Swift uses h5 for the method title even where
+                // the static Figma frame still shows h6.
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -171,10 +179,12 @@ fun WarehousesScreen(
                 ) {
                     Text(
                         text = type.bigTitle,
-                        style = AirdropType.h6,
+                        style = AirdropType.h5,
                         color = type.tint,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("warehouse-title"),
                     )
                     Text(
                         text = type.subtitle,
@@ -286,6 +296,7 @@ private fun TypeTabs(current: WarehouseType, onSelect: (WarehouseType) -> Unit) 
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp)
+                    .testTag("warehouse-tab-${type.key}")
                     .clip(RoundedCornerShape(Radius.xs))
                     .background(if (active) type.tint.copy(alpha = 0.10f) else colors.gray100)
                     .border(
@@ -306,7 +317,7 @@ private fun TypeTabs(current: WarehouseType, onSelect: (WarehouseType) -> Unit) 
     }
 }
 
-// ─── Hero image + overlapping circle badge (Figma 40000944:3572 / 3591) ───
+// ─── Hero image + overlapping circle badge (Swift makeHero) ────────────────
 
 @Composable
 private fun WarehouseHero(type: WarehouseType) {
@@ -314,7 +325,8 @@ private fun WarehouseHero(type: WarehouseType) {
     Box(
         Modifier
             .fillMaxWidth()
-            .height(219.dp) // 174dp photo + 45dp circle overhang
+            .height(240.dp)
+            .testTag("warehouse-hero-wrap")
     ) {
         Image(
             painter = painterResource(type.heroRes),
@@ -322,24 +334,29 @@ private fun WarehouseHero(type: WarehouseType) {
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(174.dp),
+                .height(240.dp)
+                .testTag("warehouse-hero-image"),
         )
-        // 90dp white circle centered on the photo's bottom edge; 40dp
-        // tinted shipping glyph inside — Figma 40000944:3591.
+        // Swift: 60pt circle centered on the hero bottom edge, with a 28pt
+        // method glyph. Figma still shows a larger 90pt badge, but Swift wins.
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .size(90.dp)
+                .offset(y = 30.dp)
+                .size(60.dp)
                 .clip(CircleShape)
                 .background(colors.gray100)
-                .border(1.dp, colors.iconShape, CircleShape),
+                .border(1.dp, colors.iconShape, CircleShape)
+                .testTag("warehouse-hero-badge"),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 painter = painterResource(type.circleIconRes),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(type.tint),
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier
+                    .size(28.dp)
+                    .testTag("warehouse-hero-badge-icon"),
             )
         }
     }
@@ -383,14 +400,19 @@ private fun InfoCard(
                         color = if (accountRow) type.tint else colors.textDarkTitle,
                     )
                 }
-                Image(
-                    painter = painterResource(R.drawable.ic_copy),
-                    contentDescription = "Copy ${field.label}",
-                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(28.dp)
                         .clickable { onCopy(field.value) },
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_copy),
+                        contentDescription = "Copy ${field.label}",
+                        colorFilter = ColorFilter.tint(colors.iconSelected),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
             if (index != fields.lastIndex) {
                 Box(
@@ -421,8 +443,10 @@ private fun PleaseNoteCard() {
         Image(
             painter = painterResource(R.drawable.ic_info),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(Color(0xFF292929)),
-            modifier = Modifier.size(24.dp),
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier
+                .size(20.dp)
+                .testTag("warehouse-note-icon"),
         )
         Column(
             Modifier.weight(1f),
@@ -430,14 +454,15 @@ private fun PleaseNoteCard() {
         ) {
             Text(
                 text = "Please note",
-                style = AirdropType.title2,
-                color = Color(0xFF292929),
+                style = AirdropType.subtitle1,
+                color = colors.textDarkTitle,
+                modifier = Modifier.testTag("warehouse-note-title"),
             )
             Text(
                 text = "Please note: All packages will be handled as Airdrop Standard " +
                     "unless identified otherwise in address line 2.",
                 style = AirdropType.body2,
-                color = Color(0xFF292929),
+                color = colors.textDarkTitle,
             )
         }
     }
