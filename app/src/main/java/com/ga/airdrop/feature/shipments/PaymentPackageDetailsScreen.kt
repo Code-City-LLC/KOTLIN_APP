@@ -204,7 +204,7 @@ private fun PaymentPackageDetailsContent(
                     Modifier
                         .fillMaxWidth()
                         .padding(Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     ChargeTableRow("Services", "USD", "Local (JMD)", colors.textDescription)
                     charges.entries.sortedBy { it.key }.forEach { (name, amount) ->

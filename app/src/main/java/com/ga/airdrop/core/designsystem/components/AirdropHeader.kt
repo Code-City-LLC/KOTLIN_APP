@@ -121,7 +121,7 @@ fun AirdropHeader(
                     ) {
                         Text(
                             text = tierName,
-                            style = AirdropType.subtitle2.copy(lineHeight = 22.sp),
+                            style = AirdropType.subtitle2,
                             color = accent,
                         )
                         Image(
@@ -143,7 +143,7 @@ fun AirdropHeader(
                         .size(24.dp)
                         .clickable(onClick = onBellClick),
                 )
-                Box(Modifier.padding(start = 14.dp)) {
+                Box(Modifier.padding(start = 20.dp)) {
                     Image(
                         painter = painterResource(R.drawable.ic_header_cart),
                         contentDescription = "Cart",
@@ -180,7 +180,7 @@ fun AirdropHeader(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .padding(start = 16.dp)
+                            .padding(start = 19.dp)
                             .clickable(onClick = onAirCoinsClick),
                     ) {
                         Text(

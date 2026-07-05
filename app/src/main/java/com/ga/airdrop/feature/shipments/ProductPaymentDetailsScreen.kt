@@ -93,7 +93,7 @@ fun ProductPaymentDetailsScreen(
                         // Product summary
                         ShipmentsSectionCard(
                             title = "Product Summary",
-                            titleStyle = AirdropType.subtitle1,
+                            titleStyle = AirdropType.title2,
                         ) {
                             ShipmentsListRow(
                                 "Invoice Number",
@@ -123,7 +123,7 @@ fun ProductPaymentDetailsScreen(
                         // Payment summary
                         ShipmentsSectionCard(
                             title = "Payment Summary",
-                            titleStyle = AirdropType.subtitle1,
+                            titleStyle = AirdropType.title2,
                         ) {
                             ShipmentsListRow(
                                 "Invoice Number",

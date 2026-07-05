@@ -449,7 +449,7 @@ fun ShipmentsSectionCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
+            .border(1.dp, colors.gray300, RoundedCornerShape(Radius.s)),
     ) {
         Row(
             modifier = Modifier
@@ -614,7 +614,7 @@ fun PackageCard(
                     Text(
                         text = pkg.statusName ?: pkg.status ?: "—",
                         style = AirdropType.title2,
-                        color = packageStatusColor(pkg.statusName ?: pkg.status),
+                        color = AlertPalette.Completed,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -726,7 +726,6 @@ fun OrderCard(
     Column(
         modifier = modifier
             // Swift makeOrderCard: fixed 280x380.
-            .height(380.dp)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -772,7 +771,7 @@ fun OrderCard(
             CardFieldColumn(
                 label = "Package Value",
                 // Swift formats as "$1,550.00" currency, not "USD 1,550.00".
-                value = ShipmentsFormat.price(order.invoiceAmountUsd),
+                value = ShipmentsFormat.usd(order.invoiceAmountUsd),
                 valueColor = BrandPalette.OrangeMain,
                 valueMaxLines = 1,
             )
@@ -851,9 +850,9 @@ fun TotalChargesBox(
             .fillMaxWidth()
             .background(
                 if (colors.isDark) colors.peachLight else BrandPalette.OrangeTertiary6,
-                RoundedCornerShape(Radius.s),
+                RoundedCornerShape(Radius.xs),
             )
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.gray300, RoundedCornerShape(Radius.xs))
             .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -883,7 +882,7 @@ fun ShipmentsLoadingIndicator(modifier: Modifier = Modifier) {
 @Composable
 fun ShipmentsEmptyLabel(text: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().padding(vertical = Spacing.xl), contentAlignment = Alignment.Center) {
-        Text(text = text, style = AirdropType.body2, color = AirdropTheme.colors.textDescription)
+        Text(text = text, style = AirdropType.body1, color = AirdropTheme.colors.textDescription)
     }
 }
 

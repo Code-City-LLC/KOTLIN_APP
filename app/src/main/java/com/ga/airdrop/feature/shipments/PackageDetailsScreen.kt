@@ -115,7 +115,7 @@ fun PackageDetailsScreen(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(262.dp),
+                        .height(240.dp),
                 )
             }
 
@@ -151,7 +151,7 @@ fun PackageDetailsScreen(
                         Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(colors.divider)
+                            .background(colors.gray300)
                     )
 
                     when {
@@ -345,7 +345,7 @@ private fun PackageDetailsContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(59.dp)
+                .height(48.dp)
                 .clip(RoundedCornerShape(Radius.s))
                 .background(colors.gray100)
                 .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -359,7 +359,7 @@ private fun PackageDetailsContent(
                 painter = painterResource(R.drawable.ic_info),
                 contentDescription = "CIF info",
                 colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
 

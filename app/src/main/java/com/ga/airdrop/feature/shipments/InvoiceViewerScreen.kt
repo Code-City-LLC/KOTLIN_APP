@@ -114,7 +114,7 @@ fun InvoiceViewerScreen(
                 secureUrl.isBlank() -> {
                     Text(
                         text = "No invoice URL provided.",
-                        style = AirdropType.body2,
+                        style = AirdropType.body1,
                         color = colors.textDescription,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.align(Alignment.Center),
@@ -130,7 +130,7 @@ fun InvoiceViewerScreen(
                         error = {
                             Text(
                                 text = "Couldn't download $fileName.",
-                                style = AirdropType.body2,
+                                style = AirdropType.body1,
                                 color = colors.textDescription,
                                 textAlign = TextAlign.Center,
                             )
@@ -160,7 +160,7 @@ fun InvoiceViewerScreen(
                     ) {
                         Text(
                             text = "Opening $fileName...",
-                            style = AirdropType.body2,
+                            style = AirdropType.body1,
                             color = colors.textDescription,
                             textAlign = TextAlign.Center,
                         )
@@ -215,7 +215,7 @@ fun InvoiceViewerScreen(
                             )
                             Text(
                                 text = "Downloading $fileName...",
-                                style = AirdropType.body2,
+                                style = AirdropType.body1,
                                 color = colors.textDescription,
                             )
                         }
@@ -223,7 +223,7 @@ fun InvoiceViewerScreen(
                     loadError?.let { message ->
                         Text(
                             text = "Couldn't download $fileName.\n$message",
-                            style = AirdropType.body2,
+                            style = AirdropType.body1,
                             color = colors.textDescription,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -278,16 +278,12 @@ private fun InvoiceActionButton(
     val shape = RoundedCornerShape(Radius.xs)
     Row(
         modifier = modifier
-            .height(50.dp)
+            .height(52.dp)
             .clip(shape)
             .let {
                 if (primary) {
-                    it.background(
-                        if (enabled) Brush.verticalGradient(GradientPalette.SignInButton)
-                        else Brush.verticalGradient(
-                            listOf(BrandPalette.ButtonDisable, BrandPalette.ButtonDisable)
-                        )
-                    )
+                    // Swift primary action = flat orangeMain fill, not a gradient.
+                    it.background(if (enabled) BrandPalette.OrangeMain else BrandPalette.ButtonDisable)
                 } else {
                     it
                         .background(colors.gray150)
@@ -306,7 +302,7 @@ private fun InvoiceActionButton(
             ),
             modifier = Modifier.size(18.dp),
         )
-        Spacer(Modifier.size(Spacing.sm))
+        Spacer(Modifier.size(8.dp))
         Text(
             text = text,
             style = AirdropType.button,

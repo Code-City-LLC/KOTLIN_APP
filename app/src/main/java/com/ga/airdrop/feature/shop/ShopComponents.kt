@@ -193,7 +193,7 @@ fun ShopSearchField(
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
             .padding(horizontal = Spacing.md, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm1),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Row(
             modifier = Modifier.weight(1f),

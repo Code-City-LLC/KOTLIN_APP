@@ -63,7 +63,7 @@ fun OrderDetailsScreen(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .padding(Spacing.lg),
+                            .padding(Spacing.md),
                         contentAlignment = Alignment.Center,
                     ) {
                         SubcomposeAsyncImage(
