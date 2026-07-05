@@ -1,13 +1,20 @@
 package com.ga.airdrop.feature.shipments
 
+import android.content.ContentValues
+import android.graphics.Bitmap
+import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
@@ -18,7 +25,10 @@ import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
+import java.io.File
+import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -123,6 +133,40 @@ class ShipmentsHubTapRailsParityTest {
         }
     }
 
+    @Test
+    fun hubSummaryKeepsSwiftFigmaGeometryAndIconPaletteLight() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+
+        setShipmentsContent(FakeHubRepository())
+
+        assertSummarySwiftFigmaGeometry()
+        assertSummaryIconPalette("track-shipment", dark = false)
+        assertSummaryIconPalette("packages", dark = false)
+        assertSummaryIconPalette("payments", dark = false)
+        assertSummaryIconPalette("orders", dark = false)
+        saveRootScreenshot("shipments_hub_swift_light.png")
+    }
+
+    @Test
+    fun hubSummaryKeepsSwiftFigmaGeometryAndIconPaletteDark() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.DARK)
+        }
+
+        setShipmentsContent(FakeHubRepository())
+
+        assertSummarySwiftFigmaGeometry()
+        assertSummaryIconPalette("track-shipment", dark = true)
+        assertSummaryIconPalette("packages", dark = true)
+        assertSummaryIconPalette("payments", dark = true)
+        assertSummaryIconPalette("orders", dark = true)
+        saveRootScreenshot("shipments_hub_swift_dark.png")
+    }
+
     private fun setShipmentsContent(repo: FakeHubRepository) {
         navigatedRoutes.clear()
         val viewModel = ShipmentsViewModel(repo)
@@ -145,6 +189,101 @@ class ShipmentsHubTapRailsParityTest {
             compose.onAllNodesWithText(repo.readyText).fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()
+    }
+
+    private fun assertSummarySwiftFigmaGeometry() {
+        val track = bounds("shipments-summary-track-shipment")
+        val packages = bounds("shipments-summary-packages")
+        val payments = bounds("shipments-summary-payments")
+
+        assertClose(162.5f, width(track), "Summary tile width")
+        assertClose(93f, height(track), "Summary tile height")
+        assertClose(10f, packages.left.value - track.right.value, "Summary column gap")
+        assertClose(10f, payments.top.value - track.bottom.value, "Summary row gap")
+    }
+
+    private fun assertSummaryIconPalette(tag: String, dark: Boolean) {
+        val bitmap = compose.onNodeWithTag(
+            "shipments-summary-icon-$tag",
+            useUnmergedTree = true,
+        ).captureToImage().asAndroidBitmap()
+        val orangePixels = countPixels(bitmap) { a, r, g, b ->
+            a > 80 && r > 200 && g in 55..120 && b < 60
+        }
+        val secondaryPixels = if (dark) {
+            countPixels(bitmap) { a, r, g, b -> a > 80 && r > 210 && g > 210 && b > 210 }
+        } else {
+            countPixels(bitmap) { a, r, g, b -> a > 80 && r < 80 && g < 80 && b < 80 }
+        }
+
+        assertTrue("$tag should keep Swift/Figma orange accent", orangePixels > 4)
+        assertTrue(
+            "$tag should use ThemeController-aware ${if (dark) "white" else "dark"} secondary strokes",
+            secondaryPixels > 4,
+        )
+    }
+
+    private fun countPixels(bitmap: Bitmap, predicate: (Int, Int, Int, Int) -> Boolean): Int {
+        var count = 0
+        for (y in 0 until bitmap.height) {
+            for (x in 0 until bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
+                val alpha = pixel ushr 24 and 0xFF
+                val red = pixel ushr 16 and 0xFF
+                val green = pixel ushr 8 and 0xFF
+                val blue = pixel and 0xFF
+                if (predicate(alpha, red, green, blue)) count += 1
+            }
+        }
+        return count
+    }
+
+    private fun bounds(tag: String) = compose.onNodeWithTag(
+        tag,
+        useUnmergedTree = true,
+    ).getUnclippedBoundsInRoot()
+
+    private fun assertClose(expected: Float, actual: Float, label: String) {
+        assertEquals(label, expected, actual, 0.75f)
+    }
+
+    private fun width(bounds: androidx.compose.ui.unit.DpRect): Float =
+        (bounds.right - bounds.left).value
+
+    private fun height(bounds: androidx.compose.ui.unit.DpRect): Float =
+        (bounds.bottom - bounds.top).value
+
+    private fun saveRootScreenshot(filename: String) {
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val output = File(screenshotDir(), filename)
+        FileOutputStream(output).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+        saveRootScreenshotToMediaStore(bitmap, filename)
+    }
+
+    private fun screenshotDir(): File {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        return File(context.getExternalFilesDir(null), "screenshots/shipments_hub_visual").also { it.mkdirs() }
+    }
+
+    private fun saveRootScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/kotlin_ui_proof/shipments_hub_visual")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return
+        val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+        outputStream.use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        context.contentResolver.update(uri, values, null, null)
     }
 
     private class FakeHubRepository(

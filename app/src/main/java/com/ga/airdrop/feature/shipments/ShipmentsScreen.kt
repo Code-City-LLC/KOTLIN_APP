@@ -207,7 +207,8 @@ fun ShipmentsScreen(
 
 private data class SummaryTile(
     val label: String,
-    val iconRes: Int,
+    val baseIconRes: Int,
+    val accentIconRes: Int,
     val route: String,
     val testTag: String,
 )
@@ -216,10 +217,34 @@ private data class SummaryTile(
 private fun SummarySection(state: ShipmentsUiState, onNavigate: (String) -> Unit) {
     val colors = AirdropTheme.colors
     val tiles = listOf(
-        SummaryTile("Track Shipment", R.drawable.ic_joinery, Routes.PACKAGES, "track-shipment") to state.summary.totalShipments,
-        SummaryTile("Packages", R.drawable.ic_packages, Routes.PACKAGES, "packages") to state.summary.totalPackages,
-        SummaryTile("Payments", R.drawable.ic_payments, Routes.PAYMENTS, "payments") to state.summary.totalPayments,
-        SummaryTile("Orders", R.drawable.ic_orders, Routes.ORDERS, "orders") to state.summary.totalOrders,
+        SummaryTile(
+            "Track Shipment",
+            R.drawable.ic_joinery_base,
+            R.drawable.ic_joinery_accent,
+            Routes.PACKAGES,
+            "track-shipment",
+        ) to state.summary.totalShipments,
+        SummaryTile(
+            "Packages",
+            R.drawable.ic_packages_base,
+            R.drawable.ic_packages_accent,
+            Routes.PACKAGES,
+            "packages",
+        ) to state.summary.totalPackages,
+        SummaryTile(
+            "Payments",
+            R.drawable.ic_payments_base,
+            R.drawable.ic_payments_accent,
+            Routes.PAYMENTS,
+            "payments",
+        ) to state.summary.totalPayments,
+        SummaryTile(
+            "Orders",
+            R.drawable.ic_orders_base,
+            R.drawable.ic_orders_accent,
+            Routes.ORDERS,
+            "orders",
+        ) to state.summary.totalOrders,
     )
     Column(
         Modifier.padding(horizontal = Spacing.md),
@@ -276,11 +301,7 @@ private fun SummaryTileCard(
                 .align(Alignment.TopStart)
                 .padding(top = 14.dp),
         ) {
-            Image(
-                painter = painterResource(tile.iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
-            )
+            SummaryTileIcon(tile)
             Text(
                 text = tile.label,
                 style = AirdropType.subtitle2,
@@ -295,6 +316,28 @@ private fun SummaryTileCard(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(bottom = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun SummaryTileIcon(tile: SummaryTile) {
+    val colors = AirdropTheme.colors
+    // Swift FigmaShipmentsViewController.makeStatTile uses orange primary
+    // strokes plus textDarkTitle secondary strokes. Split the vector so the
+    // secondary paths follow the app's in-process ThemeController dark mode;
+    // @color/icon_duotone only follows Android resource-night configuration.
+    Box(Modifier.size(22.dp).testTag("shipments-summary-icon-${tile.testTag}")) {
+        Image(
+            painter = painterResource(tile.baseIconRes),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.textDarkTitle),
+            modifier = Modifier.fillMaxSize(),
+        )
+        Image(
+            painter = painterResource(tile.accentIconRes),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }
