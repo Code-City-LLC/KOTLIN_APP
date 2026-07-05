@@ -1,8 +1,12 @@
 package com.ga.airdrop.feature.more
 
 import android.content.Context
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.data.repo.MiscRepository
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -25,11 +29,20 @@ data class NotificationSettingsUiState(
  * off both sections, section toggles reset their sub-rows, everything
  * persists locally and syncs email/sms/offers notification flags with a
  * sparse PUT /user/profile ("1"/"0" strings, best-effort).
- * RECONCILE: FCM device-token registration on push-enable once Firebase
- * messaging lands (no FCM stack in the Android app yet).
  */
 class NotificationSettingsViewModel(
-    private val repository: MoreRepository = MoreRepository(),
+    private val updateProfile: suspend (Map<String, String?>) -> Unit = { fields ->
+        MoreRepository().updateProfile(fields)
+    },
+    private val requestFcmToken: ((String) -> Unit) -> Unit = ::requestCurrentFcmToken,
+    private val registerFcmToken: suspend (String, String?) -> Unit = { token, deviceInfo ->
+        MiscRepository(ApiClient.service).registerFcmToken(
+            deviceToken = token,
+            deviceType = "android",
+            deviceInfo = deviceInfo,
+        )
+    },
+    private val deviceInfoProvider: () -> String? = ::androidDeviceInfo,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(NotificationSettingsUiState())
@@ -100,15 +113,26 @@ class NotificationSettingsViewModel(
         val s = _state.value
         val email = s.master && (s.packageEmail || s.promosEmail)
         val sms = s.master && (s.packageSms || s.promosSms)
+        val push = s.pushWanted()
         val offers = s.master && (s.promosEmail || s.promosSms || s.promosPush)
         viewModelScope.launch {
-            repository.updateProfile(
+            updateProfile(
                 mapOf(
                     "email_notification" to if (email) "1" else "0",
                     "sms_notification" to if (sms) "1" else "0",
                     "offers_notification" to if (offers) "1" else "0",
                 ),
             ) // Non-fatal on failure — local state is already updated.
+            if (push) {
+                requestFcmToken { rawToken ->
+                    val token = rawToken.trim()
+                    if (token.isNotEmpty()) {
+                        viewModelScope.launch {
+                            registerFcmToken(token, deviceInfoProvider())
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -128,3 +152,17 @@ class NotificationSettingsViewModel(
         private const val KEY_PROMOS_PUSH = "promosPush"
     }
 }
+
+internal fun NotificationSettingsUiState.pushWanted(): Boolean =
+    master && (packagePush || promosPush)
+
+private fun requestCurrentFcmToken(onToken: (String) -> Unit) {
+    runCatching { FirebaseMessaging.getInstance().token }
+        .getOrNull()
+        ?.addOnSuccessListener { token ->
+            if (!token.isNullOrBlank()) onToken(token)
+        }
+}
+
+private fun androidDeviceInfo(): String =
+    "Manufacturer: ${Build.MANUFACTURER}, Model: ${Build.MODEL}, OS: ${Build.VERSION.RELEASE}"

@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **15 items are FIXED, on-device verified, and pushed.** Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **18 items are FIXED, on-device verified, and pushed.** Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -116,10 +116,21 @@ light AND dark.
   chevron gap, and FAQ uses Swift's 10dp gap. Proof:
   `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_light.png`,
   `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_dark.png`.
+- **Notification Settings Swift parity:** Notification Settings was compared
+  against Swift `FigmaNotificationSettingsViewController.swift` and
+  `FigmaIcons.swift`. Figma MCP metadata/screenshot proved the documented node
+  `40001587:18074` is stale and renders `Home - Light Mode`, so Swift takes
+  precedence for this repair until the node map is corrected. Android now uses
+  Swift row metrics (`60`dp master/section, `56`dp sub rows, `12`dp normal
+  gaps, `20`dp section gaps), Swift icon roles in app light/dark, and the Swift
+  Push self-heal behavior through the existing FCM registration endpoint. Proof:
+  `/tmp/kotlin_ui_proof/notification_settings/figma_node_40001587_18074_is_home_stale_mapping.png`,
+  `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_light.png`,
+  `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_dark.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §252/§423/§432/§468/§477 Notification Settings. Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, and FAQs §486 are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, and FAQs §486 are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -426,12 +437,12 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] Notification Settings
+## [CLOSED] Notification Settings
 `app/src/main/java/com/ga/airdrop/feature/more/NotificationSettingsScreen.kt:80` — Row icons use wrong glyphs/duotone color assignments versus Swift: master bell should be solid iconSelected, Email envelope body should be orange with dark flap, Push bell should be solid orange.
 
 **Detail:** Swift (FigmaNotificationSettingsViewController.swift): master row uses FigmaIcon.bell(primary: orangeMain, secondary: iconSelected) and FigmaIcon_Bell paints ALL paths with `secondary` (FigmaIcons.swift lines 634-641), so the master bell renders entirely iconSelected (dark/white) — and it is the plain bell glyph, not a bell-with-sound-waves. Email rows use mail(primary: iconSelected, secondary: orangeMain) — FigmaIcon_Mail paints the flap with primary (dark) and the envelope body with secondary (orange) (FigmaIcons.swift lines 1011-1016). Push rows use bell(primary: iconSelected, secondary: orangeMain) → fully ORANGE bell. Kotlin instead uses: ic_settings_notifications (bell-with-waves, orange accent strokes + duotone body) for the master row; ic_mail whose flap is orange and body duotone (inverted vs Swift); ic_notifications whose every stroke is @color/icon_duotone (no orange at all) for Push. Only the SMS chat icon (orange dots, duotone bubble) matches Swift. Users comparing the two apps see three of the four icon styles wrong in both light and dark mode.
 
-**Fix:** Add screen-specific drawables (or color variants): master row = plain bell fully @color/icon_duotone (reuse ic_notifications as-is); Email rows = envelope with body #F15114 and flap @color/icon_duotone (invert ic_mail's colors); Push rows = plain bell fully #F15114. Then point the ToggleRow iconRes at those variants (lines 80, 96/137, 118/159).
+**Fix:** Done. `NotificationSettingsScreen` now uses the plain bell tinted `iconSelected` for the master row, screen-specific mail vectors with `iconSelected` flap + orange body, existing chat light/dark vectors, and the plain bell tinted orange for Push. `NotificationSettingsParityTest` verifies the icon colors in app light and app dark.
 
 ---
 
@@ -597,21 +608,21 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [LOW] Notification Settings
+## [CLOSED] Notification Settings
 `app/src/main/java/com/ga/airdrop/feature/more/NotificationSettingsViewModel.kt:104` — Enabling a Push toggle never re-registers the FCM device token with the backend, which Swift does on every sync when push is wanted.
 
 **Detail:** Swift syncToBackend (FigmaNotificationSettingsViewController.swift:446-456) calls AirdropAPI.shared.registerFCMToken(deviceToken:deviceType:deviceInfo:) when pushWanted and a stored token exists. The Kotlin app has the plumbing (MiscRepository.registerFcmToken, used by AirdropMessagingService.onNewToken) but NotificationSettingsViewModel.syncToBackend only PUTs the three profile flags; if the token was issued before login (onNewToken skips when unauthenticated), enabling Push here never registers it.
 
-**Fix:** In syncToBackend(), when push is enabled and a cached FCM token exists (FirebaseMessaging.getInstance().token or a stored copy), call MiscRepository.registerFcmToken(token, "android") best-effort.
+**Fix:** Done. `syncToBackend()` now computes `pushWanted`, requests the current `FirebaseMessaging` token best-effort after the profile update, trims it, and calls `MiscRepository.registerFcmToken(token, "android", deviceInfo)`. `NotificationSettingsParityTest.enablingPushReregistersFcmTokenLikeSwift` verifies the hook with injected fakes.
 
 ---
 
-## [LOW] Notification Settings
+## [CLOSED] Notification Settings
 `app/src/main/java/com/ga/airdrop/feature/more/NotificationSettingsScreen.kt:187` — Row heights and section gaps drift from Swift: all rows are 59dp with 10dp base spacing and ~30dp section gaps; Swift uses 60pt master/section rows, 56pt sub rows, 12pt base spacing, 20pt section gaps.
 
 **Detail:** FigmaNotificationSettingsViewController.makeRow sets card height = style == .sub ? 56 : 60 (line 282), stack.spacing 12 (line 154), setCustomSpacing(20) after the master row and after packagePush (lines 167, 187). Kotlin ToggleRow is uniformly height(59.dp), Column spacedBy(Spacing.sm=10), and the extra Spacer(Modifier.height(Spacing.sm)) rows produce ~30dp section gaps.
 
-**Fix:** Use 60.dp for the master/section rows, 56.dp for sub rows, spacedBy(12.dp), and replace the Spacer rows so section gaps total 20.dp.
+**Fix:** Done. `ToggleRow` is now style-dependent: `60.dp` master/section rows, `56.dp` sub rows, explicit `12.dp` normal gaps, and explicit `20.dp` section breaks. The focused screenshot test asserts the row heights, gaps, and icon leading insets.
 
 ---
 
@@ -642,21 +653,21 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [LOW] Notification Settings
+## [CLOSED] Notification Settings
 `app/src/main/java/com/ga/airdrop/feature/more/NotificationSettingsScreen.kt:187` — Row heights and inter-row spacing drift: all rows 59dp with 10dp gaps vs Swift 60pt (master/section) and 56pt (sub) rows with 12pt gaps.
 
 **Detail:** Swift makeRow sets card height 60 for master/section styles and 56 for sub rows (FigmaNotificationSettingsViewController.swift line 282), with stack spacing 12 and custom 20pt spacing after the master row and after the Package Push row (lines 154, 167, 187). Kotlin ToggleRow is a uniform 59.dp (line 187) and the Column uses Arrangement.spacedBy(Spacing.sm = 10.dp) (line 75); the section breaks come out at 20dp via extra Spacers (correct) but every other gap is 10dp instead of 12dp.
 
-**Fix:** Make ToggleRow height style-dependent (60.dp for master/section, 56.dp for sub rows) and change the Column arrangement to Arrangement.spacedBy(12.dp), adjusting the section-break Spacers to 8.dp so the breaks stay at 20dp.
+**Fix:** Closed by the same `NotificationSettingsScreen` row-style repair and `NotificationSettingsParityTest` geometry assertions above.
 
 ---
 
-## [LOW] Notification Settings
+## [CLOSED] Notification Settings
 `app/src/main/java/com/ga/airdrop/feature/more/NotificationSettingsViewModel.kt:104` — Push-enable never (re)registers the FCM device token, and the RECONCILE comment claiming 'no FCM stack in the Android app yet' is stale.
 
 **Detail:** Swift syncToBackend registers the FCM token with device info whenever any push toggle is enabled (FigmaNotificationSettingsViewController.swift lines 449-456: registerFCMToken(deviceToken:deviceType:deviceInfo:) guarded by pushWanted). The Android app DOES have an FCM stack now — core/push/AirdropMessagingService.kt calls MiscRepository.registerFcmToken on onNewToken, and MiscRepository.kt:128 exposes the endpoint — but NotificationSettingsViewModel.syncToBackend only PUTs the three profile flags and the class doc still says FCM is absent. If the initial registration failed or the user re-enables push after the server pruned the token, iOS self-heals and Android does not.
 
-**Fix:** In syncToBackend, compute pushWanted = master && (packagePush || promosPush); when true, fetch FirebaseMessaging.getInstance().token and call MiscRepository.registerFcmToken(token, "android", deviceInfo) best-effort. Delete the stale RECONCILE comment.
+**Fix:** Closed by the same `NotificationSettingsViewModel` Push-token repair above; the stale RECONCILE comment was removed.
 
 ---
 

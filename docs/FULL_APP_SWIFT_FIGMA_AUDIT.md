@@ -416,6 +416,15 @@ assets; only repair the parts that are visibly or functionally wrong.
 - FAQ now has Swift gap proof. `AccordionCard` keeps the 5dp default used by
   Terms/Privacy, and `FaqScreen` passes the Swift-specific `Spacing.sm` 10dp
   question-to-chevron gap.
+- Notification Settings now has Swift-precedence proof. Figma MCP metadata and
+  screenshot show the documented node `40001587:18074` is stale and renders
+  `Home - Light Mode`, so Swift `FigmaNotificationSettingsViewController.swift`
+  and `FigmaIcons.swift` are the authoritative source for this pass. Android now
+  matches Swift row heights/gaps, icon color roles in app light/dark, and Push
+  FCM token re-registration after profile sync. Proof:
+  `/tmp/kotlin_ui_proof/notification_settings/figma_node_40001587_18074_is_home_stale_mapping.png`,
+  `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_light.png`,
+  `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_dark.png`.
 
 ## Reopened Defects From User Review
 
@@ -530,7 +539,9 @@ Source files:
 Findings to verify/fix:
 - Do a page-by-page dark pass; no icon should disappear, flatten incorrectly, or
   keep a light-only hardcoded stroke/fill.
-- Existing backlog still flags Notification Settings icon variants.
+- Notification Settings icon variants are closed with Swift-precedence proof.
+  The stale Figma node mapping remains open as documentation debt only: node
+  `40001587:18074` resolves to Home, not Notification Settings.
 - New icons added after the earlier dark pass must be audited for
   `@color/icon_duotone` or explicit Swift-matching orange/dark role colors.
 
@@ -540,9 +551,8 @@ Findings to verify/fix:
 - Codex/MagentaCastle is working through More/Legal/Profile. Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
-  CMS heading colors, and FAQ accordion gap now have Figma MCP + Swift
-  comparison and targeted device-test proof; the rest of the
-  More/Legal/Profile lane remains open until each screen has the same evidence.
+  CMS heading colors, FAQ accordion gap, and Notification Settings now have
+  Figma MCP + Swift comparison and targeted device-test proof.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -558,5 +568,5 @@ For each page, fill this before claiming completion:
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, and FAQ gap verified; Notification Settings remains open |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
