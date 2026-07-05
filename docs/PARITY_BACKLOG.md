@@ -509,21 +509,21 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [MEDIUM] Shop root + Auction/Feature Products lists
+## [CLOSED] Shop root + Auction/Feature Products lists
 `app/src/main/java/com/ga/airdrop/feature/shop/ShopComponents.kt:299` — ShopProductCard uses one geometry everywhere, but Swift differs per context: Shop-root cards have a 1-line title with 15pt insets/10pt spacing, list cells have 2-line titles with 12pt side insets/10pt top/6pt spacing, and all cards are fixed at 245pt tall.
 
 **Detail:** Kotlin: minLines = 2 / maxLines = 2 (ShopComponents.kt:299-300), text column padding 15dp all around, internal spacing 10dp, intrinsic height. Swift Shop root: title.numberOfLines = 1 (FigmaShopViewController.swift:555), textColumn top 15 / sides 15 / spacing 10 (:615-617, :592), card height 245 (:510). Swift grid cells: titleLabel.numberOfLines = 2 (FigmaAuctionViewController.swift:572), textColumn top 10 / sides 12 / spacing 6 (:613-616, :591), cell height 245 (:410). Net effect: Shop-root cards reserve an extra title line vs iOS, and full-list cells have looser text insets than iOS.
 
-**Fix:** Parameterize ShopProductCard: titleLines: Int (1 for ShopScreen usages, 2 for ProductListScreen/related), textPadding + textSpacing values per context (15/10 for shop root, 12x10/6 for grid cells), and give the card a fixed 245.dp height to match Swift.
+**Fix:** Closed in current Android and re-verified with Swift precedence plus Figma MCP. Figma Shop node `40001846:53519`, Auction node `40001846:54117`, and Feature Products node `40001846:54396` all show the 160-wide card family with 135 image band and the same Cairo text tokens; Swift remains the runtime authority for the context split. Current `ShopProductCard` is parameterized with `titleLines` and `rootInsets`, uses fixed 245.dp height, root 1-line/15/10 spacing, and list/detail 2-line/12/10/6 spacing. `ShopRootListParityTest` now locks the root one-line height, list two-line height, and 245dp card height.
 
 ---
 
-## [MEDIUM] Shop root
+## [CLOSED] Shop root
 `app/src/main/java/com/ga/airdrop/feature/shop/ShopScreen.kt:74` — Shop root content starts at 146dp from the top (126dp spacer + 20dp column padding) instead of Swift's 126pt.
 
 **Detail:** Swift pins contentStack.topAnchor at constant 126 from the scroll content top with 20pt side insets only (FigmaShopViewController.swift:109-113). Kotlin stacks Spacer(126.dp) THEN a Column with .padding(Spacing.md) on all four sides, adding an extra 20dp above the search field. (The bottom currently works out to 140dp = Swift's 120 tail + 20 inset, so only the top drifts.)
 
-**Fix:** Change ShopScreen.kt:74 to .padding(horizontal = Spacing.md) and bump the tail Spacer (line 151) from 120.dp to 140.dp to preserve the current (correct) bottom clearance.
+**Fix:** Closed in current Android. The current tree uses `Spacer(126.dp)` and horizontal-only `Spacing.md` padding, so the search field starts at Swift's 126pt effective top. Refreshed Swift source shows `contentStack.bottomAnchor` is `-20` and `contentInsetAdjustmentBehavior = .never`; the older proposed 140dp tail bump is not Swift-backed and was not applied. Figma Shop node `40001846:53519` also shows content at `top-[106px]` with 20px padding, producing the same 126px effective search top.
 
 ---
 
@@ -698,12 +698,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Shop root — Feature Products row
+## [CLOSED] Shop root — Feature Products row
 `app/src/main/java/com/ga/airdrop/feature/shop/ShopScreen.kt:134` — The featured-row empty card is rendered full-width; Swift renders a fixed 240pt-wide card inside the horizontal row.
 
 **Detail:** Swift: row.addArrangedSubview(makeEmptyCard(text: "No featured products", fixedWidth: 240)) (FigmaShopViewController.swift:490). Kotlin ShopEmptyCard fills max width (ShopScreen.kt:181-198).
 
-**Fix:** Pass a width modifier: ShopEmptyCard(text = "No featured products", modifier = Modifier.width(240.dp)) for the featured section (auction section stays full-width, matching Swift's grid empty card).
+**Fix:** Closed in current Android. `ShopScreen` passes `Modifier.width(240.dp)` for the featured empty card while leaving the auction empty card full-width, matching Swift's `makeEmptyCard(... fixedWidth: 240)` only in the featured horizontal row. `ShopRootListParityTest.featuredEmptyCardKeepsSwiftFixedWidth` locks the 240dp width and 200dp height.
 
 ---
 
@@ -716,21 +716,21 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Auction list / Feature Products list
+## [CLOSED] Auction list / Feature Products list
 `app/src/main/java/com/ga/airdrop/feature/shop/ProductListViewModel.kt:64` — Typing 1-2 characters in list search does not trigger a reload, leaving stale filtered results when backspacing from 3 chars to 2.
 
 **Detail:** onQueryChange early-returns when 0 < trimmed.length < 3 (ProductListViewModel.kt:64). Swift list VCs debounce-reload on EVERY change and only omit the search param when <3 chars (FigmaAuctionViewController.swift:458-464 + searchQuery :335-338), so backspacing from 'abc' to 'ab' restores the unfiltered list on iOS but keeps showing 'abc' results on Android. (The Shop root's gating IS correct — Swift gates there: FigmaShopViewController.swift:762.)
 
-**Fix:** Remove the early return in ProductListViewModel.onQueryChange; searchQuery() already drops sub-3-char values from the request.
+**Fix:** Closed in current Android. `ProductListViewModel.onQueryChange` now debounces every change and lets `searchQuery()` omit sub-3-character strings, matching Swift Auction/Feature list controllers while preserving the intentionally gated Shop-root search. `ShopRootListParityTest.fullListSearchBackspaceReloadsUnfilteredLikeSwift` locks the `null -> "abc" -> null` request sequence.
 
 ---
 
-## [LOW] Auction list / Feature Products list
+## [CLOSED] Auction list / Feature Products list
 `app/src/main/java/com/ga/airdrop/feature/shop/ProductListScreen.kt:133` — Pull-to-refresh spinner uses default Material3 colors instead of Swift's orangeMain refresh tint.
 
 **Detail:** PullToRefreshBox is used without a custom indicator (ProductListScreen.kt:133-137); Swift sets refreshControl.tintColor = DesignTokens.Color.orangeMain (FigmaAuctionViewController.swift:313, FigmaFeatureProductsViewController.swift:319).
 
-**Fix:** Provide the indicator slot with PullToRefreshDefaults.Indicator(color = BrandPalette.OrangeMain, containerColor = AirdropTheme.colors.gray100).
+**Fix:** Closed in current Android. `ProductListScreen` now provides a `PullToRefreshDefaults.Indicator` with `color = BrandPalette.OrangeMain`, matching Swift's Auction and Feature Products `refreshControl.tintColor = DesignTokens.Color.orangeMain`. The adjacent list search/card parity tests compile through this screen cluster, and the source-level Swift/Figma evidence is recorded here to keep the backlog from reopening stale duplicate work.
 
 ---
 
