@@ -104,6 +104,25 @@ class AddAuthorizedUserParityTest {
     }
 
     @Test
+    fun invalidEmailShowsSwiftValidationAndBlocksAddRequest() {
+        val api = FakeMore2Api()
+        setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("add-authorized-user-first-name-input").performTextInput("Ada")
+        compose.onNodeWithTag("add-authorized-user-last-name-input").performTextInput("Lovelace")
+        compose.onNodeWithTag("add-authorized-user-id-number-input").performTextInput("ABC123")
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextInput("bad ada@example.com text")
+        compose.onNodeWithTag("add-authorized-user-mobile-input").performTextInput("+1 876-5290736")
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123456789")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+
+        compose.onNodeWithText("Validation Error").assertIsDisplayed()
+        compose.onNodeWithText("Please enter a valid Email Address").assertIsDisplayed()
+        assertEquals(0, api.addCalls.get())
+        assertEquals(0, backClicks)
+    }
+
+    @Test
     fun editModePrefillsAndUpdatesLikeSwiftDark() {
         val api = FakeMore2Api()
         setAddUser(api, editId = 101, mode = ThemeController.Mode.DARK)

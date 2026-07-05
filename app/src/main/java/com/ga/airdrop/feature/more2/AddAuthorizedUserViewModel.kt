@@ -153,5 +153,5 @@ class AddAuthorizedUserViewModel(
     }
 
     private fun isValidEmail(email: String): Boolean =
-        Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").containsMatchIn(email)
+        Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(email)
 }

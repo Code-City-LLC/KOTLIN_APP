@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **41 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **42 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -116,6 +116,14 @@ light AND dark.
   `/tmp/kotlin_ui_proof/home_refer_icon/figma/figma_home_refer_card_40001464_28925.png`,
   `/tmp/kotlin_ui_proof/home_refer_icon/android/home_refer_friend_swift_light.png`,
   `/tmp/kotlin_ui_proof/home_refer_icon/android/home_refer_friend_swift_dark.png`.
+- **Add Authorized User email validation Swift-precedence proof:** Add
+  Authorized User node `40001541:45296` was checked through Figma MCP and Swift
+  `FigmaAddAuthorizedUserViewController.swift` was checked first for runtime
+  truth. Figma still omits Email, but Swift/RN trim and validate Email before
+  sending `user_email`, so Swift wins. Android now uses whole-string email
+  matching and device proof verifies malformed email shows Swift's validation
+  alert without POSTing or navigating. Proof:
+  `/tmp/kotlin_ui_proof/add_authorized_user_validation/figma/add_user_40001541_45296.png`.
 - **Documents card/action-row geometry:** Documents was compared against Figma
   node `40000975:7748` and Swift `FigmaDocumentsViewController.swift`. Swift
   takes precedence because Figma still shows the older edge-to-edge footer while
@@ -530,7 +538,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Calculator/Drop Alert/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Calculator Standard entry Swift/Figma proof, Drop Alert consignee/profile-failure Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, Home Refer-a-friend icon Swift-precedence proof, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Calculator/Drop Alert/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Add Authorized User email-validation rail, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Calculator Standard entry Swift/Figma proof, Drop Alert consignee/profile-failure Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, Home Refer-a-friend icon Swift-precedence proof, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
@@ -675,7 +683,8 @@ one-load behavior, status mutation refreshes, and delete navigation.
 and send `user_email`, so Android keeps the Email row and accepts the lower
 initial TRN position caused by the extra Swift field. `AddAuthorizedUserParityTest`
 verifies the 20dp gutters, 12dp name-row gap, 50dp field cards, 52dp CTA,
-add-mode POST payload parsing, edit-mode prefill/PUT payload, and no detail-page
+add-mode POST payload parsing, Swift validation alert for malformed whole-email
+input with no POST/navigation, edit-mode prefill/PUT payload, and no detail-page
 Edit affordance regression.
 
 **✅ CLOSED — Invite Friend contacts icon follow-up:** Swift's

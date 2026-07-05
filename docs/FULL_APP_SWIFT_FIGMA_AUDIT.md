@@ -50,6 +50,8 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/calculator_cta/figma/figma_calculator_standard_40001464_29102.png`
   - Drop Alert consignee/profile-failure slice:
     `/tmp/kotlin_ui_proof/drop_alert/figma/figma_drop_alert_40001826_22497.png`
+  - Add Authorized User validation slice:
+    `/tmp/kotlin_ui_proof/add_authorized_user_validation/figma/add_user_40001541_45296.png`
 - Local proof screenshots:
   - `/tmp/kotlin_ui_proof/figma_home_light.png`
   - `/tmp/kotlin_ui_proof/android_home_light_correct.png`
@@ -635,6 +637,11 @@ assets; only repair the parts that are visibly or functionally wrong.
     omits `Email Address`, while Swift and RN include it and send
     `user_email` in the Laravel payload. Android keeps Email, even though that
     means the TRN field starts lower than the Figma-only static frame.
+  - Email validation was refreshed after BlueDeer B11: Swift trims the field,
+    shows `Please enter a valid Email Address`, and blocks the POST/PUT before
+    `user_email` is sent when the whole email string does not match the Swift
+    pattern. Android now uses whole-string `Regex.matches(...)` for that same
+    validator and keeps the existing alert/payload path.
   - Swift edit mode also exists only when the controller is initialized with an
     existing authorized user; the active detail page remains read-only and no
     Edit affordance is introduced there. Android preserves the existing hidden
@@ -645,7 +652,7 @@ assets; only repair the parts that are visibly or functionally wrong.
   - `git diff --check`
   - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
   - targeted `AddAuthorizedUserParityTest` through
-    `:app:connectedStagingDebugAndroidTest`: 3 tests passed on
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed on
     `airdrop_test2(AVD) - 15`
   - proof PNGs:
     `/tmp/kotlin_ui_proof/add_authorized_user/android/add_authorized_user/add_authorized_user_swift_light.png`,
@@ -1363,8 +1370,9 @@ assets; only repair the parts that are visibly or functionally wrong.
   `40001541:45296` and
   `FigmaAddAuthorizedUserViewController.swift`. Figma omits the Email field,
   but Swift/RN include Email and send `user_email`, so Android keeps Email,
-  locks add POST payload parsing, and verifies the hidden edit-mode prefill/PUT
-  rail without adding an edit affordance to the read-only detail page.
+  locks add POST payload parsing, blocks malformed whole-email submissions with
+  Swift's validation alert, and verifies the hidden edit-mode prefill/PUT rail
+  without adding an edit affordance to the read-only detail page.
 - Background Images now has Swift-precedence proof against Figma section
   `40006644:65735` / frame `40006644:67051` and Swift
   `FigmaBackgroundImagesViewController.swift`. Figma shows a one-column `335x150`
