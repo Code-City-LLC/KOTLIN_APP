@@ -187,6 +187,23 @@ light AND dark.
   `/tmp/kotlin_ui_proof/background_images/figma/figma_background_images_40006644_67051.png`,
   `/tmp/kotlin_ui_proof/background_images/android/background_images/background_images_swift_light.png`,
   `/tmp/kotlin_ui_proof/background_images/android/background_images/background_images_swift_dark.png`.
+- **Restricted Items Swift-precedence list/search/detail:** Restricted Items was
+  compared against Swift `FigmaRestrictedItemsViewController.swift` and
+  `FigmaRestrictedItemsInfoViewController.swift`, plus Figma MCP nodes
+  `40001432:14025` and `40001432:14918`. Swift takes precedence because the
+  current Figma nodes disagree with the shipped iOS flow: `40001432:14025` is an
+  Information/legal page and `40001432:14918` is a tabbed Restricted Items
+  variant, while Swift uses a searchable category list that pushes category
+  details. Android now keeps that Swift flow, removes the stale low-polish glyph
+  carve-out, reuses the existing circular info and two-color dangerous-goods
+  vectors, follows Swift note-card dark token behavior, and locks entry/search/
+  detail geometry plus taps in `RestrictedItemsParityTest`. Proof:
+  `/tmp/kotlin_ui_proof/restricted_items/figma/figma_restricted_information_40001432_14025.png`,
+  `/tmp/kotlin_ui_proof/restricted_items/figma/figma_restricted_tabbed_40001432_14918.png`,
+  `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_entry_swift_light.png`,
+  `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_search_results_swift_light.png`,
+  `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_restricted_detail_from_search_swift_light.png`,
+  `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_permitted_detail_swift_dark.png`.
 - **AirCoins balance/history Swift parity:** AirCoins was compared against
   Swift `FigmaAirCoinHistoryViewController.swift`, Figma balance node
   `40001911:22972`, and Figma history node `40006461:26563`. Swift takes

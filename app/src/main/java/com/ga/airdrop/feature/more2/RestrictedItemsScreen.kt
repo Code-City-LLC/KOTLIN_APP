@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -48,10 +49,9 @@ import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
- * Restricted Items — Figma node 40001432:14025 (entry list) + per-category
- * info variant (FigmaRestrictedItemsInfoViewController), static content from
- * the Swift VCs. Approved carve-out: low polish priority; category glyphs
- * reuse existing drawables instead of the bespoke Figma icon set.
+ * Restricted Items — Swift `FigmaRestrictedItemsViewController` entry list plus
+ * per-category `FigmaRestrictedItemsInfoViewController` detail state. Swift is
+ * the precedence source where the current Figma nodes show stale/alternate flows.
  *
  * The info variant is internal navigation state (BackHandler pops it) so no
  * extra route is needed.
@@ -88,6 +88,7 @@ private fun RestrictedItemsList(
     Column(
         Modifier
             .fillMaxSize()
+            .testTag("restricted-list-root")
             .background(colors.gray200)
     ) {
         More2InnerHeader(title = "Restricted Items", onBack = onBack)
@@ -96,6 +97,7 @@ private fun RestrictedItemsList(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .testTag("restricted-list-scroll")
                 .padding(horizontal = Spacing.md),
         ) {
             Spacer(Modifier.height(Spacing.md))
@@ -143,11 +145,12 @@ private fun RestrictedItemsList(
                             )
                         }
                     } else {
-                        matches.forEach { (category, item) ->
+                        matches.forEachIndexed { index, (category, item) ->
                             SearchResultCard(
                                 category = category,
                                 item = item,
                                 onClick = { onOpenCategory(category) },
+                                testTag = "restricted-search-result-$index",
                             )
                         }
                     }
@@ -165,6 +168,7 @@ private fun SearchRow(value: String, onValueChange: (String) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
+            .testTag("restricted-search-row")
             .clip(RoundedCornerShape(Radius.xs))
             .background(colors.gray100)
             .border(1.dp, colors.gray300, RoundedCornerShape(Radius.xs))
@@ -185,7 +189,9 @@ private fun SearchRow(value: String, onValueChange: (String) -> Unit) {
                 textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
                 cursorBrush = SolidColor(BrandPalette.OrangeMain),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("restricted-search-input"),
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -198,31 +204,49 @@ private fun SearchRow(value: String, onValueChange: (String) -> Unit) {
     }
 }
 
-/** Category glyph: closest existing drawable + the Swift tint mapping. */
-private fun categoryIcon(category: RestrictedCategory): Pair<Int, Color?> = when (category) {
-    RestrictedCategory.PERMITTED -> R.drawable.ic_check to AlertPalette.Completed
-    RestrictedCategory.LICENSE_REQUIRED -> R.drawable.ic_info to AlertPalette.OnHold
-    RestrictedCategory.RESTRICTED_COMMODITIES -> R.drawable.ic_drop_alert to BrandPalette.OrangeMain
-    RestrictedCategory.PROHIBITED -> R.drawable.ic_info to AlertPalette.Error
-    RestrictedCategory.CONDITIONAL_COMMODITIES -> R.drawable.ic_package to null
+private data class CategoryIconSpec(
+    val iconRes: Int,
+    val tint: Color? = null,
+    val preserveVectorColors: Boolean = false,
+)
+
+/** Category glyphs follow the Swift factory mapping, reusing existing vectors. */
+private fun categoryIcon(category: RestrictedCategory): CategoryIconSpec = when (category) {
+    RestrictedCategory.PERMITTED ->
+        CategoryIconSpec(R.drawable.ic_check, tint = AlertPalette.Completed)
+    RestrictedCategory.LICENSE_REQUIRED ->
+        CategoryIconSpec(R.drawable.ic_calc_info_circle, tint = AlertPalette.OnHold)
+    RestrictedCategory.RESTRICTED_COMMODITIES ->
+        CategoryIconSpec(R.drawable.ic_shipments_status_dangerous_goods, preserveVectorColors = true)
+    RestrictedCategory.PROHIBITED ->
+        CategoryIconSpec(R.drawable.ic_info, tint = AlertPalette.Error)
+    RestrictedCategory.CONDITIONAL_COMMODITIES ->
+        CategoryIconSpec(R.drawable.ic_package)
 }
 
 @Composable
 private fun CategoryIconCircle(category: RestrictedCategory) {
     val colors = AirdropTheme.colors
-    val (iconRes, tint) = categoryIcon(category)
+    val spec = categoryIcon(category)
     Box(
         modifier = Modifier
             .size(36.dp)
+            .testTag("restricted-category-icon-circle-${category.name}")
             .clip(CircleShape)
             .background(BrandPalette.OrangeTertiary5),
         contentAlignment = Alignment.Center,
     ) {
         Image(
-            painter = painterResource(iconRes),
+            painter = painterResource(spec.iconRes),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(tint ?: colors.textDarkTitle),
-            modifier = Modifier.size(22.dp),
+            colorFilter = if (spec.preserveVectorColors) {
+                null
+            } else {
+                ColorFilter.tint(spec.tint ?: colors.textDarkTitle)
+            },
+            modifier = Modifier
+                .size(22.dp)
+                .testTag("restricted-category-icon-glyph-${category.name}"),
         )
     }
 }
@@ -234,6 +258,7 @@ private fun CategoryCard(category: RestrictedCategory, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
+            .testTag("restricted-category-${category.name}")
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -266,11 +291,13 @@ private fun SearchResultCard(
     category: RestrictedCategory,
     item: RestrictedItem,
     onClick: () -> Unit,
+    testTag: String,
 ) {
     val colors = AirdropTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag(testTag)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -310,6 +337,7 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
     Column(
         Modifier
             .fillMaxSize()
+            .testTag("restricted-detail-root-${category.name}")
             .background(colors.gray200)
     ) {
         More2InnerHeader(title = category.displayName, onBack = onBack)
@@ -318,12 +346,16 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .testTag("restricted-detail-scroll")
                 .padding(horizontal = Spacing.md),
         ) {
             Spacer(Modifier.height(Spacing.md))
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm1)) {
                 // Intro card.
-                More2OuterCard(background = colors.gray150) {
+                More2OuterCard(
+                    modifier = Modifier.testTag("restricted-detail-intro-card"),
+                    background = colors.gray150,
+                ) {
                     Column(
                         Modifier.padding(Spacing.md),
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -341,13 +373,17 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
                     }
                 }
 
-                category.items.forEach { item ->
-                    More2OuterCard(background = colors.gray150) {
+                category.items.forEachIndexed { index, item ->
+                    More2OuterCard(
+                        modifier = Modifier.testTag("restricted-detail-item-card-$index"),
+                        background = colors.gray150,
+                    ) {
                         Row(Modifier.padding(Spacing.md)) {
                             Box(
                                 Modifier
                                     .padding(top = 8.dp)
                                     .size(4.dp)
+                                    .testTag("restricted-detail-item-bullet-$index")
                                     .background(BrandPalette.OrangeMain)
                             )
                             Spacer(Modifier.width(Spacing.sm))
@@ -376,6 +412,7 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
                             "(SDS), packing declarations and quantity limits. Contact " +
                             "AirDrop before shipping.",
                         footer = "Please note: $note",
+                        testTag = "restricted-note-CARRIER",
                     )
                 }
                 category.batteryPolicy?.let { policy ->
@@ -384,6 +421,7 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
                         body = policy,
                         footer = "Please note: All packages will be handled as AirDrop " +
                             "Standard unless identified otherwise in address line 2.",
+                        testTag = "restricted-note-BATTERY",
                     )
                 }
             }
@@ -393,19 +431,19 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
 }
 
 @Composable
-private fun InfoNoteCard(title: String, body: String, footer: String?) {
+private fun InfoNoteCard(title: String, body: String, footer: String?, testTag: String) {
     val colors = AirdropTheme.colors
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 48.dp)
+            .testTag(testTag)
             .clip(RoundedCornerShape(Radius.s))
             .background(AlertPalette.Light.OnHold)
             .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(Radius.s))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        val textColor = if (colors.isDark) BrandPalette.BlueMain else colors.textDarkTitle
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Image(
                 painter = painterResource(R.drawable.ic_info),
@@ -413,14 +451,14 @@ private fun InfoNoteCard(title: String, body: String, footer: String?) {
                 colorFilter = ColorFilter.tint(colors.iconSelected),
                 modifier = Modifier.size(18.dp),
             )
-            Text(text = title, style = AirdropType.subtitle2, color = textColor)
+            Text(text = title, style = AirdropType.subtitle2, color = colors.textDarkTitle)
         }
-        Text(text = body, style = AirdropType.body2, color = textColor)
+        Text(text = body, style = AirdropType.body2, color = colors.textDarkTitle)
         if (footer != null) {
             Text(
                 text = footer,
                 style = AirdropType.body2,
-                color = if (colors.isDark) BrandPalette.BlueTertiary1 else colors.textDescription,
+                color = colors.textDescription,
             )
         }
     }

@@ -470,6 +470,36 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/authorized_users_figma.png`,
     `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_light.png`,
     `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_dark.png`
+- Android checks run for the Restricted Items Swift-precedence pass:
+  - Figma MCP design context and screenshots checked for nodes `40001432:14025`
+    and `40001432:14918`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaRestrictedItemsViewController.swift`
+    and
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaRestrictedItemsInfoViewController.swift`.
+  - Swift precedence documented: Figma node `40001432:14025` currently renders an
+    Information/legal page, while node `40001432:14918` renders a tabbed
+    Restricted Items variant. Swift ships the searchable category-list entry
+    screen with push-style per-category detail pages, so Android stays on the
+    Swift flow instead of adopting the Figma tab strip.
+  - Android now removes the stale low-polish carve-out, reuses the existing
+    Swift-matching info-circle and two-color dangerous-goods vectors, keeps
+    category/search/detail geometry locked to Swift values, and follows Swift's
+    note-card color-token behavior in dark mode.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `RestrictedItemsParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 3 tests passed
+  - adjacent More regression sweep `MoreRootTapRailsParityTest`,
+    `AuthorizedUsersParityTest`, and `LegalContentParityTest`: 13 tests passed
+  - full `:app:connectedStagingDebugAndroidTest`: 110 tests passed
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/restricted_items/figma/figma_restricted_information_40001432_14025.png`,
+    `/tmp/kotlin_ui_proof/restricted_items/figma/figma_restricted_tabbed_40001432_14918.png`,
+    `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_entry_swift_light.png`,
+    `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_search_results_swift_light.png`,
+    `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_restricted_detail_from_search_swift_light.png`,
+    `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_permitted_detail_swift_dark.png`
 - Android checks run for the GoldPriority / Customer Tier Swift-precedence pass:
   - Figma MCP design context and screenshot checked for Customer Tier node
     `40001432:23506`.
@@ -1107,6 +1137,27 @@ Findings verified/fixed:
   is composed, including wrapped activity contexts, and restore the previous
   setting on dispose.
 
+### Restricted Items
+
+Source files:
+- Android: `feature/more2/RestrictedItemsScreen.kt`, `feature/more2/RestrictedItemsData.kt`
+- Swift: `FigmaRestrictedItemsViewController.swift`, `FigmaRestrictedItemsInfoViewController.swift`
+- Figma: nodes `40001432:14025`, `40001432:14918`, `40001432:15045`,
+  `40001432:18025`, `40001432:18303`, `40001432:18506`
+
+Findings verified/fixed:
+- Swift is the precedence source for the active app flow. Figma MCP confirms
+  node-map drift: `40001432:14025` is an Information/legal page, and
+  `40001432:14918` is a tabbed Restricted Items variant. Android keeps Swift's
+  searchable category-list entry screen and push detail pages.
+- The old low-polish glyph carve-out is removed. License Required now uses the
+  existing circular info vector, Restricted Commodities uses the existing
+  two-color dangerous-goods vector without flattening its dark-mode stroke, and
+  the detail note card follows Swift's `textDarkTitle`/`textDescription` token
+  behavior in light and dark.
+- `RestrictedItemsParityTest` locks the Swift list/search/detail geometry, route
+  behavior, absence of the Figma tab labels, and light/dark proof screenshots.
+
 ### Dark Theme Icons
 
 Source files:
@@ -1129,8 +1180,8 @@ Findings to verify/fix:
 - Codex/MagentaCastle is working through More/Legal/Profile/AirCoins/HomeDetails and narrow
   Shipments parity slices. More root tap rails, Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
-  avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
-  CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
+  avatar/DOB, Preferences select fields, Invite Friend contacts icon, Restricted
+  Items search/list/detail icons and notes, Legal live CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
   balance/history, GoldPriority tier-name/status-bar, PackageDetails
   Swift-precedence screen pass, Home chrome opacity, Home route callbacks, and
   Home auction card/cart behavior,
@@ -1157,7 +1208,7 @@ For each page, fill this before claiming completion:
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Authorized Users `40000975:7859`, Background Images `40006644:65735`/`40006644:67051` | user/profile/content/faqs/etc., device-tokens/register, local background prefs | partial | partial | partial | Codex | More root profile/menu/header tap rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Background Images Swift-precedence picker, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Authorized Users `40000975:7859`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data | partial | partial | partial | Codex | More root profile/menu/header tap rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
 
 ---
