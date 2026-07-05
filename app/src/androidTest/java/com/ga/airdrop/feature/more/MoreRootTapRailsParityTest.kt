@@ -50,6 +50,7 @@ class MoreRootTapRailsParityTest {
         setMoreRoot(mode = ThemeController.Mode.LIGHT)
 
         assertSwiftFigmaGeometry()
+        assertMoreMenuIconsUseSwiftDuotone(iconSelected = DARK_ICON)
         saveRootScreenshot("more_root_swift_light.png")
     }
 
@@ -58,6 +59,7 @@ class MoreRootTapRailsParityTest {
         setMoreRoot(mode = ThemeController.Mode.DARK)
 
         assertSwiftFigmaGeometry()
+        assertMoreMenuIconsUseSwiftDuotone(iconSelected = WHITE_ICON)
         saveRootScreenshot("more_root_swift_dark.png")
     }
 
@@ -178,6 +180,15 @@ class MoreRootTapRailsParityTest {
         assertClose(10f, verticalGap(profile, preferences), "Profile-to-first-row gap")
     }
 
+    private fun assertMoreMenuIconsUseSwiftDuotone(iconSelected: Int) {
+        moreIconRowTags.forEach { rowTag ->
+            compose.onNodeWithTag(rowTag).performScrollTo()
+            val iconTag = "$rowTag-icon"
+            assertIconContainsColor(iconTag, iconSelected, "$rowTag iconSelected role")
+            assertIconContainsColor(iconTag, ORANGE, "$rowTag orange role")
+        }
+    }
+
     private fun clickSwiftHeaderText(text: String) {
         compose.onNode(
             hasClickAction() and (hasText(text) or hasAnyDescendant(hasText(text))),
@@ -208,6 +219,40 @@ class MoreRootTapRailsParityTest {
         }
     }
 
+    private fun assertIconContainsColor(tag: String, target: Int, label: String) {
+        val bitmap = iconBitmap(tag)
+        assertTrue(label, bitmap.hasPixelNear(target))
+    }
+
+    private fun iconBitmap(tag: String): Bitmap =
+        compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+
+    private fun Bitmap.hasPixelNear(target: Int): Boolean {
+        val targetRed = (target shr 16) and 0xFF
+        val targetGreen = (target shr 8) and 0xFF
+        val targetBlue = target and 0xFF
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                val pixel = getPixel(x, y)
+                val alpha = (pixel ushr 24) and 0xFF
+                if (alpha < 180) continue
+                val red = (pixel shr 16) and 0xFF
+                val green = (pixel shr 8) and 0xFF
+                val blue = pixel and 0xFF
+                if (
+                    kotlin.math.abs(red - targetRed) <= COLOR_TOLERANCE &&
+                    kotlin.math.abs(green - targetGreen) <= COLOR_TOLERANCE &&
+                    kotlin.math.abs(blue - targetBlue) <= COLOR_TOLERANCE
+                ) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return File(context.getExternalFilesDir(null), "screenshots/more_root").also { it.mkdirs() }
@@ -227,4 +272,26 @@ class MoreRootTapRailsParityTest {
         upper: androidx.compose.ui.unit.DpRect,
         lower: androidx.compose.ui.unit.DpRect,
     ): Float = (lower.top - upper.bottom).value
+
+    private companion object {
+        private const val ORANGE = 0xFFF15114.toInt()
+        private const val DARK_ICON = 0xFF292929.toInt()
+        private const val WHITE_ICON = 0xFFFFFFFF.toInt()
+        private const val COLOR_TOLERANCE = 12
+
+        private val moreIconRowTags = listOf(
+            MoreRootTags.PREFERENCES,
+            MoreRootTags.PROMOTIONS,
+            MoreRootTags.SETTINGS,
+            MoreRootTags.DOCUMENTS,
+            MoreRootTags.USERS,
+            MoreRootTags.REFER_A_FRIEND,
+            MoreRootTags.SHIPPING_RATES,
+            MoreRootTags.RESTRICTED_ITEMS,
+            MoreRootTags.PAYMENT_METHODS,
+            MoreRootTags.FAQS,
+            MoreRootTags.TERMS,
+            MoreRootTags.PRIVACY,
+        )
+    }
 }

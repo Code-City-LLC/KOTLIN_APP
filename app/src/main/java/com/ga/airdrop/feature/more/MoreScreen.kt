@@ -80,24 +80,97 @@ internal object MoreRootTags {
 private data class MoreMenuItem(
     val title: String,
     val iconRes: Int,
+    val darkIconRes: Int,
     val route: String,
     val testTag: String,
 )
 
 // Order matches Figma node 40001948:22354 verbatim.
 private val moreMenuItems = listOf(
-    MoreMenuItem("Preferences", R.drawable.ic_preferences, Routes.PREFERENCES, MoreRootTags.PREFERENCES),
-    MoreMenuItem("Promotions", R.drawable.ic_more_promotions, Routes.PROMOTIONS, MoreRootTags.PROMOTIONS),
-    MoreMenuItem("Settings", R.drawable.ic_more_settings, Routes.SETTINGS, MoreRootTags.SETTINGS),
-    MoreMenuItem("Documents", R.drawable.ic_more_documents, Routes.DOCUMENTS, MoreRootTags.DOCUMENTS),
-    MoreMenuItem("Users", R.drawable.ic_more_users, Routes.AUTHORIZED_USERS, MoreRootTags.USERS),
-    MoreMenuItem("Refer a friend", R.drawable.ic_more_refer, Routes.REFER_A_FRIEND, MoreRootTags.REFER_A_FRIEND),
-    MoreMenuItem("Shipping Rates", R.drawable.ic_more_shipping_rates, Routes.SHIPPING_RATES, MoreRootTags.SHIPPING_RATES),
-    MoreMenuItem("Restricted Items", R.drawable.ic_more_restricted, Routes.RESTRICTED_ITEMS, MoreRootTags.RESTRICTED_ITEMS),
-    MoreMenuItem("Payment Methods", R.drawable.ic_more_payment_methods, Routes.PAYMENT_METHODS, MoreRootTags.PAYMENT_METHODS),
-    MoreMenuItem("FAQs", R.drawable.ic_more_faqs, Routes.FAQ, MoreRootTags.FAQS),
-    MoreMenuItem("Terms & Conditions", R.drawable.ic_more_terms, Routes.TERMS, MoreRootTags.TERMS),
-    MoreMenuItem("Privacy Policy", R.drawable.ic_more_privacy, Routes.PRIVACY, MoreRootTags.PRIVACY),
+    MoreMenuItem(
+        "Preferences",
+        R.drawable.ic_preferences,
+        R.drawable.ic_preferences_dark,
+        Routes.PREFERENCES,
+        MoreRootTags.PREFERENCES,
+    ),
+    MoreMenuItem(
+        "Promotions",
+        R.drawable.ic_more_promotions,
+        R.drawable.ic_more_promotions_dark,
+        Routes.PROMOTIONS,
+        MoreRootTags.PROMOTIONS,
+    ),
+    MoreMenuItem(
+        "Settings",
+        R.drawable.ic_more_settings,
+        R.drawable.ic_more_settings_dark,
+        Routes.SETTINGS,
+        MoreRootTags.SETTINGS,
+    ),
+    MoreMenuItem(
+        "Documents",
+        R.drawable.ic_more_documents,
+        R.drawable.ic_more_documents_dark,
+        Routes.DOCUMENTS,
+        MoreRootTags.DOCUMENTS,
+    ),
+    MoreMenuItem(
+        "Users",
+        R.drawable.ic_more_users,
+        R.drawable.ic_more_users_dark,
+        Routes.AUTHORIZED_USERS,
+        MoreRootTags.USERS,
+    ),
+    MoreMenuItem(
+        "Refer a friend",
+        R.drawable.ic_more_refer,
+        R.drawable.ic_more_refer_dark,
+        Routes.REFER_A_FRIEND,
+        MoreRootTags.REFER_A_FRIEND,
+    ),
+    MoreMenuItem(
+        "Shipping Rates",
+        R.drawable.ic_more_shipping_rates,
+        R.drawable.ic_more_shipping_rates_dark,
+        Routes.SHIPPING_RATES,
+        MoreRootTags.SHIPPING_RATES,
+    ),
+    MoreMenuItem(
+        "Restricted Items",
+        R.drawable.ic_more_restricted,
+        R.drawable.ic_more_restricted_dark,
+        Routes.RESTRICTED_ITEMS,
+        MoreRootTags.RESTRICTED_ITEMS,
+    ),
+    MoreMenuItem(
+        "Payment Methods",
+        R.drawable.ic_more_payment_methods,
+        R.drawable.ic_more_payment_methods_dark,
+        Routes.PAYMENT_METHODS,
+        MoreRootTags.PAYMENT_METHODS,
+    ),
+    MoreMenuItem(
+        "FAQs",
+        R.drawable.ic_more_faqs,
+        R.drawable.ic_more_faqs_dark,
+        Routes.FAQ,
+        MoreRootTags.FAQS,
+    ),
+    MoreMenuItem(
+        "Terms & Conditions",
+        R.drawable.ic_more_terms,
+        R.drawable.ic_more_terms_dark,
+        Routes.TERMS,
+        MoreRootTags.TERMS,
+    ),
+    MoreMenuItem(
+        "Privacy Policy",
+        R.drawable.ic_more_privacy,
+        R.drawable.ic_more_privacy_dark,
+        Routes.PRIVACY,
+        MoreRootTags.PRIVACY,
+    ),
 )
 
 @Composable
@@ -177,10 +250,11 @@ internal fun MoreScreenContent(
                 )
                 moreMenuItems.forEach { item ->
                     MoreRowCard(
-                        iconRes = item.iconRes,
+                        iconRes = if (colors.isDark) item.darkIconRes else item.iconRes,
                         title = item.title,
                         onClick = { onNavigate(item.route) },
                         modifier = Modifier.testTag(item.testTag),
+                        iconTestTag = "${item.testTag}-icon",
                     )
                 }
                 Spacer(Modifier.height(90.dp)) // glass bottom-bar clearance

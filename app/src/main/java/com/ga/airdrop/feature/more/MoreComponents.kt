@@ -121,6 +121,7 @@ fun MoreRowCard(
     modifier: Modifier = Modifier,
     tint: Color? = null,
     trailing: (@Composable () -> Unit)? = null,
+    iconTestTag: String? = null,
     testTagPrefix: String? = null,
 ) {
     val colors = AirdropTheme.colors
@@ -148,7 +149,13 @@ fun MoreRowCard(
                 colorFilter = tint?.let { ColorFilter.tint(it) },
                 modifier = Modifier
                     .size(24.dp)
-                    .then(testTagPrefix?.let { Modifier.testTag("$it-icon") } ?: Modifier),
+                    .then(
+                        when {
+                            iconTestTag != null -> Modifier.testTag(iconTestTag)
+                            testTagPrefix != null -> Modifier.testTag("$testTagPrefix-icon")
+                            else -> Modifier
+                        }
+                    ),
             )
             Text(
                 text = title,

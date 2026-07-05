@@ -1181,6 +1181,13 @@ assets; only repair the parts that are visibly or functionally wrong.
   tap split, all 12 row route callbacks, and the tier/bell/cart/AirCoins header
   callbacks. This does not close every More subpage as pixel-perfect; it closes
   the root More tap/geometry rail.
+- More root app-dark menu icons now follow the Swift/Figma duotone role split:
+  orange accents stay orange, while `iconSelected` strokes resolve from
+  `AirdropTheme.colors.isDark` instead of Android resource-night
+  `@color/icon_duotone`. Android added explicit dark variants for the 12 More
+  root menu icons and `MoreRootTapRailsParityTest` now pixel-checks every menu
+  icon in app light and app dark. Figma MCP proof:
+  `/tmp/kotlin_ui_proof/more_root_dark_icons/figma/figma_more_root_40001948_22354.png`.
 - Payment Methods now has Swift-precedence proof against Figma node
   `40001428:9188` and Swift `FigmaPaymentMethodsViewController`. Figma still
   shows a saved-card chooser with card brands, `Number` labels, and an
@@ -1557,6 +1564,10 @@ Findings to verify/fix:
   app-light resources (`ic_contacts_chat_light`,
   `ic_contacts_contact_number_light`) paired with app-dark resources, preventing
   resource-night leakage in app light mode.
+- More root menu icons now have explicit app-dark vector variants for the 12
+  row icons, preserving Swift/Figma orange accents while flipping
+  `iconSelected` strokes to white through `AirdropTheme.colors.isDark`.
+  `MoreRootTapRailsParityTest` pixel-checks all 12 icons in app light and dark.
 - New icons added after the earlier dark pass must be audited for
   `@color/icon_duotone` or explicit Swift-matching orange/dark role colors.
 
@@ -1595,7 +1606,7 @@ For each page, fill this before claiming completion:
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Payment Methods `40001428:9188`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Add Authorized User `40001541:45296`, Authorized User Detail stale node `40001185:5345`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates`, `/authorized-users`, `/authorized-users/{id}` mutations, `/paymentMethods` UI rail to Cart | partial | partial | partial | Codex | More root profile/menu/header tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Add Authorized User add/edit payload rails, Authorized User Detail one-load/read-only/mutation/delete rails, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Payment Methods `40001428:9188`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Add Authorized User `40001541:45296`, Authorized User Detail stale node `40001185:5345`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates`, `/authorized-users`, `/authorized-users/{id}` mutations, `/paymentMethods` UI rail to Cart | partial | partial | partial | Codex | More root profile/menu/header tap rails plus app-dark menu icon pixels, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Add Authorized User add/edit payload rails, Authorized User Detail one-load/read-only/mutation/delete rails, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
 
 ---

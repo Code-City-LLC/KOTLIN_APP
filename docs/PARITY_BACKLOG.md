@@ -186,6 +186,14 @@ light AND dark.
   `/tmp/kotlin_ui_proof/more_root/figma/figma_more_40001948_22354.png`,
   `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_light.png`,
   `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_dark.png`.
+- **More root app-dark menu icons:** Swift/Figma More root icons preserve orange
+  accents while their `iconSelected` strokes flip with the active app theme.
+  Android previously let those strokes read from resource-night
+  `@color/icon_duotone`, so forced app-dark mode could keep black strokes.
+  Android now selects explicit dark variants for all 12 More root menu icons,
+  and `MoreRootTapRailsParityTest` pixel-checks every icon in light and dark.
+  Figma proof:
+  `/tmp/kotlin_ui_proof/more_root_dark_icons/figma/figma_more_root_40001948_22354.png`.
 - **Payment Methods Swift-precedence empty-state/Cart rail:** Payment Methods
   was compared against Figma node `40001428:9188` and Swift
   `FigmaPaymentMethodsViewController`. Swift takes precedence over the visible
@@ -526,13 +534,15 @@ now keeps the Swift-sized avatar geometry under instrumentation, tints the edit
 glyph orange for dark-mode visibility, and rejects future DOB dates like Swift's
 `dobPicker.maximumDate = Date()`.
 
-**✅ CLOSED — More root tap-rail follow-up:** Swift
+**✅ CLOSED — More root tap-rail/dark-icon follow-up:** Swift
 `FigmaMoreViewController` wins for root behavior, while Figma node
 `40001948:22354` provides the pixel/card order reference. Android now has
 focused proof for the 80dp profile card, 48dp avatar, 335x59dp menu rows, the
 12 menu row callbacks, the profile-card/avatar split, and header tier/bell/cart/
-AirCoins callbacks. This closes the More root rail only; broader More subpage
-pixel parity remains tracked separately.
+AirCoins callbacks. The More root menu icon set now also uses explicit app-dark
+variants so orange accents survive while `iconSelected` strokes flip to white.
+This closes the More root rail only; broader More subpage pixel parity remains
+tracked separately.
 
 **✅ CLOSED — Payment Methods Swift-precedence follow-up:** Swift
 `FigmaPaymentMethodsViewController` wins over Figma node `40001428:9188`.
