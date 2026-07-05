@@ -22,6 +22,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -77,6 +78,44 @@ class DocumentsScreenScreenshotTest {
 
         compose.onNodeWithText("Got it").assertIsDisplayed()
         assertEquals(0, compose.onAllNodesWithText("OK").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun documentsScreenReloadsOnResumeLikeSwiftViewDidAppear() {
+        val repository = CountingDocumentsRepository()
+        lateinit var viewModel: DocumentsViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            viewModel = DocumentsViewModel(repository)
+        }
+
+        compose.setContent {
+            AirdropTheme {
+                DocumentsScreen(onBack = {}, onNavigate = {}, viewModel = viewModel)
+            }
+        }
+
+        compose.onNodeWithTag("documents-pull-refresh").assertIsDisplayed()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.loadCount.get() >= 1 && !viewModel.state.value.loading
+        }
+    }
+
+    @Test
+    fun documentsViewModelRefreshUsesSameRepositoryPath() {
+        val repository = CountingDocumentsRepository()
+        lateinit var viewModel: DocumentsViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel = DocumentsViewModel(repository)
+        }
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.refresh()
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.loadCount.get() >= 1 && !viewModel.state.value.refreshing
+        }
     }
 
     private fun setDocumentCard(
@@ -147,4 +186,23 @@ class DocumentsScreenScreenshotTest {
         docType = "airdrop_contract",
         uploadStatus = true,
     )
+
+    private class CountingDocumentsRepository : DocumentsRepository {
+        val loadCount = AtomicInteger()
+
+        override suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>> {
+            loadCount.incrementAndGet()
+            return Result.success(emptyMap())
+        }
+
+        override suspend fun uploadUserDocument(
+            docType: String,
+            fileName: String,
+            mimeType: String,
+            bytes: ByteArray,
+        ): Result<Unit> = Result.success(Unit)
+
+        override suspend fun deleteUserDocument(identifier: String): Result<Unit> =
+            Result.success(Unit)
+    }
 }

@@ -152,6 +152,24 @@ assets; only repair the parts that are visibly or functionally wrong.
   - manual `adb shell am instrument -w -e class
     com.ga.airdrop.feature.more.DocumentsScreenScreenshotTest ...`:
     `OK (4 tests)`
+- Android checks run for the Documents refresh/reload Swift behavior pass:
+  - Figma MCP design context for Documents node `40000975:7748`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaDocumentsViewController.swift`.
+  - Swift `viewDidAppear` calls `loadDocuments()` and the scroll view attaches an
+    orange `UIRefreshControl`; Android now reloads on lifecycle resume and exposes
+    pull-to-refresh through the same repository-backed ViewModel path.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `DocumentsScreenScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 6 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.more.DocumentsScreenScreenshotTest ...`:
+    `OK (6 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/documents_refresh_reload/figma_documents_40000975_7748.png`,
+    `/tmp/kotlin_ui_proof/documents_refresh_reload/android_documents_card_light_after_refresh_patch.png`,
+    `/tmp/kotlin_ui_proof/documents_refresh_reload/android_documents_card_dark_after_refresh_patch.png`
 
 ## Latest Device/Figma Findings
 
@@ -273,6 +291,11 @@ assets; only repair the parts that are visibly or functionally wrong.
 - Documents info alert now follows Swift behavior: the button says `Got it`.
   Other More alerts still use the shared default `OK` unless their Swift source
   requires a different label.
+- Documents refresh/reload now follows Swift behavior: returning to the screen
+  calls the same `load()` path used by the initial Documents fetch, and pull-to-
+  refresh calls `refresh()` with the orange Material3 indicator. Figma confirms
+  the same Documents scroll surface; Swift takes precedence for the invisible
+  lifecycle behavior.
 
 ## Reopened Defects From User Review
 
@@ -395,9 +418,9 @@ Findings to verify/fix:
 
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
 - Codex/MagentaCastle is working through More/Legal/Profile. Documents
-  card/action-row geometry now has Figma MCP, Swift, and light/dark device proof;
-  the rest of the More/Legal/Profile lane remains open until each screen has the
-  same evidence.
+  card/action-row geometry, info alert, and refresh/reload behavior now have
+  Figma MCP + Swift comparison and targeted device-test proof; the rest of the
+  More/Legal/Profile lane remains open until each screen has the same evidence.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -413,5 +436,5 @@ For each page, fill this before claiming completion:
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry verified; remaining More/Legal/Profile screens still open |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, and refresh/reload behavior verified; remaining More/Legal/Profile screens still open |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |

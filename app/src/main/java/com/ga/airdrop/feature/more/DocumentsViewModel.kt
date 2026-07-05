@@ -60,9 +60,23 @@ val DOCUMENT_SLOTS = listOf(
 data class DocumentsUiState(
     val files: Map<String, MoreDocumentFile> = emptyMap(),
     val loading: Boolean = false,
+    val refreshing: Boolean = false,
     val uploadingType: String? = null,
     val alert: Pair<String, String>? = null,
 )
+
+interface DocumentsRepository {
+    suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>>
+
+    suspend fun uploadUserDocument(
+        docType: String,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): Result<Unit>
+
+    suspend fun deleteUserDocument(identifier: String): Result<Unit>
+}
 
 /**
  * FigmaDocumentsViewController behavior: GET /user/documents to fill the
@@ -70,24 +84,40 @@ data class DocumentsUiState(
  * (falling back to the slot raw type) with confirm + reload.
  */
 class DocumentsViewModel(
-    private val repository: MoreRepository = MoreRepository(),
+    private val repository: DocumentsRepository = MoreRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DocumentsUiState())
     val state: StateFlow<DocumentsUiState> = _state
 
-    init {
-        load()
+    fun load() {
+        if (_state.value.loading || _state.value.refreshing) return
+        _state.update { it.copy(loading = true, refreshing = false) }
+        fetchDocuments()
     }
 
-    fun load() {
-        if (_state.value.loading) return
-        _state.update { it.copy(loading = true) }
+    fun refresh() {
+        if (_state.value.loading || _state.value.refreshing) return
+        _state.update { it.copy(loading = false, refreshing = true) }
+        fetchDocuments()
+    }
+
+    private fun fetchDocuments() {
         viewModelScope.launch {
             repository.userDocuments()
-                .onSuccess { files -> _state.update { it.copy(files = files, loading = false) } }
+                .onSuccess { files ->
+                    _state.update {
+                        it.copy(
+                            files = files,
+                            loading = false,
+                            refreshing = false,
+                        )
+                    }
+                }
                 // Render slots without files so Upload still works (RN parity on 401).
-                .onFailure { _state.update { it.copy(loading = false) } }
+                .onFailure {
+                    _state.update { it.copy(loading = false, refreshing = false) }
+                }
         }
     }
 

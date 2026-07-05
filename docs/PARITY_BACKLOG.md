@@ -72,10 +72,16 @@ specified — apply, build, and verify on the emulator in light AND dark.
   passes that label only for the Documents info alert. `MoreAlertDialog` keeps
   default `OK` behavior for other callers. Verified by
   `DocumentsScreenScreenshotTest` click coverage.
+- **Documents refresh/reload behavior:** Documents was rechecked against Figma
+  node `40000975:7748` and Swift `FigmaDocumentsViewController.swift`. Swift
+  takes precedence for behavior: `viewDidAppear` calls `loadDocuments()`, and the
+  scroll view has an orange `UIRefreshControl`. Android now reloads through the
+  same `load()` path on lifecycle resume and exposes a pull-to-refresh container
+  that calls `refresh()`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §234/§459 Edit Profile · §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs. Documents §216/§225 are closed by the Swift-precedence proof above.
+**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §234/§459 Edit Profile · §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs. Documents §216/§225 and the refresh/reload follow-up are closed by the Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -101,6 +107,12 @@ with light/dark instrumentation proof.
 **✅ CLOSED — Documents info alert label follow-up:** Swift's Documents info
 alert uses `Got it`; Android now matches that one alert without changing the
 default label for other shared More alerts.
+
+**✅ CLOSED — Documents refresh/reload follow-up:** Swift's
+`FigmaDocumentsViewController.swift` reloads documents on every
+`viewDidAppear` and attaches an orange refresh control. Android now reloads on
+lifecycle resume and pull-to-refresh through the same repository-backed
+DocumentsViewModel path.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
@@ -547,12 +559,12 @@ default label for other shared More alerts.
 
 ---
 
-## [LOW] Documents
+## [CLOSED] Documents
 `app/src/main/java/com/ga/airdrop/feature/more/DocumentsScreen.kt:103` — No pull-to-refresh and no reload when returning to the screen; Swift attaches a UIRefreshControl and reloads documents on every viewDidAppear.
 
 **Detail:** FigmaDocumentsViewController sets scrollView.refreshControl (lines 124-126) and calls loadDocuments() from viewDidAppear (line 112). Kotlin DocumentsViewModel loads once in init and only reloads after its own upload/delete; documents changed elsewhere (or a failed first load) require leaving and recreating the screen.
 
-**Fix:** Wrap the scroll column in a PullToRefresh container calling viewModel.load(), and/or trigger load() from a LifecycleResumeEffect.
+**Fix:** Done. `DocumentsScreen` wraps the existing scroll column in `PullToRefreshBox` with the Swift orange indicator and observes lifecycle `ON_RESUME` to call `viewModel.load()`. `DocumentsViewModel` now separates `loading` from `refreshing` and routes both refresh and resume reloads through the same `DocumentsRepository`/`MoreRepository` API path. `DocumentsScreenScreenshotTest` verifies lifecycle resume reload and direct refresh reload counts.
 
 ---
 

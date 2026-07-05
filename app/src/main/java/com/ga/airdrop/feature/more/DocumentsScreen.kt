@@ -25,8 +25,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +46,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -57,6 +65,7 @@ import com.ga.airdrop.core.navigation.Routes
  * split action bar). Upload uses the system document picker (pdf/images);
  * view/download routes through the shared invoice viewer.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentsScreen(
     onBack: () -> Unit,
@@ -69,6 +78,20 @@ fun DocumentsScreen(
     var uploadSlot by remember { mutableStateOf<DocumentSlot?>(null) }
     var infoSlot by remember { mutableStateOf<DocumentSlot?>(null) }
     var deleteSlot by remember { mutableStateOf<DocumentSlot?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val ptrState = rememberPullToRefreshState()
+
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val lifecycle = lifecycleOwner.lifecycle
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.load()
+        }
+        lifecycle.addObserver(observer)
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            viewModel.load()
+        }
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     val documentPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -97,39 +120,55 @@ fun DocumentsScreen(
     Box(Modifier.fillMaxSize().background(colors.gray100)) {
         Column(Modifier.fillMaxSize()) {
             MoreDetailHeader(title = "Documents", onBack = onBack)
-            Column(
-                Modifier
-                    .fillMaxWidth()
+            PullToRefreshBox(
+                isRefreshing = state.refreshing,
+                onRefresh = viewModel::refresh,
+                state = ptrState,
+                modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(Spacing.md),
-                // Swift listStack.spacing = 12; Figma's older 20px gap loses to Swift.
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (state.loading && state.files.isEmpty()) {
-                    Box(Modifier.fillMaxWidth().padding(top = Spacing.xl), Alignment.Center) {
-                        CircularProgressIndicator(color = BrandPalette.OrangeMain)
-                    }
-                }
-                DOCUMENT_SLOTS.forEach { slot ->
-                    DocumentCard(
-                        slot = slot,
-                        file = state.files[slot.docType],
-                        uploading = state.uploadingType == slot.docType,
-                        onInfo = { infoSlot = slot },
-                        onDownload = { openFile(slot) },
-                        onView = { openFile(slot) },
-                        onDelete = { deleteSlot = slot },
-                        onUpload = {
-                            uploadSlot = slot
-                            documentPicker.launch(
-                                arrayOf("application/pdf", "image/png", "image/jpeg"),
-                            )
-                        },
+                    .testTag("documents-pull-refresh"),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = ptrState,
+                        isRefreshing = state.refreshing,
+                        color = BrandPalette.OrangeMain,
+                        modifier = Modifier.align(Alignment.TopCenter),
                     )
+                },
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(Spacing.md),
+                    // Swift listStack.spacing = 12; Figma's older 20px gap loses to Swift.
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (state.loading && state.files.isEmpty()) {
+                        Box(Modifier.fillMaxWidth().padding(top = Spacing.xl), Alignment.Center) {
+                            CircularProgressIndicator(color = BrandPalette.OrangeMain)
+                        }
+                    }
+                    DOCUMENT_SLOTS.forEach { slot ->
+                        DocumentCard(
+                            slot = slot,
+                            file = state.files[slot.docType],
+                            uploading = state.uploadingType == slot.docType,
+                            onInfo = { infoSlot = slot },
+                            onDownload = { openFile(slot) },
+                            onView = { openFile(slot) },
+                            onDelete = { deleteSlot = slot },
+                            onUpload = {
+                                uploadSlot = slot
+                                documentPicker.launch(
+                                    arrayOf("application/pdf", "image/png", "image/jpeg"),
+                                )
+                            },
+                        )
+                    }
+                    Spacer(Modifier.height(Spacing.md))
                 }
-                Spacer(Modifier.height(Spacing.md))
             }
         }
     }

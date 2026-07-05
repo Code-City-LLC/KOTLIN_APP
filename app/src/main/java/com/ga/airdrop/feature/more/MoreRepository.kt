@@ -95,7 +95,7 @@ data class MoreDocumentFile(
 
 class MoreRepositoryException(message: String) : IOException(message)
 
-class MoreRepository {
+class MoreRepository : DocumentsRepository {
 
     private val client = ApiClient.okHttp
     private val json = ApiClient.json
@@ -159,7 +159,7 @@ class MoreRepository {
     // ─── Documents ───
 
     /** GET /user/documents → map keyed by doc-type string ("file_1583", "trn", …). */
-    suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>> =
+    override suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>> =
         request("GET", "/user/documents") { root ->
             val payload = root.objectAt("data") ?: root
             buildMap {
@@ -180,7 +180,7 @@ class MoreRepository {
         }
 
     /** POST /user/documents multipart — field name is the doc type (Swift parity). */
-    suspend fun uploadUserDocument(
+    override suspend fun uploadUserDocument(
         docType: String,
         fileName: String,
         mimeType: String,
@@ -194,7 +194,7 @@ class MoreRepository {
         return request("POST", "/user/documents", multipart) { }
     }
 
-    suspend fun deleteUserDocument(identifier: String): Result<Unit> =
+    override suspend fun deleteUserDocument(identifier: String): Result<Unit> =
         request("DELETE", "/user/documents/$identifier") { }
 
     // ─── Session ───
