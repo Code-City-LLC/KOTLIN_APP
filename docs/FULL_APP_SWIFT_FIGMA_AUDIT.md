@@ -444,6 +444,32 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/more_root/figma/figma_more_40001948_22354.png`,
     `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_light.png`,
     `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_dark.png`
+- Android checks run for the Authorized Users Swift/Figma refresh pass:
+  - Figma MCP design context, metadata, and screenshot checked for Authorized
+    Users node `40000975:7859`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaAuthorizedUsersViewController.swift`.
+  - Swift takes behavior precedence: `viewWillAppear` reloads through
+    `loadUsers(showLoadingState: !hasLoadedOnce)`, the scroll view attaches an
+    orange `UIRefreshControl`, cards open details, and `Add User` is the only
+    add entry point in the bottom bar. Figma confirms the 20pt content gutters,
+    56pt card header, active/inactive section stack, and 124pt bottom CTA band.
+  - Android now preserves the existing card/detail/add rails and adds the
+    missing pull-to-refresh state through the same repository-backed ViewModel
+    path, without duplicating list UI or routes.
+  - `:app:compileStagingDebugKotlin
+    :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `AuthorizedUsersParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 3 tests passed
+  - adjacent More regression sweep
+    `MoreRootTapRailsParityTest`, `DocumentsScreenScreenshotTest`,
+    `InviteFriendParityScreenshotTest`, and `LegalContentParityTest`: 18 tests
+    passed
+  - full `:app:connectedStagingDebugAndroidTest`: 104 tests passed
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/authorized_users_figma.png`,
+    `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_light.png`,
+    `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_dark.png`
 - Android checks run for the GoldPriority / Customer Tier Swift-precedence pass:
   - Figma MCP design context and screenshot checked for Customer Tier node
     `40001432:23506`.
@@ -891,6 +917,11 @@ assets; only repair the parts that are visibly or functionally wrong.
   tap split, all 12 row route callbacks, and the tier/bell/cart/AirCoins header
   callbacks. This does not close every More subpage as pixel-perfect; it closes
   the root More tap/geometry rail.
+- Authorized Users now has Swift-precedence proof against Figma node
+  `40000975:7859` and Swift `FigmaAuthorizedUsersViewController.swift`. Android
+  keeps the Swift/Figma 20dp content gutters, 56dp card header, active/inactive
+  section layout, card-detail taps, bottom-only `Add User` action, and adds the
+  missing Swift orange pull-to-refresh rail through the existing repository path.
 
 ## Reopened Defects From User Review
 
@@ -1097,7 +1128,8 @@ Findings to verify/fix:
   ProductPaymentDetails/OrderDetails hero/payment-copy geometry, and
   InvoiceViewer surface/share-file behavior, PackagesFilterSheet geometry plus
   callbacks, Payments/Orders header/error follow-ups, and Shipments section-card
-  dividers now have Figma MCP + Swift comparison and targeted device-test proof.
+  dividers, plus Authorized Users refresh/list tap rails, now have Figma MCP +
+  Swift comparison and targeted device-test proof.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -1114,7 +1146,7 @@ For each page, fill this before claiming completion:
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354` | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | More root profile/menu/header tap rails, Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Authorized Users `40000975:7859` | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | More root profile/menu/header tap rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
 
 ---

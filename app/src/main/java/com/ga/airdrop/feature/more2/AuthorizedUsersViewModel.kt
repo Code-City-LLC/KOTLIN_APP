@@ -13,6 +13,7 @@ data class AuthorizedUsersUiState(
     val activeUsers: List<AuthorizedUser> = emptyList(),
     val inactiveUsers: List<AuthorizedUser> = emptyList(),
     val loading: Boolean = false,
+    val refreshing: Boolean = false,
     val hasLoadedOnce: Boolean = false,
     val error: String? = null,
 )
@@ -31,14 +32,27 @@ class AuthorizedUsersViewModel(
         load(showLoadingState = true)
     }
 
-    fun refresh() = load(showLoadingState = !_state.value.hasLoadedOnce)
+    fun refresh() {
+        val hasLoadedOnce = _state.value.hasLoadedOnce
+        load(
+            showLoadingState = !hasLoadedOnce,
+            showRefreshingState = hasLoadedOnce,
+        )
+    }
 
     fun dismissError() = _state.update { it.copy(error = null) }
 
-    private fun load(showLoadingState: Boolean) {
+    private fun load(showLoadingState: Boolean, showRefreshingState: Boolean = false) {
         if (isLoading) return
         isLoading = true
-        if (showLoadingState) _state.update { it.copy(loading = true) }
+        if (showLoadingState || showRefreshingState) {
+            _state.update {
+                it.copy(
+                    loading = showLoadingState,
+                    refreshing = showRefreshingState,
+                )
+            }
+        }
         viewModelScope.launch {
             repository.authorizedUsers()
                 .onSuccess { users ->
@@ -47,13 +61,18 @@ class AuthorizedUsersViewModel(
                             activeUsers = users.active,
                             inactiveUsers = users.inactive,
                             loading = false,
+                            refreshing = false,
                             hasLoadedOnce = true,
                         )
                     }
                 }
                 .onFailure { e ->
                     _state.update {
-                        it.copy(loading = false, error = e.toUserMessage())
+                        it.copy(
+                            loading = false,
+                            refreshing = false,
+                            error = e.toUserMessage(),
+                        )
                     }
                 }
             isLoading = false

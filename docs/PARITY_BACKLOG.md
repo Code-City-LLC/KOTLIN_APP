@@ -165,6 +165,18 @@ light AND dark.
   `/tmp/kotlin_ui_proof/more_root/figma/figma_more_40001948_22354.png`,
   `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_light.png`,
   `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_dark.png`.
+- **Authorized Users refresh/list rails:** Authorized Users was compared
+  against Figma node `40000975:7859` and Swift
+  `FigmaAuthorizedUsersViewController.swift`. Swift takes precedence for
+  behavior: reload on `viewWillAppear`, orange pull-to-refresh attached to the
+  scroll view, card tap opens detail, and `Add User` only lives in the bottom
+  CTA. Figma confirms the 20pt gutters, 56pt card header, active/inactive card
+  stack, and bottom CTA band. Android now keeps the existing card/detail/add
+  rails and adds pull-to-refresh through the same repository-backed ViewModel
+  path. Proof:
+  `/tmp/kotlin_ui_proof/authorized_users_figma.png`,
+  `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_light.png`,
+  `/tmp/kotlin_ui_proof/authorized_users/android/authorized_users/authorized_users_swift_dark.png`.
 - **AirCoins balance/history Swift parity:** AirCoins was compared against
   Swift `FigmaAirCoinHistoryViewController.swift`, Figma balance node
   `40001911:22972`, and Figma history node `40006461:26563`. Swift takes
@@ -308,7 +320,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Authorized Users refresh/list rails, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -371,6 +383,15 @@ focused proof for the 80dp profile card, 48dp avatar, 335x59dp menu rows, the
 12 menu row callbacks, the profile-card/avatar split, and header tier/bell/cart/
 AirCoins callbacks. This closes the More root rail only; broader More subpage
 pixel parity remains tracked separately.
+
+**✅ CLOSED — Authorized Users refresh/list follow-up:** Swift
+`FigmaAuthorizedUsersViewController.swift` wins for runtime behavior, while
+Figma node `40000975:7859` provides the card/list measurements. Android now
+preserves the active/inactive card layout, detail tap, and bottom `Add User`
+rail while adding the missing orange pull-to-refresh path through
+`AuthorizedUsersViewModel.refresh()`. `AuthorizedUsersParityTest` verifies light
+and dark geometry, card/add taps, and manual refresh API calls; adjacent More
+regressions passed 18/18 and the full connected staging suite passed 104/104.
 
 **✅ CLOSED — Invite Friend contacts icon follow-up:** Swift's
 `FigmaInviteFriendViewController` renders ContactNumber with orange signal arcs

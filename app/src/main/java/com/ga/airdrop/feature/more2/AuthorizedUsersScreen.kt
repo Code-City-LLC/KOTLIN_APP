@@ -17,7 +17,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,12 +34,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.data.model.AuthorizedUser
@@ -45,6 +51,7 @@ import com.ga.airdrop.data.model.AuthorizedUser
  * FigmaAuthorizedUsersViewController: Active/Inactive sections of user cards,
  * empty placeholders, bottom "Add User" CTA, refetch on every focus.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthorizedUsersScreen(
     onBack: () -> Unit,
@@ -54,6 +61,7 @@ fun AuthorizedUsersScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    val ptrState = rememberPullToRefreshState()
 
     // RN uses useIsFocused() to refetch on every focus — re-entering
     // composition after a pop triggers this again.
@@ -67,49 +75,70 @@ fun AuthorizedUsersScreen(
         More2InnerHeader(title = "Authorized Users", onBack = onBack)
 
         Box(Modifier.weight(1f)) {
-            Column(
-                Modifier
+            PullToRefreshBox(
+                isRefreshing = state.refreshing,
+                onRefresh = viewModel::refresh,
+                state = ptrState,
+                modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.md)
+                    .testTag("authorized-users-pull-refresh"),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = ptrState,
+                        isRefreshing = state.refreshing,
+                        color = BrandPalette.OrangeMain,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                },
             ) {
-                Spacer(Modifier.height(Spacing.md))
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Spacing.md)
+                ) {
+                    Spacer(Modifier.height(Spacing.md))
 
-                SectionHeader("Active")
-                Spacer(Modifier.height(Spacing.md))
-                if (state.activeUsers.isEmpty()) {
-                    EmptyUsersCard()
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                        state.activeUsers.forEach { user ->
-                            UserCard(user = user, onClick = { onOpenDetail(user.id) })
+                    SectionHeader("Active")
+                    Spacer(Modifier.height(Spacing.md))
+                    if (state.activeUsers.isEmpty()) {
+                        EmptyUsersCard()
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                            state.activeUsers.forEach { user ->
+                                UserCard(user = user, onClick = { onOpenDetail(user.id) })
+                            }
                         }
                     }
-                }
 
-                Spacer(Modifier.height(Spacing.lg))
+                    Spacer(Modifier.height(Spacing.lg))
 
-                SectionHeader("Inactive")
-                Spacer(Modifier.height(Spacing.md))
-                if (state.inactiveUsers.isEmpty()) {
-                    EmptyUsersCard()
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                        state.inactiveUsers.forEach { user ->
-                            UserCard(user = user, onClick = { onOpenDetail(user.id) })
+                    SectionHeader("Inactive")
+                    Spacer(Modifier.height(Spacing.md))
+                    if (state.inactiveUsers.isEmpty()) {
+                        EmptyUsersCard()
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                            state.inactiveUsers.forEach { user ->
+                                UserCard(user = user, onClick = { onOpenDetail(user.id) })
+                            }
                         }
                     }
-                }
 
-                // Clearance so the last inactive card isn't hidden by the CTA.
-                Spacer(Modifier.height(30.dp))
+                    // Clearance so the last inactive card isn't hidden by the CTA.
+                    Spacer(Modifier.height(30.dp))
+                }
             }
 
             if (state.loading) More2Loading()
         }
 
         More2BottomBar(verticalPadding = 14.dp) {
-            More2PrimaryButton(text = "Add User", onClick = onAddUser)
+            More2PrimaryButton(
+                text = "Add User",
+                onClick = onAddUser,
+                modifier = Modifier.testTag("authorized-users-add-user"),
+            )
         }
     }
 
@@ -155,6 +184,7 @@ private fun UserCard(user: AuthorizedUser, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("authorized-users-card-${user.id}")
             .clip(RoundedCornerShape(Radius.xs))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
@@ -163,6 +193,7 @@ private fun UserCard(user: AuthorizedUser, onClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .testTag("authorized-users-card-header-${user.id}")
                 .height(56.dp)
                 .background(colors.gray150)
                 .padding(horizontal = Spacing.md),
