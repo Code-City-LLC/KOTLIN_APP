@@ -47,6 +47,7 @@ import com.ga.airdrop.core.navigation.Routes
  * All/Package/Product filter, HTML-decoded descriptions, per-row invoice
  * download opening the invoice viewer.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentsScreen(
     onBack: () -> Unit,
@@ -84,7 +85,26 @@ fun PaymentsScreen(
         }
     }
 
+    // Swift attaches a UIRefreshControl (orange) that resets to page 1.
+    val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    val refreshing = state.loading && state.items.isNotEmpty()
     Box(Modifier.fillMaxSize().background(colors.gray100)) {
+      androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = viewModel::refresh,
+        state = ptrState,
+        modifier = Modifier.fillMaxSize(),
+        indicator = {
+            androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                state = ptrState,
+                isRefreshing = refreshing,
+                color = BrandPalette.OrangeMain,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = shipmentsHeaderClearance()),
+            )
+        },
+      ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -124,6 +144,7 @@ fun PaymentsScreen(
                 }
             }
         }
+      }
 
         ShipmentsDetailHeader(
             title = "Payments",

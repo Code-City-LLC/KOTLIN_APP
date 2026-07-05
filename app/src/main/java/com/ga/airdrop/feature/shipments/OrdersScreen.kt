@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 
@@ -29,6 +30,7 @@ import com.ga.airdrop.core.navigation.Routes
  * Orders list — Figma node 40001753:19595, behavior from
  * FigmaOrdersViewController: paginated /orders, debounced search, image cards.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersScreen(
     onBack: () -> Unit,
@@ -50,7 +52,25 @@ fun OrdersScreen(
         if (shouldLoadMore) viewModel.loadNextPage()
     }
 
+    val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    val refreshing = state.loading && state.items.isNotEmpty()
     Box(Modifier.fillMaxSize().background(colors.gray100)) {
+      androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = viewModel::refresh,
+        state = ptrState,
+        modifier = Modifier.fillMaxSize(),
+        indicator = {
+            androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                state = ptrState,
+                isRefreshing = refreshing,
+                color = BrandPalette.OrangeMain,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = shipmentsHeaderClearance()),
+            )
+        },
+      ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -88,6 +108,7 @@ fun OrdersScreen(
                 }
             }
         }
+      }
 
         ShipmentsDetailHeader(
             title = "Orders",

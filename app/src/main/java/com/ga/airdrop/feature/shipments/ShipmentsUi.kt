@@ -645,29 +645,38 @@ fun PaymentCard(
     downloadingInvoice: Boolean = false,
 ) {
     val colors = AirdropTheme.colors
-    Column(
+    // Swift FigmaPaymentsViewController.swift:328-355 — download button pinned
+    // top-right (22pt DownloadFile glyph tinted textDescription); rows inset
+    // on the right to clear it.
+    Box(
         modifier = modifier
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            .clickable(onClick = onClick),
     ) {
-        CardFieldColumn(label = "Invoice Number", value = payment.invoiceId ?: "-")
-        CardFieldColumn(label = "Drop Number", value = ShipmentsFormat.trackingCode(payment.trackingCode))
-        CardFieldColumn(
-            label = "Description",
-            value = ShipmentsFormat.decodeHtmlEntities(
-                payment.packageDescription ?: payment.paymentType
-            ).ifBlank { "-" },
-        )
-        CardFieldColumn(label = "Date", value = ShipmentsFormat.date(payment.paymentDate))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Column(Modifier.weight(1f)) {
+            // Reserve the top-right corner for the download control.
+            val rowEndInset = if (onDownloadInvoice != null) 32.dp else 0.dp
+            CardFieldColumn(
+                label = "Invoice Number",
+                value = payment.invoiceId ?: "-",
+                modifier = Modifier.padding(end = rowEndInset),
+            )
+            CardFieldColumn(label = "Drop Number", value = ShipmentsFormat.trackingCode(payment.trackingCode))
+            CardFieldColumn(
+                label = "Description",
+                value = ShipmentsFormat.decodeHtmlEntities(
+                    payment.packageDescription ?: payment.paymentType
+                ).ifBlank { "-" },
+            )
+            CardFieldColumn(label = "Date", value = ShipmentsFormat.date(payment.paymentDate))
+            Column {
                 Text(text = "Amount", style = AirdropType.subtitle2, color = colors.textDescription)
                 Text(
                     text = ShipmentsFormat.price(payment.totalAmount),
@@ -675,11 +684,18 @@ fun PaymentCard(
                     color = BrandPalette.OrangeMain,
                 )
             }
-            if (onDownloadInvoice != null) {
-                // Swift gap — RN downloadPaymentInvoice: fetch GET /payments/{id} invoice URL.
+        }
+        if (onDownloadInvoice != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 14.dp, end = 16.dp)
+                    .size(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 if (downloadingInvoice) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(22.dp),
                         color = BrandPalette.OrangeMain,
                         strokeWidth = 2.dp,
                     )
@@ -687,9 +703,9 @@ fun PaymentCard(
                     Image(
                         painter = painterResource(R.drawable.ic_download_file),
                         contentDescription = "Download invoice",
-                        colorFilter = ColorFilter.tint(colors.iconSelected),
+                        colorFilter = ColorFilter.tint(colors.textDescription),
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(22.dp)
                             .clickable(onClick = onDownloadInvoice),
                     )
                 }
