@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.home
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -20,6 +21,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.data.model.AuctionProduct
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -68,6 +70,45 @@ class HomeActivityTilesScreenshotTest {
                 assertEquals(route, navigatedRoutes.lastOrNull())
             }
         }
+    }
+
+    @Test
+    fun activityTilesUseSwiftFigmaGeometry() {
+        setHomeContent()
+
+        val rootBounds = compose.onRoot().getUnclippedBoundsInRoot()
+        val expectedTileWidth = (boundsWidth(rootBounds) - 40f - 10f) / 2f
+        listOf(
+            "home-activity-services",
+            "home-activity-ship-tax",
+            "home-activity-calculator",
+            "home-activity-drop-alert",
+        ).forEach { tag ->
+            val bounds = compose.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+            assertClose(expectedTileWidth, boundsWidth(bounds), "activity tile width for $tag")
+            assertClose(108f, boundsHeight(bounds), "activity tile height for $tag")
+        }
+    }
+
+    @Test
+    fun auctionHighlightCardUsesSwiftFigmaGeometry() {
+        compose.setContent {
+            AirdropTheme {
+                ProductHighlightCard(
+                    product = AuctionProduct(
+                        id = 1,
+                        name = "Apple 2023 MacBook Pro Laptop M3 chip",
+                        slug = "apple-2023-macbook-pro-laptop-m3-chip",
+                        currentPrice = "1550.00",
+                    ),
+                    onClick = {},
+                )
+            }
+        }
+
+        val bounds = compose.onNodeWithTag("home-auction-card").getUnclippedBoundsInRoot()
+        assertClose(160f, boundsWidth(bounds), "auction highlight card width")
+        assertClose(245f, boundsHeight(bounds), "auction highlight card height")
     }
 
     @Test
@@ -142,4 +183,14 @@ class HomeActivityTilesScreenshotTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
     }
+
+    private fun assertClose(expected: Float, actual: Float, label: String) {
+        assertEquals(label, expected, actual, 0.75f)
+    }
+
+    private fun boundsWidth(bounds: androidx.compose.ui.unit.DpRect): Float =
+        (bounds.right - bounds.left).value
+
+    private fun boundsHeight(bounds: androidx.compose.ui.unit.DpRect): Float =
+        (bounds.bottom - bounds.top).value
 }

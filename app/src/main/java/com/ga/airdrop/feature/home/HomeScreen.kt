@@ -332,6 +332,7 @@ private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modi
         modifier = modifier
             // Swift: fixed 108pt tile (py20 + icon 32 + gap 10 + label 26).
             .height(108.dp)
+            .testTag("home-activity-${activity.label.lowercase(Locale.US).replace(" ", "-")}")
             .clip(RoundedCornerShape(Spacing.sm1)) // radius 15
             .background(colors.gray150)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
@@ -431,6 +432,7 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
         modifier = Modifier
             .width(160.dp)
             .height(245.dp)
+            .testTag("home-auction-card")
             .clip(RoundedCornerShape(14.dp))
             .background(colors.gray150)
             .border(1.dp, colors.iconShape, RoundedCornerShape(14.dp))

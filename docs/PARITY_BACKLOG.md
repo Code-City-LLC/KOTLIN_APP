@@ -46,6 +46,17 @@ specified — apply, build, and verify on the emulator in light AND dark.
   `/tmp/kotlin_ui_proof/help_contacts/android_help_top_dark_final.png`,
   `/tmp/kotlin_ui_proof/help_contacts/android_help_social_light_final.png`,
   `/tmp/kotlin_ui_proof/help_contacts/android_help_social_dark_final.png`.
+- **Home activity/highlight geometry:** Activity tiles and Auction Highlights
+  cards were compared against Figma Home node `40001464:28899` and Swift
+  `FigmaHomeViewController.swift`. Android already matches the shared geometry:
+  activity tiles are `(screen - 40 - 10) / 2` wide by `108` high; Auction
+  Highlights cards are `160x245` with `124` image height. Instrumentation now
+  locks the sizes with geometry assertions. Proof:
+  `/tmp/kotlin_ui_proof/home_tiles_geometry/figma_home_light_geometry.png`,
+  `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_top_light_geometry.png`,
+  `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_top_dark_geometry.png`,
+  `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_light_geometry.png`,
+  `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_dark_geometry.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
@@ -62,6 +73,10 @@ Email, Location, Business Hours, Social Media, and social row icons now render
 with visible secondary strokes in app dark mode. Email uses the Swift/Figma
 envelope glyph. Swift/Figma whole-layout conflicts remain open in
 `docs/FULL_APP_SWIFT_FIGMA_AUDIT.md`.
+
+**✅ CLOSED — Home activity/highlight geometry follow-up:** Activity tile and
+Auction Highlights card sizes were measured against Swift first and Figma
+second. Android already matched, so only regression tags/assertions were added.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 

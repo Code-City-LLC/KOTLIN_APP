@@ -105,6 +105,23 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/help_contacts/android_help_top_dark_final.png`,
     `/tmp/kotlin_ui_proof/help_contacts/android_help_social_light_final.png`,
     `/tmp/kotlin_ui_proof/help_contacts/android_help_social_dark_final.png`
+- Android checks run for the Home activity/highlight geometry proof:
+  - Figma MCP design context and screenshot for Home node `40001464:28899`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaHomeViewController.swift`.
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `HomeActivityTilesScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 6 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.home.HomeActivityTilesScreenshotTest ...`:
+    `OK (6 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/home_tiles_geometry/figma_home_light_geometry.png`,
+    `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_top_light_geometry.png`,
+    `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_top_dark_geometry.png`,
+    `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_light_geometry.png`,
+    `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_activity_tiles_dark_geometry.png`,
+    `/tmp/kotlin_ui_proof/home_tiles_geometry/android_home_warehouse_standard_after_tap_geometry.png`
 
 ## Latest Device/Figma Findings
 
@@ -132,6 +149,16 @@ assets; only repair the parts that are visibly or functionally wrong.
   `y=326`, height `346`, inner row `x=20/y=20`, cards `238x326` with 10 gap;
   Swift `FigmaHomeViewController.swift` uses the same constraints. Android
   `HomeScreen.kt` already matched those numbers, so no geometry churn was made.
+- Home activity and Auction Highlights card geometry matches Swift and Figma.
+  Figma Home node `40001464:28899` uses a two-column activity grid with outer
+  padding `20`, gap `10`, tile width `162.5` on the 375pt frame, tile height
+  `108`, icon `32`, stack gap `10`, and tile padding `10x20`.
+  Swift `FigmaHomeViewController.swift` uses the same `226` grid height, `10`
+  row/column gap, `108` tile height, `32` icon, and `10x20` content insets.
+  Auction Highlights cards match at `160x245`, image height `124`, corner
+  radius `14`, image radius `10`, padding `8`, and stack spacing `6`. Android
+  already matched those values, so the code change only adds test tags and
+  geometry regression coverage.
 - Home warehouse tap path is verified in instrumentation: Standard/SeaDrop/
   Express cards emit `warehouses?type=standard|seadrop|express`, and a Standard
   tap through `AppRoot` opens the Warehouse detail screen with the Standard tab
@@ -229,8 +256,12 @@ Findings to verify/fix:
 - Standard/SeaDrop/Express cards are tappable as whole cards and route to the
   warehouse detail flow with the correct type in instrumentation. Standard was
   additionally verified through `AppRoot`.
-- Activity/highlight boxes need measured size and spacing against Figma/Swift;
-  user reports they are too large.
+- Activity/highlight boxes were measured against Figma and Swift. Android
+  matches the Swift/Figma values: activity tiles are `(screen - 40 - 10) / 2`
+  wide and `108` high, with `32` icons, `10` stack gap, and `10x20` padding;
+  Auction Highlights cards are `160x245` with `124` image height, `8` padding,
+  and `6` stack spacing. No visual size change was made because Swift/Figma
+  already match the Android implementation. Regression tests now lock this in.
 - Header/footer opacity must be checked in light and dark. The bottom tab bar
   must be opaque where Swift uses an opaque surface and must not wash through
   content.
@@ -329,7 +360,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, and warehouse card tap/geometry verified; remaining Home sizing/content issues still open |
+| Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift` | `40001464:28899` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, activity icons, warehouse card tap/geometry, and activity/highlight geometry verified; remaining Home content/navigation issues still open |
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
