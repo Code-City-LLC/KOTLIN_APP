@@ -265,6 +265,31 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/shipments_search_field/android/payments_search_swift_dark.png`,
     `/tmp/kotlin_ui_proof/shipments_search_field/android/orders_search_swift_light.png`,
     `/tmp/kotlin_ui_proof/shipments_search_field/android/orders_search_swift_dark.png`
+- Android checks run for the Shipments backend pagination Swift/Figma proof:
+  - Figma MCP screenshots refreshed for Shipments hub `40000823:9633`,
+    Packages `40001666:42198`, Payments `40001753:18909`, and Orders
+    `40001753:19595`.
+  - Swift source compared first:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaShipmentsViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPackagesViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPaymentsViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaOrdersViewController.swift`,
+    and `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/AirdropAPI.swift`.
+  - Swift precedence documented: Figma proves the visible hub/list surfaces, but
+    Swift owns the runtime request contract. Android now locks hub shortlist
+    render limits (`packagesData.prefix(10)`, `paymentsData.prefix(4)`,
+    `ordersData.prefix(6)`), Packages return-key server search and status
+    filter pagination, Payments default `package` filter / 300ms min-3 search
+    / page-2 loading, and Orders 10-row pagination / refresh / min-3 search.
+  - `git diff --check`
+  - `:app:compileStagingDebugAndroidTestKotlin`
+  - targeted `ShipmentsBackendPaginationParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/shipments_backend_pagination/figma/figma_shipments_hub_40000823_9633.png`,
+    `/tmp/kotlin_ui_proof/shipments_backend_pagination/figma/figma_packages_40001666_42198.png`,
+    `/tmp/kotlin_ui_proof/shipments_backend_pagination/figma/figma_payments_40001753_18909.png`,
+    `/tmp/kotlin_ui_proof/shipments_backend_pagination/figma/figma_orders_40001753_19595.png`
 - Android checks run for the Documents card/action-row Swift-precedence pass:
   - Figma MCP design context and screenshot for Documents node `40000975:7748`.
   - Swift source compared:
@@ -1257,16 +1282,18 @@ Findings to verify/fix:
 - Shipments hub summary tiles, section `View More` actions, package cards,
   payment cards, order cards, and package cart toggles now have connected
   Swift-precedence tap proof. The Packages filter header-to-sheet/apply/close
-  path is also verified. Remaining tap checks are deeper flows: detail rows,
-  invoice actions, detail-screen CTAs, and backend-backed refresh or
-  pagination paths.
+  path is also verified. Full-list backend pagination/search/reset contracts
+  are now locked for Packages, Payments, and Orders. Remaining tap checks are
+  deeper flows: detail rows, invoice actions, and detail-screen CTAs.
 - Shared Shipments search-field icon placement is now closed: Packages keeps
   Swift's leading 22pt icon and Payments/Orders use Swift's trailing 18pt icon.
 - Existing backlog already flags package detail surfaces, timeline rendering,
   charges footer, filter sheet row icons/fonts, payments refresh/invoice button,
   and multiple detail-screen parity issues.
-- Backend endpoints must be checked for each visible section: summary, packages,
-  payments, orders, invoice URL, package detail, payment detail, order detail.
+- Backend endpoints have source/test proof for visible hub shortlists and full
+  list pagination/search/reset. Remaining live-auth endpoint checks: invoice
+  URL, package detail mutations, payment detail, order detail, and complete
+  authenticated refresh paths.
 
 ### Help
 
@@ -1515,7 +1542,7 @@ For each page, fill this before claiming completion:
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `feature/home/HomeScreen.kt`, chrome components | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, activity/highlight geometry, primary route callbacks, auction card/cart tap separation, and bottom-tab state verified; remaining Home live-data/full-page endpoint issues still open |
-| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad visual/full-flow/backend parity still open |
+| Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, backend pagination/search/reset contracts, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad live-auth/full-flow backend parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
