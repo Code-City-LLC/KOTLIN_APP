@@ -78,10 +78,15 @@ specified — apply, build, and verify on the emulator in light AND dark.
   scroll view has an orange `UIRefreshControl`. Android now reloads through the
   same `load()` path on lifecycle resume and exposes a pull-to-refresh container
   that calls `refresh()`.
+- **Profile avatar + DOB:** Edit Profile was compared against Figma node
+  `40007189:63763` and Swift `FigmaProfileViewController.swift`. Swift wins the
+  avatar conflict because Figma still shows the older 107px avatar; Android now
+  locks Swift's 88dp wrap / 80dp gray300 circle / 24dp edit badge geometry, uses
+  Swift orange for the edit glyph in dark mode, and rejects future DOB dates.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §234/§459 Edit Profile · §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs. Documents §216/§225 and the refresh/reload follow-up are closed by the Swift-precedence proof above.
+**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §243 Preferences · §252/§423/§432/§468/§477 Notification Settings · §261 Invite Friend · §270 Legal/T&C · §486 FAQs. Documents §216/§225, Documents refresh/reload, and Profile avatar/DOB are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -113,6 +118,12 @@ default label for other shared More alerts.
 `viewDidAppear` and attaches an orange refresh control. Android now reloads on
 lifecycle resume and pull-to-refresh through the same repository-backed
 DocumentsViewModel path.
+
+**✅ CLOSED — Profile avatar + DOB follow-up:** Swift's
+`FigmaProfileViewController.swift` wins over the older Figma avatar node. Android
+now keeps the Swift-sized avatar geometry under instrumentation, tints the edit
+glyph orange for dark-mode visibility, and rejects future DOB dates like Swift's
+`dobPicker.maximumDate = Date()`.
 
 (Section numbers are the source-line anchors printed by `grep -nE '^## ' docs/PARITY_BACKLOG.md`.)
 
@@ -343,12 +354,12 @@ DocumentsViewModel path.
 
 ---
 
-## [MEDIUM] Edit Profile
+## [CLOSED] Edit Profile
 `app/src/main/java/com/ga/airdrop/feature/more/ProfileScreen.kt:289` — Avatar geometry drifts from Swift: 107dp circle with gray200 fill and iconShape ring + 28dp badge, vs Swift's 80pt gray300 circle (no ring) with a 24pt edit badge tucked at bottom-right +2pt.
 
 **Detail:** FigmaProfileViewController.makeAvatar (FigmaProfileViewController.swift:295-365): circle width/height 80, cornerRadius 40, backgroundColor gray300, no border; edit badge constrained to 24x24 at trailing/bottom +2; wrap height 88; placeholder glyph 44pt tinted gray500. Kotlin renders a 107dp circle, gray200 fill, 1dp iconShape border, and a 28dp badge offset (79,79).
 
-**Fix:** Size the avatar Box 80.dp (radius 40), fill colors.gray300, drop the border, badge 24.dp positioned bottom-end with 2.dp outset, container height 88.dp.
+**Fix:** Done. `ProfileAvatar` uses an 88.dp wrap, 80.dp gray300 circle, 44.dp placeholder glyph, and a 24.dp edit badge with 2.dp trailing/bottom overshoot. Swift's orange edit glyph is now applied so the badge remains visible in dark mode. `ProfileParityScreenshotTest` verifies the geometry in light and dark.
 
 ---
 
@@ -568,12 +579,12 @@ DocumentsViewModel path.
 
 ---
 
-## [LOW] Edit Profile
+## [CLOSED] Edit Profile
 `app/src/main/java/com/ga/airdrop/feature/more/ProfileScreen.kt:347` — Date-of-birth picker allows future dates; Swift caps the DOB wheel at today.
 
 **Detail:** FigmaProfileViewController sets dobPicker.maximumDate = Date() (FigmaProfileViewController.swift:233). Kotlin's rememberDatePickerState() has no bound, so users can pick a future birthday.
 
-**Fix:** Create the state with rememberDatePickerState(selectableDates = object : SelectableDates { override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= System.currentTimeMillis() }).
+**Fix:** Done. `DobPickerDialog` creates `rememberDatePickerState(selectableDates = ...)` backed by `isSelectableDobDate`/`isSelectableDobYear`, so today and past dates are allowed while future dates/years are rejected. `ProfileParityScreenshotTest` covers the boundary with a fixed UTC date.
 
 ---
 

@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -276,17 +278,18 @@ fun ProfileScreen(
  * 88dp wrap, plus a 24dp edit badge tucked 2dp past the bottom-right corner.
  */
 @Composable
-private fun ProfileAvatar(
+internal fun ProfileAvatar(
     avatar: android.graphics.Bitmap?,
     loading: Boolean,
     onClick: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
-    Box(Modifier.size(88.dp)) {
+    Box(Modifier.size(88.dp).testTag("profile-avatar-wrap")) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .size(80.dp)
+                .testTag("profile-avatar-circle")
                 .clip(CircleShape)
                 .background(colors.gray300)
                 .clickable(onClick = onClick),
@@ -304,7 +307,7 @@ private fun ProfileAvatar(
                     painter = painterResource(R.drawable.ic_profile),
                     contentDescription = "Edit profile photo",
                     colorFilter = ColorFilter.tint(colors.gray500),
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(44.dp).testTag("profile-avatar-placeholder"),
                 )
             }
             if (loading) {
@@ -319,6 +322,7 @@ private fun ProfileAvatar(
             modifier = Modifier
                 .offset(x = 62.dp, y = 58.dp)
                 .size(24.dp)
+                .testTag("profile-avatar-edit-badge")
                 .clip(CircleShape)
                 .background(colors.gray100)
                 .border(1.dp, colors.iconShape, CircleShape),
@@ -327,10 +331,21 @@ private fun ProfileAvatar(
             Image(
                 painter = painterResource(R.drawable.ic_more_edit_pen),
                 contentDescription = null,
+                colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
                 modifier = Modifier.size(17.dp),
             )
         }
     }
+}
+
+internal fun isSelectableDobDate(utcTimeMillis: Long, todayMillis: Long): Boolean =
+    utcTimeMillis <= todayMillis
+
+internal fun isSelectableDobYear(year: Int, todayMillis: Long): Boolean {
+    val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        timeInMillis = todayMillis
+    }
+    return year <= calendar.get(Calendar.YEAR)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -343,10 +358,10 @@ private fun DobPickerDialog(
     val selectableDates = remember(todayMillis) {
         object : SelectableDates {
             override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                utcTimeMillis <= todayMillis
+                isSelectableDobDate(utcTimeMillis, todayMillis)
 
             override fun isSelectableYear(year: Int): Boolean =
-                year <= Calendar.getInstance(TimeZone.getTimeZone("UTC")).get(Calendar.YEAR)
+                isSelectableDobYear(year, todayMillis)
         }
     }
     val pickerState = rememberDatePickerState(selectableDates = selectableDates)

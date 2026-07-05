@@ -170,6 +170,25 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/documents_refresh_reload/figma_documents_40000975_7748.png`,
     `/tmp/kotlin_ui_proof/documents_refresh_reload/android_documents_card_light_after_refresh_patch.png`,
     `/tmp/kotlin_ui_proof/documents_refresh_reload/android_documents_card_dark_after_refresh_patch.png`
+- Android checks run for the Profile avatar/DOB Swift-precedence pass:
+  - Figma MCP design context and screenshot for Profile node `40007189:63763`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaProfileViewController.swift`.
+  - Swift/Figma conflict documented: Figma still shows the older `107`px avatar,
+    but Swift uses an `88`pt wrap, `80`pt gray300 circle, `24`pt edit badge, and
+    `44`pt placeholder; Swift wins. Swift also caps DOB with
+    `dobPicker.maximumDate = Date()`.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `ProfileParityScreenshotTest` through
+    `:app:connectedStagingDebugAndroidTest`: 3 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.more.ProfileParityScreenshotTest ...`:
+    `OK (3 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/profile_swift_geometry/figma_profile_40007189_63763.png`,
+    `/tmp/kotlin_ui_proof/profile_swift_geometry/android_profile_avatar_swift_geometry_light.png`,
+    `/tmp/kotlin_ui_proof/profile_swift_geometry/android_profile_avatar_swift_geometry_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -296,6 +315,11 @@ assets; only repair the parts that are visibly or functionally wrong.
   refresh calls `refresh()` with the orange Material3 indicator. Figma confirms
   the same Documents scroll surface; Swift takes precedence for the invisible
   lifecycle behavior.
+- Profile avatar geometry now follows Swift precedence over stale Figma: Android
+  keeps the `88`dp wrap, `80`dp gray300 circle, `24`dp badge with `2`dp overshoot,
+  and `44`dp placeholder. The edit badge glyph is orangeMain so it stays visible
+  in dark mode. The DOB picker rejects future dates/years like Swift's
+  `maximumDate`.
 
 ## Reopened Defects From User Review
 
@@ -418,9 +442,10 @@ Findings to verify/fix:
 
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
 - Codex/MagentaCastle is working through More/Legal/Profile. Documents
-  card/action-row geometry, info alert, and refresh/reload behavior now have
-  Figma MCP + Swift comparison and targeted device-test proof; the rest of the
-  More/Legal/Profile lane remains open until each screen has the same evidence.
+  card/action-row geometry, info alert, refresh/reload behavior, plus Profile
+  avatar/DOB now have Figma MCP + Swift comparison and targeted device-test proof;
+  the rest of the More/Legal/Profile lane remains open until each screen has the
+  same evidence.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
 - Keep POS, production, paid-provider/model config, secrets, and unrelated
@@ -436,5 +461,5 @@ For each page, fill this before claiming completion:
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, and refresh/reload behavior verified; remaining More/Legal/Profile screens still open |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, and Profile avatar/DOB verified; remaining More/Legal/Profile screens still open |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
