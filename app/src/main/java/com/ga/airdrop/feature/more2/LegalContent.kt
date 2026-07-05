@@ -14,10 +14,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -26,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -92,7 +95,7 @@ internal fun prepareLegalHtml(raw: String): String {
     return stripInlineColors(body)
 }
 
-private fun colorLegalHeadings(source: Spanned, headingColor: Int): SpannableStringBuilder {
+internal fun colorLegalHeadings(source: Spanned, headingColor: Int): SpannableStringBuilder {
     val builder = SpannableStringBuilder(source)
     builder.getSpans(0, builder.length, RelativeSizeSpan::class.java)
         .filter { it.sizeChange > 1f }
@@ -155,6 +158,7 @@ internal fun AccordionCard(
     expanded: Boolean,
     onToggle: () -> Unit,
     titleEndGap: Dp = Spacing.xs,
+    testTagPrefix: String? = null,
     content: (@Composable () -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
@@ -172,7 +176,24 @@ internal fun AccordionCard(
                 color = colors.textDarkTitle,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = titleEndGap),
+                    .then(
+                        if (testTagPrefix != null) {
+                            Modifier.testTag("$testTagPrefix-title")
+                        } else {
+                            Modifier
+                        },
+                    ),
+            )
+            Spacer(
+                Modifier
+                    .width(titleEndGap)
+                    .then(
+                        if (testTagPrefix != null) {
+                            Modifier.testTag("$testTagPrefix-title-chevron-gap")
+                        } else {
+                            Modifier
+                        },
+                    ),
             )
             Image(
                 painter = painterResource(R.drawable.ic_chevron),
@@ -180,7 +201,14 @@ internal fun AccordionCard(
                 colorFilter = ColorFilter.tint(colors.textDarkTitle),
                 modifier = Modifier
                     .size(15.dp)
-                    .rotate(if (expanded) 0f else 180f),
+                    .rotate(if (expanded) 0f else 180f)
+                    .then(
+                        if (testTagPrefix != null) {
+                            Modifier.testTag("$testTagPrefix-chevron")
+                        } else {
+                            Modifier
+                        },
+                    ),
             )
         }
         if (expanded && content != null) {

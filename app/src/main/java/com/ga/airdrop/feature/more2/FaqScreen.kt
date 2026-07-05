@@ -53,6 +53,7 @@ fun FaqScreen(
                         expanded = faq.id in state.expandedIds,
                         onToggle = { viewModel.toggle(faq.id) },
                         titleEndGap = Spacing.sm,
+                        testTagPrefix = "faq-${faq.id}",
                     ) {
                         Text(
                             text = faq.answer,

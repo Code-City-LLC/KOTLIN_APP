@@ -3,14 +3,15 @@
 Source: adversarially-verified full-app audit (117 confirmed findings,
 Kotlin vs Swift `Figma*ViewController`s vs Figma file N4k6jzpeLZgeRS5O1xfyIv),
 2026-07-04. 63 findings were fixed in commits 48db012 + 9222e1d (+ follow-ups);
-the 54 below remain. Each entry carries the exact fix the verifying agent
-specified — apply, build, and verify on the emulator in light AND dark.
+the backlog below remains the living ledger. Each entry carries the exact fix
+the verifying agent specified — apply, build, and verify on the emulator in
+light AND dark.
 
 ---
 
-## STATUS LEDGER (updated 2026-07-05 @ HEAD `a1768d2` — BlueDeer)
+## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **13 items are FIXED, on-device verified, and pushed.** Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **15 items are FIXED, on-device verified, and pushed.** Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -104,10 +105,21 @@ specified — apply, build, and verify on the emulator in light AND dark.
   `/tmp/kotlin_ui_proof/invite_friend_icon/figma_referral_40001940_26885.png`,
   `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_light.png`,
   `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_dark.png`.
+- **Legal live CMS heading colors + FAQ chevron gap:** Terms, Privacy, and FAQ
+  were compared against Figma nodes `40001383:9894`, `40001387:9042`, and
+  `40001387:8896`, then against Swift
+  `FigmaTermsConditionsViewController.swift`,
+  `FigmaPrivacyPolicyViewController.swift`, and `FigmaFAQViewController.swift`.
+  Android now has regression proof that live CMS legal headings are recolored to
+  `textDarkTitle` while body text stays `textDescription`, frozen CMS colors are
+  stripped before theme recoloring, Terms/Privacy keep Swift's 5dp title-to-
+  chevron gap, and FAQ uses Swift's 10dp gap. Proof:
+  `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_light.png`,
+  `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_dark.png`.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** §99 View-History pinned footer · §108 "Invoice Amount (Declared Value/Cost)" · §153 CIF pill 48dp · §135 timeline connector color · §117 InvoiceViewer surfaces · §126 InvoiceViewer share-file · §144 hero image geometry · §27/§36 PackagesFilterSheet · §9/§18 GoldPriority.
 
-**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §252/§423/§432/§468/§477 Notification Settings · §270 Legal/T&C · §486 FAQs. Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, and Invite Friend §261 are closed by Swift-precedence proof above.
+**🔲 OPEN — MagentaCastle (More/Legal/Profile):** §252/§423/§432/§468/§477 Notification Settings. Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, and FAQs §486 are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -138,7 +150,15 @@ default label for other shared More alerts.
 `FigmaDocumentsViewController.swift` reloads documents on every
 `viewDidAppear` and attaches an orange refresh control. Android now reloads on
 lifecycle resume and pull-to-refresh through the same repository-backed
-DocumentsViewModel path.
+ViewModel path.
+
+**✅ CLOSED — Legal live CMS heading colors + FAQ gap follow-up:** Swift's
+legal controllers recolor parsed heading runs (`font.pointSize > 15`) to
+`textDarkTitle` and body runs to `textDescription`, and Swift FAQ uses a
+10pt question-to-chevron gap while Terms/Privacy use 5pt. Figma MCP confirmed
+the relevant Terms/Privacy/FAQ screen nodes, but Swift remains the conflict
+authority. Android has focused instrumentation proof for the span colors, CMS
+color stripping, 5dp Legal gap, 10dp FAQ gap, and light/dark legal rendering.
 
 **✅ CLOSED — Preferences select-field follow-up:** Swift's
 `FigmaPreferencesViewController.SelectableRow` is the source of truth for the
@@ -424,12 +444,12 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] Terms & Conditions / Privacy Policy (live CMS content)
+## [CLOSED] Terms & Conditions / Privacy Policy (live CMS content)
 `app/src/main/java/com/ga/airdrop/feature/more2/LegalContent.kt:113` — Live CMS legal content renders ALL text — including headings — in textDescription gray; Swift colors headings textDarkTitle and only body textDescription.
 
-**Detail:** LegalHtmlContent sets a single `view.setTextColor(bodyColor)` where bodyColor = colors.textDescription (LegalContent.kt:94,113), so h1–h4 headings produced by markdownToHtml()/CMS HTML render in the muted description gray in both light and dark mode. Swift walks the parsed attributed string and assigns per-element dynamic colors: any run with pointSize > 15 (headings) gets DesignTokens.Color.textDarkTitle, body runs get textDescription — FigmaTermsConditionsViewController.swift:554-566 and FigmaPrivacyPolicyViewController.swift:436-444 (applyDynamicColors). Once /content/terms-conditions or /content/privacy-policy returns real markdown/HTML with headings, the Android page loses its heading contrast versus iOS (near-black headings in light mode, white in dark mode). Link color is already correct (OrangeMain == Swift orangeDark == #F15114).
+**Detail:** Current Android already post-processes the parsed `Spanned` in `colorLegalHeadings`, matching Swift's `applyDynamicColors`: headings detected from `RelativeSizeSpan > 1.0` are recolored to `textDarkTitle`, while body text remains on the TextView's `textDescription` color. Swift source checked: `FigmaTermsConditionsViewController.swift` and `FigmaPrivacyPolicyViewController.swift` color runs with `pointSize > 15` as headings. Figma MCP checked Terms node `40001383:9894` and Privacy node `40001387:9042`; Figma confirms the page/card/text tokens, while Swift is the live CMS behavior authority.
 
-**Fix:** After HtmlCompat.fromHtml(), post-process the Spanned instead of relying on the TextView-wide color: copy it to a SpannableStringBuilder, enumerate RelativeSizeSpan (HtmlCompat emits these for h1–h6; proportion > 1.0) and apply ForegroundColorSpan(colors.textDarkTitle.toArgb()) over those ranges, leaving everything else at textDescription. Keep link recoloring via setLinkTextColor as-is. Recompute when the theme changes (key the remember on html + isDark).
+**Fix:** Done and verified. `colorLegalHeadings` is covered by `LegalContentParityTest`: headings receive `ForegroundColorSpan(textDarkTitle)`, body runs do not, inline CMS colors are stripped before theme recoloring, and light/dark screenshots were captured from the real padded live-card path.
 
 ---
 
@@ -640,11 +660,11 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [LOW] FAQs
+## [CLOSED] FAQs
 `app/src/main/java/com/ga/airdrop/feature/more2/LegalContent.kt:146` — FAQ accordion question→chevron gap is 5dp (Spacing.xs) but Swift FAQ uses 10pt (Spacing.sm).
 
-**Detail:** The shared AccordionCard pads the title with `end = Spacing.xs` (5dp, LegalContent.kt:146). That matches Terms (FigmaTermsConditionsViewController.swift:313, -Spacing.xs) and Privacy (FigmaPrivacyPolicyViewController.swift:278, -Spacing.xs), but the FAQ screen in Swift uses a 10pt gap: FigmaFAQViewController.swift:282 `questionLabel.trailingAnchor.constraint(equalTo: chevron.leadingAnchor, constant: -DesignTokens.Spacing.sm)`. Long questions therefore wrap 5dp later on Android FAQ than on iOS.
+**Detail:** The shared `AccordionCard` defaults to `Spacing.xs` (5dp), which matches Terms (`FigmaTermsConditionsViewController.swift`) and Privacy (`FigmaPrivacyPolicyViewController.swift`). Swift FAQ is different: `FigmaFAQViewController.swift` constrains `questionLabel.trailingAnchor` to the chevron with `-DesignTokens.Spacing.sm` (10pt). Figma FAQ node `40001387:8896` shows the visual accordion card and text tokens, but Swift is the implementation source for the conflicting exact gap.
 
-**Fix:** Add a `titleEndGap: Dp = Spacing.xs` parameter to AccordionCard and pass Spacing.sm from FaqScreen.kt:51 (keep the default for Terms/Privacy).
+**Fix:** Done and verified. `AccordionCard` keeps its 5dp default for Terms/Privacy, and `FaqScreen` passes `Spacing.sm`. `LegalContentParityTest` measures the default Legal gap at 5dp and the real `FaqScreen` `faq-1` gap at 10dp.
 
 ---

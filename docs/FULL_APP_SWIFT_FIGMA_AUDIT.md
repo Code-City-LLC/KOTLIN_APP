@@ -241,6 +241,30 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/invite_friend_icon/figma_referral_40001940_26885.png`,
     `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_light.png`,
     `/tmp/kotlin_ui_proof/invite_friend_icon/android_invite_friend_contacts_icon_dark.png`
+- Android checks run for the Legal/FAQ Swift/Figma pass:
+  - Figma MCP design context/screenshots checked for Terms node
+    `40001383:9894`, Privacy node `40001387:9042`, and FAQ node
+    `40001387:8896`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaTermsConditionsViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPrivacyPolicyViewController.swift`,
+    and `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaFAQViewController.swift`.
+  - Swift precedence documented: live CMS legal headings are recolored by parsed
+    font size (`pointSize > 15`) to `textDarkTitle`, body runs are
+    `textDescription`, and FAQ uses a 10pt question-to-chevron gap while
+    Terms/Privacy keep the 5pt default.
+  - Android already had the production Legal/FAQ behavior; this pass made the
+    gap explicit/testable and added targeted proof without duplicating UI.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `LegalContentParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 6 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.more2.LegalContentParityTest ...`:
+    `OK (6 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_light.png`,
+    `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_dark.png`
 
 ## Latest Device/Figma Findings
 
@@ -384,6 +408,14 @@ assets; only repair the parts that are visibly or functionally wrong.
   `@color/icon_duotone` follows resource-night while `ThemeController` controls
   the app theme. Android now selects the existing white-handset dark vector when
   `colors.isDark` is true.
+- Legal live CMS content now has Swift-precedence proof: Android strips frozen
+  CMS colors, recolors parsed heading spans to `textDarkTitle`, leaves body text
+  on `textDescription`, and keeps orange links through `setLinkTextColor`.
+  Light/dark screenshots confirm headings remain readable instead of washing out
+  into body gray.
+- FAQ now has Swift gap proof. `AccordionCard` keeps the 5dp default used by
+  Terms/Privacy, and `FaqScreen` passes the Swift-specific `Spacing.sm` 10dp
+  question-to-chevron gap.
 
 ## Reopened Defects From User Review
 
@@ -507,8 +539,9 @@ Findings to verify/fix:
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
 - Codex/MagentaCastle is working through More/Legal/Profile. Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
-  avatar/DOB, Preferences select fields, and Invite Friend contacts icon now have
-  Figma MCP + Swift comparison and targeted device-test proof; the rest of the
+  avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
+  CMS heading colors, and FAQ accordion gap now have Figma MCP + Swift
+  comparison and targeted device-test proof; the rest of the
   More/Legal/Profile lane remains open until each screen has the same evidence.
 - Other agents are now touching Shop files; Codex must not edit Shop unless the
   room hands that slice over.
@@ -525,5 +558,5 @@ For each page, fill this before claiming completion:
 | Shipments hub | `feature/shipments/ShipmentsScreen.kt` | `FigmaShipmentsViewController.swift` | `40000823:9633` | summary/packages/payments/orders | no | yes | no | unassigned | reopened; dark proof captured |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972` | `/aircoins/status`, history | no | yes | partial | unassigned | reopened; geometry wrong |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, and Invite Friend contacts icon verified; remaining More/Legal/Profile screens still open |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc. | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, and FAQ gap verified; Notification Settings remains open |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
