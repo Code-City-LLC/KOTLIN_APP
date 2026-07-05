@@ -77,22 +77,16 @@ fun BackgroundImagesScreen(
                     style = AirdropType.body2,
                     color = colors.textDescription,
                 )
-                // Swift: 2-column grid of 220pt portrait tiles.
-                BackgroundStore.choices.chunked(2).forEach { rowChoices ->
-                    androidx.compose.foundation.layout.Row(
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm1),
-                    ) {
-                        rowChoices.forEach { choice ->
-                            BackgroundTile(
-                                choice = choice,
-                                isDark = colors.isDark,
-                                selected = choice.id == selectedId,
-                                onClick = { selectedId = choice.id },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        if (rowChoices.size == 1) Spacer(Modifier.weight(1f))
-                    }
+                // Figma 40006644: single-column list of full-width 150dp
+                // landscape tiles (radius 15), 20dp gap (Column spacedBy).
+                BackgroundStore.choices.forEach { choice ->
+                    BackgroundTile(
+                        choice = choice,
+                        isDark = colors.isDark,
+                        selected = choice.id == selectedId,
+                        onClick = { selectedId = choice.id },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 Spacer(Modifier.height(Spacing.sm))
             }
@@ -128,17 +122,10 @@ private fun BackgroundTile(
     val colors = AirdropTheme.colors
     Box(
         modifier = modifier
-            // Swift: 220pt-tall portrait grid tiles.
-            .height(220.dp)
+            // Figma 40006644: 150dp landscape tile, radius 15, image object-cover.
+            .height(150.dp)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray300)
-            .then(
-                if (selected) {
-                    Modifier.border(2.dp, BrandPalette.OrangeMain, RoundedCornerShape(Radius.s))
-                } else {
-                    Modifier
-                },
-            )
             .clickable(onClick = onClick),
     ) {
         Image(
@@ -148,10 +135,11 @@ private fun BackgroundTile(
             modifier = Modifier.fillMaxSize(),
         )
         when {
+            // Figma: 30dp selection glyph, 20dp inset (top-left).
             selected -> Box(
                 modifier = Modifier
-                    .padding(Spacing.sm)
-                    .size(36.dp)
+                    .padding(Spacing.md)
+                    .size(30.dp)
                     .background(BrandPalette.OrangeMain, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
@@ -159,27 +147,29 @@ private fun BackgroundTile(
                     painter = painterResource(R.drawable.ic_check),
                     contentDescription = "Selected",
                     colorFilter = ColorFilter.tint(BrandPalette.White),
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
+            // Figma: orange "Default Image" pill — 28dp, radius 50, px15,
+            // Cairo Regular 14 (body2) white.
             choice.isDefault -> Box(
                 modifier = Modifier
-                    .padding(Spacing.sm)
+                    .padding(Spacing.md)
                     .height(28.dp)
-                    .background(BrandPalette.OrangeMain, RoundedCornerShape(Radius.xs))
-                    .padding(horizontal = 12.dp),
+                    .background(BrandPalette.OrangeMain, RoundedCornerShape(50.dp))
+                    .padding(horizontal = 15.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "Default Image",
-                    style = AirdropType.subtitle3,
+                    style = AirdropType.body2,
                     color = BrandPalette.White,
                 )
             }
             else -> Box(
                 modifier = Modifier
-                    .padding(Spacing.sm)
-                    .size(36.dp)
+                    .padding(Spacing.md)
+                    .size(30.dp)
                     .background(Color.White.copy(alpha = 0.9f), CircleShape)
                     .border(2.dp, AirdropTheme.colors.iconShape, CircleShape),
             )
