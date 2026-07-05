@@ -108,6 +108,8 @@ fun PackagesScreen(
             onBack = onBack,
             rightIconRes = R.drawable.ic_shipments_more_square,
             onRightClick = viewModel::openFilterSheet,
+            rightIconContentDescription = "Filter",
+            rightIconTestTag = "packages-filter-button",
             modifier = Modifier.align(Alignment.TopCenter),
         )
 

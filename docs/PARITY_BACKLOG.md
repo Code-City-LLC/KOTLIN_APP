@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **36 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **37 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -294,6 +294,24 @@ light AND dark.
   callbacks. Proof:
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_light.png`,
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_dark.png`.
+- **Packages filter live flow + dark status icons:** Packages node
+  `40001666:42198` and Packages filter node `40006358:75618` were refreshed
+  through Figma MCP, then compared against Swift
+  `FigmaPackagesViewController.swift` and
+  `FigmaPackagesFilterViewController.swift`. Swift takes precedence for the
+  runtime rails: the top-right filter affordance opens the sheet, status taps
+  reload packages with a server-backed status value, shipment-method taps stay
+  client-side, and close dismisses with the filtered list visible. Android now
+  exposes the existing header affordance as `Filter`, proves the status/method
+  rail split in `PackagesFilterFlowParityTest`, and fixes the app-dark status
+  glyph bug by selecting explicit dark status vectors from `colors.isDark`
+  instead of relying on resource-night `@color/icon_duotone`. Proof:
+  `/tmp/kotlin_ui_proof/packages_filter_flow/figma/packages_40001666_42198.png`,
+  `/tmp/kotlin_ui_proof/packages_filter_flow/figma/packages_filter_40006358_75618.png`,
+  `/tmp/kotlin_ui_proof/packages_filter_flow/android/run_1783277832945/packages_filter_flow_swift_light.png`,
+  `/tmp/kotlin_ui_proof/packages_filter_flow/android/run_1783277832945/packages_filter_flow_swift_dark.png`,
+  `/tmp/kotlin_ui_proof/packages_filter_flow/android/run_1783277832945/packages_filter_flow_filtered_light.png`,
+  `/tmp/kotlin_ui_proof/packages_filter_flow/android/run_1783277832945/packages_filter_flow_filtered_dark.png`.
 - **Payments/Orders Swift/Figma follow-up:** Payments node `40001753:18909`
   and Orders node `40001753:19595` were refreshed through Figma MCP, then
   compared against Swift
@@ -390,7 +408,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, and Shipments hub summary icon/geometry slices are closed by Swift-precedence proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
@@ -490,6 +508,17 @@ Figma still shows the saved-card chooser and `Add New Card`; Android must keep
 Swift's informational empty-state card and `Go to Checkout` Cart row until Swift
 changes. `PaymentMethodsParityTest` verifies light/dark geometry, rejects the
 stale Figma chooser copy, and proves the Cart route.
+
+**✅ CLOSED — Packages filter live flow / dark status-icon follow-up:** Swift
+`FigmaPackagesViewController.swift` and `FigmaPackagesFilterViewController.swift`
+win for runtime behavior, while Figma nodes `40001666:42198` and
+`40006358:75618` provide the visual contract. Android now proves the top-right
+filter button opens the sheet, status taps reload packages with the server-side
+status parameter, shipment-method taps remain client-side, and close leaves the
+filtered list visible. Status row glyphs now select explicit app-dark vectors
+from `AirdropTheme.colors.isDark`, so resource-night cannot make app-dark icons
+black-on-dark again. `PackagesFilterFlowParityTest` verifies light/dark sheet
+and filtered-list screenshots.
 
 **✅ CLOSED — Authorized Users refresh/list follow-up:** Swift
 `FigmaAuthorizedUsersViewController.swift` wins for runtime behavior, while

@@ -120,24 +120,24 @@ object ShipmentStatusCatalog {
     )
 
     /** Per-status Figma glyph (FigmaPackagesFilterViewController.statusIcon). */
-    fun iconRes(statusId: Int): Int = when (statusId) {
-        1 -> R.drawable.ic_shipments_status_drop_alerted
-        2 -> R.drawable.ic_shipments_status_shipment_received
-        3 -> R.drawable.ic_shipments_status_port_departure_mia
-        4 -> R.drawable.ic_shipments_status_arrived_port_jam
-        5 -> R.drawable.ic_shipments_status_released_customs
-        6 -> R.drawable.ic_shipments_status_processing_warehouse
-        7 -> R.drawable.ic_shipments_status_ready_for_pickup
-        8 -> R.drawable.ic_shipments_status_delivered
-        9 -> R.drawable.ic_shipments_status_processing_customs
-        10 -> R.drawable.ic_shipments_status_detained_customs
-        12 -> R.drawable.ic_shipments_status_in_transit_counter
-        14 -> R.drawable.ic_shipments_status_delivered
-        15 -> R.drawable.ic_shipments_status_detained_customs
-        16 -> R.drawable.ic_shipments_status_dangerous_goods
-        17 -> R.drawable.ic_shipments_status_auction
-        18 -> R.drawable.ic_shipments_status_paid_ready_pickup
-        19 -> R.drawable.ic_shipments_status_returned_merchant
+    fun iconRes(statusId: Int, dark: Boolean = false): Int = when (statusId) {
+        1 -> if (dark) R.drawable.ic_shipments_status_drop_alerted_dark else R.drawable.ic_shipments_status_drop_alerted
+        2 -> if (dark) R.drawable.ic_shipments_status_shipment_received_dark else R.drawable.ic_shipments_status_shipment_received
+        3 -> if (dark) R.drawable.ic_shipments_status_port_departure_mia_dark else R.drawable.ic_shipments_status_port_departure_mia
+        4 -> if (dark) R.drawable.ic_shipments_status_arrived_port_jam_dark else R.drawable.ic_shipments_status_arrived_port_jam
+        5 -> if (dark) R.drawable.ic_shipments_status_released_customs_dark else R.drawable.ic_shipments_status_released_customs
+        6 -> if (dark) R.drawable.ic_shipments_status_processing_warehouse_dark else R.drawable.ic_shipments_status_processing_warehouse
+        7 -> if (dark) R.drawable.ic_shipments_status_ready_for_pickup_dark else R.drawable.ic_shipments_status_ready_for_pickup
+        8 -> if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
+        9 -> if (dark) R.drawable.ic_shipments_status_processing_customs_dark else R.drawable.ic_shipments_status_processing_customs
+        10 -> if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
+        12 -> if (dark) R.drawable.ic_shipments_status_in_transit_counter_dark else R.drawable.ic_shipments_status_in_transit_counter
+        14 -> if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
+        15 -> if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
+        16 -> if (dark) R.drawable.ic_shipments_status_dangerous_goods_dark else R.drawable.ic_shipments_status_dangerous_goods
+        17 -> if (dark) R.drawable.ic_shipments_status_auction_dark else R.drawable.ic_shipments_status_auction
+        18 -> if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup
+        19 -> if (dark) R.drawable.ic_shipments_status_returned_merchant_dark else R.drawable.ic_shipments_status_returned_merchant
         else -> R.drawable.ic_packages
     }
 

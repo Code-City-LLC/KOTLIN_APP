@@ -298,7 +298,7 @@ private fun StatusRow(
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             Image(
-                painter = painterResource(ShipmentStatusCatalog.iconRes(status.id)),
+                painter = painterResource(ShipmentStatusCatalog.iconRes(status.id, dark = colors.isDark)),
                 contentDescription = null,
                 modifier = Modifier
                     .size(24.dp)
