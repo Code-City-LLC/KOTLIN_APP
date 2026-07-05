@@ -8,6 +8,7 @@ import com.ga.airdrop.data.model.AuthorizedUserRequest
 import com.ga.airdrop.data.model.AuthorizedUsers
 import com.ga.airdrop.data.model.AuthorizedUsersEnvelope
 import com.ga.airdrop.data.model.CmsContentResponse
+import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
 import com.ga.airdrop.data.model.EmptyRequest
@@ -75,7 +76,7 @@ interface More2Api {
     suspend fun referFriend(@Body body: ReferFriendRequest): MutationResponse
 
     @GET("user/profile")
-    suspend fun profile(): DataEnvelope<AirdropUser>
+    suspend fun profile(): CurrentUserResponse
 
     // ── Content / info ──
     @GET("promotional-banners")
@@ -145,7 +146,7 @@ class More2Repository(
         apiCall { api.referFriend(request) }
 
     suspend fun profile(): Result<AirdropUser> =
-        apiCall { api.profile().data ?: error("No profile returned") }
+        apiCall { api.profile().user ?: error("No profile returned") }
 
     suspend fun promotionalBanners(activeOnly: Boolean = true): Result<List<PromotionalBanner>> =
         apiCall {

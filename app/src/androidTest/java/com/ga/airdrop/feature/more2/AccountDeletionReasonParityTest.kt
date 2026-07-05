@@ -19,6 +19,7 @@ import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuthorizedUserEnvelope
 import com.ga.airdrop.data.model.AuthorizedUserRequest
 import com.ga.airdrop.data.model.AuthorizedUsersEnvelope
+import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
 import com.ga.airdrop.data.model.EmptyRequest
@@ -241,7 +242,7 @@ class AccountDeletionReasonParityTest {
         override suspend fun referFriend(body: ReferFriendRequest): MutationResponse =
             throw AssertionError("Unused in AccountDeletionReasonParityTest")
 
-        override suspend fun profile(): DataEnvelope<AirdropUser> =
+        override suspend fun profile(): CurrentUserResponse =
             throw AssertionError("Unused in AccountDeletionReasonParityTest")
 
         override suspend fun promotionalBanners(): Paginated<PromotionalBanner> =

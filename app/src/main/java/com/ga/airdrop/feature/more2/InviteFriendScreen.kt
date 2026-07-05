@@ -57,6 +57,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 @Composable
 fun InviteFriendScreen(
     onBack: () -> Unit,
+    onSaved: () -> Unit = onBack,
     viewModel: InviteFriendViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
@@ -230,7 +231,7 @@ fun InviteFriendScreen(
         More2Alert(
             title = "Invitation Sent",
             message = message,
-            onDismiss = onBack,
+            onDismiss = onSaved,
         )
     }
     state.validationError?.let { message ->

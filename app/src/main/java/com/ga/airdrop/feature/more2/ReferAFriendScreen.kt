@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -58,15 +59,24 @@ import kotlinx.coroutines.delay
 fun ReferAFriendScreen(
     onBack: () -> Unit,
     onInviteFriend: () -> Unit,
+    refreshAfterInvite: Boolean = false,
+    onRefreshAfterInviteConsumed: () -> Unit = {},
     viewModel: ReferAFriendViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val clipboard = LocalClipboardManager.current
     var showCopiedToast by remember { mutableStateOf(false) }
+    var hasLoadedReferrals by remember { mutableStateOf(false) }
 
-    // Swift reloads the referred list on every viewWillAppear.
-    LaunchedEffect(Unit) { viewModel.loadReferredFriends() }
+    // Swift reloads the referred list on viewWillAppear and after Invite completion.
+    LaunchedEffect(refreshAfterInvite) {
+        if (refreshAfterInvite || !hasLoadedReferrals) {
+            viewModel.loadReferredFriends()
+            hasLoadedReferrals = true
+        }
+        if (refreshAfterInvite) onRefreshAfterInviteConsumed()
+    }
 
     if (showCopiedToast) {
         LaunchedEffect(showCopiedToast) {
@@ -127,6 +137,7 @@ fun ReferAFriendScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
+                        .testTag("refer-invite-button")
                         .clip(RoundedCornerShape(Radius.xs))
                         .background(BrandPalette.OrangeMain)
                         .clickable(onClick = onInviteFriend),
@@ -169,9 +180,12 @@ fun ReferAFriendScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 28.dp)
+                    .width(160.dp)
+                    .height(40.dp)
+                    .testTag("refer-link-copied-toast")
                     .clip(RoundedCornerShape(Radius.xs))
-                    .background(colors.textDarkTitle.copy(alpha = 0.92f))
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                    .background(colors.textDarkTitle.copy(alpha = 0.92f)),
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "Link copied",
@@ -189,6 +203,7 @@ private data class HeroCard(
     val body: String,
     val tint: Color,
     val textColor: Color,
+    val tag: String,
 )
 
 @Composable
@@ -201,6 +216,7 @@ private fun HeroCarousel() {
             body = "Tap “Invite”, enter your friend’s email — it’s that simple.",
             tint = AlertPalette.Middle.OnHold,
             textColor = AlertPalette.OnHold,
+            tag = "invite",
         ),
         HeroCard(
             imageRes = R.drawable.img_more2_refer_cash,
@@ -208,6 +224,7 @@ private fun HeroCarousel() {
             body = "The more you share, the more you save.",
             tint = AlertPalette.Middle.Completed,
             textColor = AlertPalette.Completed,
+            tag = "reward",
         ),
         HeroCard(
             imageRes = R.drawable.img_more2_refer_cap,
@@ -215,6 +232,7 @@ private fun HeroCarousel() {
             body = "Share the gift of world-class service and get rewarded for it.",
             tint = AlertPalette.Middle.Pending,
             textColor = AlertPalette.Pending,
+            tag = "earn",
         ),
     )
     // Swift FigmaReferAFriendViewController.swift:207-300 — 238x220 cards
@@ -225,6 +243,7 @@ private fun HeroCarousel() {
         modifier = Modifier
             .fillMaxWidth()
             .height(220.dp)
+            .testTag("refer-hero-carousel")
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
@@ -233,6 +252,7 @@ private fun HeroCarousel() {
                 modifier = Modifier
                     .width(238.dp)
                     .fillMaxSize()
+                    .testTag("refer-hero-card-${card.tag}")
                     .clip(RoundedCornerShape(Radius.s))
                     .background(card.tint.copy(alpha = 0.18f))
                     .border(1.dp, card.tint, RoundedCornerShape(Radius.s))
@@ -268,7 +288,7 @@ private fun HeroCarousel() {
 @Composable
 private fun ReferralLinkCard(link: String, onCopy: () -> Unit) {
     val colors = AirdropTheme.colors
-    More2OuterCard {
+    More2OuterCard(Modifier.testTag("refer-referral-link-card")) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Text(
                 text = "Your Referral Link",
@@ -278,12 +298,14 @@ private fun ReferralLinkCard(link: String, onCopy: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = link,
+                    text = link.middleEllipsize(),
                     style = AirdropType.subtitle1,
                     color = colors.textDarkTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("refer-referral-link-text"),
                 )
                 Spacer(Modifier.width(12.dp))
                 Box(
@@ -300,6 +322,13 @@ private fun ReferralLinkCard(link: String, onCopy: () -> Unit) {
             }
         }
     }
+}
+
+private fun String.middleEllipsize(maxChars: Int = 44): String {
+    if (length <= maxChars) return this
+    val head = ((maxChars - 1) * 0.62f).toInt()
+    val tail = maxChars - 1 - head
+    return take(head) + "…" + takeLast(tail)
 }
 
 @Composable

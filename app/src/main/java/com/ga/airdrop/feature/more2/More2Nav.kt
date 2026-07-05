@@ -1,5 +1,7 @@
 package com.ga.airdrop.feature.more2
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -65,14 +67,29 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
     }
 
     composable(Routes.REFER_A_FRIEND) {
+        val refreshAfterInvite by it.savedStateHandle
+            .getStateFlow(REFER_INVITE_REFRESH_KEY, false)
+            .collectAsState()
         ReferAFriendScreen(
             onBack = { navController.popBackStack() },
             onInviteFriend = { navController.navigate(Routes.INVITE_FRIEND) },
+            refreshAfterInvite = refreshAfterInvite,
+            onRefreshAfterInviteConsumed = {
+                it.savedStateHandle[REFER_INVITE_REFRESH_KEY] = false
+            },
         )
     }
 
     composable(Routes.INVITE_FRIEND) {
-        InviteFriendScreen(onBack = { navController.popBackStack() })
+        InviteFriendScreen(
+            onBack = { navController.popBackStack() },
+            onSaved = {
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set(REFER_INVITE_REFRESH_KEY, true)
+                navController.popBackStack()
+            },
+        )
     }
 
     composable(Routes.PROMOTIONS) {
@@ -123,3 +140,5 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         )
     }
 }
+
+private const val REFER_INVITE_REFRESH_KEY = "refer_friend_invite_saved"

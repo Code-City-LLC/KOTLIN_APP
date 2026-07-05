@@ -3,6 +3,7 @@ package com.ga.airdrop.data
 import com.ga.airdrop.data.api.AirdropJson
 import com.ga.airdrop.data.model.AirCoinsStatus
 import com.ga.airdrop.data.model.AirdropUser
+import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.LoginResponse
 import com.ga.airdrop.data.model.Package
 import com.ga.airdrop.data.model.Paginated
@@ -52,6 +53,17 @@ class FlexibleDecodingTest {
         val user = AirdropJson.decodeFromString(AirdropUser.serializer(), json)
         assertEquals("Kemar", user.firstName)
         assertEquals("Gold Priority", user.customerTierName)
+    }
+
+    @Test
+    fun `current user response unwraps nested data user for referral link`() {
+        val response = AirdropJson.decodeFromString(
+            CurrentUserResponse.serializer(),
+            """{"data":{"user":{"account_number":"GA-4242","first_name":"Kemar"}}}""",
+        )
+
+        assertEquals("GA-4242", response.user?.accountNumber)
+        assertEquals("Kemar", response.user?.firstName)
     }
 
     @Test
