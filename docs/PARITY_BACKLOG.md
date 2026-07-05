@@ -175,9 +175,9 @@ light AND dark.
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_light.png`,
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_dark.png`.
 
-**🔲 OPEN — BlueDeer (Shipments detail), priority order:** §9/§18 GoldPriority · remaining PackageDetails/Payments/Orders follow-ups not explicitly closed below.
+**🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining PackageDetails/Payments/Orders follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, and PackagesFilterSheet Swift/Figma slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, and PackagesFilterSheet Swift/Figma slices are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -241,21 +241,21 @@ app-dark `ThemeController` mode and adds pixel-level light/dark icon proof.
 
 ---
 
-## [MEDIUM] GoldPriority / Customer Tier
+## [CLOSED] GoldPriority / Customer Tier
 `app/src/main/java/com/ga/airdrop/feature/homedetails/GoldPriorityScreen.kt:258` — Tier name has no auto-shrink — 'Platinum Priority' at fixed 28sp Cairo Bold clips on narrow screens; Swift shrinks the font to fit.
 
 **Detail:** Swift nameLabel (FigmaGoldPriorityViewController.swift:477-481) sets adjustsFontSizeToFitWidth = true with minimumScaleFactor 0.7 and low compression resistance, so long tier names ('Platinum Priority', 'Diamond Elite') scale down rather than truncate. Kotlin (GoldPriorityScreen.kt:258-263) renders Text at a fixed 28.sp with maxLines = 1 and no overflow handling — on compact-width devices (~360dp, minus 2×30dp padding, 70dp badge, 12dp gap ≈ 208dp available) the name hard-clips mid-glyph.
 
-**Fix:** Use auto-sizing text: BasicText with autoSize = TextAutoSize.StepBased(minFontSize = 20.sp, maxFontSize = 28.sp) (Compose 1.8+), or an onTextLayout-driven font-size reduction loop clamped at 0.7 × 28sp, matching Swift's minimumScaleFactor.
+**Fix:** Verified closed. Swift `FigmaGoldPriorityViewController.swift` remains the source of truth where Figma differs; Android now measures the tier name into the remaining badge-row width and selects the largest 28sp→20sp size that avoids visual overflow, matching Swift's 0.7 minimum scale behavior. `GoldPriorityParityTest` verifies `Platinum Priority` at 360dp in light and dark, with 64dp badge geometry and 12dp badge/name spacing. Proof: `/tmp/kotlin_ui_proof/gold_priority/android_gold_priority_platinum_swift_light_360.png`, `/tmp/kotlin_ui_proof/gold_priority/android_gold_priority_platinum_swift_dark_360.png`.
 
 ---
 
-## [MEDIUM] GoldPriority / Customer Tier
+## [CLOSED] GoldPriority / Customer Tier
 `app/src/main/java/com/ga/airdrop/feature/homedetails/GoldPriorityScreen.kt:164` — Status bar icons are not forced light — in light theme the system clock/icons render dark on the 35%-black header overlay (near-invisible on Diamond/Corporate tiers).
 
 **Detail:** Swift overrides preferredStatusBarStyle to .lightContent (FigmaGoldPriorityViewController.swift:34) because the tier gradient plus the black-0.35 overlay behind the status bar is dark on every tier. The Kotlin app only calls enableEdgeToEdge() in MainActivity (MainActivity.kt:16), which picks status-bar icon color from the app theme — in light mode GoldPriorityScreen gets dark icons over the dark translucent header (Diamond top #6B6B6B and Corporate #6C46C5 + 35% black make them unreadable). No screen-level status-bar handling exists anywhere in the module (no isAppearanceLightStatusBars usage).
 
-**Fix:** In GoldPriorityScreen add a DisposableEffect that grabs WindowCompat.getInsetsController(window, view), stores the current isAppearanceLightStatusBars, sets it to false while the screen is composed, and restores the previous value on dispose (view = LocalView.current, window = (view.context as Activity).window).
+**Fix:** Verified closed. `GoldPriorityContent` now applies a screen-scoped `WindowCompat` status-bar effect, forces `isAppearanceLightStatusBars = false` while composed, unwraps `ContextWrapper` activity contexts, and restores the previous value on dispose. `GoldPriorityParityTest.goldPriorityForcesSwiftLightStatusBarIcons` sets the activity to light status icons first, verifies the screen flips them to light-content behavior, then removes the composable and verifies restoration.
 
 ---
 

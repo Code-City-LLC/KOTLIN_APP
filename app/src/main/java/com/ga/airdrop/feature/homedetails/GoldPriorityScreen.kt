@@ -1,8 +1,12 @@
 package com.ga.airdrop.feature.homedetails
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,9 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,14 +37,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
@@ -172,27 +181,25 @@ fun GoldPriorityScreen(
     viewModel: GoldPriorityViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
-    val pagerState = rememberPagerState(initialPage = defaultTierIndex) { tierPages.size }
 
-    val view = androidx.compose.ui.platform.LocalView.current
-    val context = androidx.compose.ui.platform.LocalContext.current
-    DisposableEffect(view) {
-        val window = (context as? android.app.Activity)?.window
-        if (window != null) {
-            val controller = WindowCompat.getInsetsController(window, view)
-            val previousIsAppearanceLightStatusBars = controller.isAppearanceLightStatusBars
-            controller.isAppearanceLightStatusBars = false
-            onDispose {
-                controller.isAppearanceLightStatusBars = previousIsAppearanceLightStatusBars
-            }
-        } else {
-            onDispose {}
-        }
-    }
+    GoldPriorityContent(
+        onBack = onBack,
+        resolvedTierIndex = state.resolvedTierIndex,
+    )
+}
+
+@Composable
+internal fun GoldPriorityContent(
+    onBack: () -> Unit,
+    resolvedTierIndex: Int? = null,
+    initialPage: Int = defaultTierIndex,
+) {
+    ForceLightStatusBarIcons()
+    val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(tierPages.indices)) { tierPages.size }
 
     // Pre-scroll once the user's tier resolves (Swift scrollToItem).
-    LaunchedEffect(state.resolvedTierIndex) {
-        state.resolvedTierIndex?.let { pagerState.scrollToPage(it) }
+    LaunchedEffect(resolvedTierIndex) {
+        resolvedTierIndex?.let { pagerState.scrollToPage(it) }
     }
 
     val activeTier = tierPages[pagerState.currentPage]
@@ -202,6 +209,7 @@ fun GoldPriorityScreen(
     Box(
         Modifier
             .fillMaxSize()
+            .testTag("gold-priority-root")
             .background(
                 // Swift CAGradientLayer startPoint (1,0) → endPoint (0,1).
                 Brush.linearGradient(
@@ -229,6 +237,31 @@ fun GoldPriorityScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ForceLightStatusBarIcons() {
+    val view = LocalView.current
+    val context = LocalContext.current
+    DisposableEffect(view, context) {
+        val window = context.findActivity()?.window
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, view)
+            val previousIsAppearanceLightStatusBars = controller.isAppearanceLightStatusBars
+            controller.isAppearanceLightStatusBars = false
+            onDispose {
+                controller.isAppearanceLightStatusBars = previousIsAppearanceLightStatusBars
+            }
+        } else {
+            onDispose {}
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 // ─── Swipe indicator strip ─────────────────────────────────────────────────
@@ -269,26 +302,24 @@ private fun TierPageContent(tier: TierPage) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("gold-priority-title-row"),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_homedet_tier_badge),
                 contentDescription = null,
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier
+                    .size(64.dp)
+                    .testTag("gold-priority-tier-badge"),
             )
-            var fontSize by remember(tier.name) { mutableStateOf(28.sp) }
-            Text(
-                text = tier.name,
-                style = AirdropType.h5.copy(fontSize = fontSize, lineHeight = (fontSize.value * 1.5).sp),
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Clip,
-                onTextLayout = { textLayoutResult ->
-                    if (textLayoutResult.hasVisualOverflow && fontSize.value > 20f) {
-                        fontSize = (fontSize.value - 1f).sp
-                    }
-                }
+            TierNameText(
+                name = tier.name,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .testTag("gold-priority-tier-name"),
             )
         }
         Text(
@@ -312,6 +343,47 @@ private fun TierPageContent(tier: TierPage) {
             }
         }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun TierNameText(
+    name: String,
+    modifier: Modifier = Modifier,
+) {
+    val textMeasurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier = modifier) {
+        val density = LocalDensity.current
+        val maxWidthPx = with(density) { maxWidth.roundToPx() }
+        val fontSize = remember(name, maxWidthPx, textMeasurer) {
+            if (maxWidthPx <= 0) {
+                28.sp
+            } else {
+                (28 downTo 20).firstOrNull { candidate ->
+                    !textMeasurer.measure(
+                        text = AnnotatedString(name),
+                        style = AirdropType.h5.copy(
+                            fontSize = candidate.sp,
+                            lineHeight = (candidate * 1.5f).sp,
+                        ),
+                        overflow = TextOverflow.Clip,
+                        maxLines = 1,
+                        constraints = Constraints(maxWidth = maxWidthPx),
+                    ).hasVisualOverflow
+                }?.sp ?: 20.sp
+            }
+        }
+
+        Text(
+            text = name,
+            style = AirdropType.h5.copy(
+                fontSize = fontSize,
+                lineHeight = (fontSize.value * 1.5f).sp,
+            ),
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+        )
     }
 }
 

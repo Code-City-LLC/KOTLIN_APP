@@ -289,6 +289,26 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`
+- Android checks run for the GoldPriority / Customer Tier Swift-precedence pass:
+  - Figma MCP design context and screenshot checked for Customer Tier node
+    `40001432:23506`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaGoldPriorityViewController.swift`.
+  - Swift/Figma conflict documented: the Figma node shows 32px tier title text,
+    30px content insets, and decorative/status mock layers; Swift uses a 28pt
+    `nameLabel` with 0.7 minimum scale, 24pt page inset, native light-content
+    status bar, and runtime gradient, so Swift wins.
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `GoldPriorityParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 3 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.homedetails.GoldPriorityParityTest ...`:
+    `OK (3 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/gold_priority/figma_gold_priority_customer_tier_40001432_23506.png`,
+    `/tmp/kotlin_ui_proof/gold_priority/android_gold_priority_platinum_swift_light_360.png`,
+    `/tmp/kotlin_ui_proof/gold_priority/android_gold_priority_platinum_swift_dark_360.png`
 - Android checks run for the PaymentPackageDetails Swift/Figma pass:
   - Figma MCP design context checked for node `40001761:29389`; this node is
     the `View History` timeline screen, not the full payment-detail screen.
@@ -695,6 +715,26 @@ Findings to verify/fix:
 - Light and dark screenshots are verified under
   `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/`.
 
+### GoldPriority / Customer Tier
+
+Source files:
+- Android: `feature/homedetails/GoldPriorityScreen.kt`
+- Swift: `FigmaGoldPriorityViewController.swift`
+- Figma: node `40001432:23506`
+
+Findings verified/fixed:
+- Swift is the precedence source for the pager. Figma MCP confirms the intended
+  Customer Tier visual structure, but its generated node differs from Swift on
+  tier-title size, content inset, and decorative/status mock layers; Android
+  follows Swift for those conflicts.
+- Tier names now match Swift's `adjustsFontSizeToFitWidth` behavior by measuring
+  the remaining badge-row width and selecting the largest 28sp-to-20sp font size
+  that avoids single-line overflow. The `Platinum Priority` 360dp regression is
+  locked in light and dark.
+- Status-bar icons now match Swift's `.lightContent` override while the screen
+  is composed, including wrapped activity contexts, and restore the previous
+  setting on dispose.
+
 ### Dark Theme Icons
 
 Source files:
@@ -714,12 +754,13 @@ Findings to verify/fix:
 ## Work Split Notes
 
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
-- Codex/MagentaCastle is working through More/Legal/Profile/AirCoins and narrow
+- Codex/MagentaCastle is working through More/Legal/Profile/AirCoins/HomeDetails and narrow
   Shipments parity slices. Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
   CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
-  balance/history, PaymentPackageDetails footer/timeline/payment-copy,
+  balance/history, GoldPriority tier-name/status-bar,
+  PaymentPackageDetails footer/timeline/payment-copy,
   ProductPaymentDetails/OrderDetails hero/payment-copy geometry, and
   InvoiceViewer surface/share-file behavior, and PackagesFilterSheet geometry
   plus callbacks now have Figma MCP + Swift comparison and targeted device-test
@@ -739,5 +780,6 @@ For each page, fill this before claiming completion:
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages filter `40006358:75618`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | partial | yes | partial | BlueDeer/MagentaCastle | hub reopened; PackagesFilterSheet, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining detail items still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/live chat | no | yes | no | unassigned | reopened; typography/icons wrong |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
+| GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
