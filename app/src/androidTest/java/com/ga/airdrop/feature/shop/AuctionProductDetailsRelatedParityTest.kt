@@ -74,8 +74,28 @@ class AuctionProductDetailsRelatedParityTest {
         )
     }
 
+    @Test
+    fun nullDescriptionUsesSwiftFallbackCopy() {
+        setDetailsContent(
+            featured = false,
+            product = SampleProduct.copy(description = null),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetails()
+
+        compose.onNodeWithText(SwiftDescriptionFallback).performScrollTo().assertIsDisplayed()
+        saveRootScreenshot("auction_description_fallback_swift_light.png")
+        assertTrue(
+            "Product details should not use the old Android-only null-description copy",
+            compose.onAllNodesWithText("No description available.").fetchSemanticsNodes().isEmpty(),
+        )
+    }
+
     private fun setDetailsContent(
         featured: Boolean,
+        product: ShopProduct = SampleProduct,
         related: List<ShopProduct>,
         navigations: MutableList<String>,
     ) {
@@ -90,16 +110,16 @@ class AuctionProductDetailsRelatedParityTest {
                         .height(812.dp)
                         .background(AirdropTheme.colors.gray100)
                 ) {
-                    val repo = remember { FakeShopProductsRepository(related = related) }
+                    val repo = remember { FakeShopProductsRepository(product = product, related = related) }
                     val viewModel = remember(featured) {
                         AuctionProductDetailsViewModel(
-                            slug = SampleProduct.routeSlug,
+                            slug = product.routeSlug,
                             featured = featured,
                             products = repo,
                         )
                     }
                     AuctionProductDetailsScreen(
-                        slug = SampleProduct.routeSlug,
+                        slug = product.routeSlug,
                         featured = featured,
                         onNavigate = { navigations.add(it) },
                         onBack = {},
@@ -117,6 +137,7 @@ class AuctionProductDetailsRelatedParityTest {
     }
 
     private class FakeShopProductsRepository(
+        private val product: ShopProduct,
         private val related: List<ShopProduct>,
     ) : ShopProductsRepository {
         override suspend fun auctionProducts(page: Int, perPage: Int, search: String?): Result<List<ShopProduct>> =
@@ -126,7 +147,7 @@ class AuctionProductDetailsRelatedParityTest {
             Result.success(emptyList())
 
         override suspend fun productBySlug(slug: String, featured: Boolean): Result<ShopProduct> =
-            Result.success(SampleProduct)
+            Result.success(product)
     }
 
     private fun saveRootScreenshot(filename: String) {
@@ -153,6 +174,10 @@ class AuctionProductDetailsRelatedParityTest {
     }
 
     private companion object {
+        const val SwiftDescriptionFallback =
+            "Detailed product description will be loaded from the /products/:id endpoint once authenticated. " +
+                "Includes specifications, dimensions, condition, and seller notes."
+
         val SampleProduct = ShopProduct(
             id = 7001,
             slug = "swift-related-parity-bag",

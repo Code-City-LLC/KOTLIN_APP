@@ -35,6 +35,8 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/figma_auction_product_details_a1768d2.png`
   - Auction product details related-products slice:
     `/tmp/kotlin_ui_proof/auction_related_empty/figma/auction_product_details_40002072_24025.png`
+  - Auction product details description fallback slice:
+    `/tmp/kotlin_ui_proof/product_description_fallback/figma/auction_product_details_40002072_24025.png`
 - Local proof screenshots:
   - `/tmp/kotlin_ui_proof/figma_home_light.png`
   - `/tmp/kotlin_ui_proof/android_home_light_correct.png`
@@ -79,6 +81,17 @@ assets; only repair the parts that are visibly or functionally wrong.
     `OK (2 tests)`
   - proof PNG:
     `/tmp/kotlin_ui_proof/auction_related_empty/android/auction_related_empty_swift_light.png`
+- Android checks run for the Auction detail null-description fallback:
+  - Figma MCP design context and screenshot for product-detail node
+    `40002072:24025` confirmed the Description block style and `See all`
+    affordance.
+  - Swift source checked in
+    `SWIFT_APP/Airdrop/FigmaAuctionProductDetailsViewController.swift:574`:
+    null descriptions use the full `/products/:id` fallback copy.
+  - Targeted `AuctionProductDetailsRelatedParityTest` now verifies Swift's
+    fallback copy and rejects the old `No description available.` Android copy.
+  - proof PNG:
+    `/tmp/kotlin_ui_proof/product_description_fallback/android/auction_description_fallback_swift_light.png`
 - Android checks run for the Home activity-icon dark-mode fix:
   - `git diff --check`
   - `:app:compileStagingDebugKotlin :app:assembleStagingDebug`
@@ -744,6 +757,13 @@ assets; only repair the parts that are visibly or functionally wrong.
   Proof:
   `/tmp/kotlin_ui_proof/auction_related_empty/figma/auction_product_details_40002072_24025.png`,
   `/tmp/kotlin_ui_proof/auction_related_empty/android/auction_related_empty_swift_light.png`.
+- Description fallback is now Swift-first. Figma node `40002072:24025` supplies
+  the Description block visual and static lorem ipsum copy, while Swift defines
+  runtime nil-data behavior. Android now keeps the existing markdown bold-span
+  parsing and uses Swift's full authenticated `/products/:id` fallback instead
+  of `No description available.` Proof:
+  `/tmp/kotlin_ui_proof/product_description_fallback/figma/auction_product_details_40002072_24025.png`,
+  `/tmp/kotlin_ui_proof/product_description_fallback/android/auction_description_fallback_swift_light.png`.
 - This does not close Shop as pixel-perfect: root and detail geometry still need
   the owner/verifier pass against Swift + Figma in light and dark, and the
   add-to-cart/cart path still needs proof.

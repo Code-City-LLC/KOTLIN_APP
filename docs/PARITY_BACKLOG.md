@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **28 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **29 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -26,6 +26,15 @@ light AND dark.
   `ShopSkeletonCard`s when `related` is empty. Proof:
   `/tmp/kotlin_ui_proof/auction_related_empty/figma/auction_product_details_40002072_24025.png`,
   `/tmp/kotlin_ui_proof/auction_related_empty/android/auction_related_empty_swift_light.png`.
+- **Auction Product Details description fallback:** Product detail node
+  `40002072:24025` was checked through Figma MCP context/screenshot for the
+  Description block, and Swift
+  `FigmaAuctionProductDetailsViewController.swift:574` takes precedence for the
+  null-description runtime copy. Android now preserves the existing bold
+  markdown span support and uses Swift's long `/products/:id` fallback instead
+  of `No description available.` Proof:
+  `/tmp/kotlin_ui_proof/product_description_fallback/figma/auction_product_details_40002072_24025.png`,
+  `/tmp/kotlin_ui_proof/product_description_fallback/android/auction_description_fallback_swift_light.png`.
 - **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
 - **Swift-precedence conflict:** Home header must use Swift's opaque `gray200`
   semantic surface even though Figma node `40001464:28926` is translucent.
@@ -698,12 +707,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Product details
-`app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:495` — Description markdown '**bold**' spans are stripped to plain text; Swift renders them as bold Cairo-Bold spans.
+## [CLOSED] Product details — description markdown
+`app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:579` — Description markdown '**bold**' spans were stripped to plain text; Swift renders them as bold Cairo-Bold spans.
 
-**Detail:** cleanDescription does .replace("**", "") (AuctionProductDetailsScreen.kt:489-497). Swift's renderProductDescription parses \*\*(.+?)\*\* and applies Cairo-Bold to the inner text (FigmaAuctionProductDetailsViewController.swift:840-891) — this was an explicit user-flagged fix on iOS.
+**Detail:** Swift's renderProductDescription parses \*\*(.+?)\*\* and applies Cairo-Bold to the inner text (FigmaAuctionProductDetailsViewController.swift:840-891) — this was an explicit user-flagged fix on iOS.
 
-**Fix:** Build an AnnotatedString: split on the same regex and apply SpanStyle(fontWeight = FontWeight.Bold) to matched inner spans instead of deleting the markers.
+**Fix:** Closed in current Android. `descriptionAnnotated` now splits on the same regex and applies `FontWeight.Bold` to matched inner spans instead of deleting the markers.
 
 ---
 
@@ -743,12 +752,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Auction Product Details
-`app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:489` — Description drops **bold** emphasis (markers stripped, no bold span) and null-description fallback copy differs from Swift
+## [CLOSED] Auction Product Details — null-description fallback
+`app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:558` — Description null fallback copy differed from Swift
 
-**Detail:** Swift renderProductDescription (FigmaAuctionProductDetailsViewController.swift:840-891) converts **...** runs to Cairo-Bold spans; Kotlin cleanDescription just removes the asterisks so emphasis is lost. Swift's nil-description fallback is the long 'Detailed product description will be loaded…' sentence (line 574); Kotlin shows 'No description available.'
+**Detail:** Swift's nil-description fallback is the long `Detailed product description will be loaded…` sentence (FigmaAuctionProductDetailsViewController.swift:574). Android already preserved `**...**` bold spans in the current tree, but still showed `No description available.` for null/blank descriptions.
 
-**Fix:** Build an AnnotatedString in cleanDescription: parse \*\*(.+?)\*\* and apply SpanStyle(fontWeight = FontWeight.Bold); align the fallback string with Swift's copy.
+**Fix:** Closed. `cleanDescription` now returns Swift's full fallback copy for null/blank descriptions while preserving the existing annotated bold-span path. `AuctionProductDetailsRelatedParityTest.nullDescriptionUsesSwiftFallbackCopy` verifies the Swift copy and rejects the old Android-only fallback.
 
 ---
 

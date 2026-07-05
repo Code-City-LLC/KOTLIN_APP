@@ -54,6 +54,10 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
 import java.util.Locale
 
+private const val PRODUCT_DESCRIPTION_FALLBACK =
+    "Detailed product description will be loaded from the /products/:id endpoint once authenticated. " +
+        "Includes specifications, dimensions, condition, and seller notes."
+
 /**
  * Auction Product Details — Figma 40002072:24025, behavior from
  * FigmaAuctionProductDetailsViewController. `featured` mode drops the
@@ -552,11 +556,10 @@ private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) {
 /**
  * Strip the simple HTML/markdown the API mixes into descriptions (Swift
  * renderProductDescription): <br>/<p> to newlines, drop other tags and
- * `**bold**` markers.
+ * preserve `**bold**` markers for the attributed builder.
  */
-/** Strips HTML but PRESERVES the `**...**` markers for the annotated builder. */
 private fun cleanDescription(raw: String?): String {
-    if (raw.isNullOrBlank()) return "No description available."
+    if (raw.isNullOrBlank()) return PRODUCT_DESCRIPTION_FALLBACK
     return raw
         .replace(Regex("<br\\s*/?>"), "\n")
         .replace(Regex("</p>"), "\n\n")
