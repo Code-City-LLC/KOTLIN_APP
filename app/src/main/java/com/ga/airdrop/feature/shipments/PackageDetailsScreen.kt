@@ -100,7 +100,8 @@ fun PackageDetailsScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    // Swift FigmaPackageDetailsViewController.swift:72 — page is gray200.
+    Box(Modifier.fillMaxSize().background(colors.gray200)) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -127,7 +128,8 @@ fun PackageDetailsScreen(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                        .background(colors.gray150)
+                        // Swift :110 — rounded body card is gray100 on the gray200 page.
+                        .background(colors.gray100)
                         .padding(top = Spacing.xl),
                 ) {
                     // Method name — H6 centered, divider below.
@@ -259,59 +261,48 @@ private fun PackageDetailsContent(
             .padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        // Summary — Figma 40001761:29193
-        ShipmentsSectionCard(title = "Summary") {
+        // Summary — Swift makeSummaryPanel (:321-398): inline Title2 header +
+        // 14pt chevron INSIDE a plain gray100 card, rows spaced 10, Title2
+        // values, NO banded header, NO dividers.
+        DetailSectionCard(title = "Summary", trailingChevron = true) {
             val method = ShipmentMethodUi.from(detail.shippingMethod)
             val courier = listOfNotNull(
                 detail.shipper?.takeIf { it.isNotBlank() },
                 detail.courierNumber?.takeIf { it.isNotBlank() },
             ).joinToString(" ").ifBlank { "—" }
-            ShipmentsListRow("Drop Number", detail.trackingCode ?: "—")
-            ShipmentsListRow("Shipping Method", detail.shippingMethod ?: method.title)
-            ShipmentsListRow("Merchant/Shipper", detail.store ?: "—")
-            ShipmentsListRow("Courier Tracking", courier)
-            ShipmentsListRow("Description", detail.description?.ifBlank { "—" } ?: "—")
-            ShipmentsListRow(
+            DetailRow("Drop Number", detail.trackingCode ?: "—")
+            DetailRow("Shipping Method", detail.shippingMethod ?: method.title)
+            DetailRow("Merchant/Shipper", detail.store ?: "—")
+            DetailRow("Courier Tracking", courier)
+            DetailRow("Description", detail.description?.ifBlank { "—" } ?: "—")
+            DetailRow(
                 "Weight/Volume",
                 ShipmentsFormat.weight(detail.weightLbs, detail.weightKg, detail.weight),
             )
-            ShipmentsListRow(
-                "Number of Pieces",
-                (detail.numberOfPieces ?: 1).toString(),
-                showDivider = false,
-            )
+            DetailRow("Number of Pieces", (detail.numberOfPieces ?: 1).toString())
         }
 
-        // Shipment Timeline — Metro Step Card
-        ShipmentsSectionCard(title = "Shipment Timeline", showChevron = false) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = Spacing.md, end = Spacing.md, top = Spacing.md, bottom = Spacing.sm),
-            ) {
-                val steps = detail.history.ifEmpty {
-                    listOf(
-                        PackageHistoryItem(
-                            status = detail.status?.toIntOrNull(),
-                            statusName = detail.statusName,
-                            changedDate = null,
-                        )
+        // Shipment Timeline — Swift makeTimelineRow (:441-487): 10dp
+        // status-tinted bullet + subtitle1 name in the same color, comment +
+        // date as separate body3 textDescription lines, no connector.
+        DetailSectionCard(title = "Shipment Timeline") {
+            val steps = detail.history.ifEmpty {
+                listOf(
+                    PackageHistoryItem(
+                        status = detail.status?.toIntOrNull(),
+                        statusName = detail.statusName,
+                        changedDate = null,
                     )
-                }
-                steps.forEachIndexed { index, item ->
-                    val statusName = item.statusName ?: "—"
-                    MetroStep(
-                        iconRes = item.status?.let { ShipmentStatusCatalog.iconRes(it) }
-                            ?: ShipmentStatusCatalog.iconResFor(item.statusName),
-                        title = statusName,
-                        titleColor = timelineStatusColor(statusName),
-                        date = listOfNotNull(
-                            item.comment?.takeIf { it.isNotBlank() },
-                            ShipmentsFormat.timelineDate(item.changedDate),
-                        ).joinToString("\n"),
-                        showConnector = index != steps.lastIndex,
-                    )
-                }
+                )
+            }
+            steps.forEach { item ->
+                val statusName = item.statusName ?: "—"
+                TimelineBulletRow(
+                    statusName = statusName,
+                    color = timelineStatusColor(statusName),
+                    comment = item.comment?.takeIf { it.isNotBlank() },
+                    date = ShipmentsFormat.timelineDate(item.changedDate).takeIf { it != "N/A" },
+                )
             }
         }
 
@@ -373,11 +364,28 @@ private fun PackageDetailsContent(
         }
 
         // Breakdown of Charges + Add to Cart — only once Ready for Pickup.
+        // Swift (:834-890) ALWAYS renders the Breakdown card (header +
+        // Subtotal) in this state, then a plain Exchange Rate row and a plain
+        // Total row (orange value) — no orange pill box.
         if (state.readyForPickup) {
-            if (detail.additionalCharges.isNotEmpty() || (state.chargesTotal ?: 0.0) > 0.0) {
-                ChargesCard(state = state, detail = detail)
+            ChargesCard(state = state, detail = detail)
+            val rate = state.effectiveRate
+            DetailRow(
+                "Exchange Rate",
+                "1 USD = ${ShipmentsFormat.money(rate)} JMD",
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = "Total", style = AirdropType.title2, color = colors.textDarkTitle)
+                Text(
+                    text = ShipmentsFormat.usdJmd(state.chargesTotal, rate),
+                    style = AirdropType.title2,
+                    color = BrandPalette.OrangeMain,
+                )
             }
-            TotalChargesBox(value = ShipmentsFormat.usdJmd(state.chargesTotal, state.effectiveRate))
             GradientButton(text = "Add to Cart", onClick = onAddToCart)
         }
 
@@ -530,11 +538,9 @@ private fun InvoiceFileRow(
 private fun ChargesCard(state: PackageDetailsUiState, detail: ShipmentPackageDetail) {
     val colors = AirdropTheme.colors
     val rate = state.effectiveRate
-    ShipmentsSectionCard(title = "Breakdown of Charges", showChevron = false) {
+    DetailSectionCard(title = "Breakdown of Charges") {
         Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             ChargeRow(
@@ -595,5 +601,90 @@ private fun ChargeRow(
         Text(text = usd, style = AirdropType.body2, color = valueColor)
         Spacer(Modifier.size(Spacing.md))
         Text(text = jmd, style = AirdropType.body2, color = valueColor)
+    }
+}
+
+// ─── Local inline section chrome — Swift makeSectionCard/makeSummaryRow.
+// Plain gray100 card (radius 15, iconShape border, 16dp padding), inline
+// Title2 header + optional 14dp chevron, rows spaced 10, no dividers. This is
+// distinct from the shared ShipmentsSectionCard (banded header) which the
+// filter sheet correctly uses — keep both. ───────────────────────────────
+
+@Composable
+private fun DetailSectionCard(
+    title: String,
+    trailingChevron: Boolean = false,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.s))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title,
+                style = AirdropType.title2,
+                color = colors.textDarkTitle,
+                modifier = Modifier.weight(1f),
+            )
+            if (trailingChevron) {
+                Image(
+                    painter = painterResource(R.drawable.ic_small_arrow_down),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+        content()
+    }
+}
+
+/** Swift makeSummaryRow — label subtitle2 textDescription over Title2 value, no divider. */
+@Composable
+private fun DetailRow(label: String, value: String) {
+    val colors = AirdropTheme.colors
+    Column(Modifier.fillMaxWidth()) {
+        Text(text = label, style = AirdropType.subtitle2, color = colors.textDescription)
+        Text(text = value, style = AirdropType.title2, color = colors.textDarkTitle)
+    }
+}
+
+/** Swift makeTimelineRow — 10dp status-tinted bullet + subtitle1 name (same color),
+ *  optional comment + date as body3 textDescription lines, 12dp row gap. */
+@Composable
+private fun TimelineBulletRow(
+    statusName: String,
+    color: androidx.compose.ui.graphics.Color,
+    comment: String?,
+    date: String?,
+) {
+    val colors = AirdropTheme.colors
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier
+                .padding(top = 8.dp)
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Column(Modifier.weight(1f)) {
+            Text(text = statusName, style = AirdropType.subtitle1, color = color)
+            if (!comment.isNullOrBlank()) {
+                Text(text = comment, style = AirdropType.body3, color = colors.textDescription)
+            }
+            if (!date.isNullOrBlank()) {
+                Text(text = date, style = AirdropType.body3, color = colors.textDescription)
+            }
+        }
     }
 }
