@@ -83,11 +83,21 @@ fun AirdropHeader(
     modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
+    val overImage = style == AirdropHeaderStyle.OverImage
+    // Figma Home header 40001464:28926: dark frosted glass — bg
+    // rgba(41,41,41,0.7) (#292929 @ 70%) + backdrop blur, WHITE title/icons.
+    // Swift FigmaTabHeader.hero = clear base + a BlurView/gray overlay (RN
+    // BlurView parity). Android had Color.Transparent + dark text, so over the
+    // gray-topped hero photo it read as a plain white header. Restore the
+    // dark 70% scrim + white content (Compose has no backdrop-blur; the scrim
+    // is the faithful colour match and guarantees legibility on any bg image).
+    val headerText = if (overImage) Color.White else colors.textDarkTitle
+    val headerIcon = if (overImage) Color.White else colors.iconSelected
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (style == AirdropHeaderStyle.OverImage) Color.Transparent else colors.gray200)
+            .background(if (overImage) Color(0xFF292929).copy(alpha = 0.70f) else colors.gray200)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(
@@ -102,7 +112,7 @@ fun AirdropHeader(
                 Text(
                     text = greeting,
                     style = AirdropType.subtitle2,
-                    color = colors.textDarkTitle,
+                    color = headerText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -132,7 +142,7 @@ fun AirdropHeader(
                 Image(
                     painter = painterResource(R.drawable.ic_header_bell),
                     contentDescription = "Notifications",
-                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                    colorFilter = ColorFilter.tint(headerIcon),
                     modifier = Modifier
                         .size(24.dp)
                         .clickable(onClick = onBellClick),
@@ -141,7 +151,7 @@ fun AirdropHeader(
                     Image(
                         painter = painterResource(R.drawable.ic_header_cart),
                         contentDescription = "Cart",
-                        colorFilter = ColorFilter.tint(colors.iconSelected),
+                        colorFilter = ColorFilter.tint(headerIcon),
                         modifier = Modifier
                             .size(24.dp)
                             .clickable(onClick = onCartClick),
@@ -180,7 +190,7 @@ fun AirdropHeader(
                         Text(
                             text = airCoins,
                             style = AirdropType.subtitle1,
-                            color = colors.textDarkTitle,
+                            color = headerText,
                         )
                         // RN AirCoinButton: Coins.png at 28x24, 4dp gap.
                         Image(
