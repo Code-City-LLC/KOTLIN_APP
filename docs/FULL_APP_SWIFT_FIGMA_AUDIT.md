@@ -33,6 +33,8 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/figma_auction_product_details_light.png`
   - Auction product details refreshed for commit `a1768d2` verification:
     `/tmp/kotlin_ui_proof/figma_auction_product_details_a1768d2.png`
+  - Auction product details related-products slice:
+    `/tmp/kotlin_ui_proof/auction_related_empty/figma/auction_product_details_40002072_24025.png`
 - Local proof screenshots:
   - `/tmp/kotlin_ui_proof/figma_home_light.png`
   - `/tmp/kotlin_ui_proof/android_home_light_correct.png`
@@ -63,6 +65,20 @@ assets; only repair the parts that are visibly or functionally wrong.
 - Android checks run after pushed `HEAD a1768d2`:
   - `:app:compileStagingDebugKotlin :app:assembleStagingDebug`
   - staging debug APK installed on `emulator-5554`
+- Android checks run for the Auction detail related-products empty-state:
+  - Figma MCP screenshot for product-detail node `40002072:24025`.
+  - Swift source checked in
+    `SWIFT_APP/Airdrop/FigmaAuctionProductDetailsViewController.swift`:
+    `mode == .auction` always adds the related header/row, and the row renders
+    two skeleton placeholders until a related endpoint exists.
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - targeted `AuctionProductDetailsRelatedParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 2 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.shop.AuctionProductDetailsRelatedParityTest ...`:
+    `OK (2 tests)`
+  - proof PNG:
+    `/tmp/kotlin_ui_proof/auction_related_empty/android/auction_related_empty_swift_light.png`
 - Android checks run for the Home activity-icon dark-mode fix:
   - `git diff --check`
   - `:app:compileStagingDebugKotlin :app:assembleStagingDebug`
@@ -720,6 +736,14 @@ assets; only repair the parts that are visibly or functionally wrong.
   `GET https://pre-staging.airdropja.com/api/v1/products/elegant-retro-velvet-clutch-bag`
   -> `200` in 317ms. Full filtered log is saved at
   `/tmp/kotlin_ui_proof/logcat_product_detail_a1768d2.filtered.txt`.
+- Related Products empty-state is now Swift-first. Figma node `40002072:24025`
+  shows the section with real related cards, but Swift runtime currently has no
+  related endpoint and renders two placeholders. Android preserves its existing
+  real shortlist path when data is available, and now falls back to two 220dp
+  `ShopSkeletonCard`s instead of hiding the section when `related` is empty.
+  Proof:
+  `/tmp/kotlin_ui_proof/auction_related_empty/figma/auction_product_details_40002072_24025.png`,
+  `/tmp/kotlin_ui_proof/auction_related_empty/android/auction_related_empty_swift_light.png`.
 - This does not close Shop as pixel-perfect: root and detail geometry still need
   the owner/verifier pass against Swift + Figma in light and dark, and the
   add-to-cart/cart path still needs proof.

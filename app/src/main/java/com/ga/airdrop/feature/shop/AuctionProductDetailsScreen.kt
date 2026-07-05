@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
@@ -451,7 +452,7 @@ private fun DetailsContent(
         )
 
         // ─── Related Products (auction mode only) — Swift :237-240, :643-654. ───
-        if (!featured && related.isNotEmpty()) {
+        if (!featured) {
             Spacer(Modifier.height(16.dp))
             ShopSectionHeader(
                 title = "Related Products",
@@ -459,18 +460,34 @@ private fun DetailsContent(
                 onAction = onViewMoreRelated,
             )
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                related.take(2).forEach { item ->
-                    ShopProductCard(
-                        product = item,
-                        inCart = cartIds.contains(item.id),
-                        onClick = { onRelatedClick(item) },
-                        onToggleCart = { onRelatedToggleCart(item) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (related.size == 1) {
-                    Box(Modifier.weight(1f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("auction-related-row"),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                if (related.isEmpty()) {
+                    repeat(2) { index ->
+                        ShopSkeletonCard(
+                            Modifier
+                                .weight(1f)
+                                .height(220.dp)
+                                .testTag("auction-related-skeleton-$index")
+                        )
+                    }
+                } else {
+                    related.take(2).forEach { item ->
+                        ShopProductCard(
+                            product = item,
+                            inCart = cartIds.contains(item.id),
+                            onClick = { onRelatedClick(item) },
+                            onToggleCart = { onRelatedToggleCart(item) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (related.size == 1) {
+                        Box(Modifier.weight(1f))
+                    }
                 }
             }
         }

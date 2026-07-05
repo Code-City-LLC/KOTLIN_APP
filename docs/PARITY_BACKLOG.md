@@ -11,12 +11,21 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **27 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **28 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
 - Payments §81 (download top-right), Payments/Orders §90 (pull-to-refresh) → `6605dd4`
 - Shop root+lists §162 (245dp card + per-context title lines), Shop root §171 (top inset), ShopDropdownField §180/§207 (restyle), Auction Product Details §189 (hero placeholder), Feature Product Details §198 (link-unavailable alert) → `e7357a5`
+- **Auction Product Details related-products empty-state:** Product detail node
+  `40002072:24025` was checked in Figma and Swift
+  `FigmaAuctionProductDetailsViewController.swift` takes precedence for runtime
+  behavior: auction mode always renders `Related Products`, and when no related
+  endpoint/data exists it shows two placeholder cards. Android now keeps the
+  existing real related-card path when data loads and renders two 220dp
+  `ShopSkeletonCard`s when `related` is empty. Proof:
+  `/tmp/kotlin_ui_proof/auction_related_empty/figma/auction_product_details_40002072_24025.png`,
+  `/tmp/kotlin_ui_proof/auction_related_empty/android/auction_related_empty_swift_light.png`.
 - **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
 - **Swift-precedence conflict:** Home header must use Swift's opaque `gray200`
   semantic surface even though Figma node `40001464:28926` is translucent.
@@ -716,12 +725,12 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
-## [LOW] Product details
-`app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:403` — Related Products section disappears entirely when the related fetch fails or returns empty; Swift always renders the section (with two placeholder cards) in auction mode.
+## [CLOSED] Product details — related-products empty-state
+`app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:454` — Related Products section disappeared entirely when the related fetch failed or returned empty; Swift always renders the section (with two placeholder cards) in auction mode.
 
-**Detail:** Kotlin gates on `!featured && related.isNotEmpty()` (AuctionProductDetailsScreen.kt:403); Swift unconditionally adds buildRelatedHeader() + buildRelatedRow() for mode == .auction (FigmaAuctionProductDetailsViewController.swift:238-241), rendering 2 skeleton cards (:653-656). Android's use of real shortlist data is an improvement worth keeping, but the section should not vanish.
+**Detail:** Kotlin gated on `!featured && related.isNotEmpty()`; Swift unconditionally adds buildRelatedHeader() + buildRelatedRow() for mode == .auction (FigmaAuctionProductDetailsViewController.swift:238-241), rendering 2 skeleton cards (:653-656). Android's use of real shortlist data is an improvement worth keeping, but the section must not vanish.
 
-**Fix:** Render the Related Products header + two ShopSkeletonCard placeholders when `related` is empty in auction mode, keeping the real-data path when it loads.
+**Fix:** Closed. Android now renders the Related Products header + two 220dp ShopSkeletonCard placeholders when `related` is empty in auction mode, keeps the real-data path when it loads, keeps featured mode without the section, and verifies `View More` routes to `Routes.AUCTION`.
 
 ---
 
