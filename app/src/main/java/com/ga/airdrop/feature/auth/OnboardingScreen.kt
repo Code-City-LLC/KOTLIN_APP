@@ -420,12 +420,16 @@ private fun LargeThemeToggle(modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .shadow(2.dp, CircleShape)
-                .background(colors.gray100, CircleShape)
+                .background(if (isDark) Color(0xFF4D4D4D) else colors.gray100, CircleShape)
                 .padding(6.5.dp),
             contentAlignment = Alignment.Center,
         ) {
+            // Sun in light, blue moon in dark — must track the theme (same
+            // fix as the header ThemeToggle; a fixed sun was the wrong icon).
             Image(
-                painter = painterResource(R.drawable.ic_toggle_sun),
+                painter = painterResource(
+                    if (isDark) R.drawable.ic_toggle_moon else R.drawable.ic_toggle_sun
+                ),
                 contentDescription = if (isDark) "Switch to light mode" else "Switch to dark mode",
                 modifier = Modifier.size(26.dp),
             )

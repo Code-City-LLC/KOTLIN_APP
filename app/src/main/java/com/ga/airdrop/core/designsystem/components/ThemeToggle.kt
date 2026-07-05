@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
@@ -26,13 +27,21 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 
 /**
  * Figma light/dark pill toggle (node 40003881:68304): 48dp-wide gray200
- * track, white knob with the sun glyph; knob sits right in light mode and
- * left in dark mode per the design frames.
+ * track with a rounded knob. In LIGHT mode the knob sits right, is white
+ * (neutral/0) and carries the orange sun glyph. In DARK mode the knob sits
+ * left, is #4D4D4D (shaps/icon/shaps) and carries the blue crescent moon —
+ * verified pixel-for-pixel against the dark AuthLanding header render
+ * (node 40005296:24400). The glyph must swap with the theme; showing the
+ * sun in dark mode was the reported "wrong login icon" bug.
  */
 @Composable
 fun ThemeToggle(modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     val isDark = colors.isDark
+    // Figma: light knob = neutral/0 white (gray100 resolves to #FFFFFF in
+    // light); dark knob = shaps/icon/shaps #4D4D4D (gray100 dark is #383838,
+    // too dark — pin the exact Figma value).
+    val knobColor = if (isDark) Color(0xFF4D4D4D) else colors.gray100
     Row(
         modifier = modifier
             .width(48.dp)
@@ -53,12 +62,14 @@ fun ThemeToggle(modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .shadow(1.dp, CircleShape)
-                .background(colors.gray100, CircleShape)
+                .background(knobColor, CircleShape)
                 .padding(4.dp),
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_toggle_sun),
+                painter = painterResource(
+                    if (isDark) R.drawable.ic_toggle_moon else R.drawable.ic_toggle_sun
+                ),
                 contentDescription = if (isDark) "Switch to light mode" else "Switch to dark mode",
                 modifier = Modifier.size(16.dp),
             )
