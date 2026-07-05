@@ -1609,6 +1609,15 @@ Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented he
 
 **Swift-source-exact fixes proven (`34e9620`, adversarial audit + verify):** Home header icon spacing (14→20, 16→19dp), tier lineHeight (22→24); PackageDetails hero 262→240dp, CIF row 59→48dp, CIF icon 24→20dp, divider `#D9D9D9`→`gray300 #EBEBEB`; ShipmentsUi package-status always Completed-green (Swift :556), Order value `$`→`USD`, TotalChargesBox radius 15→10, borders→gray300, empty-label body2→body1; ProductPaymentDetails summary titles subtitle1→title2; InvoiceViewer Share button gradient→flat OrangeMain, height 50→52, 5 state labels body2→body1. + `6a21713` §108/§153/§99 (MagentaCastle verifier-accepted on device).
 
-**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620`; §117 InvoiceViewer blocked by HTTP 403; Orders decorative icon (low-confidence). CRITICAL payment bugs remain ON HOLD for Kemar.
+**Remaining OPEN / pending device proof (→ PearlFox):** deep-screen renders for `34e9620`; §117 InvoiceViewer blocked by HTTP 403. CRITICAL payment bugs remain ON HOLD for Kemar.
+
+**Orders decorative icon stale-risk audit (`0ac793a`):** Rechecked Swift
+`FigmaOrdersViewController.swift`, refreshed Figma Orders node
+`40001753:19595`, and reran `PaymentsOrdersParityTest` on
+`airdrop_test2(AVD) - 15` (6/6 passed). Android already renders
+`orders-header-more` as the Swift/Figma decorative accessory without wiring a
+fake action, so the low-confidence open flag is closed as documentation debt.
+Proof:
+`/tmp/kotlin_ui_proof/orders_decorative_icon/figma/figma_orders_40001753_19595.png`.
 
 Health @ origin/main `c085c88`: `assembleStagingDebug` PASS, unit tests 9/0-fail, all BlueDeer commits intact.
