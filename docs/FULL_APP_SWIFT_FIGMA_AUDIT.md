@@ -400,6 +400,33 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`
+- Android checks run for the More root Swift/Figma tap-rail pass:
+  - Figma MCP design context and screenshot checked for More node
+    `40001948:22354`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaSpecificPages.swift`
+    `FigmaMoreViewController`.
+  - Figma confirms the `375` frame, `80` profile card, `335x59` menu rows,
+    and row order: Preferences, Promotions, Settings, Documents, Users,
+    Refer a friend, Shipping Rates, Restricted Items, Payment Methods, FAQs,
+    Terms & Conditions, Privacy Policy.
+  - Swift takes behavior precedence: profile-card tap opens `ProfileView`,
+    avatar tap opens the photo-picker path, tier/bell/cart/AirCoins header taps
+    open `MembershipTierView`, `NotificationsView`, `MyCartView`, and
+    `AirCoinView`, and row taps push the `FigmaRouteResolver` route list.
+  - Android already emitted the matching canonical routes; this pass extracted
+    the existing content shell for network-free instrumentation and added stable
+    test tags without duplicating UI or route logic.
+  - `:app:compileStagingDebugAndroidTestKotlin`
+  - targeted `MoreRootTapRailsParityTest` through
+    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+  - manual `adb shell am instrument -w -e class
+    com.ga.airdrop.feature.more.MoreRootTapRailsParityTest ...`:
+    `OK (4 tests)`
+  - proof PNGs:
+    `/tmp/kotlin_ui_proof/more_root/figma/figma_more_40001948_22354.png`,
+    `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_light.png`,
+    `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_dark.png`
 - Android checks run for the GoldPriority / Customer Tier Swift-precedence pass:
   - Figma MCP design context and screenshot checked for Customer Tier node
     `40001432:23506`.
@@ -829,6 +856,12 @@ assets; only repair the parts that are visibly or functionally wrong.
   `/tmp/kotlin_ui_proof/notification_settings/figma_node_40001587_18074_is_home_stale_mapping.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_light.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_dark.png`.
+- More root tap rails now have Swift-precedence proof against Figma node
+  `40001948:22354` and Swift `FigmaMoreViewController`. Android locks the Figma
+  profile/menu geometry, the exact menu order, the profile-card versus avatar
+  tap split, all 12 row route callbacks, and the tier/bell/cart/AirCoins header
+  callbacks. This does not close every More subpage as pixel-perfect; it closes
+  the root More tap/geometry rail.
 
 ## Reopened Defects From User Review
 
@@ -1024,7 +1057,7 @@ Findings to verify/fix:
 
 - BlueDeer/Claude owns broad Android/KOTLIN_APP parity context.
 - Codex/MagentaCastle is working through More/Legal/Profile/AirCoins/HomeDetails and narrow
-  Shipments parity slices. Documents
+  Shipments parity slices. More root tap rails, Documents
   card/action-row geometry, info alert, refresh/reload behavior, plus Profile
   avatar/DOB, Preferences select fields, Invite Friend contacts icon, Legal live
   CMS heading colors, FAQ accordion gap, Notification Settings, AirCoins
@@ -1052,7 +1085,7 @@ For each page, fill this before claiming completion:
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, and phone/email/social URI rails; map/WhatsApp runtime app-handling can still be broadened if product wants native app preference |
 | AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
-| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
+| More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354` | user/profile/content/faqs/etc., device-tokens/register | partial | partial | partial | Codex | More root profile/menu/header tap rails, Documents card/action-row geometry, info alert, refresh/reload, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
 
 ---

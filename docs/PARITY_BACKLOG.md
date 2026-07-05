@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **29 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **30 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -154,6 +154,17 @@ light AND dark.
   `/tmp/kotlin_ui_proof/notification_settings/figma_node_40001587_18074_is_home_stale_mapping.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_light.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_dark.png`.
+- **More root tap rails:** More root was compared against Figma node
+  `40001948:22354` and Swift `FigmaMoreViewController`. Figma confirms the
+  `375` frame, `80` profile card, `335x59` menu rows, and exact 12-row order.
+  Swift takes behavior precedence for profile-card `ProfileView`, avatar
+  photo-picker split, header tier/bell/cart/AirCoins callbacks, and every menu
+  row's `FigmaRouteResolver` destination. Android now exposes those existing
+  targets with stable tags and `MoreRootTapRailsParityTest` locks light/dark
+  geometry plus profile/header/menu route callbacks. Proof:
+  `/tmp/kotlin_ui_proof/more_root/figma/figma_more_40001948_22354.png`,
+  `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_light.png`,
+  `/tmp/kotlin_ui_proof/more_root/android/more_root/more_root_swift_dark.png`.
 - **AirCoins balance/history Swift parity:** AirCoins was compared against
   Swift `FigmaAirCoinHistoryViewController.swift`, Figma balance node
   `40001911:22972`, and Figma history node `40006461:26563`. Swift takes
@@ -289,7 +300,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, and Shipments search-field split slices are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Shipments slices):** More root tap rails, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, and Shipments search-field split slices are closed by Swift-precedence proof above.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
@@ -344,6 +355,14 @@ Proof lives under `/tmp/kotlin_ui_proof/preferences_swift_field/`.
 now keeps the Swift-sized avatar geometry under instrumentation, tints the edit
 glyph orange for dark-mode visibility, and rejects future DOB dates like Swift's
 `dobPicker.maximumDate = Date()`.
+
+**✅ CLOSED — More root tap-rail follow-up:** Swift
+`FigmaMoreViewController` wins for root behavior, while Figma node
+`40001948:22354` provides the pixel/card order reference. Android now has
+focused proof for the 80dp profile card, 48dp avatar, 335x59dp menu rows, the
+12 menu row callbacks, the profile-card/avatar split, and header tier/bell/cart/
+AirCoins callbacks. This closes the More root rail only; broader More subpage
+pixel parity remains tracked separately.
 
 **✅ CLOSED — Invite Friend contacts icon follow-up:** Swift's
 `FigmaInviteFriendViewController` renders ContactNumber with orange signal arcs

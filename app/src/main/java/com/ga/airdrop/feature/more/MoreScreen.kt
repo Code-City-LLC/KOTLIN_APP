@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,22 +59,45 @@ import com.ga.airdrop.core.session.SessionStore
  * Conditions → Privacy Policy). Card taps push routes; the avatar opens the
  * photo picker (upload/delete wired, unlike the Swift stub).
  */
-private data class MoreMenuItem(val title: String, val iconRes: Int, val route: String)
+internal object MoreRootTags {
+    const val ROOT = "more-root"
+    const val PROFILE_CARD = "more-profile-card"
+    const val PROFILE_AVATAR = "more-profile-avatar"
+    const val PREFERENCES = "more-menu-preferences"
+    const val PROMOTIONS = "more-menu-promotions"
+    const val SETTINGS = "more-menu-settings"
+    const val DOCUMENTS = "more-menu-documents"
+    const val USERS = "more-menu-users"
+    const val REFER_A_FRIEND = "more-menu-refer-a-friend"
+    const val SHIPPING_RATES = "more-menu-shipping-rates"
+    const val RESTRICTED_ITEMS = "more-menu-restricted-items"
+    const val PAYMENT_METHODS = "more-menu-payment-methods"
+    const val FAQS = "more-menu-faqs"
+    const val TERMS = "more-menu-terms-conditions"
+    const val PRIVACY = "more-menu-privacy-policy"
+}
+
+private data class MoreMenuItem(
+    val title: String,
+    val iconRes: Int,
+    val route: String,
+    val testTag: String,
+)
 
 // Order matches Figma node 40001948:22354 verbatim.
 private val moreMenuItems = listOf(
-    MoreMenuItem("Preferences", R.drawable.ic_preferences, Routes.PREFERENCES),
-    MoreMenuItem("Promotions", R.drawable.ic_more_promotions, Routes.PROMOTIONS),
-    MoreMenuItem("Settings", R.drawable.ic_more_settings, Routes.SETTINGS),
-    MoreMenuItem("Documents", R.drawable.ic_more_documents, Routes.DOCUMENTS),
-    MoreMenuItem("Users", R.drawable.ic_more_users, Routes.AUTHORIZED_USERS),
-    MoreMenuItem("Refer a friend", R.drawable.ic_more_refer, Routes.REFER_A_FRIEND),
-    MoreMenuItem("Shipping Rates", R.drawable.ic_more_shipping_rates, Routes.SHIPPING_RATES),
-    MoreMenuItem("Restricted Items", R.drawable.ic_more_restricted, Routes.RESTRICTED_ITEMS),
-    MoreMenuItem("Payment Methods", R.drawable.ic_more_payment_methods, MoreRoutes.PAYMENT_METHODS),
-    MoreMenuItem("FAQs", R.drawable.ic_more_faqs, Routes.FAQ),
-    MoreMenuItem("Terms & Conditions", R.drawable.ic_more_terms, Routes.TERMS),
-    MoreMenuItem("Privacy Policy", R.drawable.ic_more_privacy, Routes.PRIVACY),
+    MoreMenuItem("Preferences", R.drawable.ic_preferences, Routes.PREFERENCES, MoreRootTags.PREFERENCES),
+    MoreMenuItem("Promotions", R.drawable.ic_more_promotions, Routes.PROMOTIONS, MoreRootTags.PROMOTIONS),
+    MoreMenuItem("Settings", R.drawable.ic_more_settings, Routes.SETTINGS, MoreRootTags.SETTINGS),
+    MoreMenuItem("Documents", R.drawable.ic_more_documents, Routes.DOCUMENTS, MoreRootTags.DOCUMENTS),
+    MoreMenuItem("Users", R.drawable.ic_more_users, Routes.AUTHORIZED_USERS, MoreRootTags.USERS),
+    MoreMenuItem("Refer a friend", R.drawable.ic_more_refer, Routes.REFER_A_FRIEND, MoreRootTags.REFER_A_FRIEND),
+    MoreMenuItem("Shipping Rates", R.drawable.ic_more_shipping_rates, Routes.SHIPPING_RATES, MoreRootTags.SHIPPING_RATES),
+    MoreMenuItem("Restricted Items", R.drawable.ic_more_restricted, Routes.RESTRICTED_ITEMS, MoreRootTags.RESTRICTED_ITEMS),
+    MoreMenuItem("Payment Methods", R.drawable.ic_more_payment_methods, MoreRoutes.PAYMENT_METHODS, MoreRootTags.PAYMENT_METHODS),
+    MoreMenuItem("FAQs", R.drawable.ic_more_faqs, Routes.FAQ, MoreRootTags.FAQS),
+    MoreMenuItem("Terms & Conditions", R.drawable.ic_more_terms, Routes.TERMS, MoreRootTags.TERMS),
+    MoreMenuItem("Privacy Policy", R.drawable.ic_more_privacy, Routes.PRIVACY, MoreRootTags.PRIVACY),
 )
 
 @Composable
@@ -81,12 +105,50 @@ fun MoreScreen(
     onNavigate: (String) -> Unit,
     viewModel: MoreViewModel = viewModel(),
 ) {
-    val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val headerInfo by SessionStore.header.collectAsState()
     var showAvatarSheet by remember { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize().background(colors.gray200)) {
+    MoreScreenContent(
+        state = state,
+        headerInfo = headerInfo,
+        onNavigate = onNavigate,
+        onEditAvatar = { showAvatarSheet = true },
+    )
+
+    if (showAvatarSheet) {
+        AvatarPickerSheet(
+            hasExistingPhoto = state.avatar != null,
+            onPicked = viewModel::uploadAvatar,
+            onRemove = viewModel::deleteAvatar,
+            onDismiss = { showAvatarSheet = false },
+        )
+    }
+    state.avatarError?.let { message ->
+        MoreAlertDialog(
+            title = "Photo",
+            message = message,
+            onDismiss = viewModel::dismissAvatarError,
+        )
+    }
+}
+
+@Composable
+internal fun MoreScreenContent(
+    state: MoreUiState,
+    headerInfo: SessionStore.HeaderInfo,
+    onNavigate: (String) -> Unit,
+    onEditAvatar: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AirdropTheme.colors
+
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(colors.gray200)
+            .testTag(MoreRootTags.ROOT)
+    ) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -110,13 +172,15 @@ fun MoreScreen(
                     avatar = state.avatar,
                     avatarLoading = state.avatarLoading,
                     onOpenProfile = { onNavigate(Routes.PROFILE) },
-                    onEditAvatar = { showAvatarSheet = true },
+                    onEditAvatar = onEditAvatar,
+                    modifier = Modifier.testTag(MoreRootTags.PROFILE_CARD),
                 )
                 moreMenuItems.forEach { item ->
                     MoreRowCard(
                         iconRes = item.iconRes,
                         title = item.title,
                         onClick = { onNavigate(item.route) },
+                        modifier = Modifier.testTag(item.testTag),
                     )
                 }
                 Spacer(Modifier.height(90.dp)) // glass bottom-bar clearance
@@ -138,22 +202,6 @@ fun MoreScreen(
             modifier = Modifier.align(Alignment.TopCenter),
         )
     }
-
-    if (showAvatarSheet) {
-        AvatarPickerSheet(
-            hasExistingPhoto = state.avatar != null,
-            onPicked = viewModel::uploadAvatar,
-            onRemove = viewModel::deleteAvatar,
-            onDismiss = { showAvatarSheet = false },
-        )
-    }
-    state.avatarError?.let { message ->
-        MoreAlertDialog(
-            title = "Photo",
-            message = message,
-            onDismiss = viewModel::dismissAvatarError,
-        )
-    }
 }
 
 /**
@@ -170,10 +218,11 @@ private fun ProfileCard(
     avatarLoading: Boolean,
     onOpenProfile: () -> Unit,
     onEditAvatar: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(80.dp)
             .clip(RoundedCornerShape(Radius.s))
@@ -187,6 +236,7 @@ private fun ProfileCard(
         Box(
             modifier = Modifier
                 .size(48.dp)
+                .testTag(MoreRootTags.PROFILE_AVATAR)
                 .clip(CircleShape)
                 .background(colors.gray200)
                 .border(1.dp, colors.iconShape, CircleShape)
