@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
@@ -59,7 +60,8 @@ import java.util.Locale
  *
  * Geometry (FigmaHomeViewController.swift:220-276):
  *  - hero photo layer fixed at 375x534, top of the scroll content, under a
- *    flat black-10% scrim (:193-197) — no gradient fades;
+ *    flat black-10% scrim (:193-197) plus a bottom fade that dissolves the
+ *    photo into the page background before the cards (Figma 40001464:28899);
  *  - content stack starts at y=326, so the warehouse cards overlap the
  *    photo's lower half and spill below its bottom edge;
  *  - stack spacing 8; custom 20 after the activities grid and after the
@@ -102,10 +104,29 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
                     )
+                    // Flat 10% black scrim so the white cards read on the photo
+                    // (Swift FigmaHomeViewController.swift:193-197).
                     Box(
                         Modifier
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.10f))
+                    )
+                    // Bottom fade: the hero dissolves into the page background
+                    // (gray200, theme-aware) as it approaches the warehouse
+                    // cards at y=326/534≈0.61. This is a designed element in
+                    // Figma 40001464:28899 (dark→light dissolve above the first
+                    // card); commit 48db012 wrongly flattened it to a plain
+                    // scrim — restored here per Kemar. Fully gray200 by the card
+                    // top so the cards sit on the page background, not the photo.
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    0.30f to Color.Transparent,
+                                    0.61f to colors.gray200,
+                                )
+                            )
                     )
                 }
 
