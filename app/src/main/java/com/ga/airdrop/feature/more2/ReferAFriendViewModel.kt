@@ -26,7 +26,6 @@ class ReferAFriendViewModel(
 
     init {
         loadReferralLink()
-        loadReferredFriends()
     }
 
     private fun loadReferralLink() {

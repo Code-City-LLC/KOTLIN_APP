@@ -1277,6 +1277,35 @@ Findings verified/fixed:
   - proof PNG:
     `/tmp/kotlin_ui_proof/account_deletion_reason/account_deletion_reason_confirm_swift_light.png`
 
+### Refer A Friend
+
+Source files:
+- Android: `feature/more2/ReferAFriendScreen.kt`,
+  `ReferAFriendViewModel.kt`
+- Swift: `FigmaReferAFriendViewController.swift`
+- Figma: Refer a Friend `40001940:26885`
+
+Findings verified/fixed:
+- Swift is the runtime precedence source. Figma MCP for `40001940:26885` still
+  renders the older landing frame with a bottom "Invite" CTA, while Swift has
+  the referral-link card, inline "Invite Friends" CTA, referrals section, and
+  lifecycle split used by the app.
+- Android was loading referred friends twice on first entry: once from
+  `ReferAFriendViewModel.init` and again from the screen `LaunchedEffect` that
+  intentionally mirrors Swift `viewWillAppear`. The profile/account-number
+  referral-link load still belongs in init, matching Swift `viewDidLoad`.
+- Android now keeps only the init referral-link load and leaves the referred
+  friends call on the screen-entry effect, so initial entry performs one
+  profile/account-number request and one referred-friends request.
+- Verification on 2026-07-05:
+  - Figma MCP design context checked for `40001940:26885`
+  - Swift source compared in
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaReferAFriendViewController.swift`
+  - `git diff --check`
+  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
+  - Gradle focused device run:
+    `ReferAFriendParityTest`: 1 test passed
+
 ### Dark Theme Icons
 
 Source files:
