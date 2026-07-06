@@ -26,6 +26,7 @@ class CartStoreConcurrencyTest {
     @Before
     fun reset() {
         CartStore.clear()
+        SavedForLaterStore.clearAll()
     }
 
     @Test
@@ -75,5 +76,23 @@ class CartStoreConcurrencyTest {
         // Exactly one line, and exactly one racer observed the successful add.
         assertEquals(1, CartStore.count)
         assertEquals(1, addedTrue.get())
+    }
+
+    @Test
+    fun `saved for later is separate newest-first and idempotent`() {
+        val alpha = CartStore.CartLine(id = 1, title = "Alpha", priceUsd = 5.0)
+        val beta = CartStore.CartLine(id = 2, title = "Beta", priceUsd = 7.0)
+
+        assertEquals(true, SavedForLaterStore.save(alpha))
+        assertEquals(false, SavedForLaterStore.save(alpha))
+        assertEquals(true, SavedForLaterStore.save(beta))
+
+        assertEquals(0, CartStore.count)
+        assertEquals(listOf(beta, alpha), SavedForLaterStore.items.value)
+        assertEquals(2, SavedForLaterStore.count)
+
+        SavedForLaterStore.remove(beta.id)
+
+        assertEquals(listOf(alpha), SavedForLaterStore.items.value)
     }
 }

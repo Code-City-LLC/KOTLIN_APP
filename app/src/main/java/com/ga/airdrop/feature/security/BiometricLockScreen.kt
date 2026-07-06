@@ -42,6 +42,7 @@ import com.ga.airdrop.core.push.QuietHoursStore
 import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.cart.SavedForLaterStore
 import kotlinx.coroutines.launch
 
 /**
@@ -145,7 +146,10 @@ fun BiometricLockScreen(
                     .clickable {
                         AuthTokenStore.clear()
                         SessionStore.clear()
+                        CartStore.init(activity.applicationContext)
                         CartStore.clear()
+                        SavedForLaterStore.init(activity.applicationContext)
+                        SavedForLaterStore.clearAll()
                         DeliveryDefaultsStore.clearAll()
                         QuietHoursStore.clear(activity.applicationContext)
                         BiometricGate.reset()

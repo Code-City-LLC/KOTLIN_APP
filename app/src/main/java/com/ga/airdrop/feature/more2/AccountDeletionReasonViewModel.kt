@@ -7,6 +7,7 @@ import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.cart.SavedForLaterStore
 import com.ga.airdrop.feature.more.BackgroundStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,6 +78,8 @@ class AccountDeletionReasonViewModel(
                     SessionStore.clear()
                     CartStore.init(appContext)
                     CartStore.clear()
+                    SavedForLaterStore.init(appContext)
+                    SavedForLaterStore.clearAll()
                     com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
                     com.ga.airdrop.core.push.QuietHoursStore.clear(appContext)
                     com.ga.airdrop.core.security.BiometricGate.reset()

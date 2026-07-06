@@ -27,6 +27,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.cart.SavedForLaterStore
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
@@ -157,6 +158,9 @@ class SettingsParityTest {
         CartStore.init(context)
         CartStore.clear()
         CartStore.add(CartStore.CartLine(id = 17, title = "Swift Cart", qty = 2, priceUsd = 12.0))
+        SavedForLaterStore.init(context)
+        SavedForLaterStore.clearAll()
+        SavedForLaterStore.save(CartStore.CartLine(id = 18, title = "Saved Swift Cart", qty = 1, priceUsd = 9.0))
         val cachePrefs = context.getSharedPreferences(
             SettingsViewModel.CACHE_PREFS,
             android.content.Context.MODE_PRIVATE,
@@ -179,6 +183,7 @@ class SettingsParityTest {
         assertEquals(null, AuthTokenStore.token)
         assertEquals(SessionStore.HeaderInfo(), SessionStore.header.value)
         assertEquals(0, CartStore.count)
+        assertEquals(0, SavedForLaterStore.count)
         SettingsViewModel.CACHE_KEYS.forEach { key ->
             assertFalse("Logout should remove cache key $key", cachePrefs.contains(key))
         }

@@ -1,9 +1,11 @@
 package com.ga.airdrop.feature.cart
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,12 +25,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -37,6 +45,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,9 +68,9 @@ import java.util.Locale
 /**
  * My Cart — Figma "My Cart Page" 40008284:26547, behavior from
  * FigmaCartViewController (RN MyCartView). Items come from the local
- * [CartStore]; "Make Payment" opens Stripe hosted checkout in a Custom Tab
- * and clears the cart; the empty state shows the EmptyCartIllustration with
- * the ghost "Shop Now" CTA.
+ * [CartStore]; "Make Payment" opens Stripe hosted checkout in a Custom Tab.
+ * The verified-paid return flow owns cart clearing; the empty state shows the
+ * EmptyCartIllustration with the ghost "Shop Now" CTA.
  */
 @Composable
 fun CartScreen(
@@ -73,12 +82,28 @@ fun CartScreen(
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val items by viewModel.items.collectAsState()
+    val savedItems by viewModel.savedItems.collectAsState()
     val context = LocalContext.current
     val isEmpty = items.isEmpty()
+    var showingSavedForLater by rememberSaveable { mutableStateOf(false) }
+    var actionLine by remember { mutableStateOf<CartStore.CartLine?>(null) }
 
-    LaunchedEffect(Unit) { CartStore.init(context) }
+    LaunchedEffect(Unit) {
+        CartStore.init(context)
+        SavedForLaterStore.init(context)
+    }
 
-    // Stripe hosted checkout — Custom Tab, then clear the cart (RN parity).
+    if (showingSavedForLater) {
+        SavedForLaterScreen(
+            savedItems = savedItems,
+            onBack = { showingSavedForLater = false },
+            onMoveToCart = viewModel::moveSavedToCart,
+            onRemove = { line -> viewModel.removeSaved(line.id) },
+        )
+        return
+    }
+
+    // Stripe hosted checkout — Custom Tab; verified-paid return clears later.
     val checkoutUrl = state.checkoutUrl
     LaunchedEffect(checkoutUrl) {
         if (checkoutUrl != null) {
@@ -116,11 +141,19 @@ fun CartScreen(
             if (isEmpty) {
                 EmptyCartCard(onShopNow = onShopNow)
             } else {
-                // ─── Packages — single combined list (Swift bug-fix parity) ───
+                // ─── Basket — single combined list + Swift Saved (N) pill ───
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CartSectionHeader("Packages")
+                    CartBasketHeader(
+                        itemCount = items.size,
+                        savedCount = savedItems.size,
+                        onSavedClick = { showingSavedForLater = true },
+                    )
                     items.forEach { line ->
-                        CartItemCard(line = line, onRemove = { viewModel.removeItem(line.id) })
+                        CartItemCard(
+                            line = line,
+                            onRemove = { viewModel.removeItem(line.id) },
+                            onOpenActions = { actionLine = line },
+                        )
                     }
                 }
 
@@ -287,6 +320,22 @@ fun CartScreen(
         )
     }
 
+    actionLine?.let { line ->
+        CartLineActionSheet(
+            line = line,
+            alreadySaved = SavedForLaterStore.contains(line),
+            onSave = {
+                viewModel.saveForLater(line)
+                actionLine = null
+            },
+            onRemove = {
+                viewModel.removeItem(line.id)
+                actionLine = null
+            },
+            onDismiss = { actionLine = null },
+        )
+    }
+
     val errorTitle = state.errorTitle
     if (errorTitle != null) {
         AlertDialog(
@@ -317,15 +366,130 @@ private fun CartSectionHeader(title: String) {
     Text(text = title, style = AirdropType.subtitle1, color = AirdropTheme.colors.textDarkTitle)
 }
 
-/* ─── Item card — Figma "Card Page" (drop number / description / price) ── */
+@Composable
+private fun CartBasketHeader(itemCount: Int, savedCount: Int, onSavedClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Basket ($itemCount ${if (itemCount == 1) "Item" else "Items"})",
+            style = AirdropType.title2,
+            color = colors.textDarkTitle,
+        )
+        if (savedCount > 0) {
+            Text(
+                text = "Saved ($savedCount) >",
+                style = AirdropType.body2,
+                color = BrandPalette.OrangeMain,
+                modifier = Modifier
+                    .clickable(onClick = onSavedClick)
+                    .padding(start = 8.dp, top = 4.dp, bottom = 4.dp)
+                    .testTag("cart-saved-pill"),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CartLineActionSheet(
+    line: CartStore.CartLine,
+    alreadySaved: Boolean,
+    onSave: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = colors.gray100,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = Spacing.sm)
+                    .width(62.dp)
+                    .height(5.dp)
+                    .background(colors.gray400, RoundedCornerShape(100.dp))
+            )
+        },
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                text = line.title.ifBlank { "Cart item" },
+                style = AirdropType.title2,
+                color = colors.textDarkTitle,
+                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+            )
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
+            CartLineActionRow(
+                label = if (alreadySaved) "Already saved" else "Save for Later",
+                enabled = !alreadySaved,
+                onClick = onSave,
+                testTag = "cart-action-save-for-later",
+            )
+            CartLineActionRow(
+                label = "Remove",
+                enabled = true,
+                onClick = onRemove,
+                testTag = "cart-action-remove",
+            )
+        }
+    }
+}
 
 @Composable
-private fun CartItemCard(line: CartStore.CartLine, onRemove: () -> Unit) {
+private fun CartLineActionRow(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    testTag: String,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(colors.gray100)
+            .clickable(enabled = enabled, onClick = onClick)
+            .testTag(testTag)
+    ) {
+        Text(
+            text = label,
+            style = AirdropType.subtitle1,
+            color = if (enabled) colors.textDarkTitle else colors.textDescription,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md),
+        )
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
+    }
+}
+
+/* ─── Item card — Figma "Card Page" (drop number / description / price) ── */
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CartItemCard(
+    line: CartStore.CartLine,
+    onRemove: () -> Unit,
+    onOpenActions: () -> Unit,
+) {
     val colors = AirdropTheme.colors
     // Swift makeDropRow (:448-536): TRANSPARENT row, 1dp iconShape bottom
     // hairline — no fill, border, or radius. Labels SubTitle3; drop value
     // SubTitle1; price SubTitle1 orange; 20pt trash tinted textDarkTitle.
-    Column(Modifier.fillMaxWidth()) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = {},
+                onLongClick = onOpenActions,
+            )
+            .testTag("cart-line-${line.id}")
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -594,6 +758,147 @@ private fun BottomBarRow(label: String, value: String) {
     ) {
         Text(text = label, style = AirdropType.subtitle2, color = colors.textDescription)
         Text(text = value, style = AirdropType.subtitle2, color = colors.textDescription)
+    }
+}
+
+/* ─── Saved for Later — Swift FigmaSavedForLaterViewController ────────── */
+
+@Composable
+private fun SavedForLaterScreen(
+    savedItems: List<CartStore.CartLine>,
+    onBack: () -> Unit,
+    onMoveToCart: (CartStore.CartLine) -> Unit,
+    onRemove: (CartStore.CartLine) -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(colors.gray200)
+            .testTag("saved-for-later-screen")
+    ) {
+        ShopInnerHeader(title = "Saved for Later", onBack = onBack)
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (savedItems.isEmpty()) {
+                SavedForLaterEmptyState()
+            } else {
+                savedItems.forEach { line ->
+                    SavedForLaterRow(
+                        line = line,
+                        onMoveToCart = { onMoveToCart(line) },
+                        onRemove = { onRemove(line) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedForLaterEmptyState() {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(colors.gray100, RoundedCornerShape(15.dp))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(15.dp))
+            .padding(horizontal = 20.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_bookmark),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.textDescription),
+            modifier = Modifier.size(32.dp),
+        )
+        Text(
+            text = "Nothing saved yet",
+            style = AirdropType.subtitle1,
+            color = colors.textDarkTitle,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 14.dp),
+        )
+        Text(
+            text = "Long-press a cart item and tap Save for Later to park it here without losing it.",
+            style = AirdropType.body2,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun SavedForLaterRow(
+    line: CartStore.CartLine,
+    onMoveToCart: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(colors.gray100, RoundedCornerShape(15.dp))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(15.dp))
+            .padding(16.dp),
+    ) {
+        Text(
+            text = line.title,
+            style = AirdropType.title2,
+            color = colors.textDarkTitle,
+            maxLines = 2,
+        )
+        Text(
+            text = formatUsdPlain(line.priceUsd),
+            style = AirdropType.body3,
+            color = colors.textDescription,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        Row(
+            modifier = Modifier.padding(top = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SavedForLaterButton(
+                label = "Move to Cart",
+                fillColor = BrandPalette.OrangeMain,
+                textColor = BrandPalette.White,
+                modifier = Modifier.weight(1f).testTag("saved-move-${line.id}"),
+                onClick = onMoveToCart,
+            )
+            SavedForLaterButton(
+                label = "Remove",
+                fillColor = colors.gray150,
+                textColor = colors.textDescription,
+                modifier = Modifier.weight(1f).testTag("saved-remove-${line.id}"),
+                onClick = onRemove,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SavedForLaterButton(
+    label: String,
+    fillColor: Color,
+    textColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier
+            .height(44.dp)
+            .background(fillColor, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, style = AirdropType.button, color = textColor)
     }
 }
 

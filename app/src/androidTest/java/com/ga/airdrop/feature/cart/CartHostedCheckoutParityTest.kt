@@ -39,11 +39,12 @@ class CartHostedCheckoutParityTest {
     fun cleanCart() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             CartStore.clear()
+            SavedForLaterStore.clearAll()
         }
     }
 
     @Test
-    fun makePaymentSendsSwiftCheckoutPayloadOpensUrlAndClearsCart() {
+    fun makePaymentSendsSwiftCheckoutPayloadOpensUrlAndKeepsCartUntilVerifiedReturn() {
         val repo = FakeCartCheckoutRepository()
         val openedUrl = AtomicReference<String?>()
         val cartCountDuringOpen = AtomicInteger(-1)
@@ -64,7 +65,7 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("Make Payment").performClick()
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            openedUrl.get() == CheckoutUrl && CartStore.count == 0
+            openedUrl.get() == CheckoutUrl
         }
 
         assertEquals("Swift Cart sends sorted package IDs from FigmaCartStore lines", listOf(7001, 7002), repo.lastPackageIds)
@@ -72,7 +73,7 @@ class CartHostedCheckoutParityTest {
         assertEquals("Swift Cart checkout sends is_auction=true", true, repo.lastIsAuction)
         assertEquals("Cart must still exist while the hosted checkout open callback fires", 2, cartCountDuringOpen.get())
         assertEquals("Stripe hosted checkout URL should be opened once", CheckoutUrl, openedUrl.get())
-        assertEquals("Cart clears only after the checkout URL open path runs", 0, CartStore.count)
+        assertEquals("Cart clears only after verified-paid return, not on Custom Tab open", 2, CartStore.count)
     }
 
     @Test

@@ -87,7 +87,7 @@ object CartStore {
         mutate { list -> list.filterNot { it.id == id } }
     }
 
-    /** Clear all lines — after Stripe hosted checkout opens, and on logout. */
+    /** Clear all lines — after verified payment, cache clear, or logout. */
     fun clear() {
         mutate { emptyList() }
     }
@@ -125,5 +125,71 @@ object CartStore {
 
     private fun publishCount() {
         SessionStore.update { it.copy(cartCount = _items.value.size) }
+    }
+}
+
+/**
+ * Separate "Saved for Later" cache, matching Swift `FigmaSavedForLaterStore`.
+ * It deliberately does not update [SessionStore.cartCount]: saved items are
+ * parked outside the active checkout cart until the user moves them back.
+ */
+object SavedForLaterStore {
+
+    private const val PREFS = "airdrop_saved_for_later"
+    private const val KEY_LINES = "saved_for_later_lines"
+
+    private val json = Json { ignoreUnknownKeys = true }
+    private var prefs: SharedPreferences? = null
+
+    private val _items = MutableStateFlow<List<CartStore.CartLine>>(emptyList())
+
+    /** Newest first, like Swift `list.insert(line, at: 0)`. */
+    val items: StateFlow<List<CartStore.CartLine>> = _items
+
+    val count: Int get() = _items.value.size
+
+    fun init(context: Context) {
+        if (prefs != null) return
+        val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs = p
+        val raw = p.getString(KEY_LINES, null)
+        val restored = raw?.let {
+            runCatching { json.decodeFromString(ListSerializer(CartStore.CartLine.serializer()), it) }
+                .getOrNull()
+        }.orEmpty()
+        _items.value = restored
+    }
+
+    fun contains(line: CartStore.CartLine): Boolean =
+        _items.value.any { it.id == line.id }
+
+    /** Idempotent save. Returns true only when a new saved row was inserted. */
+    fun save(line: CartStore.CartLine): Boolean =
+        mutate { list -> if (list.any { it.id == line.id }) list else listOf(line) + list }
+
+    fun remove(id: Int) {
+        mutate { list -> list.filterNot { it.id == id } }
+    }
+
+    fun clearAll() {
+        _items.value = emptyList()
+        prefs?.edit()?.remove(KEY_LINES)?.apply()
+    }
+
+    private fun mutate(transform: (List<CartStore.CartLine>) -> List<CartStore.CartLine>): Boolean {
+        var changed = false
+        _items.update { current ->
+            val next = transform(current)
+            changed = next != current
+            next
+        }
+        if (changed) persist()
+        return changed
+    }
+
+    private fun persist() {
+        prefs?.edit()
+            ?.putString(KEY_LINES, json.encodeToString(ListSerializer(CartStore.CartLine.serializer()), _items.value))
+            ?.apply()
     }
 }

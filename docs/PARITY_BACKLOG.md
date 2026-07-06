@@ -1429,11 +1429,20 @@ group passed 13/13 on `airdrop_test2(AVD) - 15`.
 ---
 
 ## [CLOSED] Cart hosted checkout — direct Swift proof
-`app/src/main/java/com/ga/airdrop/feature/cart/CartViewModel.kt:137` — Cart checkout reused the hosted checkout endpoint but had no Cart-specific proof for payload, URL-open clearing, or Swift unauthenticated copy.
+`app/src/main/java/com/ga/airdrop/feature/cart/CartViewModel.kt:137` — Cart checkout reused the hosted checkout endpoint but had no Cart-specific proof for payload, Custom Tab handoff, verify-then-clear timing, or Swift unauthenticated copy.
 
-**Detail:** Swift `FigmaCartViewController.onPay` sends `packageIDs`, `currency = "USD"`, and `isAuction = true`, maps `APIError.unauthenticated` to `Sign in required` / `Log in to your Airdropja account before checking out.`, opens `SFSafariViewController`, and clears `FigmaCartStore` only after the hosted URL presentation path begins. Android already had most of the runtime rail, but tests only covered Auction checkout and other screens' Cart badges. Figma MCP `get_design_context` for Cart node `40008284:26547` confirmed the visual node still contains stale static details (`Order Summary`, `Fax`, gradient button), so Swift is the behavioral source.
+**Detail:** Swift `FigmaCartViewController.onPay` sends `packageIDs`, `currency = "USD"`, and `isAuction = true`, maps `APIError.unauthenticated` to `Sign in required` / `Log in to your Airdropja account before checking out.`, opens `SFSafariViewController`, and clears `FigmaCartStore` only after a verified-paid return. Android already had most of the runtime rail, but tests only covered Auction checkout and other screens' Cart badges. Figma MCP `get_design_context` for Cart node `40008284:26547` confirmed the visual node still contains stale static details (`Order Summary`, `Fax`, gradient button), so Swift is the behavioral source.
 
-**Fix:** Closed. Checkout unauth classification is now shared with Auction checkout, Cart surfaces Swift's sign-in-required copy, and `CartScreen` exposes a test-only hosted URL hook while production still uses `launchExternalUrl`. `CartHostedCheckoutParityTest` verifies sorted `package_ids`, `currency = "USD"`, `is_auction = true`, hosted URL open, cart clear after URL-open callback, missing-package blocking, and failed unauth checkout without clearing. Focused `CartHostedCheckoutParityTest`: 3 connected tests passed; adjacent `AuctionCheckoutParityTest`: 4 connected tests passed.
+**Fix:** Closed. Checkout unauth classification is now shared with Auction checkout, Cart surfaces Swift's sign-in-required copy, and `CartScreen` exposes a test-only hosted URL hook while production still uses `launchExternalUrl`. `CartHostedCheckoutParityTest` verifies sorted `package_ids`, `currency = "USD"`, `is_auction = true`, hosted URL open, verify-then-clear timing, missing-package blocking, and failed unauth checkout without clearing. Focused `CartHostedCheckoutParityTest`: 3 connected tests passed; adjacent `AuctionCheckoutParityTest`: 4 connected tests passed.
+
+---
+
+## [CLOSED] Cart Saved for Later — Swift store/viewer parity
+`app/src/main/java/com/ga/airdrop/feature/cart/CartScreen.kt` / `CartStore.kt` — Kotlin had no equivalent to Swift `FigmaSavedForLaterStore` + `FigmaSavedForLaterViewController`.
+
+**Detail:** Swift keeps saved-for-later outside the active checkout cart. `FigmaSavedForLaterStore` persists a newest-first list, the cart header shows `Saved (N)` only when count > 0, long-press `Save for Later` parks a line and removes it from the active cart, the saved viewer supports `Move to Cart` and `Remove`, and user/session cleanup clears saved rows. Kotlin grep showed no saved-for-later store, action, viewer, or logout cleanup. Live Figma screenshot for node `40008284:26547` was attempted on 2026-07-06 but the connector returned `UNAUTHORIZED` reauth required; Swift origin/main is the behavior source for this closure.
+
+**Fix:** Closed. Android now has `SavedForLaterStore`, a Swift-shaped Saved for Later viewer, a cart `Saved (N)` pill hidden at zero, long-press cart-row action sheet, save/move/remove rails, logout/cache/account-deletion/biometric sign-out cleanup, and focused tests. `CartSavedForLaterParityTest` passed 2/2 on `airdrop_test2(AVD) - 15`; `CartStoreConcurrencyTest` covers newest-first/idempotent saved-store behavior.
 
 ---
 

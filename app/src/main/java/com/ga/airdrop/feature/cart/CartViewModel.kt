@@ -55,6 +55,9 @@ class CartViewModel(
     /** Live cart lines (Swift re-reads FigmaCartStore on every appearance). */
     val items: StateFlow<List<CartStore.CartLine>> = CartStore.items
 
+    /** Live saved-for-later lines, separate from the active checkout cart. */
+    val savedItems: StateFlow<List<CartStore.CartLine>> = SavedForLaterStore.items
+
     init {
         loadUserAndRate()
     }
@@ -96,6 +99,19 @@ class CartViewModel(
     }
 
     fun removeItem(id: Int) = CartStore.remove(id)
+
+    fun saveForLater(line: CartStore.CartLine) {
+        if (SavedForLaterStore.save(line)) {
+            CartStore.remove(line.id)
+        }
+    }
+
+    fun moveSavedToCart(line: CartStore.CartLine) {
+        CartStore.add(line)
+        SavedForLaterStore.remove(line.id)
+    }
+
+    fun removeSaved(id: Int) = SavedForLaterStore.remove(id)
 
     fun totalUsd(): Double = CartStore.totalUsd()
 

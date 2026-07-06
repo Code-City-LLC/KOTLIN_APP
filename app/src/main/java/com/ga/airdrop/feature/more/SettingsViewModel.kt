@@ -35,6 +35,8 @@ class SettingsViewModel(
     fun clearCache(context: Context) {
         com.ga.airdrop.feature.cart.CartStore.init(context)
         com.ga.airdrop.feature.cart.CartStore.clear()
+        com.ga.airdrop.feature.cart.SavedForLaterStore.init(context)
+        com.ga.airdrop.feature.cart.SavedForLaterStore.clearAll()
         sweepCachePrefs(context)
         _state.update { it.copy(cacheCleared = true) }
     }
@@ -68,7 +70,10 @@ class SettingsViewModel(
         // cart/package blobs. FCM token deregistration joins once push lands.
         AuthTokenStore.clear()
         SessionStore.clear()
+        com.ga.airdrop.feature.cart.CartStore.init(context)
         com.ga.airdrop.feature.cart.CartStore.clear()
+        com.ga.airdrop.feature.cart.SavedForLaterStore.init(context)
+        com.ga.airdrop.feature.cart.SavedForLaterStore.clearAll()
         com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
         com.ga.airdrop.core.push.QuietHoursStore.clear(context)
         com.ga.airdrop.core.security.BiometricGate.reset()
