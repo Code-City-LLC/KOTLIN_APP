@@ -59,18 +59,25 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 @Composable
 fun RestrictedItemsScreen(onBack: () -> Unit) {
     var selectedCategory by rememberSaveable { mutableStateOf<String?>(null) }
+    var showLegalInfo by rememberSaveable { mutableStateOf(false) }
     val category = selectedCategory?.let { name ->
         RestrictedCategory.entries.firstOrNull { it.displayName == name }
     }
 
-    BackHandler(enabled = category != null) { selectedCategory = null }
+    BackHandler(enabled = showLegalInfo || category != null) {
+        if (showLegalInfo) showLegalInfo = false else selectedCategory = null
+    }
 
-    if (category != null) {
-        RestrictedItemsInfo(category = category, onBack = { selectedCategory = null })
-    } else {
-        RestrictedItemsList(
+    when {
+        // Legal "Information" page — Swift FigmaRestrictedItemsViewController:201
+        // pushes FigmaRestrictedItemsLegalInfoViewController from the list.
+        showLegalInfo -> RestrictedItemsLegalInfo(onBack = { showLegalInfo = false })
+        category != null ->
+            RestrictedItemsInfo(category = category, onBack = { selectedCategory = null })
+        else -> RestrictedItemsList(
             onBack = onBack,
             onOpenCategory = { selectedCategory = it.displayName },
+            onOpenInformation = { showLegalInfo = true },
         )
     }
 }
@@ -81,6 +88,7 @@ fun RestrictedItemsScreen(onBack: () -> Unit) {
 private fun RestrictedItemsList(
     onBack: () -> Unit,
     onOpenCategory: (RestrictedCategory) -> Unit,
+    onOpenInformation: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
     var searchText by remember { mutableStateOf("") }
@@ -91,7 +99,30 @@ private fun RestrictedItemsList(
             .testTag("restricted-list-root")
             .background(colors.gray200)
     ) {
-        More2InnerHeader(title = "Restricted Items", onBack = onBack)
+        More2InnerHeader(
+            title = "Restricted Items",
+            onBack = onBack,
+            rightContent = {
+                // Swift figma.restricted.info (FigmaRestrictedItemsViewController
+                // :142-145) — top-right info button → legal Information page.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 12.dp)
+                        .size(36.dp)
+                        .testTag("restricted-info-button")
+                        .clickable(onClick = onOpenInformation),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_calc_info_circle),
+                        contentDescription = "Restricted items information",
+                        colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            },
+        )
 
         Column(
             Modifier
@@ -423,6 +454,165 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
                             "Standard unless identified otherwise in address line 2.",
                         testTag = "restricted-note-BATTERY",
                     )
+                }
+            }
+            Spacer(Modifier.height(Spacing.lg))
+        }
+    }
+}
+
+// ── Legal "Information" page (Swift FigmaRestrictedItemsLegalInfoViewController) ──
+
+@Composable
+private fun RestrictedItemsLegalInfo(onBack: () -> Unit) {
+    val colors = AirdropTheme.colors
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    fun openLink(url: String) {
+        // Swift shows an "Unable to open link" alert on failure; a silent
+        // no-op keeps the page usable when no browser is available.
+        runCatching { uriHandler.openUri(url) }
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .testTag("restricted-legal-root")
+            .background(colors.gray200)
+    ) {
+        More2InnerHeader(title = "Information", onBack = onBack)
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .testTag("restricted-legal-scroll")
+                .padding(horizontal = Spacing.md),
+        ) {
+            Spacer(Modifier.height(Spacing.md))
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm1)) {
+                Text(
+                    text = RestrictedLegalInfo.TITLE,
+                    style = AirdropType.subtitle1,
+                    color = colors.textDarkTitle,
+                )
+
+                InfoNoteCard(
+                    title = RestrictedLegalInfo.LEGAL_NOTICE_TITLE,
+                    body = RestrictedLegalInfo.LEGAL_NOTICE_BODY,
+                    footer = null,
+                    testTag = "restricted-legal-notice",
+                )
+
+                Text(
+                    text = RestrictedLegalInfo.INTRO,
+                    style = AirdropType.body2,
+                    color = colors.textDarkTitle,
+                )
+
+                More2OuterCard(
+                    modifier = Modifier.testTag("restricted-legal-labeling-card"),
+                    background = colors.gray150,
+                ) {
+                    Column(
+                        Modifier.padding(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        Text(
+                            text = RestrictedLegalInfo.LABELING_TITLE,
+                            style = AirdropType.subtitle2,
+                            color = colors.textDarkTitle,
+                        )
+                        Text(
+                            text = RestrictedLegalInfo.LABELING_INTRO,
+                            style = AirdropType.body2,
+                            color = colors.textDarkTitle,
+                        )
+                        RestrictedLegalInfo.labelingBullets.forEachIndexed { index, bullet ->
+                            Row {
+                                Box(
+                                    Modifier
+                                        .padding(top = 8.dp)
+                                        .size(4.dp)
+                                        .testTag("restricted-legal-bullet-$index")
+                                        .background(BrandPalette.OrangeMain)
+                                )
+                                Spacer(Modifier.width(Spacing.sm))
+                                Text(
+                                    text = bullet,
+                                    style = AirdropType.body3,
+                                    color = colors.textDarkTitle,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                InfoNoteCard(
+                    title = RestrictedLegalInfo.US_AUTHORITIES_TITLE,
+                    body = RestrictedLegalInfo.US_AUTHORITIES_BODY,
+                    footer = null,
+                    testTag = "restricted-legal-us-authorities",
+                )
+
+                More2OuterCard(
+                    modifier = Modifier.testTag("restricted-legal-jm-authorities"),
+                    background = colors.gray150,
+                ) {
+                    Column(
+                        Modifier.padding(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        Text(
+                            text = RestrictedLegalInfo.JM_AUTHORITIES_TITLE,
+                            style = AirdropType.subtitle2,
+                            color = colors.textDarkTitle,
+                        )
+                        Text(
+                            text = RestrictedLegalInfo.JM_AUTHORITIES_INTRO,
+                            style = AirdropType.body2,
+                            color = colors.textDarkTitle,
+                        )
+                        RestrictedLegalInfo.jamaicanAuthorities.forEachIndexed { index, authority ->
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = authority.name,
+                                    style = AirdropType.subtitle3,
+                                    color = colors.textDarkTitle,
+                                )
+                                Text(
+                                    text = authority.label,
+                                    style = AirdropType.body2,
+                                    color = BrandPalette.OrangeMain,
+                                    modifier = Modifier
+                                        .testTag("restricted-legal-authority-link-$index")
+                                        .clickable { openLink(authority.url) },
+                                )
+                            }
+                        }
+                        Text(
+                            text = RestrictedLegalInfo.JM_AUTHORITIES_FOOTER,
+                            style = AirdropType.body2,
+                            color = colors.textDarkTitle,
+                        )
+                        Text(
+                            text = RestrictedLegalInfo.DISCLAIMER,
+                            style = AirdropType.body2,
+                            color = colors.textDarkTitle,
+                        )
+                        Text(
+                            text = RestrictedLegalInfo.BIS_LEAD_IN,
+                            style = AirdropType.body2,
+                            color = colors.textDarkTitle,
+                        )
+                        Text(
+                            text = RestrictedLegalInfo.bisLink.label,
+                            style = AirdropType.body2,
+                            color = BrandPalette.OrangeMain,
+                            modifier = Modifier
+                                .testTag("restricted-legal-bis-link")
+                                .clickable { openLink(RestrictedLegalInfo.bisLink.url) },
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(Spacing.lg))

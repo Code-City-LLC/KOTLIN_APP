@@ -203,3 +203,75 @@ internal enum class RestrictedCategory(
         batteryPolicy = null,
     ),
 }
+
+/**
+ * Legal "Information" page content — Swift
+ * FigmaRestrictedItemsLegalInfoViewController (authorities :24-30, copy :120+),
+ * reached from the Restricted Items list info button
+ * (FigmaRestrictedItemsViewController:201). RN parity:
+ * modules/More/ui/RestrictedItemsInfoView.
+ */
+internal object RestrictedLegalInfo {
+
+    data class Authority(val name: String, val label: String, val url: String)
+
+    const val TITLE = "AirDrop Logistics LLC. Item Classifications (Jamaica)"
+
+    const val INTRO = "Know before you shop. Due to U.S. export regulations, carrier " +
+        "restrictions and Jamaican import laws, some items cannot be exported or require " +
+        "special handling. Before you purchase from the USA, be sure your items are not on " +
+        "the \"Do Not Ship\" list and that any required permits are obtained."
+
+    const val LEGAL_NOTICE_TITLE = "Legal Notice"
+    const val LEGAL_NOTICE_BODY = "This guide is illustrative, not exhaustive. As the importer " +
+        "of record, you must comply with U.S. export laws, carrier regulations (IATA/IMO) and " +
+        "Jamaican customs laws. AirDrop Logistics LLC reserves the right to refuse, inspect or " +
+        "detain any shipment that does not meet these requirements."
+
+    const val LABELING_TITLE = "Labeling & Compliance Checks"
+    const val LABELING_INTRO = "Items must be labeled or scrutinized under U.S. export controls " +
+        "or Jamaican import rules if they:"
+    val labelingBullets = listOf(
+        "Lack English labeling or required FDA/MOH labeling for cosmetics, supplements and " +
+            "over-the-counter medicines",
+        "Include medical devices not FDA-cleared/approved or lacking Ministry of Health clearance",
+        "Appear on consumer safety advisories or recall lists",
+        "Are perishable without appropriate cold-chain packaging",
+    )
+
+    const val US_AUTHORITIES_TITLE = "U.S. Export Control Authorities:"
+    const val US_AUTHORITIES_BODY = "The primary U.S. agencies with export control jurisdiction " +
+        "are the Bureau of Industry and Security (BIS) under the U.S. Department of Commerce, " +
+        "the Directorate of Defense Trade Controls (DDTC) under the Department of State, the " +
+        "Office of Foreign Assets Control (OFAC) under the Department of the Treasury, the " +
+        "Department of Energy, and the Nuclear Regulatory Commission.\n\nEach of these bodies " +
+        "oversees specific categories of items and licensing requirements under the Export " +
+        "Administration Regulations (EAR) and the International Traffic in Arms Regulations (ITAR)."
+
+    const val JM_AUTHORITIES_TITLE = "Jamaican Import Authorities:"
+    const val JM_AUTHORITIES_INTRO = "Importers must also comply with Jamaican regulations " +
+        "enforced by the following agencies:"
+    val jamaicanAuthorities = listOf(
+        Authority("Jamaica Customs Agency:", "www.jca.gov.jm", "https://www.jca.gov.jm"),
+        Authority("Ministry of Health & Wellness:", "www.moh.gov.jm", "https://www.moh.gov.jm"),
+        Authority("Ministry of National Security:", "www.mns.gov.jm", "https://www.mns.gov.jm"),
+        Authority(
+            "Rural Agricultural Development Authority (RADA):",
+            "www.rada.gov.jm",
+            "https://www.rada.gov.jm",
+        ),
+        Authority("Trade Board Limited:", "www.tradeboard.gov.jm", "https://www.tradeboard.gov.jm"),
+    )
+    const val JM_AUTHORITIES_FOOTER = "These agencies regulate imports into Jamaica and issue " +
+        "permits for controlled or restricted goods."
+
+    // Swift ships this copy verbatim (including the "export-asian" oddity) —
+    // do not "correct" text the source of truth renders as-is.
+    const val DISCLAIMER = "The information provided here is exemplary and does not replace " +
+        "consultation of official export-asian regulations or our Terms and Conditions. " +
+        "AirDrop Logistics LLC reserves the right to refuse, inspect, or detain any shipment " +
+        "that does not meet these requirements."
+    const val BIS_LEAD_IN = "For further details on U.S. export controls, please refer to " +
+        "official resources provided by the"
+    val bisLink = Authority("", "Bureau of Industry and Security (BIS).", "https://www.bis.doc.gov")
+}
