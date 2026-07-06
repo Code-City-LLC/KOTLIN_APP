@@ -84,14 +84,11 @@ fun AppRoot() {
     // deletion), reset to the auth landing instead of leaving dead screens.
     // Auth-graph routes are exempt so splash routing and the explicit
     // logout/deletion navigations don't double-fire.
-    androidx.compose.runtime.LaunchedEffect(token) {
-        if (token == null) {
-            val route = navController.currentBackStackEntry?.destination?.route
-            if (route != null && route !in AUTH_GRAPH_ROUTES) {
-                navController.navigate(Routes.AUTH_LANDING) {
-                    popUpTo(0) { inclusive = true }
-                    launchSingleTop = true
-                }
+    androidx.compose.runtime.LaunchedEffect(token, currentRoute) {
+        if (shouldResetToAuthLanding(token, currentRoute)) {
+            navController.navigate(Routes.AUTH_LANDING) {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
             }
         }
     }
@@ -122,6 +119,9 @@ fun AppRoot() {
         }
     }
 }
+
+internal fun shouldResetToAuthLanding(token: String?, currentRoute: String?): Boolean =
+    token == null && currentRoute != null && currentRoute !in AUTH_GRAPH_ROUTES
 
 private fun androidx.navigation.NavGraphBuilder.authGraph(navController: NavHostController) {
     composable(Routes.AUTH_LANDING) {

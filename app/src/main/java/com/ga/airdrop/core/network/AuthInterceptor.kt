@@ -47,13 +47,17 @@ class AuthInterceptor : Interceptor {
             return response
         }
 
+        val original401 = response.newBuilder()
+            .body(response.peekBody(MAX_ERROR_BODY_BYTES))
+            .build()
+        response.close()
+
         // Swift :347 — try a single refresh + retry before tearing down the
         // session. TokenRefresher coalesces concurrent 401s onto one network
         // refresh; callers queued behind it see the rotated bearer.
         val refreshed = TokenRefresher.refresh(attachedToken) { performRefresh(chain) }
         if (refreshed) {
             AuthTokenStore.token?.let { rotated ->
-                response.close()
                 return chain.proceed(
                     request.newBuilder()
                         .header("Authorization", "Bearer $rotated")
@@ -68,7 +72,7 @@ class AuthInterceptor : Interceptor {
         if (attachedToken == AuthTokenStore.token) {
             AuthTokenStore.clear()
         }
-        return response
+        return original401
     }
 
     /**
@@ -98,5 +102,6 @@ class AuthInterceptor : Interceptor {
 
     companion object {
         const val NO_AUTH_HEADER = "X-Airdrop-No-Auth"
+        private const val MAX_ERROR_BODY_BYTES = 1024L * 1024L
     }
 }

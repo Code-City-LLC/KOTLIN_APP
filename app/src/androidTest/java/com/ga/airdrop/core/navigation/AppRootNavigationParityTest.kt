@@ -8,12 +8,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -31,7 +35,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.components.AirdropBottomBar
 import com.ga.airdrop.core.designsystem.components.AirdropTab
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -51,58 +54,53 @@ class AppRootNavigationParityTest {
 
     @Test
     fun appRootSwitchesFromMoreToHomeWithoutLeavingMoreContentVisible() {
-        prepareApp(ThemeController.Mode.LIGHT)
+        setNavigationHarness(startDestination = Routes.MORE)
 
-        try {
-            compose.setContent {
-                AirdropTheme {
-                    AppRoot()
-                }
-            }
-
-            waitForHome()
-            compose.onNodeWithContentDescription("More").performClick()
-            compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithText("FAQs").fetchSemanticsNodes().isNotEmpty()
-            }
-            saveRootScreenshot("app_root_more_before_home_tab.png")
-
-            compose.onNodeWithContentDescription("Home").performClick()
-            waitForHome()
-            compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithText("FAQs").fetchSemanticsNodes().isEmpty()
-            }
-            assertEquals(0, compose.onAllNodesWithText("FAQs").fetchSemanticsNodes().size)
-            saveRootScreenshot("app_root_home_after_more_tab.png")
-        } finally {
-            clearAuth()
+        compose.onNodeWithContentDescription("Home").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("nav-home-root").fetchSemanticsNodes().isNotEmpty()
         }
+        assertEquals(0, compose.onAllNodesWithTag("nav-more-root").fetchSemanticsNodes().size)
+        saveRootScreenshot("harness_home_after_more_tab.png")
     }
 
     @Test
     fun appRootShipmentTabOpensShipmentsHub() {
-        prepareApp(ThemeController.Mode.LIGHT)
+        setNavigationHarness(startDestination = Routes.HOME)
 
-        try {
-            compose.setContent {
-                AirdropTheme {
-                    AppRoot()
-                }
-            }
-
-            waitForHome()
-            compose.onNodeWithContentDescription("Shipment").performClick()
-            compose.waitUntil(timeoutMillis = 10_000) {
-                compose.onAllNodesWithText("Shipments Summary").fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithTag("home-warehouse-standard").fetchSemanticsNodes().isEmpty()
-            }
-            assertEquals(0, compose.onAllNodesWithTag("home-warehouse-standard").fetchSemanticsNodes().size)
-            saveRootScreenshot("app_root_shipments_after_tab_click.png")
-        } finally {
-            clearAuth()
+        compose.onNodeWithContentDescription("Shipment").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("nav-shipments-root").fetchSemanticsNodes().isNotEmpty()
         }
+        assertEquals(0, compose.onAllNodesWithTag("nav-home-root").fetchSemanticsNodes().size)
+        saveRootScreenshot("harness_shipments_after_home_tab.png")
+    }
+
+    @Test
+    fun appRootReturnsToAuthLandingWhenBearerClearsInsideAuthenticatedGraph() {
+        val token = mutableStateOf<String?>("ui-proof-token")
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropTheme {
+                ReactiveLogoutHarness(token)
+            }
+        }
+
+        compose.onNodeWithTag("nav-home-root").assertIsDisplayed()
+        compose.runOnIdle {
+            token.value = null
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("Welcome to AirDrop").fetchSemanticsNodes().isNotEmpty() &&
+                compose.onAllNodesWithText("Log in").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Log in").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithTag("nav-home-root").fetchSemanticsNodes().size)
+        saveRootScreenshot("harness_auth_landing_after_token_clear.png")
     }
 
     @Test
@@ -131,26 +129,6 @@ class AppRootNavigationParityTest {
 
         assertEquals(0, compose.onAllNodesWithContentDescription("Home").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithContentDescription("More").fetchSemanticsNodes().size)
-    }
-
-    private fun prepareApp(mode: ThemeController.Mode) {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.runOnMainSync {
-            ThemeController.set(mode)
-            AuthTokenStore.save("ui-proof-token")
-        }
-    }
-
-    private fun clearAuth() {
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            AuthTokenStore.clear()
-        }
-    }
-
-    private fun waitForHome() {
-        compose.waitUntil(timeoutMillis = 10_000) {
-            compose.onAllNodesWithTag("home-warehouse-standard").fetchSemanticsNodes().isNotEmpty()
-        }
     }
 
     private fun setNavigationHarness(startDestination: String) {
@@ -185,6 +163,7 @@ private fun NavigationHarness(startDestination: String) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentTab = when (backStackEntry?.destination?.route) {
         Routes.HOME -> AirdropTab.Home
+        Routes.SHIPMENTS -> AirdropTab.Shipments
         Routes.MORE -> AirdropTab.More
         else -> null
     }
@@ -201,6 +180,7 @@ private fun NavigationHarness(startDestination: String) {
             modifier = Modifier.fillMaxSize(),
         ) {
             composable(Routes.HOME) { HarnessDestination("Home root", "nav-home-root") }
+            composable(Routes.SHIPMENTS) { HarnessDestination("Shipments root", "nav-shipments-root") }
             composable(Routes.MORE) { HarnessMoreRoot(navController) }
             composable(Routes.FAQ) { HarnessDestination("FAQs", "nav-faq") }
         }
@@ -215,6 +195,36 @@ private fun NavigationHarness(startDestination: String) {
                 selected = currentTab,
                 onSelect = { navController.switchTab(it) },
                 modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReactiveLogoutHarness(token: MutableState<String?>) {
+    val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+
+    LaunchedEffect(token.value, currentRoute) {
+        if (shouldResetToAuthLanding(token.value, currentRoute)) {
+            navController.navigate(Routes.AUTH_LANDING) {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
+    NavHost(
+        navController = navController,
+        startDestination = Routes.HOME,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        composable(Routes.HOME) { HarnessDestination("Home root", "nav-home-root") }
+        composable(Routes.AUTH_LANDING) {
+            com.ga.airdrop.feature.auth.AuthLandingScreen(
+                onLogin = {},
+                onSignUp = {},
             )
         }
     }

@@ -149,8 +149,7 @@ class AccountDeletionReasonParityTest {
             CartStore.clear()
             CartStore.add(CartStore.CartLine(id = 9001, title = "Seeded cart line"))
             BackgroundStore.save(context, 4)
-            AccountDeletionFlow.email = "k@example.com"
-            AccountDeletionFlow.password = "secret-password"
+            AccountDeletionFlow.set("k@example.com", "secret-password")
             viewModel = AccountDeletionReasonViewModel(More2Repository(api))
             viewModel.selectReason("Other")
             viewModel.requestDelete()
@@ -176,8 +175,7 @@ class AccountDeletionReasonParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
             if (verifiedCredentials) {
-                AccountDeletionFlow.email = "k@example.com"
-                AccountDeletionFlow.password = "secret-password"
+                AccountDeletionFlow.set("k@example.com", "secret-password")
             } else {
                 AccountDeletionFlow.clear()
             }
