@@ -70,7 +70,7 @@ interface More2Api {
     suspend fun deactivateAuthorizedUser(@Path("id") id: Int, @Body body: EmptyRequest): MutationResponse
 
     // ── Refer a friend ──
-    @GET("refer-friend")
+    @GET("refer-friend/history")
     suspend fun referredFriends(@Query("limit") limit: Int): Paginated<ReferredFriend>
 
     @POST("refer-friend")
@@ -148,7 +148,13 @@ class More2Repository(
         apiCall { api.referredFriends(limit).items }
 
     suspend fun referFriend(request: ReferFriendRequest) =
-        apiCall { api.referFriend(request) }
+        apiCall {
+            val response = api.referFriend(request)
+            if (response.success == false) {
+                error(response.message ?: "Error")
+            }
+            response
+        }
 
     suspend fun profile(): Result<AirdropUser> =
         apiCall { api.profile().user ?: error("No profile returned") }

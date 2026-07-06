@@ -59,6 +59,7 @@ object Routes {
     const val BACKGROUNDS = "backgrounds"
     const val REFER_A_FRIEND = "referAFriend"
     const val INVITE_FRIEND = "inviteFriend"
+    const val REFERRED_FRIENDS = "referredFriends"
     const val PROMOTIONS = "promotions"
     const val PREFERENCES = "preferences"
     const val AUTHORIZED_USERS = "authorizedUsers"

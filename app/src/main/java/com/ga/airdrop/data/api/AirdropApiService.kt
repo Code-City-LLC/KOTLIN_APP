@@ -334,7 +334,7 @@ interface AirdropApiService {
     @POST("refer-friend")
     suspend fun referFriend(@Body body: ReferFriendRequest): MutationResponse
 
-    @GET("refer-friend")
+    @GET("refer-friend/history")
     suspend fun referredFriends(
         @Query("limit") limit: Int,
         @Query("user_id") userId: Int?,

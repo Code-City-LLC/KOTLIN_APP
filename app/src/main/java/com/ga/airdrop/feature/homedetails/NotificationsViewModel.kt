@@ -149,7 +149,8 @@ fun resolveNotificationRoute(route: String?, referenceId: String?): String? {
         "SalesTaxesView" -> Routes.SALES_TAXES
         "CalculatorView" -> Routes.CALCULATOR
         "DropAlertView" -> Routes.DROP_ALERT
-        "ReferView", "ReferredFriendsView" -> Routes.REFER_A_FRIEND
+        "ReferView" -> Routes.REFER_A_FRIEND
+        "ReferredFriendsView" -> Routes.REFERRED_FRIENDS
         "InviteFriendView" -> Routes.INVITE_FRIEND
         "PreferencesView" -> Routes.PREFERENCES
         "PromotionsView" -> Routes.PROMOTIONS

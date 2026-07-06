@@ -17,7 +17,9 @@ class PushDeepLinkParityTest {
     fun referAndInviteRoutesResolveToSwiftDestinations() {
         assertRoute("ReferView", Routes.REFER_A_FRIEND)
         assertRoute("Refer", Routes.REFER_A_FRIEND)
-        assertRoute("ReferredFriendsView", Routes.REFER_A_FRIEND)
+        assertRoute("ReferredFriendsView", Routes.REFERRED_FRIENDS)
+        assertRoute("ReferredFriends", Routes.REFERRED_FRIENDS)
+        assertRoute("referredFriends", Routes.REFERRED_FRIENDS)
         assertRoute("InviteFriendView", Routes.INVITE_FRIEND)
         assertRoute("InviteFriend", Routes.INVITE_FRIEND)
     }

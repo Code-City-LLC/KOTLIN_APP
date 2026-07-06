@@ -33,8 +33,9 @@ object PushDeepLink {
         "ShopView", "shop" -> Routes.SHOP
         "CartView", "cart" -> Routes.CART
         "AirCoinView", "airCoins" -> Routes.AIRCOIN_HISTORY
-        "ReferView", "Refer", "ReferredFriendsView", "ReferredFriends", "refer", "referAFriend" ->
+        "ReferView", "Refer", "refer", "referAFriend" ->
             Routes.REFER_A_FRIEND
+        "ReferredFriendsView", "ReferredFriends", "referredFriends" -> Routes.REFERRED_FRIENDS
         "InviteFriendView", "InviteFriend", "inviteFriend" -> Routes.INVITE_FRIEND
         "PromotionsView", "promotions" -> Routes.PROMOTIONS
         else -> Routes.NOTIFICATIONS

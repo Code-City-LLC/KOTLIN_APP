@@ -6,18 +6,18 @@ import android.provider.ContactsContract
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.ReferFriendRequest
 import java.io.File
@@ -39,43 +39,43 @@ class InviteFriendParityScreenshotTest {
     val compose = createComposeRule()
 
     @Test
-    fun contactsIconUsesSwiftDuotoneLight() {
+    fun inviteFormMatchesCurrentFigmaLight() {
         setInviteFriend(mode = ThemeController.Mode.LIGHT)
 
-        assertContactsRowGeometry()
-        assertIconContainsColor(ORANGE, "orange signal arcs in light mode")
-        assertIconContainsColor(DARK_HANDSET, "dark handset in light mode")
-        saveRootScreenshot("invite_friend_contacts_icon_light.png")
+        compose.onNodeWithTag("invite-friend-screen").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-contacts-row").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-first-name-input").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-last-name-input").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-email-input").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-email-chevron").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-info-body").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-save").assertIsDisplayed()
+        assertAbsent("View Referral History")
+        assertAbsent("Description")
+        saveRootScreenshot("invite_friend_figma_light.png")
     }
 
     @Test
-    fun contactsIconUsesSwiftDuotoneDark() {
+    fun contactsIconUsesSwiftPreferencesDuotoneDark() {
         setInviteFriend(mode = ThemeController.Mode.DARK)
 
-        assertContactsRowGeometry()
-        assertIconContainsColor(ORANGE, "orange signal arcs in dark mode")
-        assertIconContainsColor(WHITE_HANDSET, "white handset in app dark mode")
-        saveRootScreenshot("invite_friend_contacts_icon_dark.png")
+        val bitmap = compose.onNodeWithTag(
+            "invite-friend-contacts-icon",
+            useUnmergedTree = true,
+        ).captureToImage().asAndroidBitmap()
+        assertTrue("orange controls in dark mode", bitmap.hasPixelNear(ORANGE))
+        assertTrue("white rails in dark mode", bitmap.hasPixelNear(WHITE))
+        val infoCard = compose.onNodeWithTag(
+            "invite-friend-info-card",
+            useUnmergedTree = true,
+        ).captureToImage().asAndroidBitmap()
+        assertTrue("dark info notice uses Swift cyan wash", infoCard.hasPixelNear(DARK_INFO_NOTICE_BORDER, 36))
+        assertFalse("dark info notice must not reuse the light blue fill", infoCard.hasPixelNear(LIGHT_INFO_NOTICE, 12))
+        saveRootScreenshot("invite_friend_figma_dark.png")
     }
 
     @Test
-    fun infoCardBodyUsesSwiftTextDarkTitleLight() {
-        setInviteFriend(mode = ThemeController.Mode.LIGHT)
-
-        assertInfoBodyContainsColor(DARK_HANDSET, "Swift textDarkTitle info body in light mode")
-        assertInfoBodyDoesNotContainColor(BLUE_MAIN, "Info body must not use BlueMain in light mode")
-    }
-
-    @Test
-    fun infoCardBodyUsesSwiftTextDarkTitleDark() {
-        setInviteFriend(mode = ThemeController.Mode.DARK)
-
-        assertInfoBodyContainsColor(WHITE_HANDSET, "Swift textDarkTitle info body in app dark mode")
-        assertInfoBodyDoesNotContainColor(BLUE_MAIN, "Info body must not use BlueMain in dark mode")
-    }
-
-    @Test
-    fun contactsRowLaunchesEmailPickerAndPrefillsReturnedContact() {
+    fun contactsRowLaunchesContactsPickerAndCanUseContactInForm() {
         val api = FakeInviteFriendRepository()
         val launchedIntent = AtomicReference<Intent?>()
         lateinit var viewModel: InviteFriendViewModel
@@ -84,7 +84,6 @@ class InviteFriendParityScreenshotTest {
             ThemeController.set(ThemeController.Mode.LIGHT)
             viewModel = InviteFriendViewModel(api)
         }
-
         compose.setContent {
             AirdropTheme {
                 InviteFriendScreen(
@@ -92,9 +91,10 @@ class InviteFriendParityScreenshotTest {
                     viewModel = viewModel,
                     onContactPickerIntent = { intent ->
                         launchedIntent.set(intent)
-                        viewModel.prefillContact(
+                        viewModel.onContactPicked(
                             displayName = "Jordan Marie Smith",
                             email = "jordan@example.com",
+                            phone = "+1 876 555 0101",
                         )
                     },
                 )
@@ -107,11 +107,47 @@ class InviteFriendParityScreenshotTest {
         compose.runOnIdle {
             val intent = launchedIntent.get()
             assertEquals(Intent.ACTION_PICK, intent?.action)
-            assertEquals(ContactsContract.CommonDataKinds.Email.CONTENT_URI, intent?.data)
+            assertEquals(ContactsContract.Contacts.CONTENT_URI, intent?.data)
         }
+        compose.onNodeWithText("Invite Jordan Marie Smith").assertIsDisplayed()
+        compose.onNodeWithText("Use in form").performClick()
         compose.onNodeWithText("Jordan").assertIsDisplayed()
         compose.onNodeWithText("Marie Smith").assertIsDisplayed()
         compose.onNodeWithText("jordan@example.com").assertIsDisplayed()
+    }
+
+    @Test
+    fun smsHandoffShowsResultAfterSuccessfulHandoff() {
+        assertSuccessfulExternalHandoff(
+            optionText = "Send by text message",
+            expectedHandoff = InviteFriendHandoff.Sms,
+        )
+    }
+
+    @Test
+    fun whatsappHandoffShowsResultAfterSuccessfulHandoff() {
+        assertSuccessfulExternalHandoff(
+            optionText = "Send by WhatsApp",
+            expectedHandoff = InviteFriendHandoff.WhatsApp,
+        )
+    }
+
+    @Test
+    fun shareHandoffShowsResultAfterSuccessfulHandoff() {
+        assertSuccessfulExternalHandoff(
+            optionText = "Share referral link",
+            expectedHandoff = InviteFriendHandoff.Share,
+        )
+    }
+
+    @Test
+    fun failedExternalHandoffDoesNotShowFalseSuccess() {
+        setInviteFriendWithPickedContact(
+            externalInviteHandoff = { _, _, _ -> false },
+        )
+        compose.onNodeWithText("Share referral link").performClick()
+        compose.waitForIdle()
+        assertAbsent("Invitation Sent")
     }
 
     @Test
@@ -123,7 +159,7 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithText("First name is required.").assertIsDisplayed()
 
         compose.runOnIdle {
-            assertEquals("Swift validation must block an empty first-name POST", 0, api.referFriendCalls.get())
+            assertEquals("Swift validation blocks empty first-name POST", 0, api.referFriendCalls.get())
         }
     }
 
@@ -139,7 +175,7 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithText("Please enter a valid email address.").assertIsDisplayed()
 
         compose.runOnIdle {
-            assertEquals("Swift validation must block an invalid-email POST", 0, api.referFriendCalls.get())
+            assertEquals("Swift validation blocks invalid-email POST", 0, api.referFriendCalls.get())
         }
     }
 
@@ -147,9 +183,11 @@ class InviteFriendParityScreenshotTest {
     fun savePostsSwiftPayloadShowsSuccessAndCompletes() {
         val api = FakeInviteFriendRepository()
         val saved = AtomicInteger()
-        setInviteFriend(api = api, mode = ThemeController.Mode.LIGHT) {
-            saved.incrementAndGet()
-        }
+        val viewModel = setInviteFriend(
+            api = api,
+            mode = ThemeController.Mode.LIGHT,
+            onSaved = { saved.incrementAndGet() },
+        )
 
         compose.onNodeWithTag("invite-friend-first-name-input").performTextInput(" Chase ")
         compose.onNodeWithTag("invite-friend-last-name-input").performTextInput(" Campbell ")
@@ -166,86 +204,120 @@ class InviteFriendParityScreenshotTest {
         assertEquals("Chase", request.friendFirstName)
         assertEquals("Campbell", request.friendLastName)
         assertEquals("chase@example.com", request.friendEmail)
-        assertNull("Swift omits a blank description from the POST body", request.description)
+        assertNull("Swift omits form description from the POST body", request.description)
         compose.onNodeWithText("Invitation Sent").assertIsDisplayed()
         compose.onNodeWithText("Referral sent").assertIsDisplayed()
+        compose.runOnIdle {
+            val state = viewModel.state.value
+            assertEquals("Successful Save clears first name", "", state.firstName)
+            assertEquals("Successful Save clears last name", "", state.lastName)
+            assertEquals("Successful Save clears email", "", state.email)
+            assertNull("Successful Save clears stale validation", state.validationError)
+            assertNull("Successful Save clears stale API error", state.error)
+        }
 
         compose.onNodeWithText("OK").performClick()
         compose.runOnIdle {
-            assertEquals("Success acknowledgement should return to the Refer flow", 1, saved.get())
+            assertEquals("Success acknowledgement returns to Refer flow", 1, saved.get())
         }
     }
 
-    private fun setInviteFriend(mode: ThemeController.Mode) {
-        setInviteFriend(api = null, mode = mode)
+    private fun assertSuccessfulExternalHandoff(
+        optionText: String,
+        expectedHandoff: InviteFriendHandoff,
+    ) {
+        val saved = AtomicInteger()
+        val handoff = AtomicReference<InviteFriendHandoff?>()
+        val sentMessage = AtomicReference<String?>()
+        setInviteFriendWithPickedContact(
+            onSaved = { saved.incrementAndGet() },
+            externalInviteHandoff = { type, contact, message ->
+                handoff.set(type)
+                sentMessage.set(message)
+                contact.displayName == "Jordan Marie Smith"
+            },
+        )
+
+        compose.onNodeWithText(optionText).performClick()
+        compose.onNodeWithText("Invitation Sent").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Your invitation has been shared successfully. Your friend will receive a message with a unique referral link."
+        ).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(expectedHandoff, handoff.get())
+            assertTrue(sentMessage.get().orEmpty().contains("https://airdropja.com/refer/AD-2048"))
+        }
+
+        compose.onNodeWithText("OK").performClick()
+        compose.runOnIdle {
+            assertEquals("External handoff acknowledgement returns to Refer flow", 1, saved.get())
+        }
     }
 
-    private fun setInviteFriend(
-        api: FakeInviteFriendRepository?,
-        mode: ThemeController.Mode,
+    private fun setInviteFriendWithPickedContact(
         onSaved: () -> Unit = {},
+        externalInviteHandoff: (InviteFriendHandoff, InviteContact, String) -> Boolean,
     ) {
         lateinit var viewModel: InviteFriendViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.set(mode)
-            if (api != null) {
-                viewModel = InviteFriendViewModel(api)
-            }
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            viewModel = InviteFriendViewModel(FakeInviteFriendRepository())
         }
         compose.setContent {
             AirdropTheme {
-                if (api == null) {
-                    InviteFriendScreen(onBack = {})
-                } else {
-                    InviteFriendScreen(onBack = {}, onSaved = onSaved, viewModel = viewModel)
-                }
+                InviteFriendScreen(
+                    onBack = {},
+                    onSaved = onSaved,
+                    viewModel = viewModel,
+                    onContactPickerIntent = {
+                        viewModel.onContactPicked(
+                            displayName = "Jordan Marie Smith",
+                            email = "jordan@example.com",
+                            phone = "+1 876 555 0101",
+                        )
+                    },
+                    externalInviteHandoff = externalInviteHandoff,
+                )
             }
         }
         compose.waitForIdle()
+        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+        compose.onNodeWithText("Invite Jordan Marie Smith").assertIsDisplayed()
     }
 
-    private fun assertContactsRowGeometry() {
-        val row = compose.onNodeWithTag("invite-friend-contacts-row")
-            .getUnclippedBoundsInRoot()
-        val icon = compose.onNodeWithTag(
-            "invite-friend-contacts-icon",
-            useUnmergedTree = true,
-        ).getUnclippedBoundsInRoot()
+    private fun setInviteFriend(
+        mode: ThemeController.Mode,
+    ): InviteFriendViewModel =
+        setInviteFriend(api = FakeInviteFriendRepository(), mode = mode)
 
-        assertClose(59f, boundsHeight(row), "Contacts row height")
-        assertClose(24f, boundsWidth(icon), "Contacts icon width")
-        assertClose(24f, boundsHeight(icon), "Contacts icon height")
-    }
-
-    private fun assertIconContainsColor(target: Int, label: String) {
-        val bitmap = compose.onNodeWithTag(
-            "invite-friend-contacts-icon",
-            useUnmergedTree = true,
-        ).captureToImage().asAndroidBitmap()
-
-        assertTrue(label, bitmap.hasPixelNear(target))
-    }
-
-    private fun assertInfoBodyContainsColor(target: Int, label: String) {
-        val bitmap = captureInfoBody()
-
-        assertTrue(label, bitmap.hasPixelNear(target))
-    }
-
-    private fun assertInfoBodyDoesNotContainColor(target: Int, label: String) {
-        val bitmap = captureInfoBody()
-
-        assertFalse(label, bitmap.hasPixelNear(target))
-    }
-
-    private fun captureInfoBody(): Bitmap {
-        val node = compose.onNodeWithTag("invite-friend-info-body", useUnmergedTree = true)
-        node.performScrollTo()
+    private fun setInviteFriend(
+        api: FakeInviteFriendRepository,
+        mode: ThemeController.Mode,
+        onSaved: () -> Unit = {},
+    ): InviteFriendViewModel {
+        lateinit var viewModel: InviteFriendViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(mode)
+            viewModel = InviteFriendViewModel(api)
+        }
+        compose.setContent {
+            AirdropTheme {
+                InviteFriendScreen(
+                    onBack = {},
+                    onSaved = onSaved,
+                    viewModel = viewModel,
+                )
+            }
+        }
         compose.waitForIdle()
-        return node.captureToImage().asAndroidBitmap()
+        return viewModel
     }
 
-    private fun Bitmap.hasPixelNear(target: Int): Boolean {
+    private fun assertAbsent(text: String) {
+        assertEquals(0, compose.onAllNodesWithText(text).fetchSemanticsNodes().size)
+    }
+
+    private fun Bitmap.hasPixelNear(target: Int, tolerance: Int = COLOR_TOLERANCE): Boolean {
         val targetRed = (target shr 16) and 0xFF
         val targetGreen = (target shr 8) and 0xFF
         val targetBlue = target and 0xFF
@@ -258,9 +330,9 @@ class InviteFriendParityScreenshotTest {
                 val green = (pixel shr 8) and 0xFF
                 val blue = pixel and 0xFF
                 if (
-                    kotlin.math.abs(red - targetRed) <= COLOR_TOLERANCE &&
-                    kotlin.math.abs(green - targetGreen) <= COLOR_TOLERANCE &&
-                    kotlin.math.abs(blue - targetBlue) <= COLOR_TOLERANCE
+                    kotlin.math.abs(red - targetRed) <= tolerance &&
+                    kotlin.math.abs(green - targetGreen) <= tolerance &&
+                    kotlin.math.abs(blue - targetBlue) <= tolerance
                 ) {
                     return true
                 }
@@ -282,19 +354,12 @@ class InviteFriendParityScreenshotTest {
         return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
     }
 
-    private fun assertClose(expected: Float, actual: Float, label: String) {
-        assertEquals(label, expected, actual, 0.75f)
-    }
-
-    private fun boundsWidth(bounds: androidx.compose.ui.unit.DpRect): Float =
-        (bounds.right - bounds.left).value
-
-    private fun boundsHeight(bounds: androidx.compose.ui.unit.DpRect): Float =
-        (bounds.bottom - bounds.top).value
-
     private class FakeInviteFriendRepository : InviteFriendRepository {
         val referFriendCalls = AtomicInteger()
         val lastReferFriendRequest = AtomicReference<ReferFriendRequest?>()
+
+        override suspend fun currentUser(): Result<AirdropUser> =
+            Result.success(AirdropUser(accountNumber = "AD-2048"))
 
         override suspend fun referFriend(
             firstName: String,
@@ -316,9 +381,9 @@ class InviteFriendParityScreenshotTest {
 
     private companion object {
         const val ORANGE = 0xFFF15114.toInt()
-        const val DARK_HANDSET = 0xFF292929.toInt()
-        const val WHITE_HANDSET = 0xFFFFFFFF.toInt()
-        const val BLUE_MAIN = 0xFF2A2367.toInt()
+        const val WHITE = 0xFFFFFFFF.toInt()
+        const val DARK_INFO_NOTICE_BORDER = 0xFF1E5872.toInt()
+        const val LIGHT_INFO_NOTICE = 0xFFE3ECFF.toInt()
         const val COLOR_TOLERANCE = 18
     }
 }

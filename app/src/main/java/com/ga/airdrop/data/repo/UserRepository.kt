@@ -104,7 +104,7 @@ class UserRepository(private val service: AirdropApiService) {
         email: String,
         description: String?,
     ): Result<MutationResponse> = apiResult {
-        service.referFriend(
+        val response = service.referFriend(
             ReferFriendRequest(
                 friendFirstName = firstName,
                 friendLastName = lastName,
@@ -112,6 +112,10 @@ class UserRepository(private val service: AirdropApiService) {
                 description = description,
             ),
         )
+        if (response.success == false) {
+            throw ApiException(response.message ?: "Error")
+        }
+        response
     }
 
     suspend fun referredFriends(userId: Int? = null, limit: Int = 20): Result<List<ReferredFriend>> =

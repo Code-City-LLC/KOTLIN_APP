@@ -15,11 +15,9 @@ import com.ga.airdrop.core.navigation.Routes
  *     more2Graph(navController)
  *
  * Registers AUTHORIZED_USERS, ADD_AUTHORIZED_USER (editId arg),
- * AUTHORIZED_USER_DETAIL, REFER_A_FRIEND, INVITE_FRIEND, PROMOTIONS,
- * SHIPPING_RATES, TERMS, PRIVACY, FAQ, RESTRICTED_ITEMS, ACCOUNT_DELETION and
- * ACCOUNT_DELETION_REASON. No new route constants needed — all exist in
- * Routes.kt already (the restricted-items info variant is internal state, not
- * a route).
+ * AUTHORIZED_USER_DETAIL, REFER_A_FRIEND, INVITE_FRIEND, REFERRED_FRIENDS,
+ * PROMOTIONS, SHIPPING_RATES, TERMS, PRIVACY, FAQ, RESTRICTED_ITEMS,
+ * ACCOUNT_DELETION and ACCOUNT_DELETION_REASON.
  */
 fun NavGraphBuilder.more2Graph(navController: NavHostController) {
 
@@ -67,16 +65,9 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
     }
 
     composable(Routes.REFER_A_FRIEND) {
-        val refreshAfterInvite by it.savedStateHandle
-            .getStateFlow(REFER_INVITE_REFRESH_KEY, false)
-            .collectAsState()
         ReferAFriendScreen(
             onBack = { navController.popBackStack() },
             onInviteFriend = { navController.navigate(Routes.INVITE_FRIEND) },
-            refreshAfterInvite = refreshAfterInvite,
-            onRefreshAfterInviteConsumed = {
-                it.savedStateHandle[REFER_INVITE_REFRESH_KEY] = false
-            },
         )
     }
 
@@ -84,12 +75,13 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         InviteFriendScreen(
             onBack = { navController.popBackStack() },
             onSaved = {
-                navController.previousBackStackEntry
-                    ?.savedStateHandle
-                    ?.set(REFER_INVITE_REFRESH_KEY, true)
                 navController.popBackStack()
             },
         )
+    }
+
+    composable(Routes.REFERRED_FRIENDS) {
+        ReferredFriendsScreen(onBack = { navController.popBackStack() })
     }
 
     composable(Routes.PROMOTIONS) {
@@ -146,5 +138,3 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         )
     }
 }
-
-private const val REFER_INVITE_REFRESH_KEY = "refer_friend_invite_saved"
