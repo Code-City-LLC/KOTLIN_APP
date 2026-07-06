@@ -132,6 +132,7 @@ data class AirdropColorScheme(
     val peachLight: Color,
     // Glass overlays
     val glassOverlay20: Color,
+    val glassOverlay62: Color,
     val glassOverlay70: Color,
     // Login gradient for the active mode
     val signInBackground: List<Color>,
@@ -157,6 +158,7 @@ val lightAirdropColors = AirdropColorScheme(
     iconSelected = Color(0xFF292929),
     peachLight = Color(0xFFF8E9E0),
     glassOverlay20 = Color(0x33FFFFFF),
+    glassOverlay62 = Color(0x9EFFFFFF),
     glassOverlay70 = Color(0xB3FFFFFF),
     signInBackground = GradientPalette.SignInBackgroundLight,
 )
@@ -181,6 +183,7 @@ val darkAirdropColors = AirdropColorScheme(
     iconSelected = Color(0xFFFFFFFF),
     peachLight = Color(0xFF3A2A22),
     glassOverlay20 = Color(0x33292929),
+    glassOverlay62 = Color(0x9E292929),
     glassOverlay70 = Color(0xB3292929),
     signInBackground = GradientPalette.SignInBackgroundDark,
 )

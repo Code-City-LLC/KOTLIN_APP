@@ -4,7 +4,10 @@ import androidx.activity.ComponentActivity
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
+import androidx.compose.runtime.Composable
+import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
@@ -20,15 +23,20 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
-import com.ga.airdrop.core.navigation.AppRoot
+import com.ga.airdrop.core.designsystem.theme.darkAirdropColors
+import com.ga.airdrop.core.designsystem.theme.lightAirdropColors
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -108,6 +116,26 @@ class HomeActivityTilesScreenshotTest {
                 "Swift warehouse image top inset for ${warehouseCase.type}",
             )
         }
+    }
+
+    @Test
+    fun warehouseCardsUseCurrentSwiftGlassColors() {
+        assertEquals(
+            SWIFT_LIGHT_GLASS_OVERLAY_62,
+            homeWarehouseCardFillColor(lightAirdropColors).toArgb(),
+        )
+        assertEquals(
+            SWIFT_DARK_GLASS_OVERLAY_62,
+            homeWarehouseCardFillColor(darkAirdropColors).toArgb(),
+        )
+        assertEquals(
+            SWIFT_LIGHT_WAREHOUSE_BORDER,
+            homeWarehouseCardBorderColor(lightAirdropColors).toArgb(),
+        )
+        assertEquals(
+            SWIFT_DARK_WAREHOUSE_BORDER,
+            homeWarehouseCardBorderColor(darkAirdropColors).toArgb(),
+        )
     }
 
     @Test
@@ -270,8 +298,8 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun standardWarehouseCardOpensWarehouseScreenFromAppRoot() {
-        assertWarehouseCardOpensFromAppRoot(
+    fun standardWarehouseCardOpensWarehouseScreenThroughHomeNavGraph() {
+        assertWarehouseCardOpensThroughHomeNavGraph(
             WarehouseAppRootCase(
                 type = "standard",
                 expectedTitle = "AirDrop (Air Freight)",
@@ -281,8 +309,8 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun seadropWarehouseCardOpensWarehouseScreenFromAppRoot() {
-        assertWarehouseCardOpensFromAppRoot(
+    fun seadropWarehouseCardOpensWarehouseScreenThroughHomeNavGraph() {
+        assertWarehouseCardOpensThroughHomeNavGraph(
             WarehouseAppRootCase(
                 type = "seadrop",
                 expectedTitle = "SeaDrop (Sea Freight)",
@@ -292,8 +320,8 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun expressWarehouseCardOpensWarehouseScreenFromAppRoot() {
-        assertWarehouseCardOpensFromAppRoot(
+    fun expressWarehouseCardOpensWarehouseScreenThroughHomeNavGraph() {
+        assertWarehouseCardOpensThroughHomeNavGraph(
             WarehouseAppRootCase(
                 type = "express",
                 expectedTitle = "Express (Air Express)",
@@ -302,37 +330,28 @@ class HomeActivityTilesScreenshotTest {
         )
     }
 
-    private fun assertWarehouseCardOpensFromAppRoot(warehouseCase: WarehouseAppRootCase) {
+    private fun assertWarehouseCardOpensThroughHomeNavGraph(warehouseCase: WarehouseAppRootCase) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.runOnMainSync {
-            ThemeController.set(ThemeController.Mode.LIGHT)
-            AuthTokenStore.save("ui-proof-token")
-        }
+        instrumentation.runOnMainSync { ThemeController.set(ThemeController.Mode.LIGHT) }
 
-        try {
-            compose.setContent {
-                AirdropTheme {
-                    AppRoot()
-                }
+        compose.setContent {
+            AirdropTheme {
+                WarehouseHomeNavigationHarness()
             }
-            compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithTag("home-warehouse-carousel").fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.onNodeWithTag("home-warehouse-carousel")
-                .performScrollToNode(hasTestTag("home-warehouse-${warehouseCase.type}"))
-            compose.onNodeWithTag("home-warehouse-${warehouseCase.type}").performClick()
-            compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithText(warehouseCase.expectedTitle).fetchSemanticsNodes().isNotEmpty()
-            }
-            val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
-            val output = File(screenshotDir(), warehouseCase.screenshot)
-            FileOutputStream(output).use {
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-            }
-        } finally {
-            instrumentation.runOnMainSync {
-                AuthTokenStore.clear()
-            }
+        }
+        compose.waitUntil(timeoutMillis = 8_000) {
+            compose.onAllNodesWithTag("home-warehouse-carousel").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("home-warehouse-carousel")
+            .performScrollToNode(hasTestTag("home-warehouse-${warehouseCase.type}"))
+        compose.onNodeWithTag("home-warehouse-${warehouseCase.type}").performClick()
+        compose.waitUntil(timeoutMillis = 8_000) {
+            compose.onAllNodesWithText(warehouseCase.expectedTitle).fetchSemanticsNodes().isNotEmpty()
+        }
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val output = File(screenshotDir(), warehouseCase.screenshot)
+        FileOutputStream(output).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }
 
@@ -485,8 +504,46 @@ class HomeActivityTilesScreenshotTest {
     private companion object {
         private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
+        private const val SWIFT_LIGHT_GLASS_OVERLAY_62 = 0x9EFFFFFF.toInt()
+        private const val SWIFT_DARK_GLASS_OVERLAY_62 = 0x9E292929.toInt()
+        private const val SWIFT_LIGHT_WAREHOUSE_BORDER = 0x2E000000.toInt()
+        private const val SWIFT_DARK_WAREHOUSE_BORDER = 0x21FFFFFF.toInt()
         private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
         private const val COLOR_TOLERANCE = 8
         private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/home_refer_icon"
     }
 }
+
+@Composable
+private fun WarehouseHomeNavigationHarness() {
+    val navController = rememberNavController()
+    NavHost(
+        navController = navController,
+        startDestination = Routes.HOME,
+    ) {
+        composable(Routes.HOME) {
+            HomeScreen(onNavigate = { navController.navigate(it) })
+        }
+        composable(
+            route = Routes.WAREHOUSES + "?type={type}",
+            arguments = listOf(
+                navArgument("type") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            ),
+        ) { entry ->
+            Text(
+                text = warehouseHarnessTitle(entry.arguments?.getString("type")),
+            )
+        }
+    }
+}
+
+private fun warehouseHarnessTitle(type: String?): String =
+    when (type) {
+        "seadrop" -> "SeaDrop (Sea Freight)"
+        "express" -> "Express (Air Express)"
+        else -> "AirDrop (Air Freight)"
+    }
