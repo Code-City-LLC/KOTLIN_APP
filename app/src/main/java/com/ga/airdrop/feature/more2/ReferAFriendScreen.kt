@@ -134,15 +134,7 @@ fun ReferAFriendScreen(
                     onClick = onInviteFriend,
                     modifier = Modifier.testTag("refer-invite-friends-button"),
                 )
-                Text(
-                    text = "Your Referrals",
-                    style = AirdropType.title2,
-                    color = colors.textDarkTitle,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("refer-referrals-header"),
-                )
-                ReferralsContent(state)
+                ReferralsSection(state)
                 Spacer(Modifier.height(40.dp))
             }
         }
@@ -251,6 +243,27 @@ private fun SolidOrangeButton(
         contentAlignment = Alignment.Center,
     ) {
         Text(text = text, style = AirdropType.button, color = BrandPalette.White)
+    }
+}
+
+@Composable
+private fun ReferralsSection(state: ReferAFriendUiState) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .testTag("refer-referrals-section"),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = "Your Referrals",
+            style = AirdropType.title2,
+            color = colors.textDarkTitle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("refer-referrals-header"),
+        )
+        ReferralsContent(state)
     }
 }
 

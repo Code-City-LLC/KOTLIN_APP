@@ -2029,6 +2029,20 @@ Findings verified/fixed:
   `InviteFriendParityScreenshotTest`, and `PushDeepLinkParityTest` passed 16/16
   on `airdrop_test2(AVD) - 15`. Proof screenshot:
   `/tmp/kotlin_ui_proof/refer_adaptive_current/staging/screenshots/refer_friend_long_link_swift_adaptive.png`.
+- Follow-up on 2026-07-06 fixed the referrals section spacing drift. Swift
+  applies `setCustomSpacing(DesignTokens.Spacing.sm, after: referralsHeader)`,
+  so `Your Referrals` sits `10`pt above the referrals content instead of using
+  the global `20`pt content-stack spacing. Android now wraps that header and
+  list in a dedicated `ReferralsSection` with `Spacing.sm`, and
+  `ReferAFriendParityTest` measures the first-row gap at `10`dp. Figma MCP
+  screenshots were refreshed for `40001940:26885` and `40001940:26797`; both
+  remain stale landing-only frames, so Swift remains the runtime source.
+  Verification: `git diff --check`;
+  `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`;
+  prod `UserRepositoryReferFriendTest`; and staging device
+  `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
+  `More2InnerHeaderParityTest`, and `MoreRootTapRailsParityTest` passed 19/19
+  on `airdrop_test2(AVD) - 15`.
 
 ### Dark Theme Icons
 

@@ -109,6 +109,14 @@ class ReferAFriendParityTest {
         compose.onNodeWithText("Maya Lee").assertIsDisplayed()
         compose.onNodeWithText("maya@example.com").assertIsDisplayed()
         compose.onNodeWithText("Completed").assertIsDisplayed()
+        val headerBounds = compose.onNodeWithTag("refer-referrals-header").getUnclippedBoundsInRoot()
+        val rowBounds = compose.onNodeWithTag("refer-referral-row-7").getUnclippedBoundsInRoot()
+        assertEquals(
+            "Swift referrals header-to-list spacing",
+            10f,
+            rowBounds.top.value - headerBounds.bottom.value,
+            1f,
+        )
         val statusBounds = compose.onNodeWithTag("refer-referral-status-7").getUnclippedBoundsInRoot()
         assertEquals("Swift referral status pill height", 22f, boundsHeight(statusBounds), 1f)
 

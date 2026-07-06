@@ -788,6 +788,20 @@ uses `TextOverflow.MiddleEllipsis` only at render time. Verification:
 `PushDeepLinkParityTest` passed 16/16 on `airdrop_test2(AVD) - 15`. Proof:
 `/tmp/kotlin_ui_proof/refer_adaptive_current/staging/screenshots/refer_friend_long_link_swift_adaptive.png`.
 
+**Follow-up verification 2026-07-06:** Refer referrals spacing was rechecked
+against Swift first and Figma second. Figma nodes `40001940:26885` and
+`40001940:26797` still show the stale landing-only frame, while Swift
+`FigmaReferAFriendViewController.swift` explicitly applies
+`setCustomSpacing(DesignTokens.Spacing.sm, after: referralsHeader)`. Android
+now wraps the `Your Referrals` header and content in `ReferralsSection` with a
+`10`dp gap instead of the global `20`dp screen-stack gap, and
+`ReferAFriendParityTest` measures the header-to-first-row spacing. Verification:
+`git diff --check`; `:app:compileStagingDebugKotlin
+:app:compileStagingDebugAndroidTestKotlin`; prod `UserRepositoryReferFriendTest`;
+staging device `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
+`More2InnerHeaderParityTest`, and `MoreRootTapRailsParityTest` passed 19/19 on
+`airdrop_test2(AVD) - 15`.
+
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
 **✅ CLOSED — Home dark icon follow-up:** Services tile gear layer is no longer
