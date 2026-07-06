@@ -295,6 +295,7 @@ private fun DetailsContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(240.dp)
+                .testTag("auction-details-hero-card")
                 .background(colors.gray150, RoundedCornerShape(15.dp))
                 .border(1.dp, colors.iconShape, RoundedCornerShape(15.dp)),
         ) {
@@ -330,7 +331,9 @@ private fun DetailsContent(
 
         // ─── Paging dots — Swift :310-338: 8dp dots, 6dp spacing, centered. ───
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("auction-details-dots-row"),
             horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -338,6 +341,7 @@ private fun DetailsContent(
                 Box(
                     Modifier
                         .size(8.dp)
+                        .testTag("auction-details-dot-$index")
                         .background(
                             if (index == 1) BrandPalette.OrangeMain else colors.iconShape,
                             CircleShape,
@@ -350,7 +354,9 @@ private fun DetailsContent(
         // ─── Stats row — Swift :343-388: no strip background, 18dp icons +
         //     body2 labels in textDarkTitle, 6dp icon gap, 24dp pair gap. ───
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("auction-details-stats-row"),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -520,6 +526,7 @@ private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) {
         modifier = Modifier
             .width(132.dp)
             .height(44.dp)
+            .testTag("auction-details-quantity-stepper")
             .background(colors.gray100, RoundedCornerShape(12.dp))
             .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
             .padding(horizontal = 4.dp),

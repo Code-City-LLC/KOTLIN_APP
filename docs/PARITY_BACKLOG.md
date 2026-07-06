@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-06 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **44 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **45 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -45,6 +45,16 @@ light AND dark.
   Swift's single-unit hosted-checkout behavior even when the visual quantity is
   increased, rejects duplicate lines, and routes both the dialog and header cart
   icon to `Routes.CART`.
+- **Auction Product Details full visual guard:** Product detail node
+  `40002072:24025` was refreshed through Figma MCP and compared against Swift
+  `FigmaAuctionProductDetailsViewController.swift`. Android already followed
+  Swift for the main visual structure, but it lacked one focused full-screen
+  geometry guard. This pass adds non-visual test tags only and locks the Swift
+  hero/card/dot/stats/title/stepper/description/related/footer measurements in
+  `AuctionProductDetailsFullVisualParityTest`. Proof: focused test passed 3/3,
+  then the combined Product Details gate passed 13/13 on `airdrop_test2(AVD) -
+  15` with `AuctionProductDetailsRelatedParityTest` and
+  `AuctionProductDetailsCartFlowParityTest`.
 - **Shop root screen-level Swift/Figma proof:** Shop root node
   `40001846:53519` was refreshed through Figma MCP and compared with Swift
   `FigmaShopViewController.swift`. Swift keeps the shared frosted tab header
@@ -1344,6 +1354,15 @@ group passed 13/13 on `airdrop_test2(AVD) - 15`.
 **Detail:** Figma product-detail node `40002072:24025` shows the auction Product Details surface with bottom `Add to Cart`, and Swift `FigmaAuctionProductDetailsViewController.onAddToCart` is the runtime authority: add through `FigmaCartStore`, update the header badge, show `Added to cart` or `Already in cart`, and push `FigmaCartViewController` from `View Cart` or the header cart button. Android already reused `CartStore` and `Routes.CART`, but the flow was only implied by code and adjacent Cart tests.
 
 **Fix:** Closed. `AuctionProductDetailsCartFlowParityTest` verifies the full Android rail without introducing a duplicate cart path: increasing the visual quantity still stores a single Swift-compatible checkout unit, the cart line preserves product id/package id/title/price, duplicate adds keep one line and show Swift's duplicate dialog, `View Cart` routes to `Routes.CART`, and the header cart icon routes to `Routes.CART`. The production change is limited to test tags on the existing CTA and quantity stepper.
+
+---
+
+## [CLOSED] Auction Product Details — full visual geometry guard
+`app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt` — Product Detail had several piecemeal behavior checks, but no single Swift/Figma full-screen visual guard for the main auction details surface.
+
+**Detail:** Figma Product Detail node `40002072:24025` was refreshed through Figma MCP and compared against Swift `FigmaAuctionProductDetailsViewController.swift`. Swift remains the runtime source where it conflicts with the static Figma frame: 20pt content insets, 240pt gray150 hero card, 96pt airplane placeholder, 8pt pagination dots, unboxed stats row, subtitle/title/model/price/stock typography, 132x44 quantity stepper, collapsed 4-line description with underlined `See all`, 220pt related skeleton cards, and 52pt sticky bottom CTA.
+
+**Fix:** Closed with proof, not a visual rewrite. Android already matched the Swift layout constants; this pass added non-visual test tags to the existing hero/dots/stats/stepper and introduced `AuctionProductDetailsFullVisualParityTest`. The test verifies light and dark geometry for the Swift hero, placeholder, dots, stats labels, title/model/price/stock, stepper, description expansion rail, related skeletons, and bottom CTA. Focused proof passed 3/3, then the full Product Details gate passed 13/13 on `airdrop_test2(AVD) - 15` together with `AuctionProductDetailsRelatedParityTest` and `AuctionProductDetailsCartFlowParityTest`.
 
 ---
 
