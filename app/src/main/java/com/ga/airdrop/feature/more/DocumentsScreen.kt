@@ -246,7 +246,10 @@ internal fun DocumentCard(
                         contentAlignment = Alignment.Center,
                     ) {
                         Image(
-                            painter = painterResource(R.drawable.ic_info),
+                            // Swift FigmaDocumentsViewController:271 uses the
+                            // circular infoCircle glyph; Figma 40000975:7748 +
+                            // ledger C9 agree (ledger P3). ic_info is the squircle.
+                            painter = painterResource(R.drawable.ic_calc_info_circle),
                             contentDescription = "${slot.title} info",
                             colorFilter = ColorFilter.tint(colors.textDarkTitle),
                             modifier = Modifier.size(24.dp),

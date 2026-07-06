@@ -272,7 +272,10 @@ fun MoreSelectField(
                 .fillMaxWidth()
                 .height(52.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(colors.gray100)
+                // Swift FigmaPreferencesViewController: read-only (isEditable=false)
+                // fields fill gray300; editable fields stay gray100 (ledger P2).
+                // Only the Preferences "Email Address" row passes enabled=false.
+                .background(if (enabled) colors.gray100 else colors.gray300)
                 .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
                 .then(testTagPrefix?.let { Modifier.testTag("$it-card") } ?: Modifier)
                 .then(
