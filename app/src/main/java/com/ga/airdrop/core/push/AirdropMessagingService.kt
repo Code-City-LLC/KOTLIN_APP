@@ -1,6 +1,5 @@
 package com.ga.airdrop.core.push
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -63,13 +62,19 @@ class AirdropMessagingService : FirebaseMessagingService() {
         )
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Airdrop", NotificationManager.IMPORTANCE_DEFAULT),
-        )
+        manager.createNotificationChannel(defaultAirdropNotificationChannel())
+        if (!hasPostNotificationsPermission(this)) return
+
+        val badgeNumber = message.data["badge"]
+            ?.toIntOrNull()
+            ?.coerceAtLeast(1)
+            ?: 1
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_nav_home_filled)
             .setContentTitle(title)
             .setContentText(body)
+            .setBadgeIconType(NotificationCompat.BADGE_ICON_SMALL)
+            .setNumber(badgeNumber)
             .setAutoCancel(true)
             .setContentIntent(pending)
             .build()
