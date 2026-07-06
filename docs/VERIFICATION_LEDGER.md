@@ -1,7 +1,7 @@
 # KOTLIN_APP Verification Ledger — Problems, Cautions & Lessons
 
-**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 3 — Package Details main gates verified + stale-Swift caution)
-**State at writing:** `origin/main` = `22657cf` · PR #1 branch `codex/refer-friend-parity` = `c403099` (DRAFT, hold-merge pending Kemar restricted-boundary ruling; branch moves fast — always `git ls-remote` before citing its head)
+**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 4 — P1 Featured PD FIXED+device-verified (14d81d8))
+**State at writing:** `origin/main` src @ `14d81d8` (P1 fix) · PR #1 branch `codex/refer-friend-parity` = `c403099` (DRAFT, hold-merge pending Kemar restricted-boundary ruling; branch moves fast — always `git ls-remote` before citing its head)
 **Source-of-truth hierarchy (Kemar rulings #14540/#14553/#14578):** Swift app (`/Users/codecityceo/Documents/GitHub/SWIFT_APP`, `Figma*ViewController.swift`) = behavior + PRECEDENCE → Figma (fileKey `N4k6jzpeLZgeRS5O1xfyIv`) = visual reference → Laravel = API contract. Where Swift does not ship a screen, Figma is the authority. **Buttons must function; no fake/dead pages; no duplication; verify before closing (#14639).**
 
 > How to use this doc: before touching any screen listed here, read its entry. The CAUTIONS section is a do-NOT-do list — several "obvious fixes" below are traps that were investigated and rejected with evidence.
@@ -19,11 +19,10 @@
 - **DO NOT remove:** call/email/WhatsApp/location Help-tab actions, and `FigmaIcon_Chat`/`FigmaIcon.chat` notification-category icons — those are NOT Trengo.
 - **My role:** inventory-only (verifier). A senior agent owns key-rotation + the Hermes swap; I verify "no Trengo key remains + support/chat flow intact" once removal lands. (Full 33-ref map: ORC [TRENGO INVENTORY] post.)
 
-### P1 — 🐞 Featured Product Details: "Product not found" for EVERY featured product (TOP, unassigned)
-- **Repro:** Shop → Feature Products → "View More" → tap any product (e.g. AstroAI Tire Inflator) → error state.
-- **Root cause** ([ShopRepoBinding.kt:77](app/src/main/java/com/ga/airdrop/feature/shop/ShopRepoBinding.kt) `productBySlug(slug, featured)`): featured slugs are not general products, so `GET /products/{slug}` → **404**; the fallback `featured-products?slug=` returns **200-but-empty** (Laravel `/featured-products` has only index+stats — **no show route**, and the index slug-filter is ineffective). The chain ends in `error("Product not found")`.
-- **Fix (Swift-style):** pass the `ShopProduct` object from the featured **list** into the detail screen (Swift `FigmaFeatureProductDetailsViewController(product:)`), bypassing the slug re-fetch. Do NOT try to fix by re-fetching — there is no endpoint for it.
-- **Verify after fix:** device repro path above + OkHttp logcat (`adb logcat -d | grep -iE 'okhttp|products/'`).
+### P1 — ✅ FIXED & DEVICE-VERIFIED (2026-07-06) — Featured Product Details "Product not found"
+- **Was:** Shop → Feature Products → tap any product → "Product not found" for EVERY featured product. Root cause ([ShopRepoBinding.kt:77](app/src/main/java/com/ga/airdrop/feature/shop/ShopRepoBinding.kt) `productBySlug`): featured slugs 404 on `GET /products/{slug}`; `featured-products?slug=` 200-but-empty (Laravel `/featured-products` has no show route). Chain ended in `error("Product not found")`.
+- **Fix:** commit **`14d81d8`** "Hand tapped product into details like Swift (LEDGER P1)". `ShopProductHandoffStore` ([ShopData.kt:175](app/src/main/java/com/ga/airdrop/feature/shop/ShopData.kt), one-shot `consume` keyed by `routeSlug` :184) — `ProductListScreen.kt:187` `put(product)` before nav; `AuctionProductDetailsViewModel.load():46` `consume(slug)` FIRST → renders the handed product and **skips** the broken slug re-fetch (fallback only when store empty). Swift-style pass-from-list.
+- **Device-verified:** built origin/main `14d81d8`, emulator-5554/Tamzid — tapped AstroAI Tire Inflator (the exact repro): full detail renders (image, title, model, $31.99, qty, stock, description, Purchase). OkHttp shows **no `GET /products/{slug}` 404** on detail open (hydrated from the store). No regression. **CLOSED.**
 
 ### P2 — Deferred: Preferences read-only Email field fill (gray100 → gray300)
 - Swift `FigmaPreferencesViewController` PreferenceRow: `if !isEditable { card.backgroundColor = gray300 }`. Figma 40000994:19044 agrees (grey disabled fill). Android `MoreSelectField` uses `gray100` for all fields.
