@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -231,6 +232,111 @@ class ShipmentsHubTapRailsParityTest {
                 CartStore.clear()
             }
         }
+    }
+
+    @Test
+    fun cartToggleActionsRespectSwiftStatusGateEvenWhenCalledDirectly() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        instrumentation.runOnMainSync {
+            CartStore.init(context)
+            CartStore.clear()
+        }
+
+        val shipmentReceived = FakeHubRepository.samplePackage().copy(
+            id = 401,
+            status = "2",
+            statusName = "Shipment Received",
+        )
+        val readyForPickup = FakeHubRepository.samplePackage().copy(
+            id = 402,
+            status = "7",
+            statusName = "Ready for Pickup",
+        )
+        val paidAndReady = FakeHubRepository.samplePackage().copy(
+            id = 403,
+            status = "18",
+            statusName = "Paid and Ready for Pick Up",
+        )
+        val hubViewModel = ShipmentsViewModel(
+            repo = FakeHubRepository(packages = listOf(shipmentReceived, readyForPickup)),
+        )
+        val packagesViewModel = PackagesViewModel(
+            repo = FakePackagesRepository(packages = listOf(shipmentReceived, paidAndReady)),
+            hubRepo = FakeHubRepository(),
+        )
+
+        try {
+            hubViewModel.toggleCart(shipmentReceived)
+            packagesViewModel.toggleCart(shipmentReceived)
+            compose.runOnIdle {
+                assertEquals(
+                    "Swift rejects hub/list cart adds outside status 7 or 18",
+                    0,
+                    CartStore.count,
+                )
+            }
+
+            hubViewModel.toggleCart(readyForPickup)
+            packagesViewModel.toggleCart(paidAndReady)
+            compose.runOnIdle {
+                assertEquals(2, CartStore.count)
+                assertEquals(
+                    listOf(402, 403),
+                    CartStore.items.value.map { it.id }.sorted(),
+                )
+            }
+        } finally {
+            instrumentation.runOnMainSync {
+                CartStore.clear()
+            }
+        }
+    }
+
+    @Test
+    fun packageCardOmitsCartToggleForStatusesOutsideSwiftGate() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+
+        compose.setContent {
+            AirdropThemeProvider {
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .height(812.dp)
+                        .background(AirdropTheme.colors.gray200)
+                ) {
+                    PackageCard(
+                        pkg = FakeHubRepository.samplePackage().copy(
+                            id = 404,
+                            status = "2",
+                            statusName = "Shipment Received",
+                        ),
+                        exchangeRate = 161.0,
+                        onClick = {},
+                        onToggleCart = {},
+                        inCart = false,
+                        testTag = "ineligible-package-card",
+                        cartToggleTestTag = "ineligible-package-cart-toggle",
+                        modifier = Modifier.width(280.dp),
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("ineligible-package-card").assertExists()
+        compose.onNodeWithTag("ineligible-package-card-status-value", useUnmergedTree = true).assertExists()
+        assertEquals(
+            "Swift removes the add-to-cart affordance unless status is 7 or 18",
+            0,
+            compose.onAllNodesWithTag(
+                "ineligible-package-cart-toggle",
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes().size,
+        )
     }
 
     @Test

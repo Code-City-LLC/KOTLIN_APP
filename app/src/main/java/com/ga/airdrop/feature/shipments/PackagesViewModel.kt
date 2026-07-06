@@ -121,6 +121,7 @@ class PackagesViewModel(
     fun toggleCart(pkg: ShipmentPackage) {
         // Swift FigmaPackagesViewController:715-731 — shared cart toggle;
         // the screen observes CartStore.items, so no state write is needed.
+        if (!packageCanAddToCart(pkg)) return
         com.ga.airdrop.feature.cart.CartStore.toggle(pkg.toCartLine())
     }
 

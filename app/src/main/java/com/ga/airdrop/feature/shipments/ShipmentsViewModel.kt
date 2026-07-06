@@ -87,6 +87,7 @@ class ShipmentsViewModel(
         // Swift FigmaShipmentsViewController.onTapAddPackageToCart — the ONE
         // shared cart; membership is observed via CartStore.items so the UI
         // recomposes without a fake state write.
+        if (!packageCanAddToCart(pkg)) return
         com.ga.airdrop.feature.cart.CartStore.toggle(pkg.toCartLine())
     }
 
