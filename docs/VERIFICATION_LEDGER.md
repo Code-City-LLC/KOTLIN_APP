@@ -1,7 +1,7 @@
 # KOTLIN_APP Verification Ledger — Problems, Cautions & Lessons
 
-**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 4 — P1 Featured PD FIXED+device-verified (14d81d8))
-**State at writing:** `origin/main` src @ `14d81d8` (P1 fix) · PR #1 branch `codex/refer-friend-parity` = `c403099` (DRAFT, hold-merge pending Kemar restricted-boundary ruling; branch moves fast — always `git ls-remote` before citing its head)
+**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 5 — P4 SignUp identity FIXED+verified (7154978); BUG_AUDIT hardening pass verified my-lane-clean (3df8b75))
+**State at writing:** `origin/main` src @ `7154978`. Since rev 4: BUG_AUDIT hardening + session-survival (`3df8b75` — H2 money-parse / H30 atomic-cart / H8 callTimeout / 401-retry) 4-agent adversarially verified **0 my-lane regressions** (see C10); SignUp identity fields fixed (`7154978`, **P4 CLOSED**). PR #1 branch `codex/refer-friend-parity` moves fast — always `git ls-remote` before citing its head.
 **Source-of-truth hierarchy (Kemar rulings #14540/#14553/#14578):** Swift app (`/Users/codecityceo/Documents/GitHub/SWIFT_APP`, `Figma*ViewController.swift`) = behavior + PRECEDENCE → Figma (fileKey `N4k6jzpeLZgeRS5O1xfyIv`) = visual reference → Laravel = API contract. Where Swift does not ship a screen, Figma is the authority. **Buttons must function; no fake/dead pages; no duplication; verify before closing (#14639).**
 
 > How to use this doc: before touching any screen listed here, read its entry. The CAUTIONS section is a do-NOT-do list — several "obvious fixes" below are traps that were investigated and rejected with evidence.
@@ -34,8 +34,11 @@
 - **Fix:** `ic_info` → `R.drawable.ic_calc_info_circle` (drawable exists). **Blocked** on the same unpushed DocumentsScreen.kt rework as P2.
 - ⚠️ Re-verify the Figma frame before applying (see C1 — the Calculator taught us Figma sometimes wants the squircle).
 
-### P4 — SignUp ID Type payload key
-- The SignUp ID Type must serialize as `user_identity_type` (NOT `indentity_type`). Tracked as task_d262dc97; device-verify on land.
+### P4 — ✅ FIXED & VERIFIED (2026-07-06) — SignUp identity registration fields
+- **Fix:** commit **`7154978`** "Fix SignUp identity registration fields" (Codex). [Auth.kt](app/src/main/java/com/ga/airdrop/data/model/Auth.kt) adds `user_trn_number` / `user_identity_type` / `user_identity_number` **and** legacy misspelled `indentity_type`; [SignUpScreen.kt](app/src/main/java/com/ga/airdrop/feature/auth/SignUpScreen.kt) adds TRN / ID Type / ID Number fields; `signUpIdTypeOptions = ["National ID","Drivers License","Passport"]`; parity test `SignUpScreenIdentityParityTest.kt`.
+- **Verified vs Swift + Laravel (code-level, 3 repos):** field names match Swift register payload (`AirdropAPI.swift:1621-1623` / `:1696-1698`); ID options match Swift (`FigmaAddAuthorizedUserViewController.swift:39`). Both apps `POST /api/v1/auth/register` (`routes/api.php:85`).
+- ⚠️ **CORRECTION — rev-4's P4 note was BACKWARDS.** The V1 register endpoint reads the **misspelled** key: `RegisterRequest.php:36` validates `'indentity_type'` (Laravel's own comment: `// ! Note: typo in field name matches existing API`) and `AuthController.php:200` does `'user_identity_type' => $request->input('indentity_type')`. Sending ONLY the correctly-spelled key drops the value. Kotlin sends BOTH → correct. See **C11**. **CLOSED.**
+- 🔎 **Swift-side bug (courtesy finding, code-level):** Swift sends ONLY `user_identity_type` to the same endpoint → the ID *type* is **silently dropped on register** (TRN + identity_number use matching keys, so only identity_type is lost). Flagged to Swift owners in ORC.
 
 ### P5 — Device verification pending on PR #1 merge to main
 - `eac8248` placeholder-tap guard: needs an **empty-shipments account** to render placeholder cards (the standing test account has real shipments → not reproducible on it). Code-verified only.
@@ -96,6 +99,12 @@ Swift has **two** info glyphs in `FigmaIcons.swift`: `FigmaIcon_Info` (**squircl
 
 **Lesson:** a shared Compose component can serve screens with different authorities. Check EVERY consumer (especially Figma-authority screens with no Swift) before flagging or swapping.
 
+### C10 — Do NOT revert Kotlin `parseMoneyString` to Swift's trim logic (Kotlin is intentionally ahead)
+`parseMoneyString` ([Flexible.kt](app/src/main/java/com/ga/airdrop/data/model/Flexible.kt), BUG_AUDIT H2 `5e459e5`) strips all but digits/`.`/`-`. Swift's `decodeFlexibleDouble` (`AirdropAPI.swift:6814-6826`) and `AuctionProduct.currencyDouble` (`:2081-2084`) still use `replacingOccurrences(",","").trimmingCharacters(in:"$ ")`, which only strips a leading `$`/space — so `"J$1,550.00"` / `"US$156.50"` → nil → **Swift renders JMD/US$ prices as $0.00.** Kotlin's fix diverges deliberately. Reverting it toward "source-of-truth parity" would restore the $0.00 bug. This is a documented exception to Swift-precedence (a Swift bug, not a contract). USD `"$31.99"` → 31.99 unchanged. *(BUG_AUDIT pass `3df8b75` — H2/H30 atomic-cart/H8 callTimeout/401-retry — 4-agent adversarially verified 0 my-lane regressions.)*
+
+### C11 — The SignUp `indentity_type` misspelling is LOAD-BEARING — do NOT "fix" the typo
+The V1 register endpoint (`POST /api/v1/auth/register`) validates and reads the **misspelled** `indentity_type` (`RegisterRequest.php:36` with Laravel's own `// ! Note: typo in field name matches existing API`; `AuthController.php:200` `$request->input('indentity_type')`). Kotlin's SignUp (`7154978`) correctly sends BOTH `user_identity_type` and `indentity_type`. Removing the misspelled `@SerialName("indentity_type")` (Auth.kt) would silently drop the ID type on registration — exactly Swift's latent bug (P4). Keep both keys.
+
 ---
 
 ## 3. VERIFIED-GOOD LEDGER (do not re-audit without cause)
@@ -107,6 +116,8 @@ Verification levels: **D-L/D-D** = device light/dark seen · **3W** = Figma node
 | Shipments placeholder-tap guard | — | C (`eac8248`) | device needs empty-list acct (P5) |
 | Package Details invoice-delete gate | — | C (`ed1b534` on main; branch `c8a99b1`) | `canDeleteInvoices` ≡ Swift `canDeleteInvoices(for:)` :1475 (status≥7 + name ready/pickup/delivered/complete); hidden+guarded; upload ungated |
 | Package Details charges + Add-to-Cart gate | — | C (`3184b9e` on main, BrownHawk) | `showChargesAndCart = statusInt==7\|\|==18` ≡ Swift `showCharges` :1265 (NOT ≥7). SEPARATE predicate from delete (which stays ≥7). Verified vs Swift origin/main `dc8a0e3` |
+| BUG_AUDIT hardening pass (my-lane) | — | C (`3df8b75`; H2 `5e459e5`/H30 `1a01165`/H8 `97326d5`/401 `0dd7e42`) | 4-agent adversarial verify, 0 Shop/Cart/PkgDetails/Shipments regressions; H2 fixes JMD/US$ $0.00 (see C10) |
+| SignUp identity registration fields | — | C (`7154978`, Codex) | fields+options match Swift; handles Laravel V1 misspelled `indentity_type` (P4 CLOSED, C11) |
 | Calculator (main) | 40001464:29102 | C | icon question resolved (C1) |
 | Calculator Results | 40001817:19439 | C | Fuel row ✓, CIF circle ✓; Android uses Figma CIF bottom-sheet (40001817:20191) vs Swift native alert — accepted platform adaptation |
 | Government Charges | 40001817:20681 | C (Figma-authority) | Swift doesn't ship it; 3-row charges (no Fuel) is correct here |
