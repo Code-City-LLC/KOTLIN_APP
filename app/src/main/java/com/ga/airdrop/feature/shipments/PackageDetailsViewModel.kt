@@ -20,8 +20,15 @@ data class PackageDetailsUiState(
 ) {
     val statusInt: Int get() = detail?.status?.toIntOrNull() ?: 0
 
-    /** Charges + Add to Cart unlock at "Ready for Pickup" (status >= 7). */
-    val readyForPickup: Boolean get() = statusInt >= 7
+    /**
+     * Charges breakdown + Add-to-Cart section — parity with Swift `showCharges`
+     * (FigmaPackageDetailsViewController.swift L1265: `statusInt == 7 || statusInt == 18`).
+     * 7 = Ready for Pickup, 18 = Paid and Ready for Pick Up. `>= 7` was wrong because
+     * status codes are non-contiguous (Swift L1258-1261) — it leaked Delivered (8) and
+     * in-transit/customs (9/10/12). The Add-to-Cart CTA lives inside the same Swift
+     * `totalContainer`, so it shares this gate.
+     */
+    val showChargesAndCart: Boolean get() = statusInt == 7 || statusInt == 18
 
     /**
      * Invoice trash gating — parity with Swift FigmaPackageDetailsViewController
@@ -30,8 +37,8 @@ data class PackageDetailsUiState(
      * statusName fallback for when the numeric `status` is missing/non-numeric.
      * Upload stays allowed at every status. UI/action-gating parity only (QC #14710).
      *
-     * Deliberately independent of [readyForPickup]/charges (which use a different
-     * predicate, `== 7 || == 18`); do not fold these together.
+     * Deliberately independent of [showChargesAndCart] (which uses `== 7 || == 18`);
+     * delete keeps Swift's numeric `>= 7`. Do not fold these together.
      */
     val canDeleteInvoices: Boolean
         get() {

@@ -384,11 +384,11 @@ private fun PackageDetailsContent(
             )
         }
 
-        // Breakdown of Charges + Add to Cart — only once Ready for Pickup.
-        // Swift (:834-890) ALWAYS renders the Breakdown card (header +
-        // Subtotal) in this state, then a plain Exchange Rate row and a plain
-        // Total row (orange value) — no orange pill box.
-        if (state.readyForPickup) {
+        // Breakdown of Charges + Add to Cart — Swift showCharges gate
+        // (statusInt == 7 || == 18), not >= 7. Swift (:834-890) ALWAYS renders
+        // the Breakdown card (header + Subtotal) in this state, then a plain
+        // Exchange Rate row and a plain Total row (orange value) — no orange pill box.
+        if (state.showChargesAndCart) {
             ChargesCard(state = state, detail = detail)
             val rate = state.effectiveRate
             DetailKeyValueRow(
