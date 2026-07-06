@@ -190,6 +190,12 @@ fun packageStatusColor(statusName: String?): Color {
     }
 }
 
+/** Swift FigmaPackagesViewController.cardModel: only status 7/18 gets add-to-cart. */
+fun packageCanAddToCart(pkg: ShipmentPackage): Boolean {
+    val statusCode = pkg.status?.trim()?.toIntOrNull()
+    return statusCode == 7 || statusCode == 18
+}
+
 /** Timeline flavor — FigmaPackageDetailsViewController.statusColor. */
 fun timelineStatusColor(statusName: String?): Color {
     val s = statusName.orEmpty().lowercase(Locale.US)
@@ -692,32 +698,35 @@ fun PackageCard(
                     .then(testTag?.let { Modifier.testTag("$it-status-row") } ?: Modifier),
                 verticalAlignment = Alignment.Bottom,
             ) {
+                val canAddToCart = packageCanAddToCart(pkg)
                 Column(Modifier.weight(1f)) {
                     Text(text = "Status", style = AirdropType.subtitle2, color = colors.textDescription)
                     Text(
                         text = pkg.statusName ?: pkg.status ?: "—",
                         style = AirdropType.title2,
-                        color = AlertPalette.Completed,
+                        color = packageStatusColor(pkg.statusName ?: pkg.status),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = testTag?.let { Modifier.testTag("$it-status-value") } ?: Modifier,
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .then(cartToggleTestTag?.let { Modifier.testTag(it) } ?: Modifier)
-                        .clickable(onClick = onToggleCart),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
-                        contentDescription = if (inCart) "In cart" else "Add to cart",
-                        colorFilter = ColorFilter.tint(
-                            if (inCart) BrandPalette.OrangeMain else colors.iconSelected
-                        ),
-                        modifier = Modifier.size(24.dp),
-                    )
+                if (canAddToCart) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .then(cartToggleTestTag?.let { Modifier.testTag(it) } ?: Modifier)
+                            .clickable(onClick = onToggleCart),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
+                            contentDescription = if (inCart) "In cart" else "Add to cart",
+                            colorFilter = ColorFilter.tint(
+                                if (inCart) BrandPalette.OrangeMain else colors.iconSelected
+                            ),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
             }
         }

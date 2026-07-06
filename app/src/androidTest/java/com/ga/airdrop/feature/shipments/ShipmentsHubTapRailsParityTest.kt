@@ -526,6 +526,7 @@ class ShipmentsHubTapRailsParityTest {
                     id = 101,
                     description = "scrubber/earpod",
                     weightLbs = 1.3,
+                    status = "7",
                     statusName = "Ready for Pick-Up",
                     shippingMethod = "Standard",
                     trackingCode = "ARD000000101",
