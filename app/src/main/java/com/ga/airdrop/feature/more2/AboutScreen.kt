@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -43,6 +44,8 @@ import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
+import com.ga.airdrop.core.security.BiometricGate
+import com.ga.airdrop.feature.security.BiometricSecuritySheet
 
 /**
  * About AirDrop — Swift FigmaAboutViewController's stable core. Swift keeps
@@ -53,19 +56,27 @@ import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
  * SCOPE (per ORC #15406, amended by Kemar's D/A/C/F/G/H ruling): the stable
  * core (app identity + Terms, Privacy, Contact Support → Help, "Visit
  * airdropja.com") PLUS the Swift deep-audit preference rows Kemar greenlit —
- * "Default delivery method" (D) here. The remaining Swift rows (active
- * sessions, download-your-data) stay excluded until ruled in.
+ * "Default delivery method" (D) and the biometric "Lock with {type}" row (A,
+ * shown only when biometric hardware is enrolled). The remaining Swift rows
+ * (active sessions, download-your-data) stay excluded until ruled in.
  */
 @Composable
 fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit) {
     val colors = AirdropTheme.colors
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
 
     // Feature D — default delivery method (Swift DeliveryDefaultsStore). Held in
     // local state so the picker reflects the write immediately (the store is
     // SharedPreferences, not observable).
     var deliveryMethod by remember { mutableStateOf(DeliveryDefaultsStore.preferredMethod) }
     var showDeliveryDialog by remember { mutableStateOf(false) }
+
+    // Feature A — biometric app-lock. The row appears only when biometric
+    // hardware is enrolled (Swift shows it only if BiometricGate.isAvailable).
+    val biometricAvailable = remember { BiometricGate.isAvailable(context) }
+    val biometricTypeName = remember { BiometricGate.biometricTypeName(context) }
+    var showSecuritySheet by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -130,9 +141,20 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                     testTag = "about-row-delivery",
                     onClick = { showDeliveryDialog = true },
                 )
+                if (biometricAvailable) {
+                    AboutRow(
+                        title = "Lock with $biometricTypeName",
+                        testTag = "about-row-biometric",
+                        onClick = { showSecuritySheet = true },
+                    )
+                }
             }
             Spacer(Modifier.height(Spacing.lg))
         }
+    }
+
+    if (showSecuritySheet) {
+        BiometricSecuritySheet(onDismiss = { showSecuritySheet = false })
     }
 
     if (showDeliveryDialog) {

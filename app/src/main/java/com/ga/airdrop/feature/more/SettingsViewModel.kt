@@ -71,6 +71,7 @@ class SettingsViewModel(
         com.ga.airdrop.feature.cart.CartStore.clear()
         com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
         com.ga.airdrop.core.push.QuietHoursStore.clear(context)
+        com.ga.airdrop.core.security.BiometricGate.reset()
         sweepCachePrefs(context)
         _state.update { it.copy(loggingOut = false, loggedOut = true) }
     }

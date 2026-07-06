@@ -91,6 +91,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.browser)
+    implementation(libs.androidx.biometric)
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)

@@ -2,9 +2,13 @@ package com.ga.airdrop
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -12,19 +16,36 @@ import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.network.TokenRefresher
 import com.ga.airdrop.core.push.PushDeepLink
+import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.data.model.EmptyRequest
+import com.ga.airdrop.feature.security.BiometricLockScreen
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity (not ComponentActivity) because androidx.biometric's
+// BiometricPrompt requires a FragmentActivity host. FragmentActivity IS a
+// ComponentActivity, so setContent / enableEdgeToEdge / lifecycleScope are
+// unchanged.
+class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         PushDeepLink.capture(intent)
+        // Cold-launch biometric gate (Swift SceneDelegate.presentBiometricLockIfNeeded).
+        // Opt-in + default OFF + falls back to no-gate when biometry is
+        // unavailable, so this is inert unless the user enabled it.
+        val lockedAtLaunch = BiometricGate.requiresAuthOnLaunch(this)
         setContent {
             AirdropTheme {
+                var locked by rememberSaveable { mutableStateOf(lockedAtLaunch) }
                 AppRoot()
+                if (locked) {
+                    BiometricLockScreen(
+                        activity = this@MainActivity,
+                        onUnlocked = { locked = false },
+                    )
+                }
             }
         }
     }
