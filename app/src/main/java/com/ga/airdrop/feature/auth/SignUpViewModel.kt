@@ -76,9 +76,15 @@ val hearAboutUsOptions = listOf(
     "Other",
 )
 
+/** Same identity-type vocabulary used by Edit Profile and Authorized Users. */
+val signUpIdTypeOptions = listOf("National ID", "Drivers License", "Passport")
+
 data class SignUpUiState(
     val firstName: String = "",
     val lastName: String = "",
+    val trnNumber: String = "",
+    val identityType: String = "",
+    val identityNumber: String = "",
     val password: String = "",
     val confirmPassword: String = "",
     val passwordVisible: Boolean = false,
@@ -149,6 +155,10 @@ class SignUpViewModel(
             userAddressCity = s.city.trim(),
             userAddressState = s.state,
             userAddressCountry = s.country,
+            userTrnNumber = s.trnNumber.trim().takeIf { it.isNotEmpty() },
+            userIdentityType = s.identityType.trim().takeIf { it.isNotEmpty() },
+            userIdentityNumber = s.identityNumber.trim().takeIf { it.isNotEmpty() },
+            legacyIdentityType = s.identityType.trim().takeIf { it.isNotEmpty() },
             userHearType = s.hearType,
             userPickupLocation = s.pickupLocation,
             userTnc = s.acceptTerms,
@@ -176,6 +186,9 @@ class SignUpViewModel(
         val required = listOf(
             s.firstName to "First Name",
             s.lastName to "Last Name",
+            s.trnNumber to "Tax Registration Number",
+            s.identityType to "ID Type",
+            s.identityNumber to "ID Number",
             s.password to "Password",
             s.confirmPassword to "Confirm Password",
             s.email to "Email Address",

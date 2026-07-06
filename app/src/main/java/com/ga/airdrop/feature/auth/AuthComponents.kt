@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -150,6 +151,7 @@ fun AuthSelectField(
     placeholder: String = "Select",
     required: Boolean = false,
     enabled: Boolean = true,
+    testTag: String? = null,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -172,7 +174,8 @@ fun AuthSelectField(
                 )
                 .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
                 .clickable(enabled = enabled, onClick = onClick)
-                .padding(horizontal = Spacing.md, vertical = 12.dp),
+                .padding(horizontal = Spacing.md, vertical = 12.dp)
+                .then(testTag?.let { Modifier.testTag(it) } ?: Modifier),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm1),
         ) {

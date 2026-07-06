@@ -31,6 +31,12 @@ data class SignUpRequest(
     @SerialName("user_address_city") val userAddressCity: String,
     @SerialName("user_address_state") val userAddressState: String,
     @SerialName("user_address_country") val userAddressCountry: String,
+    @SerialName("user_trn_number") val userTrnNumber: String? = null,
+    @SerialName("user_identity_type") val userIdentityType: String? = null,
+    @SerialName("user_identity_number") val userIdentityNumber: String? = null,
+    // Current Laravel RegisterRequest still consumes this misspelled alias
+    // while the profile/update rail uses user_identity_type.
+    @SerialName("indentity_type") val legacyIdentityType: String? = null,
     @SerialName("user_hear_type") val userHearType: String,
     @SerialName("user_pickup_location") val userPickupLocation: String,
     @SerialName("user_tnc") val userTnc: Boolean,
