@@ -1,12 +1,20 @@
 package com.ga.airdrop.core.network
 
+import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.data.api.AirdropJson
+import com.ga.airdrop.data.model.LoginResponse
 import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
 /**
- * Adds the Sanctum bearer token to every request and force-logs-out on 401,
- * mirroring the RN axios interceptor and Swift AirdropAPI behavior.
+ * Adds the Sanctum bearer token to every request; on 401 it attempts ONE
+ * token refresh + retry before force-logging-out — mirror of Swift
+ * AirdropAPI.makeRequestWithResponse:347 (refresh-then-retry) and
+ * refreshToken() at :678 (single-flight, reject body-less 200).
  */
 class AuthInterceptor : Interceptor {
 
@@ -23,24 +31,70 @@ class AuthInterceptor : Interceptor {
             path.endsWith("auth/register") ||
             path.endsWith("auth/forgot-password") ||
             path.endsWith("auth/reset-password")
+        // Swift `isRefreshRequest` recursion guard: a 401 from the refresh
+        // endpoint itself must never trigger another refresh attempt.
+        val isRefresh = path.endsWith("auth/refresh")
         val attachedToken = if (isNoAuth || isPreAuth) null else AuthTokenStore.token
         val builder = original.newBuilder()
             .removeHeader(NO_AUTH_HEADER)
             .header("Accept", "application/json")
         attachedToken?.let { builder.header("Authorization", "Bearer $it") }
+        val request = builder.build()
 
-        val response = chain.proceed(builder.build())
+        val response = chain.proceed(request)
 
-        if (response.code == 401 &&
-            // Only clear if the token we sent is still the current one —
-            // prevents a stale-request 401 from wiping a freshly-refreshed token.
-            attachedToken != null && attachedToken == AuthTokenStore.token &&
-            !isPreAuth
-        ) {
+        if (response.code != 401 || attachedToken == null || isPreAuth || isRefresh) {
+            return response
+        }
+
+        // Swift :347 — try a single refresh + retry before tearing down the
+        // session. TokenRefresher coalesces concurrent 401s onto one network
+        // refresh; callers queued behind it see the rotated bearer.
+        val refreshed = TokenRefresher.refresh(attachedToken) { performRefresh(chain) }
+        if (refreshed) {
+            AuthTokenStore.token?.let { rotated ->
+                response.close()
+                return chain.proceed(
+                    request.newBuilder()
+                        .header("Authorization", "Bearer $rotated")
+                        .build(),
+                )
+            }
+        }
+
+        // Refresh failed: force-logout, but only if the token we sent is
+        // still the current one — a stale-request 401 must not wipe a
+        // freshly-refreshed token.
+        if (attachedToken == AuthTokenStore.token) {
             AuthTokenStore.clear()
         }
         return response
     }
+
+    /**
+     * POST /auth/refresh through the remainder of the chain (does not
+     * re-enter this interceptor, so no recursion). Sends the CURRENT bearer
+     * because Laravel Sanctum's refresh requires it (Swift refreshToken()
+     * doc), and rejects a 2xx without a token exactly like Swift's
+     * "body-less success" hardening. Returns the new token or null.
+     */
+    private fun performRefresh(chain: Interceptor.Chain): String? = runCatching {
+        val bearer = AuthTokenStore.token ?: return null
+        val refreshRequest = Request.Builder()
+            .url(BuildConfig.API_BASE_URL.trimEnd('/') + "/auth/refresh")
+            .post("{}".toRequestBody("application/json".toMediaType()))
+            .header("Accept", "application/json")
+            .header("Authorization", "Bearer $bearer")
+            .build()
+        chain.proceed(refreshRequest).use { refreshResponse ->
+            if (!refreshResponse.isSuccessful) return null
+            val body = refreshResponse.body?.string().orEmpty()
+            if (body.isBlank()) return null
+            AirdropJson.decodeFromString(LoginResponse.serializer(), body)
+                .token
+                ?.takeIf { it.isNotBlank() }
+        }
+    }.getOrNull()
 
     companion object {
         const val NO_AUTH_HEADER = "X-Airdrop-No-Auth"
