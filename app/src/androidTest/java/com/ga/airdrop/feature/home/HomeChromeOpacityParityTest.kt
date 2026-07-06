@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.testTag
@@ -31,6 +29,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -43,26 +42,26 @@ class HomeChromeOpacityParityTest {
     val compose = createComposeRule()
 
     @Test
-    fun homeChromeUsesSwiftOpaqueSurfacesLight() {
-        assertHomeChromeOpaque(
+    fun homeChromeUsesLockedTranslucentSurfacesLight() {
+        assertHomeChromeTranslucent(
             mode = ThemeController.Mode.LIGHT,
-            expectedRgb = intArrayOf(0xF5, 0xF5, 0xF5),
-            filename = "home_chrome_opacity_swift_light.png",
+            expectedFooterRgb = blendRgb(lightGray200Rgb, underlayRgb, lockedScrimAlpha),
+            filename = "home_chrome_opacity_locked_translucent_light.png",
         )
     }
 
     @Test
-    fun homeChromeUsesSwiftOpaqueSurfacesDark() {
-        assertHomeChromeOpaque(
+    fun homeChromeUsesLockedTranslucentSurfacesDark() {
+        assertHomeChromeTranslucent(
             mode = ThemeController.Mode.DARK,
-            expectedRgb = intArrayOf(0x33, 0x33, 0x33),
-            filename = "home_chrome_opacity_swift_dark.png",
+            expectedFooterRgb = blendRgb(darkGray200Rgb, underlayRgb, lockedScrimAlpha),
+            filename = "home_chrome_opacity_locked_translucent_dark.png",
         )
     }
 
-    private fun assertHomeChromeOpaque(
+    private fun assertHomeChromeTranslucent(
         mode: ThemeController.Mode,
-        expectedRgb: IntArray,
+        expectedFooterRgb: IntArray,
         filename: String,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -79,17 +78,7 @@ class HomeChromeOpacityParityTest {
                     Box(
                         Modifier
                             .fillMaxSize()
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(
-                                        Color(0xFFFF00FF),
-                                        Color(0xFF00FFFF),
-                                        Color(0xFFFFF000),
-                                    ),
-                                    start = Offset.Zero,
-                                    end = Offset.Infinite,
-                                )
-                            )
+                            .background(Color(0xFFFF00FF))
                     )
                     AirdropHeader(
                         greeting = "Good Morning Christien-Es...",
@@ -116,17 +105,34 @@ class HomeChromeOpacityParityTest {
         val headerBounds = compose.onNodeWithTag("home-chrome-header").getUnclippedBoundsInRoot()
         val footerBounds = compose.onNodeWithTag("home-chrome-footer").getUnclippedBoundsInRoot()
 
+        val expectedHeaderRgb = blendRgb(heroScrimRgb, underlayRgb, lockedScrimAlpha)
         listOf(
-            samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = 6f),
-            samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = headerBounds.heightDp() - 6f),
-            samplePoint(footerBounds, xFraction = 0.03f, yInsetDp = 8f),
-            samplePoint(footerBounds, xFraction = 0.97f, yInsetDp = 8f),
-        ).forEachIndexed { index, point ->
+            PixelSample(
+                point = samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = 6f),
+                expectedRgb = expectedHeaderRgb,
+                label = "locked translucent hero header top",
+            ),
+            PixelSample(
+                point = samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = headerBounds.heightDp() - 6f),
+                expectedRgb = expectedHeaderRgb,
+                label = "locked translucent hero header bottom",
+            ),
+            PixelSample(
+                point = samplePoint(footerBounds, xFraction = 0.03f, yInsetDp = 8f),
+                expectedRgb = expectedFooterRgb,
+                label = "locked translucent footer leading",
+            ),
+            PixelSample(
+                point = samplePoint(footerBounds, xFraction = 0.97f, yInsetDp = 8f),
+                expectedRgb = expectedFooterRgb,
+                label = "locked translucent footer trailing",
+            ),
+        ).forEach { sample ->
             assertPixelNear(
                 bitmap = bitmap,
-                point = point,
-                expectedRgb = expectedRgb,
-                label = "Swift opaque gray200 chrome sample $index",
+                point = sample.point,
+                expectedRgb = sample.expectedRgb,
+                label = sample.label,
             )
         }
 
@@ -166,6 +172,17 @@ class HomeChromeOpacityParityTest {
         )
     }
 
+    private data class PixelSample(
+        val point: Pair<Int, Int>,
+        val expectedRgb: IntArray,
+        val label: String,
+    )
+
+    private fun blendRgb(foreground: IntArray, background: IntArray, alpha: Float): IntArray =
+        IntArray(3) { index ->
+            (foreground[index] * alpha + background[index] * (1f - alpha)).roundToInt()
+        }
+
     private fun saveRootScreenshot(bitmap: Bitmap, filename: String) {
         val output = File(screenshotDir(), filename)
         FileOutputStream(output).use {
@@ -182,4 +199,12 @@ class HomeChromeOpacityParityTest {
     private fun DpRect.widthDp(): Float = (right - left).value
 
     private fun DpRect.heightDp(): Float = (bottom - top).value
+
+    private companion object {
+        const val lockedScrimAlpha = 0.70f
+        val underlayRgb = intArrayOf(0xFF, 0x00, 0xFF)
+        val heroScrimRgb = intArrayOf(0x29, 0x29, 0x29)
+        val lightGray200Rgb = intArrayOf(0xF5, 0xF5, 0xF5)
+        val darkGray200Rgb = intArrayOf(0x33, 0x33, 0x33)
+    }
 }

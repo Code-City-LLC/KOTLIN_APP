@@ -1459,17 +1459,17 @@ Findings to verify/fix:
   Auction Highlights cards are `160x245` with `124` image height, `8` padding,
   and `6` stack spacing. No visual size change was made because Swift/Figma
   already match the Android implementation. Regression tests now lock this in.
-- Header/footer opacity was checked on 2026-07-05. Figma Home node
-  `40001464:28899` still shows translucent Home chrome, but Swift
-  `FigmaTabHeader` and `FigmaBottomTabBar` both layer a blur underneath an
-  opaque `gray200` overlay, so Swift takes precedence. Android already uses
-  opaque `gray200` for both header and bottom tab/footer; no production chrome
-  change was needed. `HomeChromeOpacityParityTest` locks this with a
-  high-contrast underlay and pixel samples in app light and app dark so future
-  transparency wash-through fails. Proof:
+- Header/footer opacity was rechecked on 2026-07-05 after the chrome loop.
+  Figma Home node `40001464:28899` shows translucent Home chrome. Swift
+  `FigmaTabHeader` still layers blur underneath an opaque `gray200` overlay,
+  but Kemar explicitly overrode that Swift deviation and locked the shared tab
+  chrome to Figma translucency. Android uses `AirdropChrome` as the single
+  source of truth at `0.70` alpha for header and bottom tab/footer.
+  `HomeChromeOpacityParityTest` locks this with a magenta underlay and pixel
+  samples in app light and app dark so future opaque reverts fail. Proof:
   `/tmp/kotlin_ui_proof/home_chrome_opacity/figma/figma_home_40001464_28899.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_swift_light.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_swift_dark.png`.
+  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_locked_translucent_light.png`,
+  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_locked_translucent_dark.png`.
 - Dark-mode Home activity icon issue fixed: Services gear, Ship Tax hull/waves,
   Calculator frame, and Drop Alert secondary strokes now flip to white in app
   dark mode while primary orange layers remain orange. Proof:
@@ -1808,7 +1808,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt`, `feature/homedetails/components/HomeDetailsComponents.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | header Swift-precedence, header/footer chrome opacity, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, shared HomeDetailsHeader long-title autoscale, activity/highlight geometry, primary route callbacks, Refer-a-friend icon Swift-precedence, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risk is full authenticated end-to-end Home data proof |
+| Home | `feature/home/HomeScreen.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt`, `feature/homedetails/components/HomeDetailsComponents.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | Kemar-locked header/footer translucency, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, shared HomeDetailsHeader long-title autoscale, activity/highlight geometry, primary route callbacks, Refer-a-friend icon Swift-precedence, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risk is full authenticated end-to-end Home data proof |
 | Calculator | `feature/calculator/CalculatorScreen.kt`, `CalculatorUi.kt`, `CalculatorViewModel.kt` | `FigmaCalculatorViewController.swift` | Standard `40001464:29102`, SeaDrop `40001464:30381`, Express `40001464:30723` | calculator estimate path preserved through existing repository/ViewModel | yes | yes | yes | MagentaCastle | Standard entry closed by Swift-precedence proof: full-width invoice + actual weight, no stale Figma `Select Unit`/`Total Weight`, solid in-scroll CTA, 32dp/24dp inner-header back rail, Swift field/info-card primitives; SeaDrop/Express branches preserved |
 | Drop Alert | `feature/dropalert/DropAlertScreen.kt`, `DropAlertViewModel.kt`, `DropAlertRepository.kt` | `FigmaDropAlertViewController.swift` | `40001826:22497`, related `40001836:22971` | `/drop-alerts`, `/user/profile`, multipart image upload path preserved | yes | yes | yes | MagentaCastle | Consignee profile-failure manual-entry flow closed by Swift-precedence proof: field remains editable when prefill fails, submitted manual value is preserved, and success reset clears Consignee like Swift; existing method/company/image/upload rails preserved; broader live authenticated backend proof still not rerun |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, backend pagination/search/reset contracts, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad live-auth/full-flow backend parity still open |
@@ -1825,7 +1825,7 @@ For each page, fill this before claiming completion:
 Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented here; Figma wins only where Swift lacks a designed element (Kemar's Gov-Charges precedent).
 
 **Figma↔Swift CONFLICTS (Swift won):**
-- **Home header** — Figma `40001464:28926` = dark frosted translucent `rgba(41,41,41,0.7)` + blur + white text. Swift `FigmaTabHeader.swift:129-131` = OPAQUE `gray200` (`#f5f5f5` light / `#333333` dark) + `textDarkTitle`/`iconSelected`. **Swift wins → opaque gray200** (origin/main `0184744`). My earlier Figma-translucent attempt (`bc430a4`) was reverted. Both Swift+Android default to follow-system theme.
+- **Home header/footer chrome** — Figma `40001464:28926` = dark frosted translucent `rgba(41,41,41,0.7)` + blur + white text. Swift `FigmaTabHeader.swift:129-131` = OPAQUE `gray200` (`#f5f5f5` light / `#333333` dark) + `textDarkTitle`/`iconSelected`. **Kemar explicitly overrode this Swift deviation → locked translucent chrome.** Android keeps this in `AirdropChrome`; `AirdropChromeTest` and `HomeChromeOpacityParityTest` are the guard rails.
 - **Shipments search field** (shared `ShipmentsSearchField`) — Swift Packages `makeSearchCard` = LEADING 22pt magnifier; Swift Payments/Orders `makeSearchRow` = TRAILING 18pt. Component is shared by all three, so a blind flip breaks Packages. **CLOSED by parameterized shared component** — Figma nodes `40001666:42198`, `40001753:18909`, and `40001753:19595` were refreshed; Swift wins over static Figma search copy/icon-side conflicts.
 - **Background Images** — Swift `FigmaBackgroundImagesViewController` =
   default + 13 `back_color` wallpapers, two-column `220`pt portrait grid, 44pt

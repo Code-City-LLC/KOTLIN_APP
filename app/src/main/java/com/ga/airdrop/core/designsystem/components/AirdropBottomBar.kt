@@ -36,12 +36,11 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 /**
  * Custom bottom nav — Swift `FigmaBottomTabBar` (FigmaTabHeader.swift:427+).
  *
- * Swift places a blur under an OPAQUE gray200 overlay ("not a translucent
- * gray layer that lets page content shift the perceived color") with a 1pt
- * iconShape top divider. Items: 28pt icons; active = orangeMain icon +
- * Cairo SemiBold 14 label; inactive = icon only, tinted iconSelected,
- * vertically centered (Swift pushes inactive icons down 14pt inside the
- * 67pt row so both states read centered).
+ * Kemar locked this shared tab chrome to the translucent Figma surface even
+ * though Swift currently uses an opaque gray200 overlay. Items: 28pt icons;
+ * active = orangeMain icon + Cairo SemiBold 14 label; inactive = icon only,
+ * tinted iconSelected, vertically centered (Swift pushes inactive icons down
+ * 14pt inside the 67pt row so both states read centered).
  */
 enum class AirdropTab(val label: String) {
     Home("Home"),

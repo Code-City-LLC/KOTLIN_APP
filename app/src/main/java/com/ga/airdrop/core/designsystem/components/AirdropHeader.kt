@@ -41,9 +41,8 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 /**
  * Shared tab header — Swift `FigmaTabHeader` (Figma node 40000817:8974).
  *
- * Swift renders BOTH styles on an OPAQUE gray200 surface ("use an opaque
- * semantic surface so the dark header does not become a loose transparent
- * wash over content" — FigmaTabHeader.swift:117-123). The only difference:
+ * Kemar locked this shared tab chrome to Figma's translucent surface even
+ * though Swift currently uses an opaque gray200 overlay. The only difference:
  *  - [AirdropHeaderStyle.OverImage] (Home hero): no bottom divider.
  *  - [AirdropHeaderStyle.Solid] (Shipments/Shop/Help/More): 1dp divider.
  *

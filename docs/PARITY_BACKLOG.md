@@ -458,16 +458,16 @@ light AND dark.
   `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/app_root_more_before_home_tab.png`,
   `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/app_root_home_after_more_tab.png`,
   `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/harness_home_after_more_start.png`.
-- **Home header/footer chrome opacity:** Figma Home node `40001464:28899` still
-  shows translucent Home chrome, but Swift `FigmaTabHeader` and
-  `FigmaBottomTabBar` both render blur underneath an opaque `gray200` overlay.
-  Swift takes precedence. Android already matched Swift, so no production
-  chrome code changed; `HomeChromeOpacityParityTest` now locks header and
-  bottom tab/footer opacity with high-contrast underlay pixel samples in app
-  light and app dark. Proof:
+- **Home header/footer chrome opacity:** Figma Home node `40001464:28899` shows
+  translucent Home chrome. Swift `FigmaTabHeader`/`FigmaBottomTabBar` still use
+  an opaque `gray200` overlay, but Kemar explicitly overrode that Swift
+  deviation and locked the shared tab chrome to Figma translucency. Android
+  keeps `AirdropChrome` as the source of truth; `HomeChromeOpacityParityTest`
+  now locks the 0.70-alpha header and bottom tab/footer with magenta-underlay
+  pixel samples in app light and app dark. Proof:
   `/tmp/kotlin_ui_proof/home_chrome_opacity/figma/figma_home_40001464_28899.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_swift_light.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_swift_dark.png`.
+  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_locked_translucent_light.png`,
+  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_locked_translucent_dark.png`.
 - **Bottom-tab app-dark icon roles:** Shared tab chrome was compared against
   Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma Home
   node `40001464:28899`. Swift takes precedence: active icon + label are
