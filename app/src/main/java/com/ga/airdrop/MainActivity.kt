@@ -22,6 +22,7 @@ import com.ga.airdrop.core.network.TokenRefresher
 import com.ga.airdrop.core.push.PushDeepLink
 import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.data.model.EmptyRequest
+import com.ga.airdrop.feature.auth.OnboardingStore
 import com.ga.airdrop.feature.security.BiometricLockScreen
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -62,6 +63,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         PushDeepLink.capture(intent)
+        maybeSeedSession()
         // Cold-launch biometric gate (Swift SceneDelegate.presentBiometricLockIfNeeded).
         // Opt-in + default OFF + falls back to no-gate when biometry is
         // unavailable, so this is inert unless the user enabled it.
@@ -117,5 +119,25 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         PushDeepLink.capture(intent)
+    }
+
+    /**
+     * Debug-only headless session seed — writes a bearer into AuthTokenStore in
+     * the APP's own process (EncryptedSharedPreferences is not multi-process
+     * safe, so an instrumentation-process write is not readable here). Lets a
+     * verifier land on an authenticated screen without typing a password
+     * on-device (Kemar rule airdrop-prestaging-ui-login-routing). No-op in
+     * release. Mint a staging token on Forge, then:
+     *   adb shell am start -n <pkg>/com.ga.airdrop.MainActivity \
+     *     -e seed_bearer "<token>" --ez seed_onboarding true
+     */
+    private fun maybeSeedSession() {
+        if (!BuildConfig.DEBUG) return
+        intent?.getStringExtra("seed_bearer")?.takeIf { it.isNotBlank() }?.let {
+            AuthTokenStore.save(it)
+        }
+        if (intent?.getBooleanExtra("seed_onboarding", false) == true) {
+            OnboardingStore.markSeen(this)
+        }
     }
 }
