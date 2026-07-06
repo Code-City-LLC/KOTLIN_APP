@@ -1499,6 +1499,21 @@ assets; only repair the parts that are visibly or functionally wrong.
   `/tmp/kotlin_ui_proof/notification_settings/figma_node_40001587_18074_is_home_stale_mapping.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_light.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_dark.png`.
+- Notifications now has Swift/Figma proof against Figma node `40007174:63447`
+  and Swift `FigmaNotificationsListViewController.swift`. The Swift screen is
+  not a backend inbox; it is the empty-state card with a pinned Settings footer,
+  and Swift takes precedence over the old Android live-list branch. Android now
+  renders that visible surface unconditionally, keeps the existing notification
+  route resolver for push/deep-link payloads, reads the persisted notification
+  master setting before first paint and again on resume, and verifies both
+  disabled/enabled copy variants, settings link/button navigation, absence of
+  the old inbox/error UI, `335`dp card width, `card * 0.78` hero, and the `52`dp
+  Settings footer button. Checks: `git diff --check`,
+  `:app:compileProdDebugKotlin :app:compileProdDebugAndroidTestKotlin`,
+  focused `NotificationsParityTest` 2/2 on `airdrop_test2(AVD) - 15`, and
+  adjacent `NotificationsParityTest`, `HomeDetailsHeaderParityTest`, and
+  `NotificationSettingsParityTest` 7/7 on the same emulator; extra adjacent
+  `PushDeepLinkParityTest` passed 1/1.
 - Settings now has Swift-precedence proof against Figma node `40007388:24260`
   and Swift `FigmaSettingsViewController`. Figma still shows translucent
   header/footer chrome and orange-accent duotone Settings icons, but Swift's

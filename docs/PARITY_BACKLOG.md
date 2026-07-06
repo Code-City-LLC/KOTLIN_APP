@@ -276,6 +276,21 @@ light AND dark.
   `/tmp/kotlin_ui_proof/notification_settings/figma_node_40001587_18074_is_home_stale_mapping.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_light.png`,
   `/tmp/kotlin_ui_proof/notification_settings/screenshots/notification_settings_swift_dark.png`.
+- **Notifications empty-state Swift/Figma parity:** Notifications was compared
+  against Figma node `40007174:63447` and Swift
+  `FigmaNotificationsListViewController.swift`. Swift is canonical for runtime
+  behavior: the shipped screen is the empty-state card plus pinned Settings
+  footer, and no populated inbox/list variant exists in Swift today. Android
+  previously branched into a live backend inbox when `/user/notifications`
+  returned rows and initialized the empty-state copy as disabled until resume.
+  Android now renders the Swift/Figma visible surface unconditionally, reads the
+  persisted master notification setting immediately and on resume, keeps the
+  existing `NotificationsViewModel` route resolver for push/deep-link payloads,
+  and locks Swift geometry (`335`dp card, `card * 0.78` hero, `52`dp Settings
+  button) plus settings taps. Proof: `NotificationsParityTest` passed 2/2 on
+  `airdrop_test2(AVD) - 15`; adjacent `NotificationsParityTest`,
+  `HomeDetailsHeaderParityTest`, and `NotificationSettingsParityTest` passed
+  7/7; extra adjacent `PushDeepLinkParityTest` passed 1/1.
 - **More root tap rails:** More root was compared against Figma node
   `40001948:22354` and Swift `FigmaMoreViewController`. Figma confirms the
   `375` frame, `80` profile card, `335x59` menu rows, and exact 12-row order.
