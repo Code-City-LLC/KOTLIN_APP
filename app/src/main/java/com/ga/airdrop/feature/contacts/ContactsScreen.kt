@@ -157,6 +157,10 @@ fun ContactsScreen(
                     ValueRow("+876-676-6999", onOpen = { openPhone("+876-676-6999", ::open) }, onCopy = ::copy)
                     RowDivider()
                     ValueRow("+833-676-6999", onOpen = { openPhone("+833-676-6999", ::open) }, onCopy = ::copy)
+                    RowDivider()
+                    ValueRow("+1-876-554-5265", onOpen = { openPhone("+18765545265", ::open) }, onCopy = ::copy)
+                    RowDivider()
+                    ValueRow("+1-876-627-1894", onOpen = { openPhone("+18766271894", ::open) }, onCopy = ::copy)
                 }
 
                 SectionCard(

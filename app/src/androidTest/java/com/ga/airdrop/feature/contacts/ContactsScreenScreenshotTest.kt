@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.navigation.Routes
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -51,14 +52,20 @@ class ContactsScreenScreenshotTest {
     }
 
     @Test
-    fun helpUsesSwiftSeparateCardsAndNoLiveChat() {
-        setHelpContent(ThemeController.Mode.LIGHT)
+    fun helpUsesSwiftSeparateCardsAndLiveChat() {
+        val navigated = mutableListOf<String>()
+        setHelpContent(ThemeController.Mode.LIGHT, onNavigate = { navigated += it })
 
+        compose.onNodeWithText("Live Chat").assertIsDisplayed().performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(Routes.LIVE_CHAT), navigated)
+        }
         compose.onNodeWithTag("contacts-card-contact-number").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-whatsapp").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-email").assertIsDisplayed()
-        assertEquals(0, compose.onAllNodesWithText("Live Chat").fetchSemanticsNodes().size)
-        assertEquals(11, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
+        compose.onNodeWithText("+1-876-554-5265").assertIsDisplayed()
+        compose.onNodeWithText("+1-876-627-1894").assertIsDisplayed()
+        assertEquals(13, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
         compose.onNodeWithText("Monday-Friday: 9am-6pm\nSaturday: 10am-4pm\nSunday: Closed")
             .performScrollTo()
             .assertIsDisplayed()
@@ -90,6 +97,8 @@ class ContactsScreenScreenshotTest {
         )
 
         compose.onNodeWithText("+876-676-6999").performClick()
+        compose.onNodeWithText("+1-876-554-5265").performClick()
+        compose.onNodeWithText("+1-876-627-1894").performClick()
         compose.onNodeWithText("support@airdropja.com").performClick()
         compose.onNodeWithText("Instagram: @airdrop.ja").performScrollTo()
         compose.onNodeWithText("Instagram: @airdrop.ja").performClick()
@@ -98,6 +107,8 @@ class ContactsScreenScreenshotTest {
             assertEquals(
                 listOf(
                     "tel:8766766999",
+                    "tel:18765545265",
+                    "tel:18766271894",
                     "mailto:support@airdropja.com?subject=Contact%20from%20App",
                     "https://www.instagram.com/airdrop.ja/",
                 ),
@@ -158,7 +169,7 @@ class ContactsScreenScreenshotTest {
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().isNotEmpty()
         }
-        assertEquals(11, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
+        assertEquals(13, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
         compose.onAllNodesWithContentDescription("Copy")[0].performClick()
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithText("All the information is copied").fetchSemanticsNodes().isNotEmpty()
