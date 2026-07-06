@@ -16,6 +16,7 @@ fun resolveAirdropRoute(route: String?, referenceId: String?): String? {
         "ShipmentsView" -> Routes.SHIPMENTS
         "ShopView" -> Routes.SHOP
         "ContactsView", "HelpView" -> Routes.CONTACTS
+        "LiveAgentChatView" -> Routes.LIVE_CHAT
         "MoreView" -> Routes.MORE
 
         "PackagesView", "packages" -> Routes.PACKAGES

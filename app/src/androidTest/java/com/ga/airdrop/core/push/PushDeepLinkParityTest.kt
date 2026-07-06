@@ -36,6 +36,7 @@ class PushDeepLinkParityTest {
         assertRoute("CalculatorView", Routes.CALCULATOR)
         assertRoute("CalculatorResultsView", Routes.CALCULATOR_RESULTS)
         assertRoute("DropAlertView", Routes.DROP_ALERT)
+        assertRoute("LiveAgentChatView", Routes.LIVE_CHAT)
         assertRoute("MyCartView", Routes.CART)
         assertRoute("CheckoutView", Routes.CART)
         assertRoute("addToCart", Routes.CART)
