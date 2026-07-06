@@ -32,6 +32,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -107,6 +108,9 @@ class HomeChromeOpacityParityTest {
         val headerBounds = compose.onNodeWithTag("home-chrome-header").getUnclippedBoundsInRoot()
         val footerBounds = compose.onNodeWithTag("home-chrome-footer").getUnclippedBoundsInRoot()
 
+        assertClose(106f, headerBounds.heightDp(), "Swift tab header total height")
+        assertClose(117f, footerBounds.heightDp(), "Swift bottom tab total height")
+
         listOf(
             PixelSample(
                 point = samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = 6f),
@@ -127,6 +131,11 @@ class HomeChromeOpacityParityTest {
                 point = samplePoint(footerBounds, xFraction = 0.97f, yInsetDp = 8f),
                 expectedRgb = expectedSurfaceRgb,
                 label = "Swift opaque footer trailing",
+            ),
+            PixelSample(
+                point = samplePoint(footerBounds, xFraction = 0.5f, yInsetDp = 106.5f),
+                expectedRgb = if (mode == ThemeController.Mode.DARK) darkGray400Rgb else lightGray400Rgb,
+                label = "Swift visible home indicator",
             ),
         ).forEach { sample ->
             assertPixelNear(
@@ -206,6 +215,10 @@ class HomeChromeOpacityParityTest {
         )
     }
 
+    private fun assertClose(expected: Float, actual: Float, label: String) {
+        assertEquals(label, expected, actual, 0.75f)
+    }
+
     private data class PixelSample(
         val point: Pair<Int, Int>,
         val expectedRgb: IntArray,
@@ -262,5 +275,7 @@ class HomeChromeOpacityParityTest {
     private companion object {
         val lightGray200Rgb = intArrayOf(0xF5, 0xF5, 0xF5)
         val darkGray200Rgb = intArrayOf(0x33, 0x33, 0x33)
+        val lightGray400Rgb = intArrayOf(0xB8, 0xB8, 0xB8)
+        val darkGray400Rgb = intArrayOf(0xEB, 0xEB, 0xEB)
     }
 }

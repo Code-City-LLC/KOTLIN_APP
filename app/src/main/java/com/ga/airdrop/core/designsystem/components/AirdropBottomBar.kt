@@ -8,13 +8,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -60,6 +59,9 @@ fun AirdropBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            // Swift `FigmaBottomTabBar` is a fixed 117pt rail: 1pt divider,
+            // row top=15/height=67, and a 34pt home-indicator area.
+            .height(117.dp)
             // Swift-precedence source of truth: opaque gray200 overlay.
             .background(AirdropChrome.bottomBarBackground(colors.gray200))
     ) {
@@ -74,7 +76,7 @@ fun AirdropBottomBar(
                 .fillMaxWidth()
                 // Swift row: top 15, horizontal 20, height 67.
                 .padding(start = Spacing.md, end = Spacing.md, top = Spacing.sm1)
-                .height(58.dp),
+                .height(67.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             AirdropTab.entries.forEach { tab ->
@@ -86,7 +88,20 @@ fun AirdropBottomBar(
                 )
             }
         }
-        Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Box(
+                Modifier
+                    .padding(bottom = 8.dp)
+                    .width(135.dp)
+                    .height(5.dp)
+                    .background(colors.gray400, RoundedCornerShape(100.dp))
+            )
+        }
     }
 }
 

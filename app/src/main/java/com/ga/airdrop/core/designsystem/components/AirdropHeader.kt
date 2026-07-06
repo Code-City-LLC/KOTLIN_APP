@@ -98,6 +98,9 @@ fun AirdropHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            // Swift `FigmaTabHeader.headerHeight` is a fixed 106pt rail
+            // (44pt status area + 62pt content row), including Home.
+            .height(106.dp)
             .background(headerBg)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {

@@ -1671,6 +1671,13 @@ Findings to verify/fix:
   test samples both header/footer surfaces and the Swift theme-tinted Home header
   icon color so future Figma-only translucent regressions fail. Proof filenames:
   `home_chrome_swift_opaque_light.png` and `home_chrome_swift_opaque_dark.png`.
+- Follow-up Home chrome rail audit: Figma Home node `40001464:28899` and Swift
+  both define fixed rails, not content-sized bars. Swift source is explicit:
+  `FigmaTabHeader.headerHeight = 106`, `FigmaBottomTabBar.height = 117`, item
+  row `67`, and home indicator `135x5`. Android now fixes
+  `AirdropHeader`/`AirdropBottomBar` to those dimensions and
+  `HomeChromeOpacityParityTest` asserts the rail heights plus the visible
+  home-indicator pixel in light/dark.
 - Dark-mode Home activity icon issue fixed: Services gear, Ship Tax hull/waves,
   Calculator frame, and Drop Alert secondary strokes now flip to white in app
   dark mode while primary orange layers remain orange. Proof:
@@ -2124,7 +2131,7 @@ For each page, fill this before claiming completion:
 Per Kemar/MagentaCastle directive: Swift wins conflicts; conflicts documented here; Figma wins only where Swift lacks a designed element (Kemar's Gov-Charges precedent).
 
 **Figma↔Swift CONFLICTS (Swift won):**
-- **Home header/footer chrome** — Figma `40001464:28926` = dark frosted translucent `rgba(41,41,41,0.7)` + blur + white text. Swift `FigmaTabHeader.swift:129-131` = opaque `gray200` (`#f5f5f5` light / `#333333` dark) + `textDarkTitle`/`iconSelected`, and Swift takes precedence. Android keeps the Swift surface in `AirdropChrome`; `AirdropChromeTest` and `HomeChromeOpacityParityTest` are the guard rails.
+- **Home header/footer chrome** — Figma `40001464:28926` = dark frosted translucent `rgba(41,41,41,0.7)` + blur + white text. Swift `FigmaTabHeader.swift:129-131` = opaque `gray200` (`#f5f5f5` light / `#333333` dark) + `textDarkTitle`/`iconSelected`, and Swift takes precedence. Swift also fixes the shared rail sizes: `FigmaTabHeader.headerHeight = 106`, `FigmaBottomTabBar.height = 117`, item row `67`, and home indicator `135x5`. Android keeps the Swift surface in `AirdropChrome`; `AirdropChromeTest` and `HomeChromeOpacityParityTest` are the guard rails.
 - **Shipments search field** (shared `ShipmentsSearchField`) — Swift Packages `makeSearchCard` = LEADING 22pt magnifier; Swift Payments/Orders `makeSearchRow` = TRAILING 18pt. Component is shared by all three, so a blind flip breaks Packages. **CLOSED by parameterized shared component** — Figma nodes `40001666:42198`, `40001753:18909`, and `40001753:19595` were refreshed; Swift wins over static Figma search copy/icon-side conflicts.
 - **Background Images** — Swift `FigmaBackgroundImagesViewController` =
   default + 13 `back_color` wallpapers, two-column `220`pt portrait grid, 44pt

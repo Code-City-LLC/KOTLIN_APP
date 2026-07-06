@@ -92,7 +92,9 @@ light AND dark.
   still shows translucent dark/white chrome, but Swift `FigmaTabHeader` and
   `FigmaBottomTabBar` render an opaque semantic `gray200` overlay above the
   blur layer. `AirdropChromeTest`/`HomeChromeOpacityParityTest` are the guard
-  rails for the Swift surface.
+  rails for the Swift surface. Follow-up Home chrome pass also locks Swift's
+  fixed chrome rails: `FigmaTabHeader.headerHeight = 106`, bottom tab
+  `height = 117`, item row `67`, and the visible 135x5 home indicator.
 - **Home activity dark icons:** Services, Ship Tax, Calculator, and Drop Alert
   activity icons now use explicit app-theme light/dark drawables matching Swift
   `FigmaIcons.swift` and Figma tile nodes. Verified proof:
@@ -588,7 +590,9 @@ light AND dark.
   opaque `gray200` overlay above their blur layers, and Swift now takes
   precedence for this conflict. Android keeps `AirdropChrome` as the source of
   truth; `HomeChromeOpacityParityTest` locks opaque light/dark `gray200` pixel
-  samples plus Swift theme-tinted Home header icons. Proof filenames:
+  samples plus Swift theme-tinted Home header icons. The latest Home chrome
+  pass also locks Swift's 106dp header, 117dp footer, 67dp bottom row, and
+  visible home-indicator rail. Proof filenames:
   `home_chrome_swift_opaque_light.png` and `home_chrome_swift_opaque_dark.png`.
 - **Bottom-tab active icon shape:** Shared tab chrome was compared against
   Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma Help nav
