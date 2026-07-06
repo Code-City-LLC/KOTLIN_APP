@@ -137,7 +137,14 @@ fun resolveNotificationRoute(route: String?, referenceId: String?): String? {
         "AuctionProductView", "AuctionProductDetailsView" ->
             if (ref.isNotEmpty()) Routes.auctionProductDetails(ref) else Routes.AUCTION
         "FeatureProductsView" -> Routes.FEATURED_PRODUCTS
-        "AuctionProductCheckoutView" -> Routes.AUCTION_CHECKOUT
+        "AuctionProductCheckoutView" -> {
+            // Swift FigmaRouteViewController:727 — the checkout VC receives
+            // the product reference and resolves it itself; the Kotlin route
+            // carries no args, so the ref rides the checkout store (B4).
+            com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef =
+                ref.takeIf { it.isNotEmpty() }
+            Routes.AUCTION_CHECKOUT
+        }
         "MyCartView", "CartView", "CheckoutView", "addToCart" -> Routes.CART
         "NotificationsView" -> Routes.NOTIFICATIONS
         "NotificationSettings", "NotificationSettingsView" -> Routes.NOTIFICATION_SETTINGS

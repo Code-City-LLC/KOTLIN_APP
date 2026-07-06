@@ -30,6 +30,7 @@ data class AuctionCheckoutUiState(
  */
 class AuctionCheckoutViewModel(
     private val checkout: ShopCheckoutRepository = ShopRepoProvider.checkout,
+    private val products: ShopProductsRepository = ShopRepoProvider.products,
 ) : ViewModel() {
 
     val currencyOptions = listOf("USD", "JMD")
@@ -40,6 +41,20 @@ class AuctionCheckoutViewModel(
     val state: StateFlow<AuctionCheckoutUiState> = _state
 
     init {
+        // Deep-link fallback (B4): Swift FigmaRouteViewController:727 pushes
+        // the checkout VC with product nil + an id/slug ref and the VC
+        // resolves it. Mirror: no handed-over product but a pending ref →
+        // fetch it before rendering "Product unavailable".
+        if (_state.value.product == null) {
+            ShopCheckoutStore.pendingRef?.let { pendingRef ->
+                ShopCheckoutStore.pendingRef = null
+                viewModelScope.launch {
+                    products.productBySlug(pendingRef, featured = false).onSuccess { resolved ->
+                        _state.update { it.copy(product = resolved) }
+                    }
+                }
+            }
+        }
         viewModelScope.launch {
             // RECONCILE: GET /exchange-rates → { usd_to_jmd } (no auth).
             checkout.exchangeRate().onSuccess { rate ->

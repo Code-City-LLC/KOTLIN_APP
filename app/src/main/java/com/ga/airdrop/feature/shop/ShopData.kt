@@ -160,6 +160,17 @@ private object UnboundShopCheckoutRepository : ShopCheckoutRepository {
  */
 object ShopCheckoutStore {
     @Volatile var product: ShopProduct? = null
+
+    /**
+     * Deep-link fallback — Swift FigmaRouteViewController:727 constructs the
+     * checkout VC with `product: nil` plus an id/slug reference and lets the
+     * VC resolve the product itself. When a notification routes to
+     * AUCTION_CHECKOUT with no in-memory [product], the referenceID lands
+     * here and AuctionCheckoutViewModel fetches by it (WORK ORDER B4 —
+     * previously nothing wrote this store, so the deep-linked checkout was
+     * always "Product unavailable").
+     */
+    @Volatile var pendingRef: String? = null
 }
 
 /**
