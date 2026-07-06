@@ -570,6 +570,19 @@ light AND dark.
 
 **Fix:** Closed. `ReferAFriendViewModel.init` now loads only the profile/account-number referral link; the referred-friends refresh remains on screen entry. `ReferAFriendParityTest` verifies one profile call, one referred-friends call, and the rendered account-number referral link on initial entry. Verification on 2026-07-05: Figma MCP design context for `40001940:26885`, Swift source comparison, `git diff --check`, compile gates, and focused Gradle `connectedStagingDebugAndroidTest` for `ReferAFriendParityTest` passed 1/1.
 
+**Follow-up asset fix:** Closed. The Refer route/flow was intact, but Android's
+hero carousel was using non-Swift raster exports. Swift
+`FigmaReferAFriendViewController.swift` renders the bare `Friends`, `Cash`, and
+`Cap` asset-catalog images inside the 238x220 cards; Figma nodes
+`40001940:26885` and `40001940:26797` still show older landing-frame artwork, so
+Swift takes precedence. Android now uses byte-identical copies of Swift
+`Friends.png`, `Cash.png`, and `Cap.png`, and `ReferAFriendParityTest` locks the
+asset dimensions. Verification on 2026-07-06: Figma MCP screenshots refreshed
+for both Refer/Invite nodes, SHA-256/cmp confirmed all three Android PNGs match
+Swift, and the combined connected run for `ReferAFriendParityTest`,
+`PushDeepLinkParityTest`, and `InviteFriendParityScreenshotTest` passed 6/6 on
+`airdrop_test2(AVD) - 15`.
+
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
 **✅ CLOSED — Home dark icon follow-up:** Services tile gear layer is no longer

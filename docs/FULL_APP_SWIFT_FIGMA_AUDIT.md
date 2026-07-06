@@ -1728,6 +1728,15 @@ Findings verified/fixed:
 - Android now keeps only the init referral-link load and leaves the referred
   friends call on the screen-entry effect, so initial entry performs one
   profile/account-number request and one referred-friends request.
+- Follow-up 2026-07-05/06: the Refer route/flow was intact, but the hero
+  carousel art still used non-Swift raster exports. Swift
+  `FigmaReferAFriendViewController.swift` renders the bare `Friends`, `Cash`,
+  and `Cap` assets at 90pt inside the cards. Android now uses byte-identical
+  copies of the Swift asset-catalog PNGs:
+  `img_more2_refer_friends.png` = `Friends.png`, `img_more2_refer_cash.png` =
+  `Cash.png`, and `img_more2_refer_cap.png` = `Cap.png`. Figma nodes
+  `40001940:26885` and `40001940:26797` were refreshed via MCP; they still
+  show the older landing-frame artwork, so Swift takes precedence.
 - Verification on 2026-07-05:
   - Figma MCP design context checked for `40001940:26885`
   - Swift source compared in
@@ -1736,6 +1745,13 @@ Findings verified/fixed:
   - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
   - Gradle focused device run:
     `ReferAFriendParityTest`: 1 test passed
+- Verification on 2026-07-06:
+  - Figma MCP screenshots refreshed for `40001940:26885` and `40001940:26797`
+  - SHA-256/cmp checks confirmed all three Android hero PNGs byte-match Swift
+    assets
+  - `ReferAFriendParityTest`, `PushDeepLinkParityTest`, and
+    `InviteFriendParityScreenshotTest`: 6 connected tests passed on
+    `airdrop_test2(AVD) - 15`
 
 ### Dark Theme Icons
 

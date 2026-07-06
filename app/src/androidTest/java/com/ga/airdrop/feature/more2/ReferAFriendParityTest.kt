@@ -1,5 +1,7 @@
 package com.ga.airdrop.feature.more2
 
+import android.content.res.Resources
+import android.graphics.BitmapFactory
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -12,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.DpRect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.data.model.AirdropUser
@@ -44,6 +47,15 @@ class ReferAFriendParityTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun heroCarouselUsesBareSwiftIllustrationAssets() {
+        val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
+
+        assertSwiftHeroAsset(resources, R.drawable.img_more2_refer_friends, 500, 500, "Friends")
+        assertSwiftHeroAsset(resources, R.drawable.img_more2_refer_cash, 80, 80, "Cash")
+        assertSwiftHeroAsset(resources, R.drawable.img_more2_refer_cap, 500, 500, "Cap")
+    }
 
     @Test
     fun initialEntryMatchesSwiftOneProfileLoadAndOneReferralsLoad() {
@@ -223,4 +235,16 @@ class ReferAFriendParityTest {
     private fun boundsWidth(bounds: DpRect): Float = (bounds.right - bounds.left).value
 
     private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value
+
+    private fun assertSwiftHeroAsset(
+        resources: Resources,
+        resId: Int,
+        expectedWidth: Int,
+        expectedHeight: Int,
+        label: String,
+    ) {
+        val bitmap = BitmapFactory.decodeResource(resources, resId)
+        assertEquals("$label Swift asset width", expectedWidth, bitmap.width)
+        assertEquals("$label Swift asset height", expectedHeight, bitmap.height)
+    }
 }
