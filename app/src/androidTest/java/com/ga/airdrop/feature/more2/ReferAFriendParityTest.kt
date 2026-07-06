@@ -116,10 +116,10 @@ class ReferAFriendParityTest {
     }
 
     @Test
-    fun referPageMiddleTruncatesLongReferralLinkLikeSwift() {
+    fun referPageUsesAdaptiveMiddleEllipsisForLongReferralLinkLikeSwift() {
         val accountNumber = "AD-2048-EXTREMELY-LONG-REFERRAL-CODE-1234567890"
         val fullLink = "https://airdropja.com/refer/$accountNumber"
-        val expectedLink = "https://airdropja.…RAL-CODE-1234567890"
+        val staleFixedPretruncatedLink = "https://airdropja.…RAL-CODE-1234567890"
         val repository = FakeReferAFriendRepository(
             friends = emptyList(),
             accountNumber = accountNumber,
@@ -133,12 +133,23 @@ class ReferAFriendParityTest {
         compose.waitForIdle()
 
         scrollTo("refer-referral-link-card")
-        compose.onNodeWithText(expectedLink).assertIsDisplayed()
-        assertEquals(
-            "Swift uses middle truncation for long referral URLs, not a raw overflowing label",
-            0,
-            compose.onAllNodesWithText(fullLink).fetchSemanticsNodes().size,
+        compose.onNodeWithText(fullLink, useUnmergedTree = true).assertIsDisplayed()
+        val labelBounds = compose.onNodeWithTag("refer-referral-link-label").getUnclippedBoundsInRoot()
+        val copyBounds = compose.onNodeWithTag("refer-copy-button").getUnclippedBoundsInRoot()
+        assertTrue(
+            "Swift referral URL label should adapt inside the measured row before the Copy button",
+            labelBounds.right.value <= copyBounds.left.value - 10f,
         )
+        assertTrue(
+            "Swift keeps the long URL to one line before middle ellipsizing",
+            boundsHeight(labelBounds) <= 34f,
+        )
+        assertEquals(
+            "Android must not pre-truncate referral URLs to a fixed 38-character string",
+            0,
+            compose.onAllNodesWithText(staleFixedPretruncatedLink).fetchSemanticsNodes().size,
+        )
+        saveRootScreenshot("refer_friend_long_link_swift_adaptive.png")
     }
 
     @Test

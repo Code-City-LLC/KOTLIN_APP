@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,10 +38,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -205,12 +211,10 @@ private fun ReferralLinkCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = middleTruncatedReferralLink(referralLink),
+            SwiftAdaptiveMiddleEllipsisText(
+                text = referralLink,
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
-                maxLines = 1,
-                overflow = TextOverflow.Clip,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("refer-referral-link-label"),
@@ -430,6 +434,68 @@ private fun HeroCarousel() {
     }
 }
 
+@Composable
+private fun SwiftAdaptiveMiddleEllipsisText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    minScaleFactor: Float = 0.7f,
+) {
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier = modifier) {
+        val maxWidthPx = with(density) { maxWidth.roundToPx() }
+        val baseFontSize = style.fontSize
+        val baseSp = if (baseFontSize.type == TextUnitType.Sp) baseFontSize.value else 16f
+        val minSp = baseSp * minScaleFactor
+        val fittedSp = remember(text, style, maxWidthPx, minScaleFactor) {
+            if (maxWidthPx <= 0) {
+                baseSp
+            } else {
+                fun fits(fontSizeSp: Float): Boolean {
+                    val result = textMeasurer.measure(
+                        text = text,
+                        style = style.copy(fontSize = fontSizeSp.sp),
+                        overflow = TextOverflow.Clip,
+                        softWrap = false,
+                        maxLines = 1,
+                        constraints = Constraints(maxWidth = maxWidthPx),
+                    )
+                    return !result.hasVisualOverflow
+                }
+
+                when {
+                    fits(baseSp) -> baseSp
+                    !fits(minSp) -> minSp
+                    else -> {
+                        var low = minSp
+                        var high = baseSp
+                        repeat(8) {
+                            val mid = (low + high) / 2f
+                            if (fits(mid)) {
+                                low = mid
+                            } else {
+                                high = mid
+                            }
+                        }
+                        low
+                    }
+                }
+            }
+        }
+        Text(
+            text = text,
+            style = style.copy(fontSize = fittedSp.sp),
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+            softWrap = false,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
 private fun ReferredFriend.displayName(): String {
     val fullName = listOfNotNull(friendFirstName, friendLastName)
         .map { it.trim() }
@@ -455,14 +521,6 @@ private fun statusColors(status: Int?, statusText: String): Pair<Color, Color> {
         else ->
             AlertPalette.Light.Pending to AlertPalette.Pending
     }
-}
-
-internal fun middleTruncatedReferralLink(referralLink: String, maxChars: Int = 38): String {
-    if (referralLink.length <= maxChars || maxChars < 5) return referralLink
-    val remaining = maxChars - 1
-    val head = remaining / 2
-    val tail = remaining - head
-    return referralLink.take(head) + "…" + referralLink.takeLast(tail)
 }
 
 private val CARD_WIDTH = 238.dp

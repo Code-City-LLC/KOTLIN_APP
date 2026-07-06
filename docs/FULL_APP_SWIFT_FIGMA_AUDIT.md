@@ -2010,6 +2010,18 @@ Findings verified/fixed:
   focused unit `FlexibleDecodingTest` + `UserRepositoryReferFriendTest`; and
   adjacent device `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
   `PushDeepLinkParityTest` passed 13/13 on `airdrop_test2(AVD) - 15`.
+- Follow-up on 2026-07-06 fixed the remaining referral-link adaptive truncation
+  drift. Figma MCP node `40001940:26885` still renders the stale landing-only
+  frame, so Swift `FigmaReferAFriendViewController.swift` remains the runtime
+  source for the link card. Swift keeps the full URL in the label, shrinks down
+  to `minimumScaleFactor = 0.7`, then middle-truncates by layout. Android now
+  does the same instead of pre-truncating to a fixed 38-character string before
+  Compose measures the row. Verification: `git diff --check`; staging/prod
+  Kotlin + androidTest compile; prod `UserRepositoryReferFriendTest`; clean
+  staging and prod device batches for `ReferAFriendParityTest`,
+  `InviteFriendParityScreenshotTest`, and `PushDeepLinkParityTest` passed 16/16
+  on `airdrop_test2(AVD) - 15`. Proof screenshot:
+  `/tmp/kotlin_ui_proof/refer_adaptive_current/staging/screenshots/refer_friend_long_link_swift_adaptive.png`.
 
 ### Dark Theme Icons
 

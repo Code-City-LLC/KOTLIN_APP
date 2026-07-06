@@ -769,6 +769,21 @@ the snake_case `friend_first_name`, `friend_last_name`, `friend_email`, and
 `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`, and
 `PushDeepLinkParityTest` passed 13/13 on `airdrop_test2(AVD) - 15`.
 
+**Follow-up verification 2026-07-06:** Refer link truncation was rechecked
+against Figma MCP node `40001940:26885` and Swift
+`FigmaReferAFriendViewController.swift`. Figma remains the stale landing-only
+frame; Swift controls the runtime link card. Swift keeps the full referral URL
+in `referralLinkLabel`, then uses `adjustsFontSizeToFitWidth = true`,
+`minimumScaleFactor = 0.7`, and `.byTruncatingMiddle`. Android no longer
+pre-truncates the URL to a fixed 38-character string. The referral label now
+measures its real row width, shrinks to Swift's 70% floor when possible, and
+uses `TextOverflow.MiddleEllipsis` only at render time. Verification:
+`git diff --check`; staging/prod Kotlin + androidTest compile; prod
+`UserRepositoryReferFriendTest`; staging and prod device batches
+`ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`, and
+`PushDeepLinkParityTest` passed 16/16 on `airdrop_test2(AVD) - 15`. Proof:
+`/tmp/kotlin_ui_proof/refer_adaptive_current/staging/screenshots/refer_friend_long_link_swift_adaptive.png`.
+
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
 **✅ CLOSED — Home dark icon follow-up:** Services tile gear layer is no longer
