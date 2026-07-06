@@ -109,8 +109,36 @@ class ReferAFriendParityTest {
         compose.onNodeWithText("Maya Lee").assertIsDisplayed()
         compose.onNodeWithText("maya@example.com").assertIsDisplayed()
         compose.onNodeWithText("Completed").assertIsDisplayed()
+        val statusBounds = compose.onNodeWithTag("refer-referral-status-7").getUnclippedBoundsInRoot()
+        assertEquals("Swift referral status pill height", 22f, boundsHeight(statusBounds), 1f)
 
         saveRootScreenshot("refer_friend_swift_light.png")
+    }
+
+    @Test
+    fun referPageMiddleTruncatesLongReferralLinkLikeSwift() {
+        val accountNumber = "AD-2048-EXTREMELY-LONG-REFERRAL-CODE-1234567890"
+        val fullLink = "https://airdropja.com/refer/$accountNumber"
+        val expectedLink = "https://airdropja.…RAL-CODE-1234567890"
+        val repository = FakeReferAFriendRepository(
+            friends = emptyList(),
+            accountNumber = accountNumber,
+        )
+
+        setReferContent(repository = repository, mode = ThemeController.Mode.LIGHT)
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.profileCalls.get() == 1 && repository.referredFriendsCalls.get() == 1
+        }
+        compose.waitForIdle()
+
+        scrollTo("refer-referral-link-card")
+        compose.onNodeWithText(expectedLink).assertIsDisplayed()
+        assertEquals(
+            "Swift uses middle truncation for long referral URLs, not a raw overflowing label",
+            0,
+            compose.onAllNodesWithText(fullLink).fetchSemanticsNodes().size,
+        )
     }
 
     @Test
@@ -290,6 +318,7 @@ class ReferAFriendParityTest {
 
     private class FakeReferAFriendRepository(
         @Volatile var friends: List<ReferredFriend>,
+        private val accountNumber: String = "AD-2048",
     ) : ReferAFriendRepository {
         val profileCalls = AtomicInteger()
         val referredFriendsCalls = AtomicInteger()
@@ -301,7 +330,7 @@ class ReferAFriendParityTest {
 
         override suspend fun currentUser(): Result<AirdropUser> {
             profileCalls.incrementAndGet()
-            return Result.success(AirdropUser(accountNumber = "AD-2048"))
+            return Result.success(AirdropUser(accountNumber = accountNumber))
         }
     }
 }

@@ -206,11 +206,11 @@ private fun ReferralLinkCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = referralLink,
+                text = middleTruncatedReferralLink(referralLink),
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.Clip,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("refer-referral-link-label"),
@@ -330,9 +330,10 @@ private fun ReferralRow(friend: ReferredFriend) {
         }
         Box(
             modifier = Modifier
+                .height(22.dp)
                 .clip(RoundedCornerShape(Radius.xs))
                 .background(statusBg)
-                .padding(horizontal = Spacing.sm, vertical = 1.dp)
+                .padding(horizontal = Spacing.sm)
                 .testTag("refer-referral-status-${friend.id}"),
             contentAlignment = Alignment.Center,
         ) {
@@ -454,6 +455,14 @@ private fun statusColors(status: Int?, statusText: String): Pair<Color, Color> {
         else ->
             AlertPalette.Light.Pending to AlertPalette.Pending
     }
+}
+
+internal fun middleTruncatedReferralLink(referralLink: String, maxChars: Int = 38): String {
+    if (referralLink.length <= maxChars || maxChars < 5) return referralLink
+    val remaining = maxChars - 1
+    val head = remaining / 2
+    val tail = remaining - head
+    return referralLink.take(head) + "…" + referralLink.takeLast(tail)
 }
 
 private val CARD_WIDTH = 238.dp
