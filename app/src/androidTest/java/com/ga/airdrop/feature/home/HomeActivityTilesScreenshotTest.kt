@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
@@ -23,8 +24,12 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.designsystem.theme.darkAirdropColors
+import com.ga.airdrop.core.designsystem.theme.lightAirdropColors
 import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.data.model.AirCoinsStatus
+import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
@@ -108,6 +113,26 @@ class HomeActivityTilesScreenshotTest {
                 "Swift warehouse image top inset for ${warehouseCase.type}",
             )
         }
+    }
+
+    @Test
+    fun warehouseCardsUseCurrentSwiftGlassColors() {
+        assertEquals(
+            SWIFT_LIGHT_GLASS_OVERLAY_62,
+            homeWarehouseCardFillColor(lightAirdropColors).toArgb(),
+        )
+        assertEquals(
+            SWIFT_DARK_GLASS_OVERLAY_62,
+            homeWarehouseCardFillColor(darkAirdropColors).toArgb(),
+        )
+        assertEquals(
+            SWIFT_LIGHT_WAREHOUSE_BORDER,
+            homeWarehouseCardBorderColor(lightAirdropColors).toArgb(),
+        )
+        assertEquals(
+            SWIFT_DARK_WAREHOUSE_BORDER,
+            homeWarehouseCardBorderColor(darkAirdropColors).toArgb(),
+        )
     }
 
     @Test
@@ -304,17 +329,22 @@ class HomeActivityTilesScreenshotTest {
 
     private fun assertWarehouseCardOpensFromAppRoot(warehouseCase: WarehouseAppRootCase) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val homeViewModel = HomeViewModel(AppRootHomeRepository())
         instrumentation.runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
             AuthTokenStore.save("ui-proof-token")
         }
 
         try {
+            compose.mainClock.autoAdvance = false
             compose.setContent {
                 AirdropTheme {
-                    AppRoot()
+                    AppRoot(homeViewModel = homeViewModel)
                 }
             }
+            compose.mainClock.advanceTimeBy(APP_ROOT_SPLASH_ADVANCE_MS)
+            compose.waitForIdle()
+            compose.mainClock.autoAdvance = true
             compose.waitUntil(timeoutMillis = 8_000) {
                 compose.onAllNodesWithTag("home-warehouse-carousel").fetchSemanticsNodes().isNotEmpty()
             }
@@ -330,10 +360,22 @@ class HomeActivityTilesScreenshotTest {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
             }
         } finally {
+            compose.mainClock.autoAdvance = true
             instrumentation.runOnMainSync {
                 AuthTokenStore.clear()
             }
         }
+    }
+
+    private class AppRootHomeRepository : HomeRepository {
+        override suspend fun currentUser(): Result<AirdropUser> =
+            Result.success(AirdropUser(firstName = "Kemar", customerTierName = "Gold Standard"))
+
+        override suspend fun airCoinsStatus(): Result<AirCoinsStatus> =
+            Result.success(AirCoinsStatus(available = 42, balance = 42))
+
+        override suspend fun auctionProductsShortlist(): Result<List<AuctionProduct>> =
+            Result.success(emptyList())
     }
 
     private fun captureHomeScreens(
@@ -485,6 +527,11 @@ class HomeActivityTilesScreenshotTest {
     private companion object {
         private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
+        private const val SWIFT_LIGHT_GLASS_OVERLAY_62 = 0x9EFFFFFF.toInt()
+        private const val SWIFT_DARK_GLASS_OVERLAY_62 = 0x9E292929.toInt()
+        private const val SWIFT_LIGHT_WAREHOUSE_BORDER = 0x2E000000.toInt()
+        private const val SWIFT_DARK_WAREHOUSE_BORDER = 0x21FFFFFF.toInt()
+        private const val APP_ROOT_SPLASH_ADVANCE_MS = 1_700L
         private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
         private const val COLOR_TOLERANCE = 8
         private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/home_refer_icon"

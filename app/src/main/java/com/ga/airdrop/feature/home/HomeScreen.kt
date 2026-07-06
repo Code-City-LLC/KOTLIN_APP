@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.AirdropHeader
+import com.ga.airdrop.core.designsystem.theme.AirdropColorScheme
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
@@ -233,6 +234,17 @@ private val warehouseCards = listOf(
     ),
 )
 
+// Current Swift uses a clear card with glassOverlay62; this overrides the
+// older gray150 Figma component fill.
+internal fun homeWarehouseCardFillColor(colors: AirdropColorScheme): Color = colors.glassOverlay62
+
+internal fun homeWarehouseCardBorderColor(colors: AirdropColorScheme): Color =
+    if (colors.isDark) {
+        Color.White.copy(alpha = 0.13f)
+    } else {
+        Color.Black.copy(alpha = 0.18f)
+    }
+
 @Composable
 private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
@@ -253,8 +265,12 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     .height(326.dp)
                     .testTag("home-warehouse-${card.type}")
                     .clip(RoundedCornerShape(Spacing.sm1)) // radius 15 (Figma 2xs)
-                    .background(colors.gray150)
-                    .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+                    .background(homeWarehouseCardFillColor(colors))
+                    .border(
+                        1.dp,
+                        homeWarehouseCardBorderColor(colors),
+                        RoundedCornerShape(Spacing.sm1),
+                    )
                     // Swift: the WHOLE card is a tap target → WarehouseView.
                     .clickable { onOpen(card.type) }
                     // Swift: px 20, top pinned 30, bottom ≤ (stack bottom is a

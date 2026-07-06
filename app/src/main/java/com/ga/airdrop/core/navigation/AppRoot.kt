@@ -24,6 +24,8 @@ import com.ga.airdrop.feature.auth.LoginScreen
 import com.ga.airdrop.feature.auth.authExtraGraph
 import com.ga.airdrop.feature.calculator.calculatorGraph
 import com.ga.airdrop.feature.dropalert.dropAlertGraph
+import com.ga.airdrop.feature.home.HomeScreen
+import com.ga.airdrop.feature.home.HomeViewModel
 import com.ga.airdrop.feature.homedetails.homeDetailsGraph
 import com.ga.airdrop.feature.more.moreGraph
 import com.ga.airdrop.feature.more2.more2Graph
@@ -48,7 +50,7 @@ private val AUTH_GRAPH_ROUTES = setOf(
  * glass bottom bar overlays tab-root content.
  */
 @Composable
-fun AppRoot() {
+fun AppRoot(homeViewModel: HomeViewModel? = null) {
     val navController = rememberNavController()
     val token by AuthTokenStore.tokenFlow.collectAsState()
     // Splash decides: token → Home, first run → Onboarding, else → Landing
@@ -104,7 +106,7 @@ fun AppRoot() {
             modifier = Modifier.fillMaxSize(),
         ) {
             authGraph(navController)
-            mainGraph(navController)
+            mainGraph(navController, homeViewModel)
         }
         if (currentTab != null) {
             AirdropBottomBar(
@@ -145,9 +147,19 @@ private fun androidx.navigation.NavGraphBuilder.authGraph(navController: NavHost
     authExtraGraph(navController)
 }
 
-private fun androidx.navigation.NavGraphBuilder.mainGraph(navController: NavHostController) {
+private fun androidx.navigation.NavGraphBuilder.mainGraph(
+    navController: NavHostController,
+    homeViewModel: HomeViewModel?,
+) {
     composable(Routes.HOME) {
-        com.ga.airdrop.feature.home.HomeScreen(onNavigate = { navController.navigate(it) })
+        if (homeViewModel != null) {
+            HomeScreen(
+                onNavigate = { navController.navigate(it) },
+                viewModel = homeViewModel,
+            )
+        } else {
+            HomeScreen(onNavigate = { navController.navigate(it) })
+        }
     }
     // Shipments hub + drill-downs (registers Routes.SHIPMENTS itself).
     shipmentsGraph(navController)
