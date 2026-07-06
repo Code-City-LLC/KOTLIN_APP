@@ -26,6 +26,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -158,12 +159,14 @@ private fun ProductListScreen(
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Fixed(2),
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("product-list-grid"),
                     contentPadding = PaddingValues(
                         start = Spacing.md,
                         end = Spacing.md,
                         top = Spacing.sm,
-                        bottom = Spacing.lg,
+                        bottom = ProductListBottomClearance,
                     ),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -182,6 +185,7 @@ private fun ProductListScreen(
                                 onNavigate(Routes.auctionProductDetails(product.routeSlug, featured))
                             },
                             onToggleCart = { CartStore.toggle(product.toCartLine()) },
+                            modifier = Modifier.testTag("product-list-card-${product.id}"),
                         )
                     }
                     if (state.loading && state.products.isNotEmpty()) {
@@ -213,3 +217,5 @@ private fun ProductListScreen(
         )
     }
 }
+
+private val ProductListBottomClearance = 124.dp

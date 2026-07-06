@@ -11,7 +11,7 @@ light AND dark.
 
 ## STATUS LEDGER (updated 2026-07-06 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **43 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **44 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -58,6 +58,20 @@ light AND dark.
   50dp. Proof: `ShopRootScreenParityTest` passed 4/4 on
   `airdrop_test2(AVD) - 15`; adjacent `ShopRootListParityTest` +
   `AuctionProductDetailsCartFlowParityTest` passed 7/7.
+- **Auction/Feature ProductList bottom clearance:** Figma list nodes
+  `40001846:54117` and `40001846:54396` were refreshed through Figma MCP, then
+  compared with Swift `FigmaAuctionViewController.swift` and
+  `FigmaFeatureProductsViewController.swift`. Figma shows the translucent bottom
+  bar overlaying the scroll surface; Swift is explicit that the collection view
+  fills to the screen bottom and uses `contentInset.bottom = 124` plus matching
+  scroll-indicator inset. Android still used only `Spacing.lg` (30dp), letting
+  the final row sit under the bottom chrome. Android now uses a single
+  `ProductListBottomClearance = 124.dp` for Auction and Feature Products lists.
+  Proof: `ProductListBottomClearanceParityTest` passed 2/2, and adjacent Shop
+  regression group (`ProductListBottomClearanceParityTest`,
+  `ShopRootListParityTest`, `ShopRootScreenParityTest`,
+  `AuctionProductDetailsCartFlowParityTest`) passed 13/13 on
+  `airdrop_test2(AVD) - 15`.
 - **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
 - **Kemar-locked chrome override:** Home/header/footer chrome must stay
   translucent and frosted, not opaque. Figma node `40001464:28926` and
@@ -1229,6 +1243,37 @@ passed 7/7 on `airdrop_test2(AVD) - 15`.
 **Detail:** PullToRefreshBox is used without a custom indicator (ProductListScreen.kt:133-137); Swift sets refreshControl.tintColor = DesignTokens.Color.orangeMain (FigmaAuctionViewController.swift:313, FigmaFeatureProductsViewController.swift:319).
 
 **Fix:** Closed in current Android. `ProductListScreen` now provides a `PullToRefreshDefaults.Indicator` with `color = BrandPalette.OrangeMain`, matching Swift's Auction and Feature Products `refreshControl.tintColor = DesignTokens.Color.orangeMain`. The adjacent list search/card parity tests compile through this screen cluster, and the source-level Swift/Figma evidence is recorded here to keep the backlog from reopening stale duplicate work.
+
+---
+
+## [CLOSED] Auction list / Feature Products list — bottom chrome clearance
+`app/src/main/java/com/ga/airdrop/feature/shop/ProductListScreen.kt` — the
+full Auction and Feature Products lists used only a 30dp bottom padding, so the
+last grid row could sit under the glass bottom bar instead of clearing it like
+the Swift lists.
+
+**Detail:** Figma MCP for Auction `40001846:54117` and Feature Products
+`40001846:54396` shows the list content behind a translucent bottom `Button
+Type` chrome band. Swift `FigmaAuctionViewController.makeCollectionView()` and
+`FigmaFeatureProductsViewController.makeCollectionView()` both set
+`layout.sectionInset = UIEdgeInsets(top: 10, left: 20, bottom: 30, right: 20)`
+for row spacing, then separately set `cv.contentInset.bottom = 124` and
+`cv.verticalScrollIndicatorInsets.bottom = 124` because the collection view is
+constrained to `view.bottomAnchor`. Android had the section bottom spacing
+equivalent (`Spacing.lg`) but lacked the separate bottom chrome inset.
+
+**Fix:** Closed. `ProductListScreen` now uses a named
+`ProductListBottomClearance = 124.dp` for the `LazyVerticalGrid` bottom content
+padding while preserving the existing 20dp gutters, 10dp grid gaps, 245dp cards,
+pull-to-refresh, sort sheet, and cart behavior. The concrete Auction and
+Featured view models now accept an optional repository with the same default
+repo, allowing screen-level tests to use the real `AuctionScreen` and
+`FeaturedProductsScreen` entry points without duplicating UI. Verification on
+2026-07-06: Figma MCP nodes `40001846:54117` and `40001846:54396` refreshed;
+Swift sources compared; `:app:compileProdDebugKotlin` and
+`:app:compileProdDebugAndroidTestKotlin` passed; focused
+`ProductListBottomClearanceParityTest` passed 2/2; adjacent Shop regression
+group passed 13/13 on `airdrop_test2(AVD) - 15`.
 
 ---
 

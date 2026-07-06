@@ -1374,11 +1374,25 @@ assets; only repair the parts that are visibly or functionally wrong.
   Details. Focused proof passed 4/4 on `airdrop_test2(AVD) - 15`; adjacent
   `ShopRootListParityTest` + `AuctionProductDetailsCartFlowParityTest` passed
   7/7 after the shared search-field change.
+- Auction and Feature Products full-list bottom clearance now follows Swift.
+  Figma MCP was refreshed for Auction `40001846:54117` and Feature Products
+  `40001846:54396`; both show scroll content behind the translucent bottom
+  chrome. Swift `FigmaAuctionViewController.swift` and
+  `FigmaFeatureProductsViewController.swift` set the grid section bottom to 30pt
+  for row spacing, then separately set `contentInset.bottom = 124` and
+  `verticalScrollIndicatorInsets.bottom = 124` because the collection view is
+  constrained to the screen bottom. Android previously only had the 30dp
+  section spacing. `ProductListScreen` now uses
+  `ProductListBottomClearance = 124.dp` for both lists while preserving the
+  existing card/grid/search/sort/cart rails. `ProductListBottomClearanceParityTest`
+  proves Auction in light and Feature Products in dark after scrolling to the
+  end of the actual screen; adjacent Shop regression proof passed 13/13 on
+  `airdrop_test2(AVD) - 15`.
 - This does not close Shop as pixel-perfect: the Shop root header/background
   remains a documented Swift/Figma conflict (`FigmaTabHeader(style: .frosted)`
   in Swift versus the static Figma inner header), Product Detail full visual
-  parity remains open, and Auction/Feature ProductList bottom clearance still
-  needs the Swift 124pt bottom-inset pass.
+  parity remains open, and broader live-data/full-flow acceptance still needs
+  authenticated end-to-end proof.
 
 ### More/Profile/Legal
 
@@ -1963,7 +1977,7 @@ For each page, fill this before claiming completion:
 | AirCoins | `feature/homedetails/AirCoinScreen.kt`, `feature/homedetails/AirCoinViewModel.kt`, `data/repo/MiscRepository.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, `/aircoins/history?page=1&per_page=50` contract tested | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI and Swift history page-size data contract; live authenticated server acceptance can still be broadened if credentials are assigned |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Payment Methods `40001428:9188`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Add Authorized User `40001541:45296`, Authorized User Detail stale node `40001185:5345`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates`, `/authorized-users`, `/authorized-users/{id}` mutations, `/paymentMethods` UI rail to Cart | partial | partial | partial | Codex | More root profile/menu/header tap rails plus app-dark menu icon pixels, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Add Authorized User add/edit payload rails, Authorized User Detail one-load/read-only/mutation/delete rails, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
-| Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | partial | partial | partial | BlueDeer/others | `a1768d2` route proof captured; Product Detail related empty-state, fallback copy, invalid feature purchase links, and add-to-cart/cart handoff are now Swift/Figma-proven; Shop root search/card/auction-vs-featured rail slice has light/dark emulator proof. Full Shop completion remains open for header/background conflict decision, Product Detail full visual parity, ProductList bottom clearance, and broader live-data acceptance |
+| Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40001846:54117`, `40001846:54396`, `40002072:24025` | products/auction/cart | partial | partial | partial | BlueDeer/others | `a1768d2` route proof captured; Product Detail related empty-state, fallback copy, invalid feature purchase links, and add-to-cart/cart handoff are now Swift/Figma-proven; Shop root search/card/auction-vs-featured rail slice has light/dark emulator proof; Auction/Feature ProductList bottom clearance now matches Swift's 124pt inset with emulator proof. Full Shop completion remains open for header/background conflict decision, Product Detail full visual parity, and broader live-data acceptance |
 
 ---
 

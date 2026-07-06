@@ -129,6 +129,10 @@ open class ProductListViewModel(
     }
 }
 
-class AuctionViewModel : ProductListViewModel(featured = false)
+class AuctionViewModel(
+    products: ShopProductsRepository = ShopRepoProvider.products,
+) : ProductListViewModel(featured = false, products = products)
 
-class FeaturedProductsViewModel : ProductListViewModel(featured = true)
+class FeaturedProductsViewModel(
+    products: ShopProductsRepository = ShopRepoProvider.products,
+) : ProductListViewModel(featured = true, products = products)
