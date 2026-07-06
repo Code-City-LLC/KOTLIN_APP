@@ -114,6 +114,13 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         RestrictedItemsScreen(onBack = { navController.popBackStack() })
     }
 
+    composable(Routes.ABOUT) {
+        AboutScreen(
+            onBack = { navController.popBackStack() },
+            onNavigate = { navController.navigate(it) },
+        )
+    }
+
     composable(Routes.ACCOUNT_DELETION) {
         AccountDeletionScreen(
             onBack = { navController.popBackStack() },

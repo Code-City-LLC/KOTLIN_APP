@@ -56,8 +56,10 @@ import com.ga.airdrop.core.session.SessionStore
  * FigmaMoreViewController: profile card + the 12 menu rows in Figma order
  * (Preferences → Promotions → Settings → Documents → Users → Refer a friend
  * → Shipping Rates → Restricted Items → Payment Methods → FAQs → Terms &
- * Conditions → Privacy Policy). Card taps push routes; the avatar opens the
- * photo picker (upload/delete wired, unlike the Swift stub).
+ * Conditions → Privacy Policy), plus About AirDrop appended as a
+ * platform-convention utility row (Swift FigmaSpecificPages.swift:540, beyond
+ * the Figma menu node). Card taps push routes; the avatar opens the photo
+ * picker (upload/delete wired, unlike the Swift stub).
  */
 internal object MoreRootTags {
     const val ROOT = "more-root"
@@ -75,6 +77,7 @@ internal object MoreRootTags {
     const val FAQS = "more-menu-faqs"
     const val TERMS = "more-menu-terms-conditions"
     const val PRIVACY = "more-menu-privacy-policy"
+    const val ABOUT = "more-menu-about"
 }
 
 private data class MoreMenuItem(
@@ -170,6 +173,15 @@ private val moreMenuItems = listOf(
         R.drawable.ic_more_privacy_dark,
         Routes.PRIVACY,
         MoreRootTags.PRIVACY,
+    ),
+    // Swift keeps About AirDrop last as a platform-convention utility row
+    // (FigmaSpecificPages.swift:540) — added beyond the Figma menu node.
+    MoreMenuItem(
+        "About AirDrop",
+        R.drawable.ic_calc_info_circle,
+        R.drawable.ic_calc_info_circle,
+        Routes.ABOUT,
+        MoreRootTags.ABOUT,
     ),
 )
 

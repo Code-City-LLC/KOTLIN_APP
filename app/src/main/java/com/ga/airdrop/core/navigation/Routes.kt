@@ -73,6 +73,7 @@ object Routes {
     const val PRIVACY = "privacy"
     const val FAQ = "faq"
     const val RESTRICTED_ITEMS = "restrictedItems"
+    const val ABOUT = "about"
 
     // Tools
     const val CALCULATOR = "calculator"
