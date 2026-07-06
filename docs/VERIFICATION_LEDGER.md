@@ -54,6 +54,14 @@
 
 ---
 
+## 1b. MISSING-FUNCTIONS SWEEP — CLOSED 2026-07-06 (TealSnow; do not re-derive)
+
+RN→Kotlin function sweep is **complete: all 66 RN useCases accounted for** (50 `modules/` + 15 `modules_old/` + `getExchangeRate`). Evidence in ORC msgs #14798/#14859/#14880. Key verdicts so anyone re-checking starts from facts:
+
+- **The ONE true gap found:** token-refresh 401 recovery — RN `refreshToken.ts` + Swift `AirdropAPI:347/:678` (single-flight) existed; Kotlin's `POST auth/refresh` had ZERO callers. Fixed (AuthInterceptor + TokenRefresher, 5 scripted-chain JVM tests) and now landed on main with the foreground-refresh + reactive-logout follow-up.
+- **Rejected as gaps (do not reopen without new evidence):** Calculator product search (Kotlin `CalculatorViewModel.kt:76` implements Swift's 500ms/≥3-chars/top-8 spec); `restorePassword` (= forgot-password email trigger; reset-password UI exists in NEITHER RN nor Swift — typed wrapper only, web flow).
+- **Stale-audit warning:** `SWIFT_APP/FUNCTION_AUDIT.md` + `AIRDROP_RN_TO_SWIFT_FULL_AUDIT.md` (both 2026-05-22) list gaps that are ALL closed on current heads — grep evidence in #14798. Do not use them as to-do lists.
+
 ## 2. CAUTIONS — DO NOT DO THESE
 
 ### C1 — Do NOT swap the shared `BlueInfoCard` icon (Calculator flow) ⚠️ investigated & rejected
