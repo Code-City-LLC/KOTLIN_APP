@@ -6,6 +6,7 @@ import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.AirCoinTransaction
 import com.ga.airdrop.data.model.AirCoinsStatus
 import com.ga.airdrop.data.repo.MiscRepository
+import com.ga.airdrop.data.repo.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -18,15 +19,22 @@ internal const val AIRCOIN_HISTORY_PER_PAGE = 50
 data class AirCoinBalanceUiState(
     val status: AirCoinsStatus? = null,
     val loading: Boolean = false,
+    val accountNumber: String? = null,
+    val userId: Int? = null,
 ) {
     // Swift applyBalance fallbacks.
     val accumulated: Int get() = status?.accumulated ?: status?.balance ?: 0
     val redeemed: Int get() = status?.redeemed ?: 0
     val available: Int get() = status?.available ?: status?.balance ?: 0
+    val redeemAccount: String
+        get() = accountNumber?.trim()?.takeIf { it.isNotEmpty() }
+            ?: userId?.toString()
+            ?: "anonymous"
 }
 
 class AirCoinBalanceViewModel(
     private val miscRepository: MiscRepository = MiscRepository(ApiClient.service),
+    private val userRepository: UserRepository = UserRepository(ApiClient.service),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AirCoinBalanceUiState())
@@ -37,6 +45,14 @@ class AirCoinBalanceViewModel(
             _state.update { it.copy(loading = true) }
             miscRepository.airCoinsStatus().onSuccess { status ->
                 _state.update { it.copy(status = status) }
+            }
+            userRepository.currentUser().onSuccess { user ->
+                _state.update {
+                    it.copy(
+                        accountNumber = user.accountNumber,
+                        userId = user.id,
+                    )
+                }
             }
             _state.update { it.copy(loading = false) }
         }

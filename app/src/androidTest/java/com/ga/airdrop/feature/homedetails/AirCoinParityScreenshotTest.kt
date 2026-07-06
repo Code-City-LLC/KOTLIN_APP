@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -22,6 +23,10 @@ import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.data.model.AirCoinTransaction
 import com.ga.airdrop.data.model.AirCoinsStatus
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.RGBLuminanceSource
+import com.google.zxing.common.HybridBinarizer
+import com.google.zxing.qrcode.QRCodeReader
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
@@ -56,6 +61,40 @@ class AirCoinParityScreenshotTest {
 
         assertBalanceSwiftGeometry()
         saveNodeScreenshot("aircoin-balance-root", "aircoin_balance_swift_dark.png")
+    }
+
+    @Test
+    fun redeemAtCounterShowsSwiftQrSheet() {
+        setBalanceContent(ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("aircoin-redeem-button").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("aircoin-redeem-sheet").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        compose.onNodeWithTag("aircoin-redeem-sheet-title").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Show this code to the AirDrop counter agent to apply your AirCoin balance toward your next pickup."
+        ).assertIsDisplayed()
+        compose.onNodeWithContentDescription("AirCoin redemption QR code").assertIsDisplayed()
+        compose.onNodeWithText("Code refreshes when this screen opens. Do not share.").assertIsDisplayed()
+        assertClose(220f, boundsWidth("aircoin-redeem-qr-card"), "Swift QR card width")
+        assertClose(220f, boundsHeight("aircoin-redeem-qr-card"), "Swift QR card height")
+    }
+
+    @Test
+    fun redeemPayloadQrIsScannable() {
+        val payload = airCoinRedeemPayload("AIR2048", nowSeconds = 1_780_000_000L)
+        val bitmap = generateAirCoinRedeemQrBitmap(payload, sizePx = 256)
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+
+        val decoded = QRCodeReader().decode(
+            BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width, bitmap.height, pixels)))
+        ).text
+
+        assertEquals("airdrop:redeem?account=AIR2048&t=1780000000", payload)
+        assertEquals(payload, decoded)
     }
 
     @Test
@@ -95,6 +134,8 @@ class AirCoinParityScreenshotTest {
                                 redeemed = 23,
                                 available = 50,
                             ),
+                            accountNumber = "AIR2048",
+                            userId = 2048,
                         ),
                         onBack = {},
                         onOpenHistory = { historyClicks.incrementAndGet() },
@@ -152,8 +193,12 @@ class AirCoinParityScreenshotTest {
         assertClose(64f, boundsHeight("aircoin-stat-accumulated"), "Accumulated row height")
         assertClose(64f, boundsHeight("aircoin-stat-redeemed"), "Redeemed row height")
         assertClose(64f, boundsHeight("aircoin-stat-available"), "Available row height")
+        assertClose(52f, boundsHeight("aircoin-redeem-button"), "Redeem CTA height")
+        assertClose(22f, boundsWidth("aircoin-redeem-icon"), "Redeem QR icon width")
+        assertClose(22f, boundsHeight("aircoin-redeem-icon"), "Redeem QR icon height")
         assertClose(40f, boundsWidth("aircoin-balance-tip-icon"), "Tip icon width")
         assertClose(40f, boundsHeight("aircoin-balance-tip-icon"), "Tip icon height")
+        compose.onNodeWithText("Redeem at counter").assertIsDisplayed()
     }
 
     private fun assertHistorySwiftGeometryAndCopy() {
@@ -191,10 +236,14 @@ class AirCoinParityScreenshotTest {
     }
 
     private fun boundsWidth(tag: String): Float =
-        compose.onNodeWithTag(tag).getUnclippedBoundsInRoot().let { (it.right - it.left).value }
+        compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+            .let { (it.right - it.left).value }
 
     private fun boundsHeight(tag: String): Float =
-        compose.onNodeWithTag(tag).getUnclippedBoundsInRoot().let { (it.bottom - it.top).value }
+        compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+            .let { (it.bottom - it.top).value }
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
         assertEquals(label, expected, actual, 0.75f)

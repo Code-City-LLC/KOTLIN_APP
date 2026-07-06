@@ -1,8 +1,11 @@
 package com.ga.airdrop.feature.homedetails
 
+import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,18 +26,25 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -47,6 +58,10 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.abs
@@ -81,6 +96,7 @@ internal fun AirCoinBalanceContent(
     onOpenHistory: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
+    var showRedeemSheet by remember { mutableStateOf(false) }
 
     Box(
         Modifier
@@ -127,9 +143,17 @@ internal fun AirCoinBalanceContent(
                     redeemed = state.redeemed,
                     available = state.available,
                 )
+                RedeemButton(onClick = { showRedeemSheet = true })
                 TipCard()
                 Spacer(Modifier.height(Spacing.md))
             }
+        }
+
+        if (showRedeemSheet) {
+            AirCoinRedeemSheet(
+                account = state.redeemAccount,
+                onDismiss = { showRedeemSheet = false },
+            )
         }
     }
 }
@@ -255,6 +279,131 @@ private fun StatRow(iconRes: Int, label: String, amount: Int, testTag: String) {
             color = colors.textDarkTitle,
         )
     }
+}
+
+// ─── Swift "Redeem at counter" CTA + QR sheet ───────────────────────────────
+
+@Composable
+private fun RedeemButton(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .testTag("aircoin-redeem-button")
+            .clip(RoundedCornerShape(14.dp))
+            .background(BrandPalette.ButtonStatic)
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_qr_code),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(Color.White),
+            modifier = Modifier
+                .size(22.dp)
+                .testTag("aircoin-redeem-icon"),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "Redeem at counter",
+            style = AirdropType.button,
+            color = Color.White,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AirCoinRedeemSheet(account: String, onDismiss: () -> Unit) {
+    val colors = AirdropTheme.colors
+    val payload = remember(account) { airCoinRedeemPayload(account) }
+    val qrBitmap = remember(payload) { generateAirCoinRedeemQrBitmap(payload) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        containerColor = colors.gray100,
+        shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
+        dragHandle = null,
+        modifier = Modifier.testTag("aircoin-redeem-sheet"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 30.dp)
+                .padding(top = 22.dp, bottom = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Redeem at counter",
+                style = AirdropType.subtitle1,
+                color = colors.textDarkTitle,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("aircoin-redeem-sheet-title"),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Show this code to the AirDrop counter agent to apply your AirCoin balance toward your next pickup.",
+                style = AirdropType.body3,
+                color = colors.textDescription,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(18.dp))
+            Box(
+                modifier = Modifier
+                    .size(220.dp)
+                    .testTag("aircoin-redeem-qr-card")
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(colors.gray150)
+                    .padding(14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    bitmap = qrBitmap.asImageBitmap(),
+                    contentDescription = "AirCoin redemption QR code",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("aircoin-redeem-qr-image")
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White),
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                text = "Code refreshes when this screen opens. Do not share.",
+                style = AirdropType.body3,
+                color = colors.textDescription,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+internal fun airCoinRedeemPayload(
+    account: String,
+    nowSeconds: Long = System.currentTimeMillis() / 1000L,
+): String = "airdrop:redeem?account=$account&t=$nowSeconds"
+
+internal fun generateAirCoinRedeemQrBitmap(payload: String, sizePx: Int = 512): Bitmap {
+    val hints = mapOf(
+        EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
+        EncodeHintType.MARGIN to 1,
+    )
+    val matrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
+    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    for (x in 0 until sizePx) {
+        for (y in 0 until sizePx) {
+            bitmap.setPixel(x, y, if (matrix[x, y]) AndroidColor.BLACK else AndroidColor.WHITE)
+        }
+    }
+    return bitmap
 }
 
 // ─── Tip card (Figma 40001911:23057) ───────────────────────────────────────

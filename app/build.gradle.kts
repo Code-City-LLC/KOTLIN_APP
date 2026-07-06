@@ -100,6 +100,7 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
+    implementation(libs.zxing.core)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)

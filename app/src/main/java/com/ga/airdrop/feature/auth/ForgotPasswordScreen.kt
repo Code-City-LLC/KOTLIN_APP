@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -74,12 +75,16 @@ fun ForgotPasswordScreen(
             // Logo top edge sits at 142/812 in the frame (98 below status bar).
             Spacer(Modifier.height(98.dp))
             Image(
-                painter = painterResource(R.drawable.img_airdrop_logo),
+                painter = painterResource(
+                    if (colors.isDark) R.drawable.img_airdrop_logo_dark
+                    else R.drawable.img_airdrop_logo
+                ),
                 contentDescription = "AirDrop",
                 modifier = Modifier
-                    .fillMaxWidth(260f / 375f)
-                    .aspectRatio(260.032f / 71.879f)
-                    .align(Alignment.CenterHorizontally),
+                    .fillMaxWidth(if (colors.isDark) 0.26f else 260f / 375f)
+                    .aspectRatio(if (colors.isDark) 642f / 612f else 649f / 180f)
+                    .align(Alignment.CenterHorizontally)
+                    .testTag("forgot-password-logo"),
                 contentScale = ContentScale.Fit,
             )
             Spacer(Modifier.weight(1f))

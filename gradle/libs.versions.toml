@@ -12,6 +12,7 @@ kotlinxSerialization = "1.8.1"
 coil = "2.7.0"
 securityCrypto = "1.1.0-alpha06"
 browser = "1.8.0"
+zxing = "3.5.3"
 firebaseBom = "33.13.0"
 googleServices = "4.4.2"
 junit = "4.13.2"
@@ -42,6 +43,7 @@ okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor",
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coil" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
