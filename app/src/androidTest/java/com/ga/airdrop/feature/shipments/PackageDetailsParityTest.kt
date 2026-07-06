@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -61,7 +62,7 @@ class PackageDetailsParityTest {
     }
 
     @Test
-    fun invoiceAndCartButtonsKeepSwiftRuntimeRails() {
+    fun invoiceViewAndCartButtonsKeepSwiftRuntimeRailsAtReadyForPickup() {
         setPackageDetailsContent(ThemeController.Mode.LIGHT)
 
         compose.onNodeWithTag("package-details-invoice-view-101")
@@ -71,13 +72,11 @@ class PackageDetailsParityTest {
             "Invoice view should navigate to the shared invoice viewer route",
             navigatedRoutes.lastOrNull().orEmpty().startsWith("invoiceViewer?url="),
         )
-
-        compose.onNodeWithTag("package-details-invoice-delete-101")
-            .performScrollTo()
-            .performClick()
-        compose.onNodeWithText("Delete invoice").assertIsDisplayed()
-        compose.onNodeWithText("Delete").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
+        assertEquals(
+            "Swift locks invoice delete at Ready for Pickup while leaving upload/view available",
+            0,
+            compose.onAllNodesWithTag("package-details-invoice-delete-101").fetchSemanticsNodes().size,
+        )
 
         compose.onNodeWithText("Add to Cart")
             .performScrollTo()
@@ -86,14 +85,32 @@ class PackageDetailsParityTest {
         assertEquals(1, CartStore.count)
     }
 
-    private fun setPackageDetailsContent(mode: ThemeController.Mode) {
+    @Test
+    fun invoiceDeleteRemainsAvailableBeforeReadyForPickup() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
+        )
+
+        compose.onNodeWithTag("package-details-invoice-delete-101")
+            .performScrollTo()
+            .performClick()
+        compose.onNodeWithText("Delete invoice").assertIsDisplayed()
+        compose.onNodeWithText("Delete").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
+    }
+
+    private fun setPackageDetailsContent(
+        mode: ThemeController.Mode,
+        detail: ShipmentPackageDetail = sampleDetail(),
+    ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
             CartStore.init(InstrumentationRegistry.getInstrumentation().targetContext)
             CartStore.clear()
         }
         navigatedRoutes.clear()
-        packagesRepo = FakePackagesRepository(sampleDetail())
+        packagesRepo = FakePackagesRepository(detail)
         val viewModel = PackageDetailsViewModel(
             packageId = "7",
             repo = packagesRepo,
@@ -155,15 +172,15 @@ class PackageDetailsParityTest {
         val row = compose.onNodeWithTag("package-details-invoice-row-101")
             .performScrollTo()
             .getUnclippedBoundsInRoot()
-        val delete = compose.onNodeWithTag("package-details-invoice-delete-101")
-            .getUnclippedBoundsInRoot()
         val view = compose.onNodeWithTag("package-details-invoice-view-101")
             .getUnclippedBoundsInRoot()
         assertClose(56f, boundsHeight(row), "Swift invoice row height")
-        assertTrue(
-            "Swift invoice actions are trash then eye",
-            boundsLeft(delete) < boundsLeft(view),
+        assertEquals(
+            "Swift hides invoice delete at status 7 Ready for Pickup",
+            0,
+            compose.onAllNodesWithTag("package-details-invoice-delete-101").fetchSemanticsNodes().size,
         )
+        assertTrue("Swift keeps invoice view action visible", boundsLeft(view) > boundsLeft(row))
 
         compose.onNodeWithTag("package-details-cif-row")
             .performScrollTo()
@@ -188,10 +205,13 @@ class PackageDetailsParityTest {
         assertEquals(0, compose.onAllNodesWithText("-").fetchSemanticsNodes().size)
     }
 
-    private fun sampleDetail() = ShipmentPackageDetail(
+    private fun sampleDetail(
+        status: String = "7",
+        statusName: String = "Ready for Pickup",
+    ) = ShipmentPackageDetail(
         id = 7,
-        status = "7",
-        statusName = "Ready for Pickup",
+        status = status,
+        statusName = statusName,
         shippingMethod = "Standard",
         trackingCode = "AR000000043525",
         store = "Global HUB",
