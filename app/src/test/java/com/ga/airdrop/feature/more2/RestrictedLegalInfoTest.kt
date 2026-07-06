@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.more2
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,8 +35,9 @@ class RestrictedLegalInfoTest {
         )
         assertTrue(RestrictedLegalInfo.LEGAL_NOTICE_BODY.startsWith("This guide is illustrative"))
         assertTrue(RestrictedLegalInfo.US_AUTHORITIES_BODY.contains("(EAR)"))
-        // Swift ships "export-asian" verbatim — kept intentionally.
-        assertTrue(RestrictedLegalInfo.DISCLAIMER.contains("export-asian"))
+        // Kemar copy fix: corrupted "export-asian" → "export/import".
+        assertTrue(RestrictedLegalInfo.DISCLAIMER.contains("export/import regulations"))
+        assertFalse(RestrictedLegalInfo.DISCLAIMER.contains("asian"))
         assertEquals("https://www.bis.doc.gov", RestrictedLegalInfo.bisLink.url)
     }
 }

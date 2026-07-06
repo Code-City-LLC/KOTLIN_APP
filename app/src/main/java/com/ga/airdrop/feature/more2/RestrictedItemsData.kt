@@ -265,10 +265,11 @@ internal object RestrictedLegalInfo {
     const val JM_AUTHORITIES_FOOTER = "These agencies regulate imports into Jamaica and issue " +
         "permits for controlled or restricted goods."
 
-    // Swift ships this copy verbatim (including the "export-asian" oddity) —
-    // do not "correct" text the source of truth renders as-is.
+    // "export-asian" was corrupted source copy — Kemar ruling: AirDrop ships
+    // USA↔Jamaica, so this reads "export/import regulations" (US export + JA
+    // import). Swift/Laravel mirror the same correction in their lanes.
     const val DISCLAIMER = "The information provided here is exemplary and does not replace " +
-        "consultation of official export-asian regulations or our Terms and Conditions. " +
+        "consultation of official export/import regulations or our Terms and Conditions. " +
         "AirDrop Logistics LLC reserves the right to refuse, inspect, or detain any shipment " +
         "that does not meet these requirements."
     const val BIS_LEAD_IN = "For further details on U.S. export controls, please refer to " +
