@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.more
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.push.QuietHoursStore
 
 /**
  * Notification Settings — behavior from FigmaNotificationSettingsViewController
@@ -61,7 +63,13 @@ fun NotificationSettingsScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) { viewModel.start(context) }
+    val quietViewModel: QuietHoursViewModel = viewModel()
+    val quiet by quietViewModel.state.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.start(context)
+        quietViewModel.start(context)
+    }
 
     val packageSubEnabled = state.master && state.packageMaster
     val promosSubEnabled = state.master && state.promosMaster
@@ -193,8 +201,105 @@ fun NotificationSettingsScreen(
                     },
                     testTagPrefix = "notification-promos-push",
                 )
+
+                // Quiet Hours (Swift FigmaQuietHoursSheet). Enable toggle + a
+                // From/Until window that dims when off. Foreground pushes inside
+                // the window are delivered silently (they still land in the shade).
+                Spacer(Modifier.height(SectionGap))
+                ToggleRow(
+                    title = "Enable quiet hours",
+                    titleStyle = AirdropType.subtitle2,
+                    rowStyle = ToggleRowStyle.Section,
+                    checked = quiet.enabled,
+                    enabled = true,
+                    onChange = { quietViewModel.setEnabled(context, it) },
+                    testTagPrefix = "quiet-hours-enable",
+                )
+                Spacer(Modifier.height(RowGap))
+                Text(
+                    // Swift copy says "Notification Center"; on Android that
+                    // concept is "the notification shade" — kept Android-accurate
+                    // (flagged to reviewer). Semantics identical.
+                    text = "AirDrop notifications stay silent inside the window — " +
+                        "they still land in the notification shade, you just don't get " +
+                        "the banner or sound. Back-in-stock alerts you subscribed to are exempt.",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                    modifier = Modifier
+                        .padding(horizontal = Spacing.xs)
+                        .testTag("quiet-hours-explainer"),
+                )
+                Spacer(Modifier.height(RowGap))
+                QuietHoursTimeRow(
+                    label = "From",
+                    minutes = quiet.startMinutes,
+                    enabled = quiet.enabled,
+                    onPicked = { quietViewModel.setStart(context, it) },
+                    testTagPrefix = "quiet-hours-from",
+                )
+                Spacer(Modifier.height(RowGap))
+                QuietHoursTimeRow(
+                    label = "Until",
+                    minutes = quiet.endMinutes,
+                    enabled = quiet.enabled,
+                    onPicked = { quietViewModel.setEnd(context, it) },
+                    testTagPrefix = "quiet-hours-until",
+                )
             }
         }
+    }
+}
+
+/**
+ * Quiet-hours time row — shows the current window edge and opens the platform
+ * time picker on tap. Dims + becomes non-interactive when quiet hours is off,
+ * mirroring the Swift sheet's disabled pickers (alpha 0.45).
+ */
+@Composable
+private fun QuietHoursTimeRow(
+    label: String,
+    minutes: Int,
+    enabled: Boolean,
+    onPicked: (Int) -> Unit,
+    testTagPrefix: String,
+) {
+    val colors = AirdropTheme.colors
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .alpha(if (enabled) 1f else 0.45f)
+            .clip(RoundedCornerShape(Radius.s))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .testTag("$testTagPrefix-row")
+            .then(
+                if (enabled) {
+                    Modifier.clickable {
+                        android.app.TimePickerDialog(
+                            context,
+                            { _, hour, minute -> onPicked(hour * 60 + minute) },
+                            minutes / 60,
+                            minutes % 60,
+                            false,
+                        ).show()
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .padding(horizontal = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = label, style = AirdropType.body1, color = colors.textDarkTitle)
+        Text(
+            text = QuietHoursStore.formatMinutes(minutes),
+            style = AirdropType.subtitle2,
+            color = colors.textDescription,
+            modifier = Modifier.testTag("$testTagPrefix-value"),
+        )
     }
 }
 

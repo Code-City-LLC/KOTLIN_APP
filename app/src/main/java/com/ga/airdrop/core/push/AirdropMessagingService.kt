@@ -62,16 +62,38 @@ class AirdropMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        // Quiet Hours (Swift AppDelegate willPresent parity): inside the window
+        // the push is delivered SILENTLY — no heads-up/sound, but it still lands
+        // in the shade (never dropped). Locally-scheduled back-in-stock alerts
+        // the user opted into are exempt (no Kotlin producer yet — future-proof
+        // guard). FCM is inert today, so this path is dormant until Firebase.
+        val exemptLocal = message.data["local"] == LOCAL_NOTIFY_WHEN_IN_STOCK
+        val silent = QuietHoursStore.isInQuietWindow(applicationContext) && !exemptLocal
+
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Airdrop", NotificationManager.IMPORTANCE_DEFAULT),
         )
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        manager.createNotificationChannel(
+            NotificationChannel(
+                QUIET_CHANNEL_ID,
+                "Airdrop (quiet hours)",
+                NotificationManager.IMPORTANCE_LOW,
+            ),
+        )
+        val notification = NotificationCompat.Builder(
+            this,
+            if (silent) QUIET_CHANNEL_ID else CHANNEL_ID,
+        )
             .setSmallIcon(R.drawable.ic_nav_home_filled)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
             .setContentIntent(pending)
+            .setPriority(
+                if (silent) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_DEFAULT,
+            )
+            .apply { if (silent) setSilent(true) }
             .build()
         manager.notify(System.identityHashCode(message), notification)
     }
@@ -85,6 +107,8 @@ class AirdropMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val CHANNEL_ID = "airdrop_default"
+        const val QUIET_CHANNEL_ID = "airdrop_quiet"
+        const val LOCAL_NOTIFY_WHEN_IN_STOCK = "notifyWhenInStock"
         const val EXTRA_ROUTE = "route"
         const val EXTRA_REFERENCE_ID = "referenceID"
     }
