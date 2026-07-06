@@ -1,15 +1,20 @@
 package com.ga.airdrop.feature.more
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -47,6 +52,57 @@ class ProfileParityScreenshotTest {
 
         assertSwiftAvatarGeometry()
         saveRootScreenshot("profile_avatar_swift_geometry_dark.png")
+    }
+
+    @Test
+    fun profileHeaderKeepsSwiftThirtyTwoPointBackRail() {
+        var backClicks = 0
+        val holder = AtomicReference<ProfileViewModel>()
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            holder.set(ProfileViewModel(RecordingMoreProfileRepository()))
+        }
+
+        compose.setContent {
+            AirdropTheme {
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .height(812.dp)
+                        .background(AirdropTheme.colors.gray100),
+                ) {
+                    ProfileScreen(
+                        onBack = { backClicks += 1 },
+                        viewModel = holder.get(),
+                    )
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("more-detail-header-back", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        compose.waitForIdle()
+
+        val back = compose.onNodeWithTag(
+            "more-detail-header-back",
+            useUnmergedTree = true,
+        ).getUnclippedBoundsInRoot()
+        val chevron = compose.onNodeWithTag(
+            "more-detail-header-back-chevron",
+            useUnmergedTree = true,
+        ).getUnclippedBoundsInRoot()
+
+        assertClose(16f, back.left.value, "Profile Swift back rail leading")
+        assertClose(32f, boundsWidth(back), "Profile Swift back rail width")
+        assertClose(32f, boundsHeight(back), "Profile Swift back rail height")
+        assertClose(24f, boundsWidth(chevron), "Profile Swift back chevron width")
+        assertClose(24f, boundsHeight(chevron), "Profile Swift back chevron height")
+
+        compose.onNodeWithTag("more-detail-header-back", useUnmergedTree = true).performClick()
+        compose.runOnIdle { assertEquals(1, backClicks) }
     }
 
     @Test

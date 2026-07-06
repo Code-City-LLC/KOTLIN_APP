@@ -76,7 +76,14 @@ fun ProfileScreen(
     // Swift FigmaProfileViewController.swift:120 — gray100 background.
     Box(Modifier.fillMaxSize().background(colors.gray100)) {
         Column(Modifier.fillMaxSize().imePadding()) {
-            MoreDetailHeader(title = "Edit Profile", onBack = onBack)
+            MoreDetailHeader(
+                title = "Edit Profile",
+                onBack = onBack,
+                // FigmaProfileViewController.swift keeps the profile rail at
+                // 32pt with 16pt leading, unlike the newer 36pt More headers.
+                backRailSize = 32.dp,
+                backRailLeading = 16.dp,
+            )
             Column(
                 Modifier
                     .fillMaxWidth()

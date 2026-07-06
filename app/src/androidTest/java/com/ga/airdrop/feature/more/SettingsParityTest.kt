@@ -80,6 +80,7 @@ class SettingsParityTest {
     fun rowsAndHeaderEmitSwiftRoutesAndActions() {
         setSettings(mode = ThemeController.Mode.LIGHT)
 
+        assertSwiftHeaderGeometry()
         compose.onNodeWithContentDescription("Back").performClick()
         compose.runOnIdle { assertEquals(1, backClicks) }
 
@@ -240,6 +241,17 @@ class SettingsParityTest {
         assertClose(20f, (notificationIcon.left - notifications.left).value, "Settings icon leading inset")
         assertClose(24f, boundsWidth(notificationIcon), "Settings icon width")
         assertClose(24f, boundsHeight(notificationIcon), "Settings icon height")
+    }
+
+    private fun assertSwiftHeaderGeometry() {
+        val back = bounds("more-detail-header-back")
+        val chevron = bounds("more-detail-header-back-chevron")
+
+        assertClose(12f, back.left.value, "Settings Swift back rail leading")
+        assertClose(36f, boundsWidth(back), "Settings Swift back rail width")
+        assertClose(36f, boundsHeight(back), "Settings Swift back rail height")
+        assertClose(24f, boundsWidth(chevron), "Settings Swift back chevron width")
+        assertClose(24f, boundsHeight(chevron), "Settings Swift back chevron height")
     }
 
     private fun bounds(tag: String) = compose.onNodeWithTag(

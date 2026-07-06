@@ -32,6 +32,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -39,7 +41,6 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
-import androidx.compose.ui.unit.dp
 
 /*
  * Building blocks shared by the More-tab screens — Figma "Header Type"
@@ -50,8 +51,9 @@ import androidx.compose.ui.unit.dp
 /**
  * Detail-screen header — Swift inner-header pattern (FigmaSpecificPages.swift
  * :1332-1334/:1362-1366 Settings, FigmaProfileViewController.swift:144-198):
- * solid gray100, 56dp tall, back arrow left, SubTitle-1 centered title,
- * optional 24dp trailing action, 1dp iconShape divider underline.
+ * solid gray100, 56dp tall, 24dp back chevron inside Swift's button rail,
+ * SubTitle-1 centered title, optional 24dp trailing action, and 1dp iconShape
+ * divider underline.
  */
 @Composable
 fun MoreDetailHeader(
@@ -60,6 +62,8 @@ fun MoreDetailHeader(
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
     titleStyle: androidx.compose.ui.text.TextStyle = AirdropType.subtitle1,
+    backRailSize: Dp = 36.dp,
+    backRailLeading: Dp = 12.dp,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -72,20 +76,28 @@ fun MoreDetailHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .padding(horizontal = Spacing.md, vertical = 4.dp),
         ) {
-            Image(
-                // Swift inner headers draw a left-pointing CHEVRON, not the
-                // tailed arrow glyph.
-                painter = painterResource(R.drawable.ic_small_arrow_down),
-                contentDescription = "Back",
-                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+            Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .size(24.dp)
-                    .rotate(90f)
+                    .padding(start = backRailLeading)
+                    .size(backRailSize)
+                    .testTag("more-detail-header-back")
                     .clickable(onClick = onBack),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    // Swift inner headers draw a left-pointing CHEVRON, not the
+                    // tailed arrow glyph.
+                    painter = painterResource(R.drawable.ic_small_arrow_down),
+                    contentDescription = "Back",
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(90f)
+                        .testTag("more-detail-header-back-chevron"),
+                )
+            }
             Text(
                 text = title,
                 style = titleStyle,
@@ -95,7 +107,11 @@ fun MoreDetailHeader(
                 modifier = Modifier.align(Alignment.Center),
             )
             if (trailing != null) {
-                Box(Modifier.align(Alignment.CenterEnd)) { trailing() }
+                Box(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = Spacing.md),
+                ) { trailing() }
             }
         }
         Box(
