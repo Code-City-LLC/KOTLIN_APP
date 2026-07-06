@@ -42,11 +42,14 @@ data class PackageDetailsUiState(
      */
     val canDeleteInvoices: Boolean
         get() {
-            val statusCode = detail?.status?.trim()?.toIntOrNull()
-            if (statusCode != null && statusCode >= 7) return false
-            val name = detail?.statusName?.lowercase().orEmpty()
-            if (name.contains("ready") || name.contains("pickup") || name.contains("pick up")) return false
-            if (name.contains("delivered") || name.contains("complete")) return false
+            // Swift 5496ed0 tolerance: numeric lock is checked on BOTH the
+            // status and statusName fields (either may carry the code), with
+            // comma-decimal and floating values accepted.
+            val values = listOfNotNull(detail?.status, detail?.statusName).map { it.trim() }
+            if (values.any(::statusLocksInvoiceDeletion)) return false
+            val lower = values.joinToString(" ") { it.lowercase() }
+            if (lower.contains("ready") || lower.contains("pickup") || lower.contains("pick up")) return false
+            if (lower.contains("delivered") || lower.contains("complete")) return false
             return true
         }
 
@@ -55,6 +58,18 @@ data class PackageDetailsUiState(
             ?: detail?.additionalCharges?.values?.sum()?.takeIf { detail.additionalCharges.isNotEmpty() }
 
     val effectiveRate: Double get() = detail?.exchangeRate ?: exchangeRate
+}
+
+/**
+ * Swift FigmaPackageDetailsViewController.statusLocksInvoiceDeletion
+ * (5496ed0): a status value locks invoice deletion when it parses to a
+ * number >= 7 — integer or floating, comma decimals normalized.
+ */
+internal fun statusLocksInvoiceDeletion(value: String): Boolean {
+    val normalized = value.replace(",", ".")
+    normalized.toIntOrNull()?.let { return it >= 7 }
+    normalized.toDoubleOrNull()?.let { return it >= 7.0 }
+    return false
 }
 
 /**

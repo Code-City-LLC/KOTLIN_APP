@@ -76,4 +76,21 @@ class PackageDetailsInvoiceGatingTest {
         assertTrue(canDelete(status = null, statusName = "Drop Alerted"))
         assertTrue(canDelete(status = "n/a", statusName = "Processing at Customs"))
     }
+
+    // ── Swift 5496ed0 tolerance (Kemar invoice ruling, cross-platform) ──
+    // The numeric lock is evaluated on BOTH fields, and accepts floating /
+    // comma-decimal codes.
+    @Test fun deleteBlocked_whenStatusNameCarriesTheNumericCode() {
+        assertFalse(canDelete(status = null, statusName = "7"))
+        assertFalse(canDelete(status = "n/a", statusName = "18"))
+    }
+
+    @Test fun deleteBlocked_whenNumericStatusIsDecimalOrCommaDecimal() {
+        assertFalse(canDelete("7.0"))
+        assertFalse(canDelete("7,0"))
+    }
+
+    @Test fun deleteAllowed_whenDecimalStatusBelow7() {
+        assertTrue(canDelete("6.5"))
+    }
 }

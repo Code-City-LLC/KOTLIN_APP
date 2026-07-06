@@ -215,12 +215,14 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
                 .background(if (unread) colors.peachLight else colors.gray200),
             contentAlignment = Alignment.Center,
         ) {
+            // Per-type duotone glyph (ledger C5, Swift notificationIcon(for:)).
+            // No tint — a solid tint flattens the duotone; unread emphasis
+            // stays on the disc + dot + bold title.
             Image(
-                painter = painterResource(R.drawable.ic_notifications),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(
-                    if (unread) BrandPalette.OrangeMain else colors.iconSelected
+                painter = painterResource(
+                    NotificationIconCatalog.iconRes(notification, colors.isDark)
                 ),
+                contentDescription = null,
                 modifier = Modifier.size(22.dp),
             )
         }
