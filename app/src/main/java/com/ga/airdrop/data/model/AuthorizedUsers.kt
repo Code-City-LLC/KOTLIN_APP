@@ -10,6 +10,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 @Serializable
@@ -112,6 +113,24 @@ object AuthorizedUsersEnvelopeSerializer : KSerializer<AuthorizedUsersEnvelope> 
             inactive = users.filterNot { it.isActive },
         )
 
+        // Separated active/inactive arrays are the server's authority on which
+        // bucket a user belongs to — but individual entries sometimes omit the
+        // status/is_active field, which would leave status null -> isActive
+        // false -> the detail CTA offers "Activate" for an already-active user
+        // and the row shows "-". Stamp the bucket's status when the entry is
+        // blank (Swift parity: force section status defaults).
+        fun List<AuthorizedUser>.stampBucket(active: Boolean): List<AuthorizedUser> =
+            map {
+                if (it.status.isNullOrBlank()) {
+                    it.copy(status = if (active) "Active" else "Inactive")
+                } else {
+                    it
+                }
+            }
+
+        fun decodeBucket(el: JsonElement?, active: Boolean): List<AuthorizedUser> =
+            (json.decodeOrNull(listSerializer, el) ?: emptyList()).stampBucket(active)
+
         if (element is JsonArray) {
             return AuthorizedUsersEnvelope(split(json.decodeOrNull(listSerializer, element) ?: emptyList()))
         }
@@ -123,15 +142,15 @@ object AuthorizedUsersEnvelopeSerializer : KSerializer<AuthorizedUsersEnvelope> 
         if (data is JsonObject) {
             return AuthorizedUsersEnvelope(
                 AuthorizedUsers(
-                    active = json.decodeOrNull(listSerializer, data["active"]) ?: emptyList(),
-                    inactive = json.decodeOrNull(listSerializer, data["inactive"]) ?: emptyList(),
+                    active = decodeBucket(data["active"], active = true),
+                    inactive = decodeBucket(data["inactive"], active = false),
                 ),
             )
         }
         return AuthorizedUsersEnvelope(
             AuthorizedUsers(
-                active = json.decodeOrNull(listSerializer, obj["active"]) ?: emptyList(),
-                inactive = json.decodeOrNull(listSerializer, obj["inactive"]) ?: emptyList(),
+                active = decodeBucket(obj["active"], active = true),
+                inactive = decodeBucket(obj["inactive"], active = false),
             ),
         )
     }
