@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,7 +34,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -43,19 +43,12 @@ import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
- * Refer a Friend — Figma node 40001940:26885 (FIGMA REIGNS SUPREME per Kemar
- * 2026-07-06). The page is ONLY: header + hero carousel (3 cards) + "Earn $2 USD
- * Per Invite" copy + a bottom-pinned Invite button.
+ * Refer a Friend — scoped Figma override. Figma nodes 40001940:26885/26797 win
+ * over FigmaReferAFriendViewController.swift for this page only.
  *
- * The referral-code/link card, the "Your Referrals" listing, and the inline
- * invite button that Swift's FigmaReferAFriendViewController added are NOT on
- * this Figma frame — those live on other pages. Do not re-add them here (this
- * regressed repeatedly; Kemar ruled Swift's version wrong, Figma authoritative).
- *
- * Hero cards match Figma 40001940:26888/26889/26890 exactly: white (gray100)
- * card, 1dp tint border, illustration inside a 122dp drop-shadowed circular
- * badge (gray300, or white for the Cash card), Title1 tinted title, Body2
- * description-grey body.
+ * The page is only: inner header, three hero cards, "Earn $2 USD Per Invite"
+ * copy, and a bottom-pinned Invite button. Do not add the Swift referral-link
+ * card, inline "Invite Friends" button, or referred-friends list here.
  */
 @Composable
 fun ReferAFriendScreen(
@@ -63,13 +56,10 @@ fun ReferAFriendScreen(
     onInviteFriend: () -> Unit,
     refreshAfterInvite: Boolean = false,
     onRefreshAfterInviteConsumed: () -> Unit = {},
-    @Suppress("UNUSED_PARAMETER") viewModel: ReferAFriendViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
 
-    // No referred-friends list on this page any more (Figma) — consume the
-    // post-invite refresh flag so the nav contract stays intact.
-    androidx.compose.runtime.LaunchedEffect(refreshAfterInvite) {
+    LaunchedEffect(refreshAfterInvite) {
         if (refreshAfterInvite) onRefreshAfterInviteConsumed()
     }
 
@@ -92,7 +82,6 @@ fun ReferAFriendScreen(
             HeroCarousel()
             Spacer(Modifier.height(Spacing.md))
 
-            // Figma 40001940:26892 — "Earn $2 USD Per Invite" (Title2, dark title).
             Text(
                 text = "Earn $2 USD Per Invite",
                 style = AirdropType.title2,
@@ -114,8 +103,6 @@ fun ReferAFriendScreen(
             Spacer(Modifier.height(Spacing.md))
         }
 
-        // Figma 40001940:26895 — bottom Invite bar: 1dp top divider + full-width
-        // gradient (#FF783E → #F15114) button labelled "Invite".
         Column(
             Modifier
                 .fillMaxWidth()
@@ -195,10 +182,6 @@ private fun HeroCarousel() {
             circleWhite = false,
         ),
     )
-    // Figma nodes 40001940:26888/26889/26890 — 238-wide WHITE (gray100) cards,
-    // 1dp tint border (radius 15). Illustration sits inside a 122dp drop-shadowed
-    // circular badge (gray300, or white for the Cash card), Title1 tinted title,
-    // Body2 description-grey body.
     Row(
         modifier = Modifier
             .fillMaxWidth()

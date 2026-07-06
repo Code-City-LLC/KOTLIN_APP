@@ -46,7 +46,7 @@ class HomeChromeOpacityParityTest {
         assertHomeChromeTranslucent(
             mode = ThemeController.Mode.LIGHT,
             expectedFooterRgb = blendRgb(lightGray200Rgb, underlayRgb, lockedScrimAlpha),
-            filename = "home_chrome_opacity_locked_translucent_light.png",
+            filename = "home_chrome_opacity_frosted_light.png",
         )
     }
 
@@ -55,7 +55,7 @@ class HomeChromeOpacityParityTest {
         assertHomeChromeTranslucent(
             mode = ThemeController.Mode.DARK,
             expectedFooterRgb = blendRgb(darkGray200Rgb, underlayRgb, lockedScrimAlpha),
-            filename = "home_chrome_opacity_locked_translucent_dark.png",
+            filename = "home_chrome_opacity_frosted_dark.png",
         )
     }
 
@@ -110,22 +110,22 @@ class HomeChromeOpacityParityTest {
             PixelSample(
                 point = samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = 6f),
                 expectedRgb = expectedHeaderRgb,
-                label = "locked translucent hero header top",
+                label = "locked frosted hero header top",
             ),
             PixelSample(
                 point = samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = headerBounds.heightDp() - 6f),
                 expectedRgb = expectedHeaderRgb,
-                label = "locked translucent hero header bottom",
+                label = "locked frosted hero header bottom",
             ),
             PixelSample(
                 point = samplePoint(footerBounds, xFraction = 0.03f, yInsetDp = 8f),
                 expectedRgb = expectedFooterRgb,
-                label = "locked translucent footer leading",
+                label = "locked frosted footer leading",
             ),
             PixelSample(
                 point = samplePoint(footerBounds, xFraction = 0.97f, yInsetDp = 8f),
                 expectedRgb = expectedFooterRgb,
-                label = "locked translucent footer trailing",
+                label = "locked frosted footer trailing",
             ),
         ).forEach { sample ->
             assertPixelNear(
@@ -201,7 +201,7 @@ class HomeChromeOpacityParityTest {
     private fun DpRect.heightDp(): Float = (bottom - top).value
 
     private companion object {
-        const val lockedScrimAlpha = 0.70f
+        const val lockedScrimAlpha = 0.90f
         val underlayRgb = intArrayOf(0xFF, 0x00, 0xFF)
         val heroScrimRgb = intArrayOf(0x29, 0x29, 0x29)
         val lightGray200Rgb = intArrayOf(0xF5, 0xF5, 0xF5)

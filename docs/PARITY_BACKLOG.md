@@ -462,12 +462,13 @@ light AND dark.
   translucent Home chrome. Swift `FigmaTabHeader`/`FigmaBottomTabBar` still use
   an opaque `gray200` overlay, but Kemar explicitly overrode that Swift
   deviation and locked the shared tab chrome to Figma translucency. Android
-  keeps `AirdropChrome` as the source of truth; `HomeChromeOpacityParityTest`
-  now locks the 0.70-alpha header and bottom tab/footer with magenta-underlay
-  pixel samples in app light and app dark. Proof:
+  keeps `AirdropChrome` as the source of truth; the flat 0.70 scrim was too
+  see-through without Figma blur, so `HomeChromeOpacityParityTest` now locks the
+  0.90 frosted approximation with magenta-underlay pixel samples in app light
+  and app dark. Proof:
   `/tmp/kotlin_ui_proof/home_chrome_opacity/figma/figma_home_40001464_28899.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_locked_translucent_light.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_locked_translucent_dark.png`.
+  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_frosted_light.png`,
+  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_frosted_dark.png`.
 - **Bottom-tab app-dark icon roles:** Shared tab chrome was compared against
   Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma Home
   node `40001464:28899`. Swift takes precedence: active icon + label are
@@ -538,7 +539,7 @@ light AND dark.
 
 **🔲 OPEN — BlueDeer (Shipments detail), priority order:** remaining Shipments follow-ups not explicitly closed below.
 
-**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Calculator/Drop Alert/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Add Authorized User email-validation rail, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend initial load lifecycle, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Calculator Standard entry Swift/Figma proof, Drop Alert consignee/profile-failure Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, Home Refer-a-friend icon Swift-precedence proof, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by Swift-precedence proof above.
+**✅ CLOSED — MagentaCastle (More/Legal/Profile/AirCoins/HomeDetails/Calculator/Drop Alert/Shipments slices):** More root tap rails, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Authorized Users refresh/list rails, Add Authorized User add/edit payload rails, Add Authorized User email-validation rail, Background Images Swift-precedence picker, Account Deletion Reason confirmation/local-cleanup, Refer-a-Friend scoped Figma override, §252/§423/§432/§468/§477 Notification Settings, Documents §216/§225, Documents refresh/reload, Profile avatar/DOB, Preferences §243, Invite Friend §261, More2 shared inner-header back glyph, Promotions Swift/Figma proof, Calculator Standard entry Swift/Figma proof, Drop Alert consignee/profile-failure Swift/Figma proof, Legal/T&C §270, FAQs §486, AirCoins balance/history, GoldPriority tier-name/status-bar, Home live-data/viewDidAppear reload, Home Refer-a-friend icon Swift-precedence proof, PackageDetails Swift/Figma screen pass, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, InvoiceViewer surface/share-file, PackagesFilterSheet Swift/Figma, Packages filter live flow/dark status icons, Payments/Orders header/error follow-up, Shipments section-card divider, Shipments hub tap-rail, Shipments search-field split, Shipments hub summary icon/geometry, and Shipments backend pagination/search rails are closed by the page-specific proof above.
 
 ## [CLOSED] Settings
 `app/src/main/java/com/ga/airdrop/feature/more/SettingsScreen.kt` and `MoreComponents.kt` — Settings was close to the right surface, but it was still following stale Figma/resource behavior in two Swift-visible details.
@@ -563,25 +564,25 @@ light AND dark.
 
 **Fix:** Closed. Android now preserves the Swift confirmation-sheet spacing without rendering the stale Figma handle, and successful deactivation clears bearer token, shared header session, persisted cart cache, background selection, and the in-memory deletion credential handoff. `AccountDeletionReasonParityTest` verifies the modal geometry/top-band pixels and the Swift logout cleanup path. Verification on 2026-07-05: `git diff --check`, `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`, focused Gradle `connectedStagingDebugAndroidTest` for `AccountDeletionReasonParityTest` passed 2/2, proof PNG at `/tmp/kotlin_ui_proof/account_deletion_reason/account_deletion_reason_confirm_swift_light.png`.
 
-## [CLOSED] Refer-a-Friend initial load lifecycle
-`app/src/main/java/com/ga/airdrop/feature/more2/ReferAFriendViewModel.kt` — referred friends loaded twice on first entry.
+## [CLOSED] Refer-a-Friend scoped Figma override
+`app/src/main/java/com/ga/airdrop/feature/more2/ReferAFriendScreen.kt` and
+`ReferAFriendParityTest.kt` — this page is the explicit exception to the global
+Swift-precedence rule.
 
-**Detail:** Swift `FigmaReferAFriendViewController.swift` separates lifecycle work: `viewDidLoad` loads the account-number referral link, while `viewWillAppear` loads referred friends. Android loaded referred friends in `ReferAFriendViewModel.init` and again from `ReferAFriendScreen`'s `LaunchedEffect` that mirrors Swift `viewWillAppear`, causing duplicate `/refer-friend` calls on first entry. Figma node `40001940:26885` still renders the older bottom-CTA landing frame, so Swift takes precedence for this runtime behavior.
+**Detail:** Figma nodes `40001940:26885` and dark `40001940:26797` are the
+authority for Refer a Friend. The screen is only the inner header, three hero
+cards, `Earn $2 USD Per Invite` copy, and a bottom `Invite` button. The Swift
+`FigmaReferAFriendViewController.swift` referral-link card, inline
+`Invite Friends` CTA, copy toast, and `Your Referrals` list are intentionally
+not rendered on this page.
 
-**Fix:** Closed. `ReferAFriendViewModel.init` now loads only the profile/account-number referral link; the referred-friends refresh remains on screen entry. `ReferAFriendParityTest` verifies one profile call, one referred-friends call, and the rendered account-number referral link on initial entry. Verification on 2026-07-05: Figma MCP design context for `40001940:26885`, Swift source comparison, `git diff --check`, compile gates, and focused Gradle `connectedStagingDebugAndroidTest` for `ReferAFriendParityTest` passed 1/1.
-
-**Follow-up asset fix:** Closed. The Refer route/flow was intact, but Android's
-hero carousel was using non-Swift raster exports. Swift
-`FigmaReferAFriendViewController.swift` renders the bare `Friends`, `Cash`, and
-`Cap` asset-catalog images inside the 238x220 cards; Figma nodes
-`40001940:26885` and `40001940:26797` still show older landing-frame artwork, so
-Swift takes precedence. Android now uses byte-identical copies of Swift
-`Friends.png`, `Cash.png`, and `Cap.png`, and `ReferAFriendParityTest` locks the
-asset dimensions. Verification on 2026-07-06: Figma MCP screenshots refreshed
-for both Refer/Invite nodes, SHA-256/cmp confirmed all three Android PNGs match
-Swift, and the combined connected run for `ReferAFriendParityTest`,
-`PushDeepLinkParityTest`, and `InviteFriendParityScreenshotTest` passed 6/6 on
-`airdrop_test2(AVD) - 15`.
+**Fix:** Closed. Android keeps the Figma-only structure, consumes the
+post-invite flag without restoring Swift's referral list, and no longer wires a
+`ReferAFriendViewModel` into the page, avoiding hidden profile/referral calls for
+content the Figma page does not display. `ReferAFriendParityTest` locks the
+Figma-only structure in light and dark, rejects the stale Swift content, verifies
+the 238dp hero-card width and 300dp carousel rail, and verifies the bottom
+`Invite` route callback.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 

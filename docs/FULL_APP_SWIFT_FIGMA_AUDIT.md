@@ -1501,13 +1501,15 @@ Findings to verify/fix:
   Figma Home node `40001464:28899` shows translucent Home chrome. Swift
   `FigmaTabHeader` still layers blur underneath an opaque `gray200` overlay,
   but Kemar explicitly overrode that Swift deviation and locked the shared tab
-  chrome to Figma translucency. Android uses `AirdropChrome` as the single
-  source of truth at `0.70` alpha for header and bottom tab/footer.
-  `HomeChromeOpacityParityTest` locks this with a magenta underlay and pixel
-  samples in app light and app dark so future opaque reverts fail. Proof:
+  chrome to Figma translucency. The flat `0.70` scrim was too see-through
+  without Figma's blur, so Android uses `AirdropChrome` as the single source of
+  truth at `0.90` alpha to approximate the frosted perceived opacity while
+  staying translucent. `HomeChromeOpacityParityTest` locks this with a magenta
+  underlay and pixel samples in app light and app dark so future too-clear or
+  opaque reverts fail. Proof:
   `/tmp/kotlin_ui_proof/home_chrome_opacity/figma/figma_home_40001464_28899.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_locked_translucent_light.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_locked_translucent_dark.png`.
+  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_frosted_light.png`,
+  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_frosted_dark.png`.
 - Dark-mode Home activity icon issue fixed: Services gear, Ship Tax hull/waves,
   Calculator frame, and Drop Alert secondary strokes now flip to white in app
   dark mode while primary orange layers remain orange. Proof:
@@ -1752,66 +1754,25 @@ Source files:
 - Android: `feature/more2/ReferAFriendScreen.kt`,
   `ReferAFriendViewModel.kt`
 - Swift: `FigmaReferAFriendViewController.swift`
-- Figma: Refer a Friend `40001940:26885`
+- Figma: Refer a Friend `40001940:26885`, dark `40001940:26797`
 
 Findings verified/fixed:
-- Swift is the runtime precedence source. Figma MCP for `40001940:26885` still
-  renders the older landing frame with a bottom "Invite" CTA, while Swift has
-  the referral-link card, inline "Invite Friends" CTA, referrals section, and
-  lifecycle split used by the app.
-- Android was loading referred friends twice on first entry: once from
-  `ReferAFriendViewModel.init` and again from the screen `LaunchedEffect` that
-  intentionally mirrors Swift `viewWillAppear`. The profile/account-number
-  referral-link load still belongs in init, matching Swift `viewDidLoad`.
-- Android now keeps only the init referral-link load and leaves the referred
-  friends call on the screen-entry effect, so initial entry performs one
-  profile/account-number request and one referred-friends request.
-- Follow-up 2026-07-05/06: the Refer route/flow was intact, but the hero
-  carousel art still used non-Swift raster exports. Swift
-  `FigmaReferAFriendViewController.swift` renders the bare `Friends`, `Cash`,
-  and `Cap` assets at 90pt inside the cards. Android now uses byte-identical
-  copies of the Swift asset-catalog PNGs:
-  `img_more2_refer_friends.png` = `Friends.png`, `img_more2_refer_cash.png` =
-  `Cash.png`, and `img_more2_refer_cap.png` = `Cap.png`. Figma nodes
-  `40001940:26885` and `40001940:26797` were refreshed via MCP; they still
-  show the older landing-frame artwork, so Swift takes precedence.
-- Verification on 2026-07-05:
-  - Figma MCP design context checked for `40001940:26885`
-  - Swift source compared in
-    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaReferAFriendViewController.swift`
-  - `git diff --check`
-  - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
-  - Gradle focused device run:
-    `ReferAFriendParityTest`: 1 test passed
-- Verification on 2026-07-06:
-  - Figma MCP screenshots refreshed for `40001940:26885` and `40001940:26797`
-  - SHA-256/cmp checks confirmed all three Android hero PNGs byte-match Swift
-    assets
-  - `ReferAFriendParityTest`, `PushDeepLinkParityTest`, and
-    `InviteFriendParityScreenshotTest`: 6 connected tests passed on
-    `airdrop_test2(AVD) - 15`
-- Follow-up 2026-07-06 after Kemar escalated that the page still felt fake:
-  Figma MCP design context was refreshed again for `40001940:26885` and
-  `40001940:26797`; both nodes still render the stale `$2 USD` landing frame
-  with a bottom `Invite` CTA and no referral-link/referrals section. Swift
-  still wins because `FigmaReferAFriendViewController.swift` is the executable
-  app screen and includes the referral link card, inline `Invite Friends` CTA,
-  and real referred-friends list.
-- The Android proof was strengthened so a fake/static page cannot pass:
-  `ReferAFriendParityTest.backendReferralRowsRenderInsteadOfFakeStaticEmptyPage`
-  now feeds three backend `ReferredFriend` rows, verifies the Swift `limit=20`
-  list call, asserts the empty-state copy disappears, and checks rendered
-  name/email/status rows covering `Completed`, `Cancelled`, and fallback
-  `Pending`. Focused `ReferAFriendParityTest`: 4 connected tests passed on
-  `airdrop_test2(AVD) - 15`.
-- Rebase follow-up 2026-07-06: upstream commit `a92d9ea` applied the Figma
-  white-card/drop-shadow badge variant and expanded the carousel to `290`dp.
-  The rebased full connected suite caught this as a Swift-precedence regression:
-  Swift `makeHeroCarousel()` is `220`pt high and `makeHeroCard()` is `238`pt
-  wide with tint@0.18 fill, bare `90`pt image, `18/10/6` vertical spacing, and
-  body text on `textDarkTitle`. Android restored that executable Swift contract;
-  focused `ReferAFriendParityTest`: 4 connected tests passed on
-  `airdrop_test2(AVD) - 15`.
+- Refer is a scoped override to the global Swift-precedence rule. Kemar ruled
+  that Figma wins for this page: use the landing-only Figma frame, not Swift's
+  referral-link/referrals implementation.
+- Figma MCP was refreshed for `40001940:26885` and `40001940:26797`; both show
+  the required structure: header, three hero cards, `Earn $2 USD Per Invite`
+  copy, and a bottom `Invite` button. The Swift referral-link card, inline
+  `Invite Friends` CTA, copy toast, and `Your Referrals` list must not render
+  here.
+- Android now keeps the Figma-only screen and removes the hidden
+  `ReferAFriendViewModel` dependency so this page does not perform profile or
+  referred-friends calls for content it does not display.
+- `ReferAFriendParityTest` is the guard rail for the scoped override: it asserts
+  the Figma-only structure in light/dark, rejects stale Swift referral-link/list
+  text, locks the 238dp hero-card width and 300dp carousel rail, consumes the
+  invite-completion flag without restoring the Swift list, and verifies the
+  bottom `Invite` tap route.
 
 ### Dark Theme Icons
 
