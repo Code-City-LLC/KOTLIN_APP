@@ -30,6 +30,17 @@ import com.ga.airdrop.feature.more2.more2Graph
 import com.ga.airdrop.feature.shipments.shipmentsGraph
 import com.ga.airdrop.feature.shop.shopGraph
 
+/** Routes where a null bearer is expected — exempt from reactive logout. */
+private val AUTH_GRAPH_ROUTES = setOf(
+    Routes.SPLASH,
+    Routes.ONBOARDING,
+    Routes.AUTH_LANDING,
+    Routes.LOGIN,
+    Routes.SIGN_UP,
+    Routes.FORGOT_PASSWORD,
+    Routes.REGISTRATION_SUCCESS,
+)
+
 /**
  * App entry. Mirrors the Swift SceneDelegate + FigmaRouteResolver:
  * token → Home tab shell, else auth landing. One shared back stack with the
@@ -64,6 +75,24 @@ fun AppRoot() {
     androidx.compose.runtime.LaunchedEffect(pendingPush, token) {
         if (pendingPush != null && token != null) {
             com.ga.airdrop.core.push.PushDeepLink.consume()?.let { navController.navigate(it) }
+        }
+    }
+
+    // Reactive logout — Swift SceneDelegate.handleAPISessionInvalidated parity
+    // (BUG_AUDIT C6): when the bearer disappears while the user is inside the
+    // authenticated graph (401 sweep, failed foreground refresh, account
+    // deletion), reset to the auth landing instead of leaving dead screens.
+    // Auth-graph routes are exempt so splash routing and the explicit
+    // logout/deletion navigations don't double-fire.
+    androidx.compose.runtime.LaunchedEffect(token) {
+        if (token == null) {
+            val route = navController.currentBackStackEntry?.destination?.route
+            if (route != null && route !in AUTH_GRAPH_ROUTES) {
+                navController.navigate(Routes.AUTH_LANDING) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
         }
     }
 

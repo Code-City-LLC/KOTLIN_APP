@@ -34,4 +34,23 @@ object TokenRefresher {
             AuthTokenStore.save(newToken)
             true
         }
+
+    /**
+     * Foreground-refresh outcome mapping — Swift
+     * SceneDelegate.refreshStoredSessionIfNeeded parity (SceneDelegate:429):
+     * a 401 means the stored session is dead → clear it (AppRoot's reactive
+     * logout then returns the user to the auth landing, mirroring Swift's
+     * handleAPISessionInvalidated); a success with a token rotates the
+     * bearer; anything else (network error, body-less response) leaves the
+     * session untouched — Swift logs and skips.
+     */
+    fun applyForegroundRefresh(httpCode: Int?, newToken: String?) {
+        synchronized(lock) {
+            when {
+                httpCode == 401 -> AuthTokenStore.clear()
+                !newToken.isNullOrBlank() -> AuthTokenStore.save(newToken)
+                else -> Unit
+            }
+        }
+    }
 }
