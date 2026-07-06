@@ -76,7 +76,12 @@ fun SignUpScreen(
         AuthAlertDialog(
             title = "Registration Successful",
             message = "Your account has been created. Please log in to continue.",
-            onDismiss = onRegistered,
+            // Consume the flag before navigating so the dialog can never
+            // re-arm if navigation is delayed or fails (WORK ORDER B1).
+            onDismiss = {
+                viewModel.consumeRegistered()
+                onRegistered()
+            },
         )
     }
 

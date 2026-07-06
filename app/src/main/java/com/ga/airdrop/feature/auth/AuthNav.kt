@@ -57,9 +57,17 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
         SignUpScreen(
             onBack = { navController.popBackStack() },
             // Swift SignUpViewController.swift:522-523 — success shows an alert
-            // then popViewController back to Login (no dedicated success screen).
+            // then returns to Login. From the Landing → Sign Up path LOGIN is
+            // not on the back stack, so a bare popBackStack is a no-op and the
+            // success dialog dead-ends (WORK ORDER B1) — fall back to
+            // navigating to Login explicitly.
             onRegistered = {
-                navController.popBackStack(Routes.LOGIN, inclusive = false)
+                if (!navController.popBackStack(Routes.LOGIN, inclusive = false)) {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.AUTH_LANDING)
+                        launchSingleTop = true
+                    }
+                }
             },
         )
     }

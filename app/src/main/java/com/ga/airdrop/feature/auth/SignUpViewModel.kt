@@ -119,6 +119,9 @@ class SignUpViewModel(
 
     fun set(transform: (SignUpUiState) -> SignUpUiState) = _state.update(transform)
 
+    /** One-shot: the success dialog consumes `registered` when dismissed. */
+    fun consumeRegistered() = _state.update { it.copy(registered = false) }
+
     fun togglePasswordVisible() =
         _state.update { it.copy(passwordVisible = !it.passwordVisible) }
 
