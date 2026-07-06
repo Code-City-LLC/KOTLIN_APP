@@ -45,12 +45,20 @@ object AuthTokenStore {
     }
 
     fun save(token: String) {
-        prefs.edit().putString(KEY_TOKEN, token).apply()
+        // Update the in-memory flow first, then persist only if prefs is bound.
+        // A background service / ContentProvider can run before
+        // Application.onCreate() calls init(); touching lateinit prefs then
+        // would throw UninitializedPropertyAccessException (BUG_AUDIT C8).
         _token.value = token
+        if (::prefs.isInitialized) {
+            prefs.edit().putString(KEY_TOKEN, token).apply()
+        }
     }
 
     fun clear() {
-        prefs.edit().remove(KEY_TOKEN).apply()
         _token.value = null
+        if (::prefs.isInitialized) {
+            prefs.edit().remove(KEY_TOKEN).apply()
+        }
     }
 }

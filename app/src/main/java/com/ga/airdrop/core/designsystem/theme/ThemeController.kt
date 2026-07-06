@@ -30,7 +30,13 @@ object ThemeController {
     }
 
     fun set(newMode: Mode) {
+        // In-memory mode updates immediately so the UI reacts even if a toggle
+        // fires before init() (e.g. a preview or a race at cold start). Persist
+        // only once prefs is bound — accessing lateinit prefs early would throw
+        // UninitializedPropertyAccessException (BUG_AUDIT C7).
         mode = newMode
-        prefs.edit().putString(KEY_MODE, newMode.name).apply()
+        if (::prefs.isInitialized) {
+            prefs.edit().putString(KEY_MODE, newMode.name).apply()
+        }
     }
 }
