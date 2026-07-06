@@ -1,6 +1,6 @@
 # KOTLIN_APP Verification Ledger — Problems, Cautions & Lessons
 
-**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 6 — Shipments quick-track + PackageCard color/cart-gate verified; caught+drove a shipped-regression merge-gap)
+**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 7 — P6 Notifications-inbox-deleted regression confirmed (R1/#15293) + self-corrected a stale verified-good entry; timeline ed8cf78 code-ACKed)
 **State at writing:** `origin/main` src @ `f78e514`. Since rev 5: (1) **quick-track** flow (`030c6ee`) — Track Shipment tile opens a bottom-sheet (≡ Swift `onTapStatTile:1904 presentQuickTrack`), Swift-parity confirmed. (2) A shipped PackageCard **status-color regression** (all statuses forced green, `34e9620`) + an ungated **cart affordance** (fake plus-button on every status) were caught; fixes ACKed then stalled in a merge-gap (orphaned 2nd-verifier) — flagged as [RISK] #15230 → owner rebased+merged (`f78e514`). Color ≡ Swift `statusColor(for:):576`; cart-gate `packageCanAddToCart = status 7\|\|18` ≡ Swift `:563/:724` (device-verified #15266). (3) BUG_AUDIT/SignUp from rev 5 still stand. PR #1 branch `codex/refer-friend-parity` moves fast — always `git ls-remote` before citing its head.
 **Source-of-truth hierarchy (Kemar rulings #14540/#14553/#14578):** Swift app (`/Users/codecityceo/Documents/GitHub/SWIFT_APP`, `Figma*ViewController.swift`) = behavior + PRECEDENCE → Figma (fileKey `N4k6jzpeLZgeRS5O1xfyIv`) = visual reference → Laravel = API contract. Where Swift does not ship a screen, Figma is the authority. **Buttons must function; no fake/dead pages; no duplication; verify before closing (#14639).**
 
@@ -45,6 +45,12 @@
 - `c8a99b1` invoice-delete gate: needs a status<7 package (delete visible) AND a status≥7 package with invoices (delete hidden). Code-verified only, hash-tied.
 - `148a509` Payments "View History" CTA color (`textDarkTitle`): code-verified, not device-seen.
 - All visible changes on the branch (Home hero `9ea44e6`, chrome rails `efef7f1`, header+AirCoins `99068c8`, Refer spacing `5ddc57a`/`c7944f0`/`a07abbe`, FAQ `25ea84b`, deep links `53c3ccb`) need L+D device passes after merge.
+
+### P6 — 🔴 REGRESSION (confirmed): Notifications inbox LIST deleted at `22657cf` — only empty-state renders
+- **Confirmed on current `origin/main`** (independent of TealSnow lead-dev work order R1, #15293): [NotificationsScreen.kt](app/src/main/java/com/ga/airdrop/feature/homedetails/NotificationsScreen.kt) now renders **only `EmptyState`** (`:76` call, `:86` def) — NO `LazyColumn`/`items`/`NotificationRow`. So the inbox shows the empty-state **even when notifications exist**. `NotificationsViewModel` (pagination / markRead / route-resolution) is referenced only in a comment (`:58`) → **orphaned, zero list-callers**.
+- **Cause:** commit **`22657cf`** "Fix Notifications Swift parity" (Codex, 2026-07-06 05:54) deleted **306 lines** of `NotificationsScreen.kt` on a STALE Swift reading. Current **Swift `origin/main` renders a populated list** (`FigmaNotificationsListViewController.swift:370` fetch, `:328` empty-state only when actually empty, `:617` markRead, `:625` deep-link).
+- **⚠️ LEDGER CORRECTION:** the §3 "Notifications empty-state" **3W verified-good** entry was INCOMPLETE — my device pass saw only the empty-state (standing test account had no notifications) and did not catch that the populated-list path was gone. Downgraded (see §3 note).
+- **Fix (owner = whoever claims R1; verifier = me):** restore the pre-`22657cf` list rendering (`git show 22657cf~1`), keep empty-state as the items-empty branch only, replace `NotificationsParityTest` `assertNoBackendInboxSurface` with populated-list assertions, honor **C5** per-type icons (#14729). I'll device-verify L+D on a notification-bearing account once the fix lands.
 
 ---
 
@@ -141,7 +147,7 @@ Verification levels: **D-L/D-D** = device light/dark seen · **3W** = Figma node
 | PackagesFilterSheet / PaymentPackageDetails timeline | — | 3W | |
 | Restricted Items / FAQs | 40001432:14025 / 40001387:8896 | 3W (L+D) | |
 | Drop Alert | 40001826:22497 | 3W (D-L) | form view-only (C7) |
-| Notifications empty-state / Notification Settings | 40007174:63447 / — | 3W (D-L) | watch per-type icons (C5) |
+| Notifications ~~empty-state~~ / Notification Settings | 40007174:63447 / — | ⚠️ DOWNGRADED | **inbox LIST deleted (`22657cf`) → P6 REGRESSION**; only the empty-state was device-seen (test acct had no notifications). Notification Settings toggle still OK. Re-verify list on fix + notification-bearing acct |
 | Account Deletion endpoint | — | C (`65c11bb`) | `POST auth/login` fix; restricted flow (C7) |
 | Bottom-tab icons / AirCoins / Help / Home hero cards | — | 3W / Codex-verified | |
 
