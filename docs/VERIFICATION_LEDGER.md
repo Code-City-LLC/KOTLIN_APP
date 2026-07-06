@@ -1,6 +1,6 @@
 # KOTLIN_APP Verification Ledger — Problems, Cautions & Lessons
 
-**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06
+**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 2 — added P0 Trengo security)
 **State at writing:** `origin/main` = `22657cf` · PR #1 branch `codex/refer-friend-parity` = `c403099` (DRAFT, hold-merge pending Kemar restricted-boundary ruling; branch moves fast — always `git ls-remote` before citing its head)
 **Source-of-truth hierarchy (Kemar rulings #14540/#14553/#14578):** Swift app (`/Users/codecityceo/Documents/GitHub/SWIFT_APP`, `Figma*ViewController.swift`) = behavior + PRECEDENCE → Figma (fileKey `N4k6jzpeLZgeRS5O1xfyIv`) = visual reference → Laravel = API contract. Where Swift does not ship a screen, Figma is the authority. **Buttons must function; no fake/dead pages; no duplication; verify before closing (#14639).**
 
@@ -9,6 +9,15 @@
 ---
 
 ## 1. OPEN PROBLEMS
+
+### P0 — 🔐 SECURITY: hardcoded Trengo live-chat widget key in BOTH apps (KEMAR #14792 — remove Trengo → Autopilot/Hermes)
+- **Key:** `window.Trengo.key` = a Trengo **client-side widget** key (redacted `VEoe…`, len 15) — not a REST/server secret, but **hardcoded, shipped-in-binary, and in git history of both repos.** True invalidation = **rotate the widget key in the Trengo dashboard** (source scrub alone won't undo the exposure).
+- **Swift footprint** (all in `Airdrop/FigmaRouteViewController.swift`): key :1051 · `embed.js` :1057 · `loadHTMLString` baseURL airdropja.com :1068 · route case `"LiveAgentChatView"` :808 → VC class :942-1074. The route is **orphaned** in Swift (no in-app callers), but route strings arrive dynamically from push/server → **retarget** the :808 case to the replacement, don't just delete.
+- **Kotlin footprint:** [LiveAgentChatScreen.kt](app/src/main/java/com/ga/airdrop/feature/contacts/LiveAgentChatScreen.kt) (key :47 in `TRENGO_HTML` :40-63, `embed.js` :53, `Trengo.Api.Widget.open` :55, WebView baseURL airdropja.com ~:128, KDoc :34-37) · [Routes.kt](app/src/main/java/com/ga/airdrop/core/navigation/Routes.kt):25-26 · [AppRoot.kt](app/src/main/java/com/ga/airdrop/core/navigation/AppRoot.kt) composable · **branch-only** `RouteResolver.kt:19` + `PushDeepLinkParityTest.kt:39` (added by `c403099`) · docs `HANDOFF.md:40` (key verbatim).
+- **Reachability:** origin/main = **dead** (no resolver, no Contacts card); PR branch = push-deep-link reachable; the **uncommitted working-tree** rework of `ContactsScreen.kt` (:107-129) adds a **tappable Live Chat card** → whoever removes Trengo must reconcile that local rework.
+- **Replacement rail:** `hermes`/`autopilot` = **ZERO hits in both repos** — the Autopilot+Hermes routing does not exist yet. Per Kemar rule #5 **do not guess** the replacement API; get the spec first.
+- **DO NOT remove:** call/email/WhatsApp/location Help-tab actions, and `FigmaIcon_Chat`/`FigmaIcon.chat` notification-category icons — those are NOT Trengo.
+- **My role:** inventory-only (verifier). A senior agent owns key-rotation + the Hermes swap; I verify "no Trengo key remains + support/chat flow intact" once removal lands. (Full 33-ref map: ORC [TRENGO INVENTORY] post.)
 
 ### P1 — 🐞 Featured Product Details: "Product not found" for EVERY featured product (TOP, unassigned)
 - **Repro:** Shop → Feature Products → "View More" → tap any product (e.g. AstroAI Tire Inflator) → error state.
