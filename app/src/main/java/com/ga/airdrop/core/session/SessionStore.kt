@@ -2,6 +2,7 @@ package com.ga.airdrop.core.session
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * In-memory session cache shared by the tab headers — Android counterpart of
@@ -21,8 +22,11 @@ object SessionStore {
     private val _header = MutableStateFlow(HeaderInfo())
     val header: StateFlow<HeaderInfo> = _header
 
+    // Atomic read-modify-write so concurrent header writers (cart-count,
+    // profile, AirCoins refresh) can't lose each other's fields the way
+    // `_header.value = transform(_header.value)` did (BUG_AUDIT H30).
     fun update(transform: (HeaderInfo) -> HeaderInfo) {
-        _header.value = transform(_header.value)
+        _header.update(transform)
     }
 
     fun clear() {
