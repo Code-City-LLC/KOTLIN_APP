@@ -50,6 +50,10 @@ class MoreViewModel(
                         tierName = user.tierName.orEmpty(),
                     )
                 }
+                SessionStore.updateIdentity(
+                    accountNumber = user.accountNumber,
+                    userId = user.id,
+                )
                 loadAvatar(fallbackUrl = user.profileImageUrl)
             }.onFailure {
                 // Fallback row stays ("AirDrop Customer" / "AIR Account") — Swift parity.

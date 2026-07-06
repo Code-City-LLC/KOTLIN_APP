@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.repo.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +47,11 @@ class LoginViewModel(
                         }
                     } else {
                         AuthTokenStore.save(token)
+                        SessionStore.clear()
+                        SessionStore.updateIdentity(
+                            accountNumber = response.user?.accountNumber,
+                            userId = response.user?.id,
+                        )
                         _state.update { it.copy(loading = false, loggedIn = true) }
                     }
                 }

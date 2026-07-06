@@ -76,6 +76,10 @@ class HomeViewModel(
                         tierName = user.customerTierName.orEmpty(),
                     )
                 }
+                SessionStore.updateIdentity(
+                    accountNumber = user.accountNumber,
+                    userId = user.id,
+                )
             }
             repository.airCoinsStatus().onSuccess { status ->
                 val label = (status.available ?: status.balance)?.toString().orEmpty()

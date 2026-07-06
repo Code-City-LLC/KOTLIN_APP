@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.model.SignUpRequest
 import com.ga.airdrop.data.repo.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -169,7 +170,12 @@ class SignUpViewModel(
         )
         viewModelScope.launch {
             repository.signUp(request)
-                .onSuccess {
+                .onSuccess { response ->
+                    SessionStore.clear()
+                    SessionStore.updateIdentity(
+                        accountNumber = response.user?.accountNumber,
+                        userId = response.user?.id,
+                    )
                     _state.update { it.copy(loading = false, registered = true) }
                 }
                 .onFailure { e ->

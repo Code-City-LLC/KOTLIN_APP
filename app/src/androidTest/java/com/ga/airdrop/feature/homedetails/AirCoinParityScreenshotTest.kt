@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -83,6 +84,18 @@ class AirCoinParityScreenshotTest {
     }
 
     @Test
+    fun redeemDoesNotOpenAnonymousQrBeforeIdentityResolves() {
+        setBalanceContent(
+            mode = ThemeController.Mode.LIGHT,
+            accountNumber = null,
+            userId = null,
+        )
+
+        compose.onNodeWithTag("aircoin-redeem-button").assertIsNotEnabled()
+        assertEquals(0, compose.onAllNodesWithTag("aircoin-redeem-sheet").fetchSemanticsNodes().size)
+    }
+
+    @Test
     fun redeemPayloadQrIsScannable() {
         val payload = airCoinRedeemPayload("AIR2048", nowSeconds = 1_780_000_000L)
         val bitmap = generateAirCoinRedeemQrBitmap(payload, sizePx = 256)
@@ -116,6 +129,8 @@ class AirCoinParityScreenshotTest {
     private fun setBalanceContent(
         mode: ThemeController.Mode,
         historyClicks: AtomicInteger = AtomicInteger(),
+        accountNumber: String? = "AIR2048",
+        userId: Int? = 2048,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -134,8 +149,8 @@ class AirCoinParityScreenshotTest {
                                 redeemed = 23,
                                 available = 50,
                             ),
-                            accountNumber = "AIR2048",
-                            userId = 2048,
+                            accountNumber = accountNumber,
+                            userId = userId,
                         ),
                         onBack = {},
                         onOpenHistory = { historyClicks.incrementAndGet() },

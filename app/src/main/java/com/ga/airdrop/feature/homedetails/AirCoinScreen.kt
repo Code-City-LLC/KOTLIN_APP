@@ -48,6 +48,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -97,6 +99,11 @@ internal fun AirCoinBalanceContent(
 ) {
     val colors = AirdropTheme.colors
     var showRedeemSheet by remember { mutableStateOf(false) }
+    val redeemAccount = state.redeemAccount
+
+    LaunchedEffect(redeemAccount) {
+        if (redeemAccount == null) showRedeemSheet = false
+    }
 
     Box(
         Modifier
@@ -143,15 +150,18 @@ internal fun AirCoinBalanceContent(
                     redeemed = state.redeemed,
                     available = state.available,
                 )
-                RedeemButton(onClick = { showRedeemSheet = true })
+                RedeemButton(
+                    enabled = redeemAccount != null,
+                    onClick = { showRedeemSheet = true },
+                )
                 TipCard()
                 Spacer(Modifier.height(Spacing.md))
             }
         }
 
-        if (showRedeemSheet) {
+        if (showRedeemSheet && redeemAccount != null) {
             AirCoinRedeemSheet(
-                account = state.redeemAccount,
+                account = redeemAccount,
                 onDismiss = { showRedeemSheet = false },
             )
         }
@@ -284,7 +294,7 @@ private fun StatRow(iconRes: Int, label: String, amount: Int, testTag: String) {
 // ─── Swift "Redeem at counter" CTA + QR sheet ───────────────────────────────
 
 @Composable
-private fun RedeemButton(onClick: () -> Unit) {
+private fun RedeemButton(enabled: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -292,7 +302,10 @@ private fun RedeemButton(onClick: () -> Unit) {
             .testTag("aircoin-redeem-button")
             .clip(RoundedCornerShape(14.dp))
             .background(BrandPalette.ButtonStatic)
-            .clickable(onClick = onClick),
+            .semantics {
+                if (!enabled) disabled()
+            }
+            .clickable(enabled = enabled, onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

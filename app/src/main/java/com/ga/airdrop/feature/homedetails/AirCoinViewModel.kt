@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.homedetails
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.model.AirCoinTransaction
 import com.ga.airdrop.data.model.AirCoinsStatus
 import com.ga.airdrop.data.repo.MiscRepository
@@ -26,10 +27,9 @@ data class AirCoinBalanceUiState(
     val accumulated: Int get() = status?.accumulated ?: status?.balance ?: 0
     val redeemed: Int get() = status?.redeemed ?: 0
     val available: Int get() = status?.available ?: status?.balance ?: 0
-    val redeemAccount: String
+    val redeemAccount: String?
         get() = accountNumber?.trim()?.takeIf { it.isNotEmpty() }
-            ?: userId?.toString()
-            ?: "anonymous"
+            ?: userId?.takeIf { it > 0 }?.toString()
 }
 
 class AirCoinBalanceViewModel(
@@ -37,7 +37,14 @@ class AirCoinBalanceViewModel(
     private val userRepository: UserRepository = UserRepository(ApiClient.service),
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(AirCoinBalanceUiState())
+    private val _state = MutableStateFlow(
+        SessionStore.identity.value.let { identity ->
+            AirCoinBalanceUiState(
+                accountNumber = identity.accountNumber,
+                userId = identity.userId,
+            )
+        }
+    )
     val state: StateFlow<AirCoinBalanceUiState> = _state
 
     init {
@@ -47,10 +54,15 @@ class AirCoinBalanceViewModel(
                 _state.update { it.copy(status = status) }
             }
             userRepository.currentUser().onSuccess { user ->
+                SessionStore.updateIdentity(
+                    accountNumber = user.accountNumber,
+                    userId = user.id,
+                )
+                val identity = SessionStore.identity.value
                 _state.update {
                     it.copy(
-                        accountNumber = user.accountNumber,
-                        userId = user.id,
+                        accountNumber = identity.accountNumber,
+                        userId = identity.userId,
                     )
                 }
             }

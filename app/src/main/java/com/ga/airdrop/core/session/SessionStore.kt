@@ -19,8 +19,20 @@ object SessionStore {
         val cartCount: Int = 0,
     )
 
+    data class UserIdentity(
+        val accountNumber: String? = null,
+        val userId: Int? = null,
+    ) {
+        val redeemAccount: String?
+            get() = accountNumber?.trim()?.takeIf { it.isNotEmpty() }
+                ?: userId?.takeIf { it > 0 }?.toString()
+    }
+
     private val _header = MutableStateFlow(HeaderInfo())
     val header: StateFlow<HeaderInfo> = _header
+
+    private val _identity = MutableStateFlow(UserIdentity())
+    val identity: StateFlow<UserIdentity> = _identity
 
     // Atomic read-modify-write so concurrent header writers (cart-count,
     // profile, AirCoins refresh) can't lose each other's fields the way
@@ -29,8 +41,19 @@ object SessionStore {
         _header.update(transform)
     }
 
+    fun updateIdentity(accountNumber: String?, userId: Int?) {
+        _identity.update { current ->
+            current.copy(
+                accountNumber = accountNumber?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: current.accountNumber,
+                userId = userId?.takeIf { it > 0 } ?: current.userId,
+            )
+        }
+    }
+
     fun clear() {
         _header.value = HeaderInfo()
+        _identity.value = UserIdentity()
     }
 
     fun greetingLine(): String {
