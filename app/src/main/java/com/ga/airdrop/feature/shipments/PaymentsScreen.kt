@@ -146,6 +146,7 @@ fun PaymentsScreen(
                         onClick = { openPayment(payment) },
                         onDownloadInvoice = { viewModel.downloadInvoice(payment) },
                         downloadingInvoice = state.downloadingInvoiceId == payment.id,
+                        testTag = "payments-list-card-${payment.id}",
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = Spacing.sm),

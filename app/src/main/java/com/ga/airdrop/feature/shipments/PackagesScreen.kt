@@ -92,6 +92,8 @@ fun PackagesScreen(
                         onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
                         onToggleCart = { viewModel.toggleCart(pkg) },
                         inCart = cartLines.any { it.id == pkg.id },
+                        testTag = "packages-list-card-${pkg.id}",
+                        cartToggleTestTag = "packages-list-cart-toggle-${pkg.id}",
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = Spacing.sm),

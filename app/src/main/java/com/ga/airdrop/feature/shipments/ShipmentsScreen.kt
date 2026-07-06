@@ -100,27 +100,26 @@ fun ShipmentsScreen(
                             actionTestTag = "shipments-packages-view-more",
                         )
                     }
-                    if (state.packages.isEmpty()) {
-                        if (state.loading) ShipmentsLoadingIndicator()
-                        else ShipmentsEmptyLabel("No packages found")
-                    } else {
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                            contentPadding = PaddingValues(horizontal = Spacing.md),
-                        ) {
-                            items(state.packages, key = { it.id }) { pkg ->
-                                PackageCard(
-                                    pkg = pkg,
-                                    exchangeRate = state.exchangeRate,
-                                    onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
-                                    onToggleCart = { viewModel.toggleCart(pkg) },
-                                    inCart = cartLines.any { it.id == pkg.id },
-                                    testTag = "shipments-package-card-${pkg.id}",
-                                    cartToggleTestTag = "shipments-package-cart-toggle-${pkg.id}",
-                                    // Swift: 280-wide fixed cards.
-                                    modifier = Modifier.width(280.dp),
-                                )
-                            }
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        contentPadding = PaddingValues(horizontal = Spacing.md),
+                    ) {
+                        val packages = state.packages.ifEmpty { swiftHubPackagePlaceholders() }
+                        items(packages, key = { it.id }) { pkg ->
+                            val isPlaceholder = pkg.id < 0
+                            PackageCard(
+                                pkg = pkg,
+                                exchangeRate = state.exchangeRate,
+                                onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
+                                onToggleCart = {
+                                    if (isPlaceholder) onNavigate(Routes.CART) else viewModel.toggleCart(pkg)
+                                },
+                                inCart = !isPlaceholder && cartLines.any { it.id == pkg.id },
+                                testTag = "shipments-package-card-${pkg.id}",
+                                cartToggleTestTag = "shipments-package-cart-toggle-${pkg.id}",
+                                // Swift: 280-wide fixed cards.
+                                modifier = Modifier.width(280.dp),
+                            )
                         }
                     }
                 }
@@ -136,19 +135,15 @@ fun ShipmentsScreen(
                         onAction = { onNavigate(Routes.PAYMENTS) },
                         actionTestTag = "shipments-payments-view-more",
                     )
-                    if (state.payments.isEmpty()) {
-                        if (state.loading) ShipmentsLoadingIndicator()
-                        else ShipmentsEmptyLabel("No payments found")
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            state.payments.forEach { payment ->
-                                PaymentCard(
-                                    payment = payment,
-                                    onClick = { openPayment(payment) },
-                                    testTag = "shipments-payment-card-${payment.id}",
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val payments = state.payments.ifEmpty { swiftHubPaymentPlaceholders() }
+                        payments.forEach { payment ->
+                            PaymentCard(
+                                payment = payment,
+                                onClick = { openPayment(payment) },
+                                testTag = "shipments-payment-card-${payment.id}",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                 }
@@ -361,3 +356,54 @@ private fun NoOrdersCard() {
         Text(text = "No orders", style = AirdropType.body1, color = colors.textDescription)
     }
 }
+
+private fun swiftHubPackagePlaceholders(): List<ShipmentPackage> = listOf(
+    ShipmentPackage(
+        id = -1,
+        description = "Earpod",
+        weight = "1.3KG",
+        statusName = "Ready for Pick-Up",
+        shippingMethod = "Standard",
+        additionalChargesTotal = 403.35,
+        exchangeRate = 160.75760505764225,
+    ),
+    ShipmentPackage(
+        id = -2,
+        description = "Scrubber",
+        weight = "0.8KG",
+        statusName = "Ready for Pick-Up",
+        shippingMethod = "SeaDrop",
+        additionalChargesTotal = 87.50,
+        exchangeRate = 160.71428571428572,
+    ),
+    ShipmentPackage(
+        id = -3,
+        description = "MacBook",
+        weight = "2.1KG",
+        statusName = "Ready for Pick-Up",
+        shippingMethod = "Express",
+        additionalChargesTotal = 1550.00,
+        exchangeRate = 160.82258064516128,
+    ),
+)
+
+private fun swiftHubPaymentPlaceholders(): List<ShipmentPayment> = listOf(
+    ShipmentPayment(
+        id = -1,
+        invoiceId = "ARD00000057961",
+        paymentType = null,
+        totalAmount = 50.0,
+        trackingCode = "ARD00000057961",
+        paymentDate = "23 Nov 2022",
+        packageDescription = "Scrubber/Earpod",
+    ),
+    ShipmentPayment(
+        id = -2,
+        invoiceId = "ARD00000057962",
+        paymentType = null,
+        totalAmount = 1550.0,
+        trackingCode = "ARD00000057962",
+        paymentDate = "24 Nov 2022",
+        packageDescription = "MacBook Pro",
+    ),
+)

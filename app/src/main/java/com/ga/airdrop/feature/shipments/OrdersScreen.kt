@@ -105,6 +105,7 @@ fun OrdersScreen(
                     OrderCard(
                         order = order,
                         onClick = { onNavigate(Routes.orderDetails(order.id.toString())) },
+                        testTag = "orders-list-card-${order.id}",
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = Spacing.sm),

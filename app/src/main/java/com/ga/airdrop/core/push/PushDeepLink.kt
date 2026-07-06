@@ -26,6 +26,14 @@ object PushDeepLink {
     private fun resolve(route: String, referenceId: String?): String = when (route) {
         "PackageDetailsView", "packageDetails" ->
             referenceId?.let { Routes.packageDetails(it) } ?: Routes.PACKAGES
+        "PaymentPackageDetailsView", "paymentPackageDetails", "PaymentPackageDetails" ->
+            referenceId?.let { Routes.paymentPackageDetails(it) } ?: Routes.PAYMENTS
+        "ProductPaymentDetailsView", "productPaymentDetails", "ProductPaymentDetails" ->
+            referenceId?.let { Routes.productPaymentDetails(it) } ?: Routes.PAYMENTS
+        "OrderDetailsView", "orderDetails", "OrderDetails" ->
+            referenceId?.let { Routes.orderDetails(it) } ?: Routes.ORDERS
+        "InvoiceViewerScreen", "invoiceViewer", "InvoiceViewer" ->
+            referenceId?.let { Routes.invoiceViewer(it, "Invoice") } ?: Routes.PAYMENTS
         "PackagesView", "packages" -> Routes.PACKAGES
         "PaymentsView", "payments" -> Routes.PAYMENTS
         "OrdersView", "orders" -> Routes.ORDERS

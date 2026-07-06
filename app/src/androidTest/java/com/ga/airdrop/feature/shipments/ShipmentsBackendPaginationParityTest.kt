@@ -1,5 +1,8 @@
 package com.ga.airdrop.feature.shipments
 
+import com.ga.airdrop.core.session.SessionStore
+import com.ga.airdrop.data.model.AirCoinsStatus
+import com.ga.airdrop.data.model.AirdropUser
 import java.util.Collections
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -22,7 +25,7 @@ class ShipmentsBackendPaginationParityTest {
             payments = (1..6).map { samplePayment(it) },
             orders = (1..10).map { sampleOrder(it) },
         )
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(repo, headerRepo = NoopHeaderRepository)
 
         waitUntil { !viewModel.state.value.loading && repo.ordersCalls == 1 }
 
@@ -47,6 +50,31 @@ class ShipmentsBackendPaginationParityTest {
         assertEquals(1, repo.packagesCalls)
         assertEquals(1, repo.paymentsCalls)
         assertEquals(1, repo.ordersCalls)
+    }
+
+    @Test
+    fun hubRefreshUpdatesSharedHeaderAndAirCoinsLikeSwiftViewDidAppear() = runBlocking {
+        SessionStore.clear()
+        val repo = RecordingHubRepository()
+        val headerRepo = RecordingHeaderRepository()
+        val viewModel = ShipmentsViewModel(repo, headerRepo = headerRepo)
+
+        waitUntil { !viewModel.state.value.loading && headerRepo.airCoinsCalls == 1 }
+
+        var header = SessionStore.header.value
+        assertEquals("Kemar", header.firstName)
+        assertEquals("Gold Priority", header.tierName)
+        assertEquals("123", header.airCoins)
+
+        headerRepo.nextUser = AirdropUser(firstName = "Claude", customerTierName = "Platinum")
+        headerRepo.nextAirCoins = AirCoinsStatus(available = 456)
+        viewModel.refresh()
+
+        waitUntil { !viewModel.state.value.loading && headerRepo.airCoinsCalls == 2 }
+        header = SessionStore.header.value
+        assertEquals("Claude", header.firstName)
+        assertEquals("Platinum", header.tierName)
+        assertEquals("456", header.airCoins)
     }
 
     @Test
@@ -292,6 +320,31 @@ class ShipmentsBackendPaginationParityTest {
         override suspend fun ordersShortlist(): Result<List<ShipmentOrder>> {
             ordersCalls += 1
             return Result.success(orders)
+        }
+    }
+
+    private object NoopHeaderRepository : ShipmentsHeaderRepository {
+        override suspend fun currentUser() = Result.success(AirdropUser())
+
+        override suspend fun airCoinsStatus() = Result.success(AirCoinsStatus())
+    }
+
+    private class RecordingHeaderRepository : ShipmentsHeaderRepository {
+        var nextUser = AirdropUser(firstName = "Kemar", customerTierName = "Gold Priority")
+        var nextAirCoins = AirCoinsStatus(available = 123)
+        var userCalls = 0
+            private set
+        var airCoinsCalls = 0
+            private set
+
+        override suspend fun currentUser(): Result<AirdropUser> {
+            userCalls += 1
+            return Result.success(nextUser)
+        }
+
+        override suspend fun airCoinsStatus(): Result<AirCoinsStatus> {
+            airCoinsCalls += 1
+            return Result.success(nextAirCoins)
         }
     }
 

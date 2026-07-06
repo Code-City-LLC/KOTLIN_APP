@@ -18,6 +18,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -29,6 +31,8 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.data.model.AirCoinsStatus
+import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
@@ -51,7 +55,7 @@ class ShipmentsHubTapRailsParityTest {
     fun hubRefreshesLiveDataOnResumeLikeSwiftViewDidAppear() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val repo = FakeHubRepository()
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(repo, headerRepo = NoopHeaderRepository)
 
         compose.waitUntil(timeoutMillis = 5_000) {
             repo.exchangeRateCalls.get() == 1 &&
@@ -110,7 +114,7 @@ class ShipmentsHubTapRailsParityTest {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
         val repo = FakeHubRepository()
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(repo, headerRepo = NoopHeaderRepository)
 
         compose.waitUntil(timeoutMillis = 5_000) {
             repo.ordersCalls.get() == 1 && !viewModel.state.value.loading
@@ -236,9 +240,43 @@ class ShipmentsHubTapRailsParityTest {
             )
         )
 
+        repeat(4) {
+            compose.onRoot().performTouchInput { swipeUp() }
+            compose.waitForIdle()
+        }
         compose.onNodeWithTag("shipments-order-card-301").performScrollTo().performClick()
         compose.runOnIdle {
             assertEquals(Routes.orderDetails("301"), navigatedRoutes.lastOrNull())
+        }
+    }
+
+    @Test
+    fun emptyHubPackagesAndPaymentsKeepSwiftPlaceholderCards() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+
+        setShipmentsContent(
+            FakeHubRepository(
+                packages = emptyList(),
+                payments = emptyList(),
+                orders = emptyList(),
+                readyText = "ARD00000057961",
+            )
+        )
+
+        compose.onNodeWithTag("shipments-package-card--1", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("shipments-package-card--2", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("shipments-payment-card--1", useUnmergedTree = true).assertExists()
+        assertEquals(0, compose.onAllNodesWithText("No packages found").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("No payments found").fetchSemanticsNodes().size)
+
+        compose.onNodeWithTag("shipments-package-cart-toggle--1", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
+        compose.runOnIdle {
+            assertEquals(Routes.CART, navigatedRoutes.lastOrNull())
         }
     }
 
@@ -322,7 +360,7 @@ class ShipmentsHubTapRailsParityTest {
 
     private fun setShipmentsContent(repo: FakeHubRepository) {
         navigatedRoutes.clear()
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(repo, headerRepo = NoopHeaderRepository)
         compose.setContent {
             AirdropThemeProvider {
                 Box(
@@ -559,5 +597,11 @@ class ShipmentsHubTapRailsParityTest {
         fun handle(event: Lifecycle.Event) {
             registry.handleLifecycleEvent(event)
         }
+    }
+
+    private object NoopHeaderRepository : ShipmentsHeaderRepository {
+        override suspend fun currentUser() = Result.success(AirdropUser())
+
+        override suspend fun airCoinsStatus() = Result.success(AirCoinsStatus())
     }
 }
