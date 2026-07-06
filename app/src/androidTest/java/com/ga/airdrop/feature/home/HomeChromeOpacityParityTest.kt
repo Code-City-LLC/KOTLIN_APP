@@ -1,9 +1,7 @@
 package com.ga.airdrop.feature.home
 
-import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
-import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +15,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.DpRect
@@ -32,6 +29,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -44,26 +42,26 @@ class HomeChromeOpacityParityTest {
     val compose = createComposeRule()
 
     @Test
-    fun homeChromeUsesSwiftOpaqueSurfacesLight() {
-        assertHomeChromeSwiftOpaque(
+    fun homeChromeUsesLockedTranslucentSurfacesLight() {
+        assertHomeChromeTranslucent(
             mode = ThemeController.Mode.LIGHT,
-            expectedSurfaceRgb = lightGray200Rgb,
-            filename = "home_chrome_swift_opaque_light.png",
+            expectedFooterRgb = blendRgb(lightGray200Rgb, underlayRgb, lockedScrimAlpha),
+            filename = "home_chrome_opacity_frosted_light.png",
         )
     }
 
     @Test
-    fun homeChromeUsesSwiftOpaqueSurfacesDark() {
-        assertHomeChromeSwiftOpaque(
+    fun homeChromeUsesLockedTranslucentSurfacesDark() {
+        assertHomeChromeTranslucent(
             mode = ThemeController.Mode.DARK,
-            expectedSurfaceRgb = darkGray200Rgb,
-            filename = "home_chrome_swift_opaque_dark.png",
+            expectedFooterRgb = blendRgb(darkGray200Rgb, underlayRgb, lockedScrimAlpha),
+            filename = "home_chrome_opacity_frosted_dark.png",
         )
     }
 
-    private fun assertHomeChromeSwiftOpaque(
+    private fun assertHomeChromeTranslucent(
         mode: ThemeController.Mode,
-        expectedSurfaceRgb: IntArray,
+        expectedFooterRgb: IntArray,
         filename: String,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -107,26 +105,27 @@ class HomeChromeOpacityParityTest {
         val headerBounds = compose.onNodeWithTag("home-chrome-header").getUnclippedBoundsInRoot()
         val footerBounds = compose.onNodeWithTag("home-chrome-footer").getUnclippedBoundsInRoot()
 
+        val expectedHeaderRgb = blendRgb(heroScrimRgb, underlayRgb, lockedScrimAlpha)
         listOf(
             PixelSample(
                 point = samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = 6f),
-                expectedRgb = expectedSurfaceRgb,
-                label = "Swift opaque hero header top",
+                expectedRgb = expectedHeaderRgb,
+                label = "locked frosted hero header top",
             ),
             PixelSample(
                 point = samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = headerBounds.heightDp() - 6f),
-                expectedRgb = expectedSurfaceRgb,
-                label = "Swift opaque hero header bottom",
+                expectedRgb = expectedHeaderRgb,
+                label = "locked frosted hero header bottom",
             ),
             PixelSample(
                 point = samplePoint(footerBounds, xFraction = 0.03f, yInsetDp = 8f),
-                expectedRgb = expectedSurfaceRgb,
-                label = "Swift opaque footer leading",
+                expectedRgb = expectedFooterRgb,
+                label = "locked frosted footer leading",
             ),
             PixelSample(
                 point = samplePoint(footerBounds, xFraction = 0.97f, yInsetDp = 8f),
-                expectedRgb = expectedSurfaceRgb,
-                label = "Swift opaque footer trailing",
+                expectedRgb = expectedFooterRgb,
+                label = "locked frosted footer trailing",
             ),
         ).forEach { sample ->
             assertPixelNear(
@@ -137,40 +136,7 @@ class HomeChromeOpacityParityTest {
             )
         }
 
-        assertHeaderIconUsesSwiftThemeTint(mode)
         saveRootScreenshot(bitmap, filename)
-    }
-
-    private fun assertHeaderIconUsesSwiftThemeTint(mode: ThemeController.Mode) {
-        val icon = compose.onNodeWithContentDescription("Notifications")
-            .captureToImage()
-            .asAndroidBitmap()
-        val matchingPixels = countPixels(icon) { alpha, red, green, blue ->
-            if (mode == ThemeController.Mode.DARK) {
-                alpha > 80 && red > 210 && green > 210 && blue > 210
-            } else {
-                alpha > 80 && red < 80 && green < 80 && blue < 80
-            }
-        }
-        assertTrue(
-            "Home header notification icon must use Swift theme tint in $mode",
-            matchingPixels > 8,
-        )
-    }
-
-    private fun countPixels(bitmap: Bitmap, predicate: (Int, Int, Int, Int) -> Boolean): Int {
-        var count = 0
-        for (y in 0 until bitmap.height) {
-            for (x in 0 until bitmap.width) {
-                val pixel = bitmap.getPixel(x, y)
-                val alpha = pixel ushr 24 and 0xFF
-                val red = pixel ushr 16 and 0xFF
-                val green = pixel ushr 8 and 0xFF
-                val blue = pixel and 0xFF
-                if (predicate(alpha, red, green, blue)) count += 1
-            }
-        }
-        return count
     }
 
     private fun samplePoint(bounds: DpRect, xFraction: Float, yInsetDp: Float): Pair<Int, Int> {
@@ -212,12 +178,16 @@ class HomeChromeOpacityParityTest {
         val label: String,
     )
 
+    private fun blendRgb(foreground: IntArray, background: IntArray, alpha: Float): IntArray =
+        IntArray(3) { index ->
+            (foreground[index] * alpha + background[index] * (1f - alpha)).roundToInt()
+        }
+
     private fun saveRootScreenshot(bitmap: Bitmap, filename: String) {
         val output = File(screenshotDir(), filename)
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
-        saveRootScreenshotToMediaStore(bitmap, filename)
     }
 
     private fun screenshotDir(): File {
@@ -226,40 +196,14 @@ class HomeChromeOpacityParityTest {
             .also { it.mkdirs() }
     }
 
-    private fun saveRootScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val relativePath = "Pictures/kotlin_ui_proof/home_chrome_opacity/"
-        runCatching {
-            context.contentResolver.delete(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
-                arrayOf(filename, relativePath),
-            )
-        }
-        val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
-            put(MediaStore.Images.Media.IS_PENDING, 1)
-        }
-        runCatching {
-            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: return
-            val outputStream = context.contentResolver.openOutputStream(uri) ?: return
-            outputStream.use { output ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
-            }
-            values.clear()
-            values.put(MediaStore.Images.Media.IS_PENDING, 0)
-            context.contentResolver.update(uri, values, null, null)
-        }
-    }
-
     private fun DpRect.widthDp(): Float = (right - left).value
 
     private fun DpRect.heightDp(): Float = (bottom - top).value
 
     private companion object {
+        const val lockedScrimAlpha = 0.90f
+        val underlayRgb = intArrayOf(0xFF, 0x00, 0xFF)
+        val heroScrimRgb = intArrayOf(0x29, 0x29, 0x29)
         val lightGray200Rgb = intArrayOf(0xF5, 0xF5, 0xF5)
         val darkGray200Rgb = intArrayOf(0x33, 0x33, 0x33)
     }

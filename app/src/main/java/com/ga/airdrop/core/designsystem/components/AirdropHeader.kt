@@ -41,9 +41,8 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 /**
  * Shared tab header — Swift `FigmaTabHeader` (Figma node 40000817:8974).
  *
- * Shared tab chrome follows Swift `FigmaTabHeader`: both hero and frosted
- * styles draw an opaque `gray200` surface over the blur layer. The only
- * difference:
+ * Kemar locked this shared tab chrome to Figma's translucent surface even
+ * though Swift currently uses an opaque gray200 overlay. The only difference:
  *  - [AirdropHeaderStyle.OverImage] (Home hero): no bottom divider.
  *  - [AirdropHeaderStyle.Solid] (Shipments/Shop/Help/More): 1dp divider.
  *
@@ -84,12 +83,20 @@ fun AirdropHeader(
 ) {
     val colors = AirdropTheme.colors
     val overImage = style == AirdropHeaderStyle.OverImage
-    // Swift-precedence chrome: Figma shows translucent hero chrome, but
-    // FigmaTabHeader.swift overlays opaque DesignTokens.Color.gray200 for both
-    // .hero and .frosted styles. AirdropChromeTest enforces this source of truth.
+    // ⚠️ LOCKED per Kemar (2026-07-05): the header is TRANSLUCENT, NOT opaque.
+    // Figma "Header Type" 40000817:8974 = backdrop-blur-10 + gradiant/black/70
+    // (rgba(41,41,41,0.7)). FigmaTabHeader.swift's opaque gray200 overlay was an
+    // author deviation; Kemar explicitly wants the Figma translucent surface.
+    // DO NOT revert to an opaque gray200 background. Over the hero we use the
+    // Figma dark scrim; over page content we tint the theme surface at 0.70.
+    // Single source of truth + build-enforced (AirdropChromeTest asserts alpha<1).
     val headerBg = AirdropChrome.headerBackground(overImage, colors.gray200)
-    val headerText = colors.textDarkTitle
-    val headerIcon = colors.iconSelected
+    // Over the dark hero scrim the greeting + icons are ALWAYS white in BOTH
+    // themes (Figma home header 40001464:28926: white greeting, white bell/cart/
+    // coin over gradiant/black/70). Only the Solid style (over page content)
+    // uses the theme-adaptive title/icon color.
+    val headerText = if (overImage) BrandPalette.White else colors.textDarkTitle
+    val headerIcon = if (overImage) BrandPalette.White else colors.iconSelected
 
     Column(
         modifier = modifier
