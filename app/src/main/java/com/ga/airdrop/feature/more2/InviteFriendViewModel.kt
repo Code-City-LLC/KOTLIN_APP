@@ -16,6 +16,7 @@ data class InviteFriendUiState(
     val firstName: String = "",
     val lastName: String = "",
     val email: String = "",
+    val description: String = "",
     val referralLink: String = "https://airdropja.com/refer",
     val selectedContact: InviteContact? = null,
     val saving: Boolean = false,
@@ -72,6 +73,7 @@ class InviteFriendViewModel(
     fun onFirstName(v: String) = _state.update { it.copy(firstName = v) }
     fun onLastName(v: String) = _state.update { it.copy(lastName = v) }
     fun onEmail(v: String) = _state.update { it.copy(email = v) }
+    fun onDescription(v: String) = _state.update { it.copy(description = v) }
     fun dismissValidation() = _state.update { it.copy(validationError = null) }
     fun dismissError() = _state.update { it.copy(error = null) }
     fun dismissContactOptions() = _state.update { it.copy(selectedContact = null) }
@@ -202,6 +204,7 @@ class InviteFriendViewModel(
         val first = s.firstName.trim()
         val last = s.lastName.trim()
         val email = s.email.trim()
+        val description = s.description.trim()
 
         fun fail(message: String) = _state.update { it.copy(validationError = message) }
         if (first.isEmpty()) return fail("First name is required.")
@@ -221,7 +224,7 @@ class InviteFriendViewModel(
                 firstName = first,
                 lastName = last,
                 email = email,
-                description = null,
+                description = description.ifEmpty { null },
             )
                 .onSuccess { response ->
                     val message = response.message
@@ -232,6 +235,7 @@ class InviteFriendViewModel(
                             firstName = "",
                             lastName = "",
                             email = "",
+                            description = "",
                             saving = false,
                             successMessage = message,
                             validationError = null,
