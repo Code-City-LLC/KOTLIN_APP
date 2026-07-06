@@ -1,6 +1,6 @@
 # KOTLIN_APP Verification Ledger — Problems, Cautions & Lessons
 
-**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 10 — P2 Preferences-gray300 + P3 Documents-info-circle both FIXED & verified (7bdad92); all deferred my-lane ledger items now CLOSED)
+**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 11 — §1c Swift→Kotlin feature-parity audit added (#15525, lead-dev-confirmed): 2 HIGH mainline-missing (Delivery Method, Payment Success) → Kemar checkout-HOLD queue; P1-P4/P6 all closed)
 **State at writing:** `origin/main` src @ `f78e514`. Since rev 5: (1) **quick-track** flow (`030c6ee`) — Track Shipment tile opens a bottom-sheet (≡ Swift `onTapStatTile:1904 presentQuickTrack`), Swift-parity confirmed. (2) A shipped PackageCard **status-color regression** (all statuses forced green, `34e9620`) + an ungated **cart affordance** (fake plus-button on every status) were caught; fixes ACKed then stalled in a merge-gap (orphaned 2nd-verifier) — flagged as [RISK] #15230 → owner rebased+merged (`f78e514`). Color ≡ Swift `statusColor(for:):576`; cart-gate `packageCanAddToCart = status 7\|\|18` ≡ Swift `:563/:724` (device-verified #15266). (3) BUG_AUDIT/SignUp from rev 5 still stand. PR #1 branch `codex/refer-friend-parity` moves fast — always `git ls-remote` before citing its head.
 **Source-of-truth hierarchy (Kemar rulings #14540/#14553/#14578):** Swift app (`/Users/codecityceo/Documents/GitHub/SWIFT_APP`, `Figma*ViewController.swift`) = behavior + PRECEDENCE → Figma (fileKey `N4k6jzpeLZgeRS5O1xfyIv`) = visual reference → Laravel = API contract. Where Swift does not ship a screen, Figma is the authority. **Buttons must function; no fake/dead pages; no duplication; verify before closing (#14639).**
 
@@ -59,6 +59,20 @@ RN→Kotlin function sweep is **complete: all 66 RN useCases accounted for** (50
 - **The ONE true gap found:** token-refresh 401 recovery — RN `refreshToken.ts` + Swift `AirdropAPI:347/:678` (single-flight) existed; Kotlin's `POST auth/refresh` had ZERO callers. Fixed (AuthInterceptor + TokenRefresher, 5 scripted-chain JVM tests) and now landed on main with the foreground-refresh + reactive-logout follow-up.
 - **Rejected as gaps (do not reopen without new evidence):** Calculator product search (Kotlin `CalculatorViewModel.kt:76` implements Swift's 500ms/≥3-chars/top-8 spec); `restorePassword` (= forgot-password email trigger; reset-password UI exists in NEITHER RN nor Swift — typed wrapper only, web flow).
 - **Stale-audit warning:** `SWIFT_APP/FUNCTION_AUDIT.md` + `AIRDROP_RN_TO_SWIFT_FULL_AUDIT.md` (both 2026-05-22) list gaps that are ALL closed on current heads — grep evidence in #14798. Do not use them as to-do lists.
+
+## 1c. SWIFT→KOTLIN FEATURE/SCREEN PARITY GAPS — audit 2026-07-06 (BlueDeer #15525; lead-dev-confirmed #15554)
+
+13-feature adversarial audit (each feature: read Swift VC + searched Kotlin before ruling). A **screen/feature** axis — orthogonal to §1b's RN-useCase sweep. TealSnow independently re-verified HIGH-1 and escalated both HIGHs to Kemar (#15554).
+
+- 🔴 **HIGH — mainline-missing, in Kemar's decision queue (behind the checkout HOLD, C7):**
+  - **Delivery Method** — Swift `FigmaDeliveryMethodViewController` (~2047 lines): pickup/delivery tiles, warehouse radio list, address search + interactive map (draggable marker) + reverse-geocode + validate-location fee preview + "Use Current Location" + Choose-Currency popup → JMD=Profile / USD=Order-Summary. Kotlin cart (`CartViewModel.onMakePayment`) jumps STRAIGHT to Stripe. Data layer ported but **ORPHANED**: `Delivery.kt`/`DeliveryRepository.kt`/`AirdropApiService:388-410` have **zero consumers**.
+  - **Payment Success** — Swift post-Stripe success screen via a session-verifying deeplink (order ref + amount). Kotlin: no success screen/copy, `MainActivity`/`PushDeepLink` don't handle the payment-success deeplink.
+- 🟠 **MEDIUM — missing (queued):** **Barcode Scanner** (Quick-Track camera scan; `QuickTrackInput` is type-only — camera-dep decision queued); **Saved For Later** (cart parked-list — RubyHeron first refusal); **Upload Source sheet** (file/photo/camera picker + in-app camera + image compress before invoice/doc upload; Kotlin uses the system picker directly).
+- 🟡 **PARTIAL:** **Payment Filter** (works but renders the old action-sheet, not the bottom sheet); **My Cart "Your Note"** (Kotlin inline field vs Swift row+popup — @RubyHeron branch `3b810b3`); **Result Modal** (`AuthSuccessSheet` rich port but auth-scoped; DropAlert-success degrades to a plain AlertDialog).
+- ⚪ **NOT bugs — do NOT chase:** **Biometric Lock** + **Active Sessions** = **deliberately excluded** (Kotlin `AboutScreen.kt:46-51` documents "until Kemar wants them in Kotlin"). **Report Damage** = absent here BUT **ships dark in Swift too** (feature-flag OFF, no Laravel `damage-reports` endpoint).
+- ✅ **False alarms (full parity):** AirCoin History (`AirCoinHistoryDetailScreen`), Document Downloading.
+
+**My role:** verifier — found+documented (read-only). Implementation = Kemar/fleet; I verify on landing.
 
 ## 2. CAUTIONS — DO NOT DO THESE
 
