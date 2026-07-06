@@ -11,23 +11,43 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.DpRect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.data.model.AirdropUser
+import com.ga.airdrop.data.model.AuthorizedUserEnvelope
+import com.ga.airdrop.data.model.AuthorizedUserRequest
+import com.ga.airdrop.data.model.AuthorizedUsersEnvelope
+import com.ga.airdrop.data.model.CurrentUserResponse
+import com.ga.airdrop.data.model.DataEnvelope
+import com.ga.airdrop.data.model.DeactivateAccountRequest
+import com.ga.airdrop.data.model.EmptyRequest
+import com.ga.airdrop.data.model.FaqItem
+import com.ga.airdrop.data.model.LoginRequest
+import com.ga.airdrop.data.model.LoginResponse
+import com.ga.airdrop.data.model.MutationResponse
+import com.ga.airdrop.data.model.Paginated
+import com.ga.airdrop.data.model.PromotionalBanner
+import com.ga.airdrop.data.model.ReferFriendRequest
+import com.ga.airdrop.data.model.ReferredFriend
+import com.ga.airdrop.data.model.ShippingRates
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
+import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,76 +68,105 @@ class ReferAFriendParityTest {
     }
 
     @Test
-    fun referPageUsesFigmaOnlyStructureLight() {
+    fun referPageRestoresSwiftReferralLinkAndHistoryLight() {
+        val api = FakeMore2Api(
+            friends = listOf(
+                ReferredFriend(
+                    id = 7,
+                    friendFirstName = "Maya",
+                    friendLastName = "Lee",
+                    friendEmail = "maya@example.com",
+                    status = 1,
+                    statusText = "Completed",
+                ),
+            ),
+        )
         val inviteClicks = AtomicInteger()
 
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.set(ThemeController.Mode.LIGHT)
-        }
-
-        compose.setContent {
-            AirdropTheme {
-                ReferAFriendScreen(
-                    onBack = {},
-                    onInviteFriend = { inviteClicks.incrementAndGet() },
-                )
-            }
-        }
-        compose.waitForIdle()
-
-        assertFigmaOnlyStructure()
-        val inviteCardBounds = compose.onNodeWithTag("refer-hero-card-invite")
-            .getUnclippedBoundsInRoot()
-        val rewardCardBounds = compose.onNodeWithTag("refer-hero-card-reward")
-            .getUnclippedBoundsInRoot()
-        val inviteBadgeBounds = compose.onNodeWithTag("refer-hero-badge-invite")
-            .getUnclippedBoundsInRoot()
-        val rootBounds = compose.onRoot().getUnclippedBoundsInRoot()
-        assertEquals("Figma hero cards are 238dp wide", 238f, boundsWidth(inviteCardBounds), 1f)
-        assertEquals("Figma hero cards are 340dp tall", 340f, boundsHeight(inviteCardBounds), 1f)
-        assertEquals(
-            "Figma initial carousel centers the reward card",
-            (boundsWidth(rootBounds) - 238f) / 2f,
-            boundsLeft(rewardCardBounds),
-            1f,
+        setReferContent(
+            api = api,
+            mode = ThemeController.Mode.LIGHT,
+            onInviteFriend = { inviteClicks.incrementAndGet() },
         )
-        assertEquals("Figma hero badges are 122dp wide", 122f, boundsWidth(inviteBadgeBounds), 1f)
-        assertEquals("Figma hero badges are 122dp tall", 122f, boundsHeight(inviteBadgeBounds), 1f)
 
-        compose.onNodeWithTag("refer-invite-button").performClick()
-        compose.runOnIdle {
-            assertEquals("Figma bottom Invite button should open Invite Friend flow", 1, inviteClicks.get())
-        }
-        saveRootScreenshot("refer_friend_figma_override_light.png")
-    }
-
-    @Test
-    fun referPageUsesFigmaOnlyStructureDark() {
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.set(ThemeController.Mode.DARK)
-        }
-
-        compose.setContent {
-            AirdropTheme {
-                ReferAFriendScreen(onBack = {}, onInviteFriend = {})
-            }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            api.profileCalls.get() >= 1 && api.referredFriendsCalls.get() >= 1
         }
         compose.waitForIdle()
 
-        assertFigmaOnlyStructure()
-        saveRootScreenshot("refer_friend_figma_override_dark.png")
+        compose.onNodeWithTag("refer-hero-carousel").assertIsDisplayed()
+        val heroBounds = compose.onNodeWithTag("refer-hero-carousel").getUnclippedBoundsInRoot()
+        val firstCardBounds = compose.onNodeWithTag("refer-hero-card-invite").getUnclippedBoundsInRoot()
+        assertEquals("Swift hero carousel height", 220f, boundsHeight(heroBounds), 1f)
+        assertEquals("Swift hero card width", 238f, boundsWidth(firstCardBounds), 1f)
+        assertTextExists("Earn AirCoins for every friend you invite")
+        assertTextExists(
+            "Each friend who signs up and completes their first order adds AirCoins " +
+                "to your account. Apply your rewards toward your next shipment — " +
+                "there’s no limit to how much you can earn!",
+        )
+        assertAbsent("Earn $2 USD Per Invite")
+
+        scrollTo("refer-referral-link-card")
+        compose.onNodeWithText("Your Referral Link").assertIsDisplayed()
+        compose.onNodeWithText("https://airdropja.com/refer/AD-2048").assertIsDisplayed()
+        compose.onNodeWithTag("refer-copy-button").performClick()
+        compose.onNodeWithTag("refer-copy-toast").assertIsDisplayed()
+
+        scrollTo("refer-invite-friends-button")
+        compose.onNodeWithTag("refer-invite-friends-button").performClick()
+        compose.runOnIdle {
+            assertEquals("Swift Invite Friends CTA should open Invite Friend flow", 1, inviteClicks.get())
+        }
+
+        scrollTo("refer-referral-row-7")
+        compose.onNodeWithText("Your Referrals").assertIsDisplayed()
+        compose.onNodeWithText("Maya Lee").assertIsDisplayed()
+        compose.onNodeWithText("maya@example.com").assertIsDisplayed()
+        compose.onNodeWithText("Completed").assertIsDisplayed()
+
+        saveRootScreenshot("refer_friend_swift_light.png")
     }
 
     @Test
-    fun inviteCompletionFlagIsConsumedWithoutRestoringSwiftReferralList() {
+    fun referPageShowsSwiftEmptyStateDark() {
+        val api = FakeMore2Api(friends = emptyList())
+
+        setReferContent(api = api, mode = ThemeController.Mode.DARK)
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            api.profileCalls.get() >= 1 && api.referredFriendsCalls.get() >= 1
+        }
+        compose.waitForIdle()
+
+        assertTextExists("Earn AirCoins for every friend you invite")
+        scrollTo("refer-referrals-empty")
+        compose.onNodeWithText("Your Referrals").assertIsDisplayed()
+        compose.onNodeWithTag("refer-referrals-empty").assertIsDisplayed()
+        compose.onNodeWithText(
+            "You haven’t referred anyone yet. Tap Invite Friends above to share AirDrop.",
+        ).assertIsDisplayed()
+        assertEquals(
+            "Stale bottom-only Figma CTA tag must stay absent",
+            0,
+            compose.onAllNodesWithTag("refer-invite-button").fetchSemanticsNodes().size,
+        )
+        saveRootScreenshot("refer_friend_swift_dark_empty.png")
+    }
+
+    @Test
+    fun inviteCompletionFlagReloadsReferredFriendsLikeSwiftViewWillAppear() {
+        val api = FakeMore2Api(friends = emptyList())
+        var triggerRefresh: (() -> Unit)? = null
         var consumed = 0
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
-
         compose.setContent {
-            var refreshAfterInvite by remember { mutableStateOf(true) }
+            var refreshAfterInvite by remember { mutableStateOf(false) }
+            triggerRefresh = { refreshAfterInvite = true }
+            val viewModel = remember { ReferAFriendViewModel(More2Repository(api)) }
             AirdropTheme {
                 ReferAFriendScreen(
                     onBack = {},
@@ -127,68 +176,80 @@ class ReferAFriendParityTest {
                         consumed += 1
                         refreshAfterInvite = false
                     },
+                    viewModel = viewModel,
                 )
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) { consumed == 1 }
+        compose.waitUntil(timeoutMillis = 5_000) { api.referredFriendsCalls.get() >= 1 }
+        compose.runOnIdle {
+            api.friends = listOf(
+                ReferredFriend(
+                    id = 11,
+                    friendName = "Referred friend",
+                    friendEmail = "new@example.com",
+                    status = 0,
+                ),
+            )
+            triggerRefresh?.invoke()
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            api.referredFriendsCalls.get() >= 2 && consumed == 1
+        }
         compose.waitForIdle()
 
-        assertFigmaOnlyStructure()
-        assertEquals(
-            "Resetting the Invite completion flag must not trigger a second consumption",
-            1,
-            consumed,
-        )
+        scrollTo("refer-referral-row-11")
+        compose.onNodeWithText("Referred friend").assertIsDisplayed()
+        compose.onNodeWithText("Pending").assertIsDisplayed()
     }
 
-    private fun assertFigmaOnlyStructure() {
-        compose.onNodeWithTag("refer-hero-carousel").assertIsDisplayed()
-        compose.onNodeWithTag("refer-hero-card-invite").assertIsDisplayed()
-        assertEquals(1, compose.onAllNodesWithTag("refer-hero-card-reward").fetchSemanticsNodes().size)
-        assertEquals(1, compose.onAllNodesWithTag("refer-hero-card-earn").fetchSemanticsNodes().size)
-        assertTextExists("Invite your friends")
-        assertTextExists("Tap “INVITE,” enter your friend’s email — it’s that simple")
-        compose.onNodeWithText("Refer. Reward. Repeat.").assertIsDisplayed()
-        compose.onNodeWithText("The more you share, the more you save").assertIsDisplayed()
-        assertTextExists("Invite and Earn")
-        assertTextExists("Share the gift of World-Class Service & get rewarded for it")
-        compose.onNodeWithText("Earn $2 USD Per Invite").assertIsDisplayed()
-        compose.onNodeWithTag("refer-invite-button").assertIsDisplayed()
-
-        assertAbsent("Earn AirCoins for every friend you invite")
-        assertAbsent("Tap “Invite”, enter your friend’s email — it’s that simple.")
-        assertAbsent("The more you share, the more you save.")
-        assertAbsent("Share the gift of world-class service and get rewarded for it.")
-        assertAbsent("Your Referral Link")
-        assertAbsent("Copy")
-        assertAbsent("Your Referrals")
-        assertAbsent("Invite Friends")
-        assertAbsent("https://airdropja.com/refer", substring = true)
-        assertAbsent("referred anyone", substring = true)
+    private fun setReferContent(
+        api: FakeMore2Api,
+        mode: ThemeController.Mode,
+        onInviteFriend: () -> Unit = {},
+    ) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(mode)
+        }
+        compose.setContent {
+            val viewModel = remember { ReferAFriendViewModel(More2Repository(api)) }
+            AirdropTheme {
+                ReferAFriendScreen(
+                    onBack = {},
+                    onInviteFriend = onInviteFriend,
+                    viewModel = viewModel,
+                )
+            }
+        }
     }
 
-    private fun assertAbsent(text: String, substring: Boolean = false) {
+    private fun scrollTo(tag: String) {
+        compose.onNodeWithTag("refer-scroll-content").performScrollToNode(hasTestTag(tag))
+        compose.waitForIdle()
+    }
+
+    private fun assertAbsent(text: String, tag: String? = null) {
         assertEquals(
-            "Figma-only Refer page must not render stale Swift content: $text",
+            "Refer page must not render stale Figma-only content: $text",
             0,
-            compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().size,
+            compose.onAllNodesWithText(text).fetchSemanticsNodes().size,
         )
+        if (tag != null) {
+            assertEquals(0, compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size)
+        }
     }
 
     private fun assertTextExists(text: String) {
-        assertEquals(
-            "Figma-only Refer page must keep exact text: $text",
-            1,
-            compose.onAllNodesWithText(text).fetchSemanticsNodes().size,
+        assertTrue(
+            "Expected Refer page text: $text",
+            compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty(),
         )
     }
 
     private fun boundsWidth(bounds: DpRect): Float = (bounds.right - bounds.left).value
 
     private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value
-
-    private fun boundsLeft(bounds: DpRect): Float = bounds.left.value
 
     private fun assertHeroAsset(
         resources: Resources,
@@ -203,7 +264,7 @@ class ReferAFriendParityTest {
     }
 
     private fun saveRootScreenshot(filename: String) {
-        val bitmap: Bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap: Bitmap = compose.onNodeWithTag("refer-swift-screen").captureToImage().asAndroidBitmap()
         val output = File(screenshotDir(), filename)
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -213,5 +274,70 @@ class ReferAFriendParityTest {
     private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
+    }
+
+    private class FakeMore2Api(
+        @Volatile var friends: List<ReferredFriend>,
+    ) : More2Api {
+        val profileCalls = AtomicInteger()
+        val referredFriendsCalls = AtomicInteger()
+
+        override suspend fun authorizedUsers(): AuthorizedUsersEnvelope =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun authorizedUser(id: Int): AuthorizedUserEnvelope =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun addAuthorizedUser(body: AuthorizedUserRequest): AuthorizedUserEnvelope =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun updateAuthorizedUser(
+            id: Int,
+            body: AuthorizedUserRequest,
+        ): AuthorizedUserEnvelope =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun deleteAuthorizedUser(id: Int): MutationResponse =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun activateAuthorizedUser(id: Int, body: EmptyRequest): MutationResponse =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun deactivateAuthorizedUser(id: Int, body: EmptyRequest): MutationResponse =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun referredFriends(limit: Int): Paginated<ReferredFriend> {
+            referredFriendsCalls.incrementAndGet()
+            return Paginated(items = friends)
+        }
+
+        override suspend fun referFriend(body: ReferFriendRequest): MutationResponse =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun profile(): CurrentUserResponse {
+            profileCalls.incrementAndGet()
+            return CurrentUserResponse(user = AirdropUser(accountNumber = "AD-2048"))
+        }
+
+        override suspend fun promotionalBanners(): Paginated<PromotionalBanner> =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun shippingRates(): DataEnvelope<ShippingRates> =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun faqs(): Paginated<FaqItem> =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun termsContent(): ResponseBody =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun privacyContent(): ResponseBody =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun verifyLogin(body: LoginRequest): LoginResponse =
+            throw AssertionError("Unused in ReferAFriendParityTest")
+
+        override suspend fun deactivateAccount(body: DeactivateAccountRequest): MutationResponse =
+            throw AssertionError("Unused in ReferAFriendParityTest")
     }
 }

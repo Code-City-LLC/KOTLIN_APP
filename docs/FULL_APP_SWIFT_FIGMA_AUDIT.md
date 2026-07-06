@@ -1871,23 +1871,31 @@ Source files:
 - Figma: Refer a Friend `40001940:26885`, dark `40001940:26797`
 
 Findings verified/fixed:
-- Refer is a scoped override to the global Swift-precedence rule. Kemar ruled
-  that Figma wins for this page: use the landing-only Figma frame, not Swift's
-  referral-link/referrals implementation.
-- Figma MCP was refreshed for `40001940:26885` and `40001940:26797`; both show
-  the required structure: header, three hero cards, `Earn $2 USD Per Invite`
-  copy, and a bottom `Invite` button. The Swift referral-link card, inline
-  `Invite Friends` CTA, copy toast, and `Your Referrals` list must not render
-  here.
-- Android now keeps the Figma-only screen and removes the hidden
-  `ReferAFriendViewModel` dependency so this page does not perform profile or
-  referred-friends calls for content it does not display.
-- `ReferAFriendParityTest` is the guard rail for the scoped override: it asserts
-  the Figma-only structure in light/dark, rejects stale Swift referral-link/list
-  text, locks the 238x340dp hero-card frame, 122dp shadowed badge, Figma exact
-  hero copy, 15dp card gap, and the initial center-card carousel offset,
-  consumes the invite-completion flag without restoring the Swift list, and
-  verifies the bottom `Invite` tap route.
+- Refer now follows the global Swift-precedence rule. The stale Figma-only
+  exception was removed because it produced a fake landing page and suppressed
+  Swift's real referral-link/referrals implementation.
+- Figma MCP was refreshed for `40001940:26885` and `40001940:26797`; both still
+  show the landing-only frame with three hero cards, `$2 USD` copy, and a bottom
+  `Invite` button. Swift `FigmaReferAFriendViewController.swift` wins for the
+  runtime surface: hero carousel, `Earn AirCoins for every friend you invite`,
+  `Your Referral Link` + Copy, `Invite Friends`, and `Your Referrals`.
+- Android now wires `ReferAFriendViewModel` into the page again and reuses the
+  existing `/user/profile` and `/refer-friend` rails. The screen loads the
+  account-number referral URL, copies it with a toast, navigates to Invite
+  Friend, renders empty/list referral states, and reloads after a successful
+  invite.
+- `ReferAFriendParityTest` is the guard rail for the Swift-precedence fix: it
+  rejects the stale `$2 USD` Figma-only copy and bottom-only `Invite` tag,
+  verifies Swift hero dimensions, referral-link card, Copy toast, Invite Friend
+  route callback, referral rows/status pills, dark empty state, profile/referral
+  API calls, and post-invite reload.
+- Verification on 2026-07-06: `git diff --check`;
+  `:app:compileProdDebugKotlin :app:compileProdDebugAndroidTestKotlin`;
+  focused `ReferAFriendParityTest` passed 4/4 on `airdrop_test2(AVD) - 15`;
+  adjacent `InviteFriendParityScreenshotTest`, `More2InnerHeaderParityTest`,
+  and `MoreRootTapRailsParityTest` passed 14/14; patched `installStagingDebug`
+  APK was opened through More -> Refer and visually inspected at
+  `/tmp/refer_friend_actual_after_staging_install.png`.
 
 ### Dark Theme Icons
 

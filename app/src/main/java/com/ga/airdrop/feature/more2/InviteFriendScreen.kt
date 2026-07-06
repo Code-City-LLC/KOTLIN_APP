@@ -47,9 +47,10 @@ import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
- * Invite Friend / Send Invitation — Figma node 40001940:26797, behavior from
- * FigmaInviteFriendViewController: Contacts picker row, first/last/email +
- * description form, info card, Save → POST /refer-friend.
+ * Invite Friend / Send Invitation — Swift source of truth. Figma node
+ * 40001940:26797 currently renders the dark Refer landing page, not this form,
+ * so FigmaInviteFriendViewController owns the Contacts picker row,
+ * first/last/email + description form, info card, and Save → POST /refer-friend.
  *
  * Contacts: uses ACTION_PICK on the Email data table, which grants one-shot
  * read access to the picked row — no READ_CONTACTS permission required.
