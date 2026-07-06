@@ -43,7 +43,7 @@ class AirCoinBalanceViewModel(
     }
 }
 
-// ─── History ledger (GET /aircoins/history, paginated) ────────────────────
+// ─── History ledger (GET /aircoins/history) ───────────────────────────────
 
 data class AirCoinHistoryUiState(
     val transactions: List<AirCoinTransaction> = emptyList(),
@@ -61,7 +61,6 @@ class AirCoinHistoryViewModel(
     private val _state = MutableStateFlow(AirCoinHistoryUiState())
     val state: StateFlow<AirCoinHistoryUiState> = _state
 
-    private var page = 1
     private val perPage = AIRCOIN_HISTORY_PER_PAGE
 
     init {
@@ -69,17 +68,19 @@ class AirCoinHistoryViewModel(
     }
 
     fun refresh() {
-        page = 1
-        _state.update { it.copy(loading = true, error = null, endReached = false) }
+        _state.update { it.copy(loading = true, error = null, endReached = true) }
         viewModelScope.launch {
-            miscRepository.airCoinHistory(page, perPage)
+            // Swift FigmaAirCoinHistoryViewController.loadHistory calls only
+            // page 1 with limit 50. Do not auto-paginate this ledger unless
+            // Swift gains the same behavior.
+            miscRepository.airCoinHistory(page = 1, limit = perPage)
                 .onSuccess { batch ->
                     _state.update {
                         it.copy(
                             transactions = batch,
                             loading = false,
                             loadedOnce = true,
-                            endReached = batch.size < perPage,
+                            endReached = true,
                         )
                     }
                 }
@@ -96,24 +97,7 @@ class AirCoinHistoryViewModel(
     }
 
     fun loadMore() {
-        val current = _state.value
-        if (current.loading || current.loadingMore || current.endReached) return
-        _state.update { it.copy(loadingMore = true) }
-        viewModelScope.launch {
-            miscRepository.airCoinHistory(page + 1, perPage)
-                .onSuccess { batch ->
-                    page += 1
-                    _state.update {
-                        it.copy(
-                            transactions = it.transactions + batch,
-                            loadingMore = false,
-                            endReached = batch.size < perPage,
-                        )
-                    }
-                }
-                .onFailure {
-                    _state.update { it.copy(loadingMore = false) }
-                }
-        }
+        // No-op by Swift precedence: current iOS history screen has no
+        // load-more rail beyond page 1 / limit 50.
     }
 }

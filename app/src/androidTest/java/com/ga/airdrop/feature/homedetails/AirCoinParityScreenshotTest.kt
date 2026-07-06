@@ -135,7 +135,6 @@ class AirCoinParityScreenshotTest {
                             loadedOnce = true,
                         ),
                         onBack = {},
-                        onLoadMore = {},
                     )
                 }
             }

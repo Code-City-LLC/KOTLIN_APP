@@ -223,8 +223,9 @@ fun WarehousesScreen(
             CopiedToastPill(
                 text = it,
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 120.dp),
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 40.dp)
+                    .testTag("warehouse-copy-toast"),
             )
         }
     }

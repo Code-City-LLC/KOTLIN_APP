@@ -37,6 +37,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Cairo
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import java.util.Calendar
 
 /**
  * Shared tab header — Swift `FigmaTabHeader` (Figma node 40000817:8974).
@@ -90,6 +91,9 @@ fun AirdropHeader(
     val headerBg = AirdropChrome.headerBackground(overImage, colors.gray200)
     val headerText = colors.textDarkTitle
     val headerIcon = colors.iconSelected
+    val resolvedGreeting = greeting.ifBlank { defaultGreetingForNow() }
+    val resolvedTierName = tierName.ifBlank { DEFAULT_TIER_NAME }
+    val resolvedAirCoins = airCoins.ifBlank { DEFAULT_AIRCOINS }
 
     Column(
         modifier = modifier
@@ -107,32 +111,30 @@ fun AirdropHeader(
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = greeting,
+                    text = resolvedGreeting,
                     style = AirdropType.subtitle2,
                     color = headerText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (tierName.isNotBlank()) {
-                    val accent = tierAccentColor(tierName)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        modifier = Modifier.clickable(onClick = onTierClick),
-                    ) {
-                        Text(
-                            text = tierName,
-                            style = AirdropType.subtitle2,
-                            color = accent,
-                        )
-                        Image(
-                            painter = painterResource(R.drawable.ic_small_arrow_down),
-                            contentDescription = null,
-                            // Swift: 14pt chevron tinted to the tier accent.
-                            colorFilter = ColorFilter.tint(accent),
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
+                val accent = tierAccentColor(resolvedTierName)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    modifier = Modifier.clickable(onClick = onTierClick),
+                ) {
+                    Text(
+                        text = resolvedTierName,
+                        style = AirdropType.subtitle2,
+                        color = accent,
+                    )
+                    Image(
+                        painter = painterResource(R.drawable.ic_small_arrow_down),
+                        contentDescription = null,
+                        // Swift: 14pt chevron tinted to the tier accent.
+                        colorFilter = ColorFilter.tint(accent),
+                        modifier = Modifier.size(14.dp),
+                    )
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -177,29 +179,27 @@ fun AirdropHeader(
                         }
                     }
                 }
-                if (airCoins.isNotEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(start = 19.dp)
+                        .clickable(onClick = onAirCoinsClick),
+                ) {
+                    Text(
+                        text = resolvedAirCoins,
+                        style = AirdropType.subtitle1,
+                        color = headerText,
+                    )
+                    // RN AirCoinButton: Coins.png at 28x24, 4dp gap.
+                    Image(
+                        painter = painterResource(R.drawable.img_coin_stack),
+                        contentDescription = "AirCoins",
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .padding(start = 19.dp)
-                            .clickable(onClick = onAirCoinsClick),
-                    ) {
-                        Text(
-                            text = airCoins,
-                            style = AirdropType.subtitle1,
-                            color = headerText,
-                        )
-                        // RN AirCoinButton: Coins.png at 28x24, 4dp gap.
-                        Image(
-                            painter = painterResource(R.drawable.img_coin_stack),
-                            contentDescription = "AirCoins",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .padding(start = 4.dp)
-                                .width(28.dp)
-                                .height(24.dp),
-                        )
-                    }
+                            .padding(start = 4.dp)
+                            .width(28.dp)
+                            .height(24.dp),
+                    )
                 }
             }
         }
@@ -212,4 +212,13 @@ fun AirdropHeader(
             )
         }
     }
+}
+
+private const val DEFAULT_TIER_NAME = "Gold Standard"
+private const val DEFAULT_AIRCOINS = "0"
+
+private fun defaultGreetingForNow(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+    in 0..11 -> "Good Morning"
+    in 12..16 -> "Good Afternoon"
+    else -> "Good Evening"
 }

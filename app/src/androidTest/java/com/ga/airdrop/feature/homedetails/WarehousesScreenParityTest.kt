@@ -14,6 +14,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -64,6 +65,23 @@ class WarehousesScreenParityTest {
         compose.onNodeWithTag("warehouse-tab-express").performClick()
         compose.onNodeWithText("Express (Air Express)").assertIsDisplayed()
         assertSwiftHeroGeometry()
+    }
+
+    @Test
+    fun copyAllToastUsesSwiftBottomPlacement() {
+        setWarehouseContent(ThemeController.Mode.DARK, initialType = "standard")
+
+        compose.onNodeWithContentDescription("Copy all warehouse info").performClick()
+        compose.onNodeWithTag("warehouse-copy-toast").assertIsDisplayed()
+
+        val root = compose.onNodeWithTag("warehouse-root").getUnclippedBoundsInRoot()
+        val toast = compose.onNodeWithTag("warehouse-copy-toast").getUnclippedBoundsInRoot()
+        assertClose(
+            40f,
+            (root.bottom - toast.bottom).value,
+            "Swift warehouse copy toast bottom safe-area offset",
+        )
+        saveRootScreenshot("warehouse_copy_toast_swift_dark.png")
     }
 
     private fun setWarehouseContent(
