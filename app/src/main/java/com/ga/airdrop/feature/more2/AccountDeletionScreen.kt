@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -51,6 +52,7 @@ fun AccountDeletionScreen(
             .fillMaxSize()
             .background(colors.gray100)
             .imePadding()
+            .testTag("account-deletion-root")
     ) {
         More2InnerHeader(title = "Account Deletion", onBack = onBack)
 
@@ -58,7 +60,8 @@ fun AccountDeletionScreen(
             Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.md),
+                .padding(horizontal = Spacing.md)
+                .testTag("account-deletion-content"),
         ) {
             Spacer(Modifier.height(24.dp))
             Text(
@@ -84,6 +87,8 @@ fun AccountDeletionScreen(
                     required = true,
                     asteriskColor = BrandPalette.OrangeMain,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    fieldTag = "account-deletion-email-input",
+                    cardTag = "account-deletion-email-card",
                 )
                 More2Field(
                     label = "Password",
@@ -96,16 +101,19 @@ fun AccountDeletionScreen(
                     passwordVisible = state.passwordVisible,
                     onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    fieldTag = "account-deletion-password-input",
+                    cardTag = "account-deletion-password-card",
                 )
             }
             Spacer(Modifier.height(40.dp))
         }
 
-        More2BottomBar {
+        More2BottomBar(modifier = Modifier.testTag("account-deletion-bottom-bar")) {
             More2PrimaryButton(
                 text = "Confirm",
                 onClick = viewModel::confirm,
                 loading = state.loading,
+                modifier = Modifier.testTag("account-deletion-confirm"),
             )
         }
     }

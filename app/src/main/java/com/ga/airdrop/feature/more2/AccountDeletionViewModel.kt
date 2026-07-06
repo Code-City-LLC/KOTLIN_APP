@@ -36,7 +36,7 @@ data class AccountDeletionUiState(
 )
 
 /**
- * FigmaAccountDeletionViewController: verify credentials (re-run /login
+ * FigmaAccountDeletionViewController: verify credentials (re-run /auth/login
  * without persisting the token), then continue to the reason screen.
  */
 class AccountDeletionViewModel(

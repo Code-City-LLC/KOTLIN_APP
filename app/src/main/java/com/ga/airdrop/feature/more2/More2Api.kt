@@ -101,10 +101,10 @@ interface More2Api {
     suspend fun privacyContent(): ResponseBody
 
     // ── Account deletion ──
-    // Swift verifyAccountCredentials re-runs /login without persisting the
+    // Swift verifyAccountCredentials re-runs /auth/login without persisting the
     // returned token (AuthTokenStore is only written by the login screen).
     @Headers("X-Airdrop-No-Auth: true")
-    @POST("login")
+    @POST("auth/login")
     suspend fun verifyLogin(@Body body: LoginRequest): LoginResponse
 
     @POST("user/deactivate-account")
@@ -172,7 +172,7 @@ class More2Repository(
         apiCall { parseCmsBody(api.privacyContent().string()) }
 
     /**
-     * Swift verifyAccountCredentials: validates locally, re-runs /login and
+     * Swift verifyAccountCredentials: validates locally, re-runs /auth/login and
      * returns true when a token comes back. The token is NOT persisted.
      */
     suspend fun verifyCredentials(email: String, password: String): Result<Boolean> {

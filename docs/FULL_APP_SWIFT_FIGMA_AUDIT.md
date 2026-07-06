@@ -1867,6 +1867,43 @@ Findings verified/fixed:
   16dp body inset, 24dp toggle rail, active-only filtering, Swift empty state,
   View Details/View Less expansion, Back dispatch, and light/dark screenshots.
 
+### Account Deletion Entry
+
+Source files:
+- Android: `feature/more2/AccountDeletionScreen.kt`,
+  `AccountDeletionViewModel.kt`, `More2Api.kt`
+- Swift: `FigmaAccountDeletionViewController.swift`,
+  `AirdropAPI.swift`, `APIEndpoints.swift`
+- Figma: Account Deletion node `40007388:24881`
+
+Findings verified/fixed:
+- Swift is the precedence source for the credential-entry screen. Figma MCP for
+  `40007388:24881` currently resolves to stale reason-screen content with the
+  typo "Why do you want you want to delete your account?" and `Delete Account`.
+  The Swift entry controller instead renders email/password verification and a
+  pinned `Confirm` button before pushing the Reason screen.
+- Android already had the Swift entry copy and local validation shape, but its
+  `More2Api.verifyLogin` posted to `login`. Swift
+  `AirdropAPI.verifyAccountCredentials` calls `APIEndpoints.login`, which is
+  `/auth/login`; Android now uses `auth/login` on the existing repository path
+  without adding a duplicate login or deletion flow.
+- The verification response token is intentionally not persisted. The real
+  login rail owns bearer-token writes; Account Deletion only proves account
+  ownership and stores the verified email/password in the in-memory handoff for
+  `AccountDeletionReasonScreen`.
+- Verification on 2026-07-06:
+  - Figma MCP design context checked for `40007388:24881`
+  - Swift source compared in
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaAccountDeletionViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/AirdropAPI.swift`,
+    and `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/APIEndpoints.swift`
+  - `git diff --check`
+  - `:app:compileProdDebugKotlin :app:compileProdDebugUnitTestKotlin :app:compileProdDebugAndroidTestKotlin`
+  - Gradle focused JVM run:
+    `More2ApiContractTest`: 1 test passed
+  - Gradle focused device run:
+    `AccountDeletionParityTest`: 2 tests passed
+
 ### Account Deletion Reason
 
 Source files:
