@@ -168,6 +168,7 @@ class ShipmentsHubTapRailsParityTest {
 
             compose.onNodeWithTag("shipments-summary-track-shipment").performClick()
             compose.onNodeWithTag("shipments-quick-track-sheet").assertIsDisplayed()
+            compose.onNodeWithTag("shipments-quick-track-scan").assertIsDisplayed()
             compose.runOnIdle {
                 assertTrue("Track Shipment opens Swift quick-track sheet, not Packages", navigatedRoutes.isEmpty())
             }

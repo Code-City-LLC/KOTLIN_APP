@@ -32,6 +32,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,6 +73,7 @@ fun ShipmentsScreen(
     val state by viewModel.state.collectAsState()
     val quickTrack by viewModel.quickTrack.collectAsState()
     val headerInfo by SessionStore.header.collectAsState()
+    var scannerVisible by remember { mutableStateOf(false) }
     // Shared cart membership — Swift FigmaCartStore; drives the +/check icons.
     val cartLines by com.ga.airdrop.feature.cart.CartStore.items.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -225,12 +229,25 @@ fun ShipmentsScreen(
                 state = quickTrack,
                 onCodeChange = viewModel::updateQuickTrackCode,
                 onDismiss = viewModel::dismissQuickTrack,
+                onScan = { scannerVisible = true },
                 onTrack = {
                     viewModel.submitQuickTrack { packageId ->
                         onNavigate(Routes.packageDetails(packageId.toString()))
                     }
                 },
                 onRecent = { code ->
+                    viewModel.submitQuickTrack(code) { packageId ->
+                        onNavigate(Routes.packageDetails(packageId.toString()))
+                    }
+                },
+            )
+        }
+
+        if (scannerVisible) {
+            QuickTrackBarcodeScanner(
+                onDismiss = { scannerVisible = false },
+                onCodeScanned = { code ->
+                    scannerVisible = false
                     viewModel.submitQuickTrack(code) { packageId ->
                         onNavigate(Routes.packageDetails(packageId.toString()))
                     }
@@ -323,6 +340,7 @@ private fun QuickTrackSheet(
     state: QuickTrackUiState,
     onCodeChange: (String) -> Unit,
     onDismiss: () -> Unit,
+    onScan: () -> Unit,
     onTrack: () -> Unit,
     onRecent: (String) -> Unit,
 ) {
@@ -380,6 +398,7 @@ private fun QuickTrackSheet(
                 value = state.code,
                 onValueChange = onCodeChange,
                 onSearch = onTrack,
+                onScan = onScan,
             )
             if (state.error != null) {
                 Text(
@@ -423,40 +442,48 @@ private fun QuickTrackInput(
     value: String,
     onValueChange: (String) -> Unit,
     onSearch: () -> Unit,
+    onScan: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        singleLine = true,
-        textStyle = AirdropType.body1.copy(color = colors.textDarkTitle),
-        cursorBrush = SolidColor(BrandPalette.OrangeMain),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.gray150)
-            .testTag("shipments-quick-track-field"),
-        decorationBox = { innerTextField ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                if (value.isEmpty()) {
-                    Text(
-                        text = "e.g. ARD00000057961",
-                        style = AirdropType.body1,
-                        color = colors.textDescription,
-                    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = AirdropType.body1.copy(color = colors.textDarkTitle),
+            cursorBrush = SolidColor(BrandPalette.OrangeMain),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+            modifier = Modifier
+                .weight(1f)
+                .height(52.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.gray150)
+                .testTag("shipments-quick-track-field"),
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = "e.g. ARD00000057961",
+                            style = AirdropType.body1,
+                            color = colors.textDescription,
+                        )
+                    }
+                    innerTextField()
                 }
-                innerTextField()
-            }
-        },
-    )
+            },
+        )
+        QuickTrackScanButton(onClick = onScan)
+    }
 }
 
 @Composable
