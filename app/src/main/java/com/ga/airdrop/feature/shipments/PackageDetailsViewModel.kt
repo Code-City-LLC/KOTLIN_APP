@@ -23,6 +23,26 @@ data class PackageDetailsUiState(
     /** Charges + Add to Cart unlock at "Ready for Pickup" (status >= 7). */
     val readyForPickup: Boolean get() = statusInt >= 7
 
+    /**
+     * Invoice trash gating — parity with Swift FigmaPackageDetailsViewController
+     * .canDeleteInvoices(for:) (L1473-1485): the delete/trash action is hidden
+     * once a package is Ready for Pickup (numeric status >= 7) or later, with a
+     * statusName fallback for when the numeric `status` is missing/non-numeric.
+     * Upload stays allowed at every status. UI/action-gating parity only (QC #14710).
+     *
+     * Deliberately independent of [readyForPickup]/charges (which use a different
+     * predicate, `== 7 || == 18`); do not fold these together.
+     */
+    val canDeleteInvoices: Boolean
+        get() {
+            val statusCode = detail?.status?.trim()?.toIntOrNull()
+            if (statusCode != null && statusCode >= 7) return false
+            val name = detail?.statusName?.lowercase().orEmpty()
+            if (name.contains("ready") || name.contains("pickup") || name.contains("pick up")) return false
+            if (name.contains("delivered") || name.contains("complete")) return false
+            return true
+        }
+
     val chargesTotal: Double?
         get() = detail?.additionalChargesTotal
             ?: detail?.additionalCharges?.values?.sum()?.takeIf { detail.additionalCharges.isNotEmpty() }
@@ -92,8 +112,23 @@ class PackageDetailsViewModel(
         }
     }
 
-    fun requestDeleteInvoice(invoiceId: Int) =
+    fun requestDeleteInvoice(invoiceId: Int) {
+        // Parity: Swift onTapDeleteInvoice (L1568-1575) re-checks canDeleteInvoices
+        // and shows an explanatory alert instead of opening the confirm dialog once
+        // the package is ready for pickup — keeps delete inert even if the trash
+        // icon leaks through (belt-and-suspenders with the hidden UI control).
+        if (!_state.value.canDeleteInvoices) {
+            _state.update {
+                it.copy(
+                    transientMessage =
+                        "Invoices can still be uploaded, but they cannot be deleted " +
+                            "once a package is ready for pickup.",
+                )
+            }
+            return
+        }
         _state.update { it.copy(confirmDeleteInvoiceId = invoiceId) }
+    }
 
     fun dismissDeleteInvoice() = _state.update { it.copy(confirmDeleteInvoiceId = null) }
 

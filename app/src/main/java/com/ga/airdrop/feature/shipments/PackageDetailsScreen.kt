@@ -59,8 +59,8 @@ import com.ga.airdrop.core.navigation.Routes
  * Package details — Figma node 40001753:15716, behavior from
  * FigmaPackageDetailsViewController: method hero + circular badge, Summary
  * card, Shipment Timeline (bullet rows), invoice upload zone (multipart POST
- * /packages/{id}/invoices) + list + delete, CIF info, Breakdown of Charges
- * and Add to Cart (status >= 7).
+ * /packages/{id}/invoices) + list + pre-ready delete, CIF info, Breakdown of
+ * Charges and Add to Cart (status >= 7).
  */
 @Composable
 fun PackageDetailsScreen(
@@ -326,6 +326,7 @@ private fun PackageDetailsContent(
 
         // Upload Your Invoice
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            val canDeleteInvoices = state.canDeleteInvoices
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -353,6 +354,7 @@ private fun PackageDetailsContent(
             detail.invoices.forEach { doc ->
                 InvoiceFileRow(
                     doc = doc,
+                    canDelete = canDeleteInvoices,
                     onView = { onViewInvoice(doc) },
                     onDelete = { onDeleteInvoice(doc.id) },
                 )
@@ -508,6 +510,7 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
 @Composable
 private fun InvoiceFileRow(
     doc: PackageInvoiceDoc,
+    canDelete: Boolean,
     onView: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -540,15 +543,17 @@ private fun InvoiceFileRow(
             )
             Text(text = "PDF File", style = AirdropType.body3, color = colors.textPlaceholder)
         }
-        Image(
-            painter = painterResource(R.drawable.ic_trash),
-            contentDescription = "Delete invoice",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
-            modifier = Modifier
-                .testTag("package-details-invoice-delete-${doc.id}")
-                .size(24.dp)
-                .clickable(onClick = onDelete),
-        )
+        if (canDelete) {
+            Image(
+                painter = painterResource(R.drawable.ic_trash),
+                contentDescription = "Delete invoice",
+                colorFilter = ColorFilter.tint(colors.iconSelected),
+                modifier = Modifier
+                    .testTag("package-details-invoice-delete-${doc.id}")
+                    .size(24.dp)
+                    .clickable(onClick = onDelete),
+            )
+        }
         Image(
             painter = painterResource(R.drawable.ic_eye),
             contentDescription = "View invoice",
