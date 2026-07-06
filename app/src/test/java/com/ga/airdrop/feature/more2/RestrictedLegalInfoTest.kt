@@ -35,8 +35,9 @@ class RestrictedLegalInfoTest {
         )
         assertTrue(RestrictedLegalInfo.LEGAL_NOTICE_BODY.startsWith("This guide is illustrative"))
         assertTrue(RestrictedLegalInfo.US_AUTHORITIES_BODY.contains("(EAR)"))
-        // Kemar copy fix: corrupted "export-asian" → "export/import".
-        assertTrue(RestrictedLegalInfo.DISCLAIMER.contains("export/import regulations"))
+        // Kemar copy fix: corrupted "export-asian" → Swift-verbatim
+        // "export and import regulations".
+        assertTrue(RestrictedLegalInfo.DISCLAIMER.contains("export and import regulations"))
         assertFalse(RestrictedLegalInfo.DISCLAIMER.contains("asian"))
         assertEquals("https://www.bis.doc.gov", RestrictedLegalInfo.bisLink.url)
     }
