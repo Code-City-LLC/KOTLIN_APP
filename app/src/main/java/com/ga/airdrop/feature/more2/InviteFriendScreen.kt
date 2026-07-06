@@ -56,9 +56,8 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
  * Send Invitation form.
  *
  * Source of truth: Swift `FigmaInviteFriendViewController` and Figma node
- * 40001432:18800. The visible form has Contacts, First Name, Last Name,
- * Email Address, info card, and sticky Save. Optional description is retained
- * only for Swift's contact-email action, not as a visible field.
+ * 40001940:26797. The visible form has Contacts, First Name, Last Name,
+ * Email Address, Description, info card, and sticky Save.
  */
 @Composable
 fun InviteFriendScreen(
@@ -166,6 +165,13 @@ fun InviteFriendScreen(
                             .testTag("invite-friend-email-chevron"),
                     )
                 },
+            )
+            More2Field(
+                label = "Description",
+                value = state.description,
+                onValueChange = viewModel::onDescription,
+                fieldTag = "invite-friend-description-input",
+                placeholder = "Good friend",
             )
 
             InfoCard()

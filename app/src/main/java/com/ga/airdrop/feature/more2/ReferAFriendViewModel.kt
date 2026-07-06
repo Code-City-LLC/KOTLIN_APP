@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.more2
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.repo.UserRepository
@@ -12,7 +13,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ReferAFriendUiState(
-    val rendered: Boolean = true,
+    val referralLink: String = "https://airdropja.com/refer",
+    val referrals: List<ReferredFriend> = emptyList(),
+    val loadingReferrals: Boolean = true,
+    val copiedMessage: String? = null,
+    val error: String? = null,
 )
 
 data class ReferredFriendsUiState(
@@ -35,13 +40,62 @@ private class DefaultReferAFriendRepository(
         userRepository.referredFriends(limit = limit)
 }
 
-/** FigmaReferAFriendViewController: static carousel landing + Invite CTA. */
+/** FigmaReferAFriendViewController: carousel landing + referral link + inline referrals. */
 class ReferAFriendViewModel(
-    @Suppress("unused") private val repository: ReferAFriendRepository = DefaultReferAFriendRepository(),
+    private val repository: ReferAFriendRepository = DefaultReferAFriendRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ReferAFriendUiState())
     val state: StateFlow<ReferAFriendUiState> = _state
+
+    init {
+        loadReferralData()
+        loadReferredFriends()
+    }
+
+    fun markLinkCopied() {
+        _state.update { it.copy(copiedMessage = "Link copied") }
+    }
+
+    fun dismissCopiedMessage() {
+        _state.update { it.copy(copiedMessage = null) }
+    }
+
+    fun loadReferredFriends() {
+        _state.update { it.copy(loadingReferrals = true, error = null) }
+        viewModelScope.launch {
+            repository.referredFriends(limit = 20)
+                .onSuccess { friends ->
+                    _state.update {
+                        it.copy(
+                            loadingReferrals = false,
+                            referrals = friends,
+                            error = null,
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            loadingReferrals = false,
+                            referrals = emptyList(),
+                            error = error.toUserMessage(),
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun loadReferralData() {
+        viewModelScope.launch {
+            repository.currentUser().onSuccess { user ->
+                val account = user.accountNumber?.trim().orEmpty()
+                if (account.isNotEmpty()) {
+                    _state.update { it.copy(referralLink = "https://airdropja.com/refer/$account") }
+                }
+            }
+        }
+    }
 }
 
 /** FigmaReferredFriendsViewController: GET /refer-friend/history?limit=200 history list. */

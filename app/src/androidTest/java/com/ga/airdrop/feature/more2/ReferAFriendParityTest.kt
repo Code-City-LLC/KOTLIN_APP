@@ -13,12 +13,16 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.data.model.AirdropUser
+import com.ga.airdrop.data.model.ReferredFriend
+import java.util.concurrent.atomic.AtomicBoolean
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
@@ -57,6 +61,8 @@ class ReferAFriendParityTest {
         compose.onNodeWithTag("refer-earn-title").assertIsDisplayed()
         compose.onNodeWithTag("refer-earn-body").assertIsDisplayed()
         compose.onNodeWithTag("refer-invite-button").assertIsDisplayed()
+        compose.onNodeWithTag("refer-referral-link-card").assertIsDisplayed()
+        compose.onNodeWithTag("refer-inline-referrals").assertIsDisplayed()
 
         assertTextExists("Refer. Reward. Repeat.")
         assertTextExists("Earn $2 USD Per Invite")
@@ -66,8 +72,11 @@ class ReferAFriendParityTest {
                 "much you can earn!",
         )
         assertAbsent("Earn AirCoins for every friend you invite")
-        assertAbsent("Your Referral Link")
-        assertAbsent("Your Referrals")
+        assertTextExists("Your Referral Link")
+        assertTextExists("Your Referrals")
+        assertTextExists("https://airdropja.com/refer/AD-2048")
+        assertTextExists("Maya Lee")
+        assertTextExists("maya@example.com")
 
         val card = compose.onNodeWithTag("refer-hero-card-reward").getUnclippedBoundsInRoot()
         val body = compose.onNodeWithTag("refer-hero-card-body-reward").getUnclippedBoundsInRoot()
@@ -91,14 +100,29 @@ class ReferAFriendParityTest {
 
         compose.onNodeWithTag("refer-figma-screen").assertIsDisplayed()
         compose.onNodeWithTag("refer-hero-card-reward").assertIsDisplayed()
+        compose.onNodeWithTag("refer-referral-link-card").assertIsDisplayed()
         assertTextExists("Earn $2 USD Per Invite")
-        assertAbsent("Your Referral Link")
-        assertAbsent("Your Referrals")
+        assertTextExists("Your Referral Link")
+        assertTextExists("Your Referrals")
         saveRootScreenshot("refer_friend_figma_dark.png")
+    }
+
+    @Test
+    fun referralLinkCopyShowsSwiftFeedback() {
+        val repository = FakeReferRepository()
+        setReferContent(
+            mode = ThemeController.Mode.LIGHT,
+            repository = repository,
+        )
+
+        compose.onNodeWithTag("refer-referral-link-copy").performClick()
+
+        compose.onNodeWithText("Link copied").assertIsDisplayed()
     }
 
     private fun setReferContent(
         mode: ThemeController.Mode,
+        repository: FakeReferRepository = FakeReferRepository(),
         onInviteFriend: () -> Unit = {},
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -111,8 +135,15 @@ class ReferAFriendParityTest {
                     onBack = {},
                     onInviteFriend = onInviteFriend,
                     refreshAfterInvite = refreshAfterInvite,
+                    viewModel = ReferAFriendViewModel(repository),
                 )
             }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            !repository.loading.get()
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("https://airdropja.com/refer/AD-2048").fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()
     }
@@ -161,5 +192,29 @@ class ReferAFriendParityTest {
     private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
+    }
+
+    private class FakeReferRepository : ReferAFriendRepository {
+        val loading = AtomicBoolean(true)
+
+        override suspend fun currentUser(): Result<AirdropUser> =
+            Result.success(AirdropUser(accountNumber = "AD-2048"))
+
+        override suspend fun referredFriends(limit: Int): Result<List<ReferredFriend>> {
+            loading.set(false)
+            return Result.success(
+                listOf(
+                    ReferredFriend(
+                        id = 12,
+                        friendFirstName = "Maya",
+                        friendLastName = "Lee",
+                        friendEmail = "maya@example.com",
+                        referDate = "2024-12-15",
+                        status = 1,
+                        statusText = "Completed",
+                    ),
+                ),
+            )
+        }
     }
 }

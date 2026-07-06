@@ -102,7 +102,7 @@ fun ReferredFriendsScreen(
 }
 
 @Composable
-private fun ReferredFriendCard(friend: ReferredFriend) {
+internal fun ReferredFriendCard(friend: ReferredFriend) {
     val colors = AirdropTheme.colors
     Column(
         modifier = Modifier

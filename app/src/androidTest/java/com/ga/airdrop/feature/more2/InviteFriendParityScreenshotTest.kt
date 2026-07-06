@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -48,11 +49,12 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithTag("invite-friend-last-name-input").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-email-input").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-email-chevron").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-description-input").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-info-body").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-save").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-history-link").assertIsDisplayed()
         compose.onNodeWithText("View Referral History  \u2192").assertIsDisplayed()
-        assertAbsent("Description")
+        compose.onNodeWithText("Description").assertIsDisplayed()
         saveRootScreenshot("invite_friend_figma_light.png")
     }
 
@@ -212,6 +214,9 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithTag("invite-friend-first-name-input").performTextInput(" Chase ")
         compose.onNodeWithTag("invite-friend-last-name-input").performTextInput(" Campbell ")
         compose.onNodeWithTag("invite-friend-email-input").performTextInput(" chase@example.com ")
+        compose.onNodeWithTag("invite-friend-description-input")
+            .performScrollTo()
+            .performTextInput(" Good friend ")
         compose.onNodeWithTag("invite-friend-save").performClick()
 
         compose.waitUntil(timeoutMillis = 5_000) {
@@ -224,7 +229,7 @@ class InviteFriendParityScreenshotTest {
         assertEquals("Chase", request.friendFirstName)
         assertEquals("Campbell", request.friendLastName)
         assertEquals("chase@example.com", request.friendEmail)
-        assertNull("Swift omits form description from the POST body", request.description)
+        assertEquals("Good friend", request.description)
         compose.onNodeWithText("Invitation Sent").assertIsDisplayed()
         compose.onNodeWithText("Referral sent").assertIsDisplayed()
         compose.runOnIdle {
@@ -232,6 +237,7 @@ class InviteFriendParityScreenshotTest {
             assertEquals("Successful Save clears first name", "", state.firstName)
             assertEquals("Successful Save clears last name", "", state.lastName)
             assertEquals("Successful Save clears email", "", state.email)
+            assertEquals("Successful Save clears description", "", state.description)
             assertNull("Successful Save clears stale validation", state.validationError)
             assertNull("Successful Save clears stale API error", state.error)
         }
