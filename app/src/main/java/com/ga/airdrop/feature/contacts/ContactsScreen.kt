@@ -65,7 +65,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun ContactsScreen(
     onNavigate: (String) -> Unit,
-    openExternal: ((String) -> Unit)? = null,
+    openExternal: ((String) -> Boolean)? = null,
 ) {
     val colors = AirdropTheme.colors
     val headerInfo by com.ga.airdrop.core.session.SessionStore.header.collectAsState()
@@ -78,10 +78,11 @@ fun ContactsScreen(
         showCopiedToast = true
     }
 
-    fun open(uri: String) {
-        openExternal?.invoke(uri) ?: runCatching {
+    fun open(uri: String): Boolean {
+        return openExternal?.invoke(uri) ?: runCatching {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)))
-        }
+            true
+        }.getOrDefault(false)
     }
 
     if (showCopiedToast) {
@@ -267,19 +268,22 @@ private data class SocialEntry(
     val url: String,
 )
 
-private fun openPhone(phone: String, open: (String) -> Unit) {
+private fun openPhone(phone: String, open: (String) -> Boolean) {
     val digits = phone
         .filter { it == '+' || it.isDigit() }
         .replace("+", "")
     open("tel:$digits")
 }
 
-private fun openWhatsApp(phone: String, open: (String) -> Unit) {
+private fun openWhatsApp(phone: String, open: (String) -> Boolean) {
     val digits = phone.filter { it.isDigit() }
-    open("https://wa.me/$digits")
+    val native = "whatsapp://send?phone=$digits"
+    if (!open(native)) {
+        open("https://wa.me/$digits")
+    }
 }
 
-private fun openEmail(address: String, open: (String) -> Unit) {
+private fun openEmail(address: String, open: (String) -> Boolean) {
     open("mailto:$address?subject=Contact%20from%20App")
 }
 

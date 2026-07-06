@@ -75,7 +75,7 @@ light AND dark.
   and 15dp card padding, removes the Business Hours copy button, uses Swift's
   compact Business Hours copy, keeps Swift `subtitle1` parity for values/social
   rows, preserves Help-specific dark icon variants, and verifies phone/email/
-  social outbound URI rails. Proof:
+  WhatsApp native-app plus `wa.me` fallback/social outbound URI rails. Proof:
   `/tmp/kotlin_ui_proof/help_contacts/android_help_top_light_final.png`,
   `/tmp/kotlin_ui_proof/help_contacts/android_help_top_dark_final.png`,
   `/tmp/kotlin_ui_proof/help_contacts/android_help_social_light_final.png`,

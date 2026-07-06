@@ -83,7 +83,10 @@ class ContactsScreenScreenshotTest {
         val opened = mutableListOf<String>()
         setHelpContent(
             mode = ThemeController.Mode.LIGHT,
-            openExternal = { opened += it },
+            openExternal = {
+                opened += it
+                true
+            },
         )
 
         compose.onNodeWithText("+876-676-6999").performClick()
@@ -97,6 +100,51 @@ class ContactsScreenScreenshotTest {
                     "tel:8766766999",
                     "mailto:support@airdropja.com?subject=Contact%20from%20App",
                     "https://www.instagram.com/airdrop.ja/",
+                ),
+                opened,
+            )
+        }
+    }
+
+    @Test
+    fun whatsAppPrefersNativeAppWhenAvailable() {
+        val opened = mutableListOf<String>()
+        setHelpContent(
+            mode = ThemeController.Mode.LIGHT,
+            openExternal = {
+                opened += it
+                true
+            },
+        )
+
+        compose.onNodeWithText("+876-566-9339").performClick()
+
+        compose.runOnIdle {
+            assertEquals(
+                listOf("whatsapp://send?phone=8765669339"),
+                opened,
+            )
+        }
+    }
+
+    @Test
+    fun whatsAppFallsBackToWaMeWhenNativeAppUnavailable() {
+        val opened = mutableListOf<String>()
+        setHelpContent(
+            mode = ThemeController.Mode.LIGHT,
+            openExternal = {
+                opened += it
+                it != "whatsapp://send?phone=8765669339"
+            },
+        )
+
+        compose.onNodeWithText("+876-566-9339").performClick()
+
+        compose.runOnIdle {
+            assertEquals(
+                listOf(
+                    "whatsapp://send?phone=8765669339",
+                    "https://wa.me/8765669339",
                 ),
                 opened,
             )
@@ -136,7 +184,7 @@ class ContactsScreenScreenshotTest {
     private fun setHelpContent(
         mode: ThemeController.Mode,
         onNavigate: (String) -> Unit = {},
-        openExternal: ((String) -> Unit)? = null,
+        openExternal: ((String) -> Boolean)? = null,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
