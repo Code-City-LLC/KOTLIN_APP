@@ -1,6 +1,6 @@
 # KOTLIN_APP Verification Ledger — Problems, Cautions & Lessons
 
-**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 2 — added P0 Trengo security)
+**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 3 — Package Details main gates verified + stale-Swift caution)
 **State at writing:** `origin/main` = `22657cf` · PR #1 branch `codex/refer-friend-parity` = `c403099` (DRAFT, hold-merge pending Kemar restricted-boundary ruling; branch moves fast — always `git ls-remote` before citing its head)
 **Source-of-truth hierarchy (Kemar rulings #14540/#14553/#14578):** Swift app (`/Users/codecityceo/Documents/GitHub/SWIFT_APP`, `Figma*ViewController.swift`) = behavior + PRECEDENCE → Figma (fileKey `N4k6jzpeLZgeRS5O1xfyIv`) = visual reference → Laravel = API contract. Where Swift does not ship a screen, Figma is the authority. **Buttons must function; no fake/dead pages; no duplication; verify before closing (#14639).**
 
@@ -106,7 +106,8 @@ Verification levels: **D-L/D-D** = device light/dark seen · **3W** = Figma node
 | Screen | Figma node | Level | Notes |
 |---|---|---|---|
 | Shipments placeholder-tap guard | — | C (`eac8248`) | device needs empty-list acct (P5) |
-| Package Details invoice-delete gate | — | C (`c8a99b1`, hash-tied) | matches Swift `ccb55a1`; delete hidden+guarded @status≥7, upload stays |
+| Package Details invoice-delete gate | — | C (`ed1b534` on main; branch `c8a99b1`) | `canDeleteInvoices` ≡ Swift `canDeleteInvoices(for:)` :1475 (status≥7 + name ready/pickup/delivered/complete); hidden+guarded; upload ungated |
+| Package Details charges + Add-to-Cart gate | — | C (`3184b9e` on main, BrownHawk) | `showChargesAndCart = statusInt==7\|\|==18` ≡ Swift `showCharges` :1265 (NOT ≥7). SEPARATE predicate from delete (which stays ≥7). Verified vs Swift origin/main `dc8a0e3` |
 | Calculator (main) | 40001464:29102 | C | icon question resolved (C1) |
 | Calculator Results | 40001817:19439 | C | Fuel row ✓, CIF circle ✓; Android uses Figma CIF bottom-sheet (40001817:20191) vs Swift native alert — accepted platform adaptation |
 | Government Charges | 40001817:20681 | C (Figma-authority) | Swift doesn't ship it; 3-row charges (no Fuel) is correct here |
@@ -143,6 +144,7 @@ Verification levels: **D-L/D-D** = device light/dark seen · **3W** = Figma node
 - Pushed sub-screens have NO tab bar — BACK returns to the hub/tab root. Space taps 1.5–2s apart; rapid taps glitch Compose nav (recover: HOME + `am start`, session preserved).
 
 ### Reading the sources
+- **⚠️ Verify Swift against `SWIFT_APP` origin/main, NOT a local branch working tree.** A local checkout can sit on a stale branch (seen 2026-07-06: `staging/figma-redesign-testflight` @ `b87e56d`, 1295 lines — **485 lines behind** Swift `origin/main dc8a0e3`, 1780 lines). Reading the stale tree makes correct Kotlin parity look like a "regression/fabrication" (e.g. `canDeleteInvoices`, `showCharges == 7 || == 18` are absent on the stale branch but present on origin/main at `:1475`/`:1265`). **Always `git -C SWIFT_APP fetch && git show origin/main:<path>`** (or checkout origin/main) before citing Swift line numbers. Swift origin/main HEAD = `dc8a0e3` (contains `ccb55a1`/`deb1327`); it moves — re-check.
 - **Trust Swift CODE, not comments.** Examples: Gold Priority's header comment lists a different tier order than the rendered `tiers` array (`FigmaGoldPriorityViewController.swift:57`); node IDs in Swift comments can resolve to sub-components/wrong frames.
 - **Figma frames can be stale or aspirational** (see C6) — never treat a Figma diff as a defect without checking the Swift code; never treat Swift as a defect on a screen Swift doesn't ship (Figma-authority).
 
