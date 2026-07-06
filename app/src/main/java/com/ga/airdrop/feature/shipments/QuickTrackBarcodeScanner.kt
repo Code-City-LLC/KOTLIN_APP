@@ -125,12 +125,19 @@ private fun ScannerCameraPreview(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val providerFuture = remember(context) { ProcessCameraProvider.getInstance(context) }
     val delivered = remember { AtomicBoolean(false) }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(providerFuture) {
         onDispose {
-            runCatching {
-                ProcessCameraProvider.getInstance(context).get().unbindAll()
+            val unbindCameras = {
+                runCatching { providerFuture.get().unbindAll() }
+                Unit
+            }
+            if (providerFuture.isDone) {
+                unbindCameras()
+            } else {
+                providerFuture.addListener(unbindCameras, ContextCompat.getMainExecutor(context))
             }
             analysisExecutor.shutdown()
         }
@@ -142,11 +149,12 @@ private fun ScannerCameraPreview(
             PreviewView(viewContext).apply {
                 scaleType = PreviewView.ScaleType.FILL_CENTER
                 implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                val providerFuture = ProcessCameraProvider.getInstance(viewContext)
                 providerFuture.addListener(
                     {
                         runCatching {
                             val cameraProvider = providerFuture.get()
+                            val cameraSelector = cameraProvider.bestAvailableSelector()
+                                ?: return@runCatching onUnavailable()
                             val preview = Preview.Builder().build().also { preview ->
                                 preview.setSurfaceProvider(surfaceProvider)
                             }
@@ -166,7 +174,7 @@ private fun ScannerCameraPreview(
                             cameraProvider.unbindAll()
                             cameraProvider.bindToLifecycle(
                                 lifecycleOwner,
-                                CameraSelector.DEFAULT_BACK_CAMERA,
+                                cameraSelector,
                                 preview,
                                 analyzer,
                             )
@@ -180,6 +188,14 @@ private fun ScannerCameraPreview(
         },
     )
 }
+
+private fun ProcessCameraProvider.bestAvailableSelector(): CameraSelector? =
+    listOf(
+        CameraSelector.DEFAULT_BACK_CAMERA,
+        CameraSelector.DEFAULT_FRONT_CAMERA,
+    ).firstOrNull { selector ->
+        runCatching { hasCamera(selector) }.getOrDefault(false)
+    }
 
 @Composable
 private fun LiveScannerOverlay(onDismiss: () -> Unit) {

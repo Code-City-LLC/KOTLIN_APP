@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.shipments
 
+import android.Manifest
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
@@ -231,6 +233,44 @@ class ShipmentsHubTapRailsParityTest {
             instrumentation.runOnMainSync {
                 CartStore.clear()
             }
+        }
+    }
+
+    @Test
+    fun quickTrackScanButtonOpensScannerAndReturnsToSheet() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        runCatching {
+            instrumentation.uiAutomation.grantRuntimePermission(
+                context.packageName,
+                Manifest.permission.CAMERA,
+            )
+        }
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+
+        setShipmentsContent(FakeHubRepository())
+
+        compose.onNodeWithTag("shipments-summary-track-shipment").performClick()
+        compose.onNodeWithTag("shipments-quick-track-sheet").assertIsDisplayed()
+        compose.onNodeWithTag("shipments-quick-track-scan").performClick()
+        compose.onNodeWithTag("shipments-quick-track-scanner").assertIsDisplayed()
+
+        val closeNodes = compose.onAllNodesWithTag(
+            "shipments-quick-track-scanner-close",
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes()
+        if (closeNodes.isNotEmpty()) {
+            compose.onNodeWithTag("shipments-quick-track-scanner-close", useUnmergedTree = true).performClick()
+        } else {
+            compose.onNodeWithTag("shipments-quick-track-camera-not-now", useUnmergedTree = true).performClick()
+        }
+
+        compose.onNodeWithTag("shipments-quick-track-scanner").assertDoesNotExist()
+        compose.onNodeWithTag("shipments-quick-track-sheet").assertIsDisplayed()
+        compose.runOnIdle {
+            assertTrue("Scanner dismissal must not navigate away from QuickTrack", navigatedRoutes.isEmpty())
         }
     }
 
