@@ -157,9 +157,15 @@ class CartViewModel(
         }
     }
 
-    /** After the hosted checkout opens, RN/Swift clear the shared cart. */
+    /**
+     * The hosted checkout tab just opened. Swift keeps the cart intact until
+     * checkoutSessionStatus confirms the payment (SceneDelegate.swift:604 —
+     * Kemar 2026-05-27 stuck-cart ruling: verify-then-clear). Clearing here
+     * destroyed the cart whenever the user cancelled or abandoned Stripe
+     * (WORK ORDER R3); the clear moves to a verified-paid path when the
+     * checkout-return flow lands.
+     */
     fun onCheckoutOpened() {
-        CartStore.clear()
         _state.update { it.copy(checkoutUrl = null) }
     }
 

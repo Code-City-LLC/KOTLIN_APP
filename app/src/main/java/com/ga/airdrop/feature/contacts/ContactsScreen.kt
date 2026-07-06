@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -107,6 +108,46 @@ fun ContactsScreen(
                 // Swift contentStack.spacing = 20.
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
+                // ── Live Chat row — Swift FigmaContactsViewController:130
+                // makeLiveChatCard() ships FIRST in the stack → LiveAgentChatView
+                // (Figma "Card Page" 40001617:20379). Deleted at 041a549 on a
+                // false parity claim; restored per WORK ORDER R2.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(59.dp)
+                        .clip(RoundedCornerShape(Spacing.sm1))
+                        .background(colors.gray100)
+                        .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+                        .clickable { onNavigate(Routes.LIVE_CHAT) }
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm)
+                        .testTag("contacts-card-live-chat"),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Image(
+                            painter = painterResource(
+                                if (colors.isDark) R.drawable.ic_contacts_chat_dark else R.drawable.ic_chat
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Text("Live Chat", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+                    }
+                    Image(
+                        painter = painterResource(R.drawable.ic_small_arrow_down),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                        modifier = Modifier
+                            .size(24.dp)
+                            .rotate(-90f),
+                    )
+                }
+
                 SectionCard(
                     modifier = Modifier.testTag("contacts-card-contact-number"),
                     iconRes = R.drawable.ic_contact_number,
