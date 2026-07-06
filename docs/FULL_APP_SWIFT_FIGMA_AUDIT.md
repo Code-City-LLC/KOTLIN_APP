@@ -14,9 +14,10 @@ No screen is done until it has been seen against all three sources:
 Swift is the behavior, flow, and implementation-precedence guide. Figma is the
 pixel-measurement and visual-comparison source, especially where Swift is
 missing a designed element. If Swift and Figma conflict, Swift wins as the
-updated implementation truth, and the conflict must be documented in this file
-instead of silently choosing either side. Preserve working Android flows and
-assets; only repair the parts that are visibly or functionally wrong.
+updated implementation truth unless Kemar explicitly marks a page-level
+exception. The Refer a Friend landing is one such exception: Figma wins there.
+Preserve working Android flows and assets; only repair the parts that are
+visibly or functionally wrong.
 
 ## Current Evidence
 
@@ -1963,53 +1964,32 @@ Source files:
 - Figma: Refer a Friend `40001940:26885`, dark `40001940:26797`
 
 Findings verified/fixed:
-- Refer now follows the global Swift-precedence rule. The stale Figma-only
-  exception was removed because it produced a fake landing page and suppressed
-  Swift's real referral-link/referrals implementation.
-- Figma MCP was refreshed for `40001940:26885` and `40001940:26797`; both still
-  show the landing-only frame with three hero cards, `$2 USD` copy, and a bottom
-  `Invite` button. Swift `FigmaReferAFriendViewController.swift` wins for the
-  runtime surface: hero carousel, `Earn AirCoins for every friend you invite`,
-  `Your Referral Link` + Copy, `Invite Friends`, and `Your Referrals`.
-- Android now wires `ReferAFriendViewModel` into the page again and reuses the
-  shared `UserRepository(ApiClient.service)` rail for `/user/profile` and
-  `/refer-friend`. The screen loads the account-number referral URL, copies it
-  with a toast, navigates to Invite Friend, renders empty/list referral states,
-  and reloads after a successful invite.
-- `ReferAFriendParityTest` is the guard rail for the Swift-precedence fix: it
-  rejects the stale `$2 USD` Figma-only copy and bottom-only `Invite` tag,
-  verifies Swift hero dimensions, referral-link card, Copy toast, Invite Friend
-  route callback, referral rows/status pills, dark empty state, profile/referral
-  API calls, and post-invite reload.
-- Verification on 2026-07-06: `git diff --check`;
-  `:app:compileProdDebugKotlin :app:compileProdDebugAndroidTestKotlin`;
-  focused `ReferAFriendParityTest` passed 4/4 on `airdrop_test2(AVD) - 15`;
-  adjacent `InviteFriendParityScreenshotTest`, `More2InnerHeaderParityTest`,
-  and `MoreRootTapRailsParityTest` passed 14/14; patched `installStagingDebug`
-  APK was opened through More -> Refer and visually inspected at
-  `/tmp/refer_friend_actual_after_staging_install.png`.
-- Follow-up on 2026-07-06 rechecked Swift lifecycle ownership:
-  `loadReferralData()` runs once in `viewDidLoad`, `loadReferredFriends()` runs
-  from `viewWillAppear`, and Invite completion reloads only the referred-friends
-  list. Android already matched that behavior; `ReferAFriendParityTest` now
-  asserts exact first-render calls (one profile, one referred-friends) and exact
-  post-invite reload (one additional referred-friends call, no profile refetch).
-  Focused `ReferAFriendParityTest` passed 4/4 on `airdrop_test2(AVD) - 15`;
-  adjacent `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`, and
-  `PushDeepLinkParityTest` passed 13/13, covering Refer, Invite submit/contact
-  rails, and Refer/Invite push deep links.
-- Follow-up on 2026-07-06 retired the duplicate Refer/Invite runtime dependency
-  on `More2Repository`. `ReferAFriendViewModel` and `InviteFriendViewModel` now
-  use page-specific repository contracts backed by the shared
-  `UserRepository(ApiClient.service)`, while the existing UI remains preserved.
-  `FlexibleDecodingTest` covers all live `/user/profile` envelope shapes used by
-  the referral link, and `UserRepositoryReferFriendTest` locks Swift's
-  `/refer-friend` list semantics plus the snake_case POST body. Verification:
-  `git diff --check`; `:app:compileProdDebugKotlin
-  :app:compileProdDebugUnitTestKotlin :app:compileProdDebugAndroidTestKotlin`;
-  focused unit `FlexibleDecodingTest` + `UserRepositoryReferFriendTest`; and
-  adjacent device `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
-  `PushDeepLinkParityTest` passed 13/13 on `airdrop_test2(AVD) - 15`.
+- Refer is an explicit Figma-over-Swift exception per Kemar's 2026-07-06
+  correction. The earlier Swift-precedence restoration was rejected and must not
+  be revived.
+- Correct Refer surface: three hero cards (`Invite your friends`,
+  `Refer. Reward. Repeat.`, `Invite and Earn`), exact heading
+  `Earn $2 USD Per Invite`, explanatory `$2 USD` body copy, and one bottom
+  `Invite` button that routes to the separate Invite Friend form.
+- Incorrect on Refer: Swift's referral-link card, Copy action, inline
+  `Invite Friends` CTA, and `Your Referrals` list. Those belong to the separate
+  Invite Friend / Referred Friends flows, not the Refer landing.
+- Figma MCP reauth is currently blocking fresh live screenshots. Cached Figma
+  proof remains at `/tmp/kotlin_ui_proof/refer_friend_current/figma/` for
+  `refer_friend_40001940_26885.png` and
+  `refer_friend_dark_40001940_26797.png`; both show the three-card landing in
+  light/dark.
+- `ReferAFriendParityTest` is the guard rail for this exception: it verifies all
+  three hero cards, the exact `$2 USD` copy, bottom `Invite` callback, light and
+  dark rendering, and rejects stale Swift-only labels (`Earn AirCoins...`,
+  `Your Referral Link`, `Your Referrals`, `Invite Friends`) on Refer.
+- Verification on 2026-07-06: `:app:connectedStagingDebugAndroidTest
+  -Pandroid.testInstrumentationRunnerArguments.class=com.ga.airdrop.feature.more2.ReferAFriendParityTest`
+  passed 3/3 on `airdrop_test2(AVD) - 15`; focused
+  `:app:testProdDebugUnitTest --tests com.ga.airdrop.data.repo.UserRepositoryReferFriendTest`
+  passed 3/3. The prod connected Refer run crashed before executing tests
+  (`0 tests`), so prod visual verification remains a harness blocker, not a
+  passed claim.
 
 ### Dark Theme Icons
 

@@ -44,7 +44,7 @@ class ReferAFriendParityTest {
     }
 
     @Test
-    fun referLandingMatchesCurrentSwiftFigmaLight() {
+    fun referLandingMatchesFigmaOverrideLight() {
         val inviteClicks = AtomicInteger()
 
         setReferContent(ThemeController.Mode.LIGHT) {
@@ -53,12 +53,16 @@ class ReferAFriendParityTest {
 
         compose.onNodeWithTag("refer-figma-screen").assertIsDisplayed()
         compose.onNodeWithTag("refer-hero-carousel").assertIsDisplayed()
+        compose.onNodeWithTag("refer-hero-card-invite").assertIsDisplayed()
         compose.onNodeWithTag("refer-hero-card-reward").assertIsDisplayed()
+        compose.onNodeWithTag("refer-hero-card-earn").assertIsDisplayed()
         compose.onNodeWithTag("refer-earn-title").assertIsDisplayed()
         compose.onNodeWithTag("refer-earn-body").assertIsDisplayed()
         compose.onNodeWithTag("refer-invite-button").assertIsDisplayed()
 
+        assertTextExists("Invite your friends")
         assertTextExists("Refer. Reward. Repeat.")
+        assertTextExists("Invite and Earn")
         assertTextExists("Earn $2 USD Per Invite")
         assertTextExists(
             "Each friend who signs up and completes their first order adds $2 USD to your " +
@@ -68,6 +72,7 @@ class ReferAFriendParityTest {
         assertAbsent("Earn AirCoins for every friend you invite")
         assertAbsent("Your Referral Link")
         assertAbsent("Your Referrals")
+        assertAbsent("Invite Friends")
 
         val card = compose.onNodeWithTag("refer-hero-card-reward").getUnclippedBoundsInRoot()
         val body = compose.onNodeWithTag("refer-hero-card-body-reward").getUnclippedBoundsInRoot()
@@ -86,14 +91,17 @@ class ReferAFriendParityTest {
     }
 
     @Test
-    fun referLandingMatchesCurrentSwiftFigmaDark() {
+    fun referLandingMatchesFigmaOverrideDark() {
         setReferContent(ThemeController.Mode.DARK)
 
         compose.onNodeWithTag("refer-figma-screen").assertIsDisplayed()
+        compose.onNodeWithTag("refer-hero-card-invite").assertIsDisplayed()
         compose.onNodeWithTag("refer-hero-card-reward").assertIsDisplayed()
+        compose.onNodeWithTag("refer-hero-card-earn").assertIsDisplayed()
         assertTextExists("Earn $2 USD Per Invite")
         assertAbsent("Your Referral Link")
         assertAbsent("Your Referrals")
+        assertAbsent("Invite Friends")
         saveRootScreenshot("refer_friend_figma_dark.png")
     }
 

@@ -45,10 +45,10 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 /**
  * Refer a Friend landing.
  *
- * Current Swift/Figma source of truth is the reset landing page in
- * `FigmaReferAFriendViewController` / Figma nodes 40001940:26885 and
- * 40001940:26797. The old referral-link + inline history surface moved into
- * the Send Invitation / Referred Friends flow.
+ * Figma-over-Swift exception: the Refer landing is only the reset three-card
+ * Figma page (nodes 40001940:26885 and 40001940:26797). Swift route names are
+ * valid, but Swift's referral-link/history Refer VC is polluted and must not be
+ * rebuilt here.
  */
 @Composable
 fun ReferAFriendScreen(

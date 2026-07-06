@@ -82,8 +82,8 @@ RN→Kotlin function sweep is **complete: all 66 RN useCases accounted for** (50
 ### C2 — Chrome (header/footer) is OPAQUE by ruling
 The old translucent/`SCRIM_ALPHA` locks are **DEAD** — Kemar revoked the Figma-supreme chrome exception; opaque `gray200` per Swift accepted at `2af3110`. Do not restore any alpha band or flag opaque chrome as a regression.
 
-### C3 — Refer-a-Friend is SWIFT-structure
-Accepted at `2999286` (+ branch hardening `ea74cd5`/`c7944f0`/`a07abbe`/`5ddc57a`): referral link + Copy, Invite Friends, Your Referrals list, reload-on-resume, middle-truncated long links (Swift `.byTruncatingMiddle`), 22dp status pill. The Figma-only carousel (nodes 40001940:26885/26797) is the **stale landing-only mockup Kemar called fake** — do not restore it.
+### C3 — Refer-a-Friend is FIGMA landing (explicit exception)
+Kemar reversed the prior Swift-structure interpretation for this route on 2026-07-06. The correct Refer page is the Figma three-card landing only (nodes 40001940:26885/26797), exact copy `Earn $2 USD Per Invite`, and one bottom `Invite` CTA to the separate Invite Friend route. Do **not** restore the Swift referral-link card, `Invite Friends` inline CTA, or `Your Referrals` list on Refer; those belong to separate Invite/Referred flows.
 
 ### C4 — Warehouses: keep the tab strip; ignore two Figma errors
 - ONE screen with Standard/SeaDrop/Express tabs = **approved Kemar deviation** (2026-05-22). Audits must NOT remove the tabs.
