@@ -13,6 +13,7 @@ class AuthInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
         val path = original.url.encodedPath
+        val isNoAuth = original.header(NO_AUTH_HEADER)?.equals("true", ignoreCase = true) == true
         // Pre-auth endpoints MUST be sent unauthenticated — a leftover bearer
         // from a prior session makes the backend reject the sign-in/registration
         // request (the reported "login shows 400"). Swift's AirdropAPI omits the
@@ -22,8 +23,9 @@ class AuthInterceptor : Interceptor {
             path.endsWith("auth/register") ||
             path.endsWith("auth/forgot-password") ||
             path.endsWith("auth/reset-password")
-        val attachedToken = if (isPreAuth) null else AuthTokenStore.token
+        val attachedToken = if (isNoAuth || isPreAuth) null else AuthTokenStore.token
         val builder = original.newBuilder()
+            .removeHeader(NO_AUTH_HEADER)
             .header("Accept", "application/json")
         attachedToken?.let { builder.header("Authorization", "Bearer $it") }
 
@@ -38,5 +40,9 @@ class AuthInterceptor : Interceptor {
             AuthTokenStore.clear()
         }
         return response
+    }
+
+    companion object {
+        const val NO_AUTH_HEADER = "X-Airdrop-No-Auth"
     }
 }

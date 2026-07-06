@@ -69,6 +69,7 @@ import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -108,13 +109,16 @@ interface AirdropApiService {
 
     // ── CMS / FAQ ──
 
+    @Headers("X-Airdrop-No-Auth: true")
     @GET("faqs")
     suspend fun faqs(): Paginated<FaqItem>
 
     // Body may be a JSON envelope or raw HTML; parsed in MiscRepository.
+    @Headers("X-Airdrop-No-Auth: true")
     @GET("content/terms-conditions")
     suspend fun termsAndConditions(): ResponseBody
 
+    @Headers("X-Airdrop-No-Auth: true")
     @GET("content/privacy-policy")
     suspend fun privacyPolicy(): ResponseBody
 

@@ -25,6 +25,7 @@ import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -85,20 +86,24 @@ interface More2Api {
     @GET("shipping-rates")
     suspend fun shippingRates(): DataEnvelope<ShippingRates>
 
+    @Headers("X-Airdrop-No-Auth: true")
     @GET("faqs")
     suspend fun faqs(): Paginated<FaqItem>
 
     // CMS bodies may be raw HTML (not JSON) — take the raw body and decode
     // manually, mirroring Swift cmsContent().
+    @Headers("X-Airdrop-No-Auth: true")
     @GET("content/terms-conditions")
     suspend fun termsContent(): ResponseBody
 
+    @Headers("X-Airdrop-No-Auth: true")
     @GET("content/privacy-policy")
     suspend fun privacyContent(): ResponseBody
 
     // ── Account deletion ──
     // Swift verifyAccountCredentials re-runs /login without persisting the
     // returned token (AuthTokenStore is only written by the login screen).
+    @Headers("X-Airdrop-No-Auth: true")
     @POST("login")
     suspend fun verifyLogin(@Body body: LoginRequest): LoginResponse
 
