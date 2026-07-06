@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 
 // ─── Balance (GET /aircoins/status) ────────────────────────────────────────
 
+internal const val AIRCOIN_HISTORY_PER_PAGE = 50
+
 data class AirCoinBalanceUiState(
     val status: AirCoinsStatus? = null,
     val loading: Boolean = false,
@@ -60,7 +62,7 @@ class AirCoinHistoryViewModel(
     val state: StateFlow<AirCoinHistoryUiState> = _state
 
     private var page = 1
-    private val perPage = 20
+    private val perPage = AIRCOIN_HISTORY_PER_PAGE
 
     init {
         refresh()

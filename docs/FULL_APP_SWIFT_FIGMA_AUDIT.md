@@ -565,6 +565,26 @@ assets; only repair the parts that are visibly or functionally wrong.
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
     `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`
+- Android checks run for the AirCoins live data contract follow-up:
+  - Figma MCP design context refreshed for balance node `40001911:22972` and
+    history node `40006461:26563`.
+  - Swift source compared:
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaAirCoinHistoryViewController.swift`.
+  - Root cause: Android history pagination requested `per_page=20`, while Swift
+    `loadHistory()` requests `airCoinHistory(page: 1, limit: 50)`. Long ledgers
+    could therefore diverge even when the static table render looked correct.
+  - Android now uses `AIRCOIN_HISTORY_PER_PAGE = 50` for the history ViewModel
+    and has a repository contract test proving `/aircoins/status` plus
+    `/aircoins/history?page=1&per_page=50`.
+  - `git diff --check`
+  - `:app:compileProdDebugKotlin :app:compileProdDebugAndroidTestKotlin`
+  - focused `MiscRepositoryAirCoinsTest` through `:app:testProdDebugUnitTest`:
+    passed.
+  - focused `AirCoinParityScreenshotTest` through
+    `:app:connectedProdDebugAndroidTest`: 4 tests passed on
+    `airdrop_test2(AVD) - 15`.
+  - full `:app:connectedProdDebugAndroidTest`: 186 tests passed on
+    `airdrop_test2(AVD) - 15`.
 - Android checks run for the More root Swift/Figma tap-rail pass:
   - Figma MCP design context and screenshot checked for More node
     `40001948:22354`.
@@ -1613,9 +1633,9 @@ Findings to verify/fix:
   history-copy behavior where Figma conflicts.
 - History navigation is covered by instrumentation through the top-right balance
   action.
-- `/aircoins/status` and `/aircoins/history` request paths were checked in code
-  and preserved; live authenticated endpoint validation remains outside this UI
-  slice unless a backend defect is separately assigned.
+- `/aircoins/status` and `/aircoins/history` request paths are covered by a JVM
+  repository contract test; Android now requests Swift's `per_page=50` for the
+  history ledger instead of the stale 20-row page size.
 - Light and dark screenshots are verified under
   `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/`.
 
@@ -1874,7 +1894,7 @@ For each page, fill this before claiming completion:
 | Drop Alert | `feature/dropalert/DropAlertScreen.kt`, `DropAlertViewModel.kt`, `DropAlertRepository.kt`, `data/repo/PackagesRepository.kt` | `FigmaDropAlertViewController.swift`, `AirdropAPI.createDropAlert` | `40001826:22497`, related `40001836:22971` | `/drop-alerts`, `/user/profile`, multipart image upload path preserved through shared repository | yes | yes | yes | MagentaCastle | Consignee profile-failure manual-entry flow closed by Swift-precedence proof; active create-drop-alert path now delegates to shared `PackagesRepository` multipart implementation and has JVM proof for Swift's misspelled fields plus indexed invoice file parts; remaining risk is live authenticated server acceptance only |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, backend pagination/search/reset contracts, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad live-auth/full-flow backend parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, phone/email/social URI rails, and Swift WhatsApp native-app preference with `wa.me` fallback; map runtime app-handling can still be broadened if product wants native map-app preference |
-| AirCoins | `feature/homedetails/AirCoinScreen.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, history path checked in code | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI; live authenticated endpoint check not rerun |
+| AirCoins | `feature/homedetails/AirCoinScreen.kt`, `feature/homedetails/AirCoinViewModel.kt`, `data/repo/MiscRepository.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, `/aircoins/history?page=1&per_page=50` contract tested | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI and Swift history page-size data contract; live authenticated server acceptance can still be broadened if credentials are assigned |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Payment Methods `40001428:9188`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Add Authorized User `40001541:45296`, Authorized User Detail stale node `40001185:5345`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates`, `/authorized-users`, `/authorized-users/{id}` mutations, `/paymentMethods` UI rail to Cart | partial | partial | partial | Codex | More root profile/menu/header tap rails plus app-dark menu icon pixels, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Add Authorized User add/edit payload rails, Authorized User Detail one-load/read-only/mutation/delete rails, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |

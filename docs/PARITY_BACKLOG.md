@@ -105,6 +105,13 @@ light AND dark.
   rails; adjacent `HomeActivityTilesScreenshotTest` and
   `HomeChromeOpacityParityTest` still pass. Proof:
   `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`.
+- **AirCoins Swift data contract:** AirCoins balance/history was rechecked
+  against Figma nodes `40001911:22972` / `40006461:26563` and Swift
+  `FigmaAirCoinHistoryViewController.swift`. Visual geometry stayed aligned, but
+  Android history used the stale 20-row page size while Swift requests
+  `airCoinHistory(page: 1, limit: 50)`. Android now uses
+  `AIRCOIN_HISTORY_PER_PAGE = 50`, and `MiscRepositoryAirCoinsTest` locks
+  `/aircoins/status` plus `/aircoins/history?page=1&per_page=50`.
 - **Home Refer-a-friend icon Swift/Figma proof:** Home refer card node
   `40001464:28925` was checked through Figma MCP and Swift
   `FigmaHomeViewController.makeReferAFriend()` was checked first for runtime
