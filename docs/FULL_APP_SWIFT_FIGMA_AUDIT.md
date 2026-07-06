@@ -1187,7 +1187,12 @@ assets; only repair the parts that are visibly or functionally wrong.
   fallback, body3 dates, 74dp rows, status-colored connectors, and status-tinted
   timeline icons. Follow-up 2026-07-06: the payment-detail timeline now passes
   `colors.isDark` into `ShipmentStatusCatalog.iconRes`, so app-dark uses the
-  same explicit dark vectors as the Packages filter/status rail.
+  same explicit dark vectors as the Packages filter/status rail. Follow-up
+  2026-07-06: the fixed footer `View History` CTA now matches Swift's color
+  split from `FigmaPaymentPackageDetailsViewController.swift`: orange outline,
+  `textDarkTitle` label. `PaymentPackageDetailsParityTest` pixel-checks the
+  orange border plus light `#292929` and dark white label colors; focused prod
+  connected proof passed 4/4 on `airdrop_test2(AVD) - 15`.
 - ProductPaymentDetails and OrderDetails now have Swift-precedence proof for
   their hero geometry in app light/dark. Figma nodes `40004950:25064` and
   `40001761:28814` still show stale 245x149 fixed images, so Android follows

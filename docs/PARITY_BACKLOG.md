@@ -454,7 +454,12 @@ light AND dark.
   `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_dark.png`.
   Follow-up 2026-07-06: payment-detail timeline icons now pass the app-theme
   dark flag into `ShipmentStatusCatalog.iconRes`, preventing app-dark timeline
-  rows from reusing unreadable light vectors.
+  rows from reusing unreadable light vectors. Follow-up 2026-07-06: the fixed
+  footer `View History` CTA now follows Swift's exact color split: orange
+  outline border with `textDarkTitle` label (`#292929` light, white dark),
+  instead of reusing the orange border color for the button text. Focused prod
+  connected proof: `PaymentPackageDetailsParityTest` passed 4/4 on
+  `airdrop_test2(AVD) - 15`.
 - **InvoiceViewer Swift/Figma slice:** Figma MCP has no dedicated reachable
   InvoiceViewer frame in the app canvas; the full page metadata timed out and
   Swift explicitly says this viewer follows the document-download shell. Figma
@@ -1014,7 +1019,7 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 **Detail:** FigmaPaymentPackageDetailsViewController.swift:262-300 builds a fixed footer (gray100 bg, 1px gray300 divider on top, 50pt outline button inset 20pt, scrollView bottom anchored to footer top). Kotlin places OutlineButton inside the vertical scroll after TotalChargesBox (PaymentPackageDetailsScreen.kt:240), so on long content the primary action is off-screen.
 
-**Fix:** Done. The button now lives in a bottom-aligned 96dp `PaymentPackageDetailsFooter` with a 1dp gray300 divider and 50dp outline button, while scroll content keeps footer clearance. `PaymentPackageDetailsParityTest` verifies the footer pin/height in light and dark.
+**Fix:** Done. The button now lives in a bottom-aligned 96dp `PaymentPackageDetailsFooter` with a 1dp gray300 divider and 50dp outline button, while scroll content keeps footer clearance. Follow-up 2026-07-06: the outline keeps Swift orange, but the `View History` label now uses Swift `textDarkTitle` in light and dark. `PaymentPackageDetailsParityTest` verifies the footer pin/height, orange border, and light/dark label pixels.
 
 ---
 

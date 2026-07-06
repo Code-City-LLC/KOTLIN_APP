@@ -46,7 +46,7 @@ class PaymentPackageDetailsParityTest {
     fun detailsUsesSwiftFixedFooterAndUngroupedPaymentCopyLight() {
         setDetailsContent(ThemeController.Mode.LIGHT)
 
-        assertDetailsSwiftParity()
+        assertDetailsSwiftParity(expectedHistoryTextColor = 0xFF292929.toInt())
         saveRootScreenshot("payment_package_details_swift_light.png")
     }
 
@@ -54,7 +54,7 @@ class PaymentPackageDetailsParityTest {
     fun detailsUsesSwiftFixedFooterAndUngroupedPaymentCopyDark() {
         setDetailsContent(ThemeController.Mode.DARK)
 
-        assertDetailsSwiftParity()
+        assertDetailsSwiftParity(expectedHistoryTextColor = 0xFFFFFFFF.toInt())
         saveRootScreenshot("payment_package_details_swift_dark.png")
     }
 
@@ -136,7 +136,7 @@ class PaymentPackageDetailsParityTest {
         compose.waitForIdle()
     }
 
-    private fun assertDetailsSwiftParity() {
+    private fun assertDetailsSwiftParity(expectedHistoryTextColor: Int) {
         val root = compose.onRoot().getUnclippedBoundsInRoot()
         val footer = compose.onNodeWithTag("payment-package-footer").getUnclippedBoundsInRoot()
         val button = compose.onNodeWithTag("payment-package-view-history-button").getUnclippedBoundsInRoot()
@@ -145,6 +145,16 @@ class PaymentPackageDetailsParityTest {
         assertClose(boundsBottom(root), boundsBottom(footer), "footer bottom pin")
         assertClose(50f, boundsHeight(button), "View History button height")
         assertClose(20f, boundsTop(button) - boundsTop(footer) - 1f, "button top inset after divider")
+        assertNodeContainsColor(
+            tag = "payment-package-view-history-button",
+            target = 0xFFF15114.toInt(),
+            label = "Swift keeps the View History border orange",
+        )
+        assertNodeContainsColor(
+            tag = "payment-package-view-history-button",
+            target = expectedHistoryTextColor,
+            label = "Swift uses textDarkTitle for the View History label",
+        )
 
         compose.onNodeWithText("Invoice Amount (Declared Value/Cost)")
             .performScrollTo()
@@ -252,5 +262,25 @@ class PaymentPackageDetailsParityTest {
 
     private fun assertAtLeast(expected: Float, actual: Float, label: String) {
         assertTrue("$label expected at least $expected but was $actual", actual + 0.75f >= expected)
+    }
+
+    private fun assertNodeContainsColor(tag: String, target: Int, label: String) {
+        val bitmap = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+        assertTrue(label, bitmap.hasPixelNear(target))
+    }
+
+    private fun Bitmap.hasPixelNear(target: Int, tolerance: Int = 10): Boolean {
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val pixel = getPixel(x, y)
+                val alpha = pixel ushr 24
+                if (alpha < 200) continue
+                val dr = kotlin.math.abs(((pixel shr 16) and 0xFF) - ((target shr 16) and 0xFF))
+                val dg = kotlin.math.abs(((pixel shr 8) and 0xFF) - ((target shr 8) and 0xFF))
+                val db = kotlin.math.abs((pixel and 0xFF) - (target and 0xFF))
+                if (dr <= tolerance && dg <= tolerance && db <= tolerance) return true
+            }
+        }
+        return false
     }
 }

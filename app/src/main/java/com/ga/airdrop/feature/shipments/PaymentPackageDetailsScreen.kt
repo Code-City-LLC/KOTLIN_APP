@@ -299,7 +299,7 @@ private fun PaymentPackageHistoryButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = "View History", style = AirdropType.button, color = BrandPalette.OrangeMain)
+        Text(text = "View History", style = AirdropType.button, color = colors.textDarkTitle)
     }
 }
 
