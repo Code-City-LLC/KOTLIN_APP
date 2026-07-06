@@ -77,6 +77,7 @@ class AccountDeletionReasonViewModel(
                     SessionStore.clear()
                     CartStore.init(appContext)
                     CartStore.clear()
+                    com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
                     BackgroundStore.clear(appContext)
                     AccountDeletionFlow.clear()
                     _state.update { it.copy(deleting = false, deleted = true) }

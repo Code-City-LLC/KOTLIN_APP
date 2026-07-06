@@ -69,6 +69,7 @@ class SettingsViewModel(
         AuthTokenStore.clear()
         SessionStore.clear()
         com.ga.airdrop.feature.cart.CartStore.clear()
+        com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
         sweepCachePrefs(context)
         _state.update { it.copy(loggingOut = false, loggedOut = true) }
     }
