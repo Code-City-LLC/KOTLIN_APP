@@ -18,27 +18,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
-import com.ga.airdrop.data.model.AuthorizedUserEnvelope
-import com.ga.airdrop.data.model.AuthorizedUserRequest
-import com.ga.airdrop.data.model.AuthorizedUsersEnvelope
-import com.ga.airdrop.data.model.CurrentUserResponse
-import com.ga.airdrop.data.model.DataEnvelope
-import com.ga.airdrop.data.model.DeactivateAccountRequest
-import com.ga.airdrop.data.model.EmptyRequest
-import com.ga.airdrop.data.model.FaqItem
-import com.ga.airdrop.data.model.LoginRequest
-import com.ga.airdrop.data.model.LoginResponse
 import com.ga.airdrop.data.model.MutationResponse
-import com.ga.airdrop.data.model.Paginated
-import com.ga.airdrop.data.model.PromotionalBanner
 import com.ga.airdrop.data.model.ReferFriendRequest
-import com.ga.airdrop.data.model.ReferredFriend
-import com.ga.airdrop.data.model.ShippingRates
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
-import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -91,13 +76,13 @@ class InviteFriendParityScreenshotTest {
 
     @Test
     fun contactsRowLaunchesEmailPickerAndPrefillsReturnedContact() {
-        val api = FakeMore2Api()
+        val api = FakeInviteFriendRepository()
         val launchedIntent = AtomicReference<Intent?>()
         lateinit var viewModel: InviteFriendViewModel
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
-            viewModel = InviteFriendViewModel(More2Repository(api))
+            viewModel = InviteFriendViewModel(api)
         }
 
         compose.setContent {
@@ -131,7 +116,7 @@ class InviteFriendParityScreenshotTest {
 
     @Test
     fun saveValidatesRequiredFirstNameBeforePosting() {
-        val api = FakeMore2Api()
+        val api = FakeInviteFriendRepository()
         setInviteFriend(api = api, mode = ThemeController.Mode.LIGHT)
 
         compose.onNodeWithTag("invite-friend-save").performClick()
@@ -144,7 +129,7 @@ class InviteFriendParityScreenshotTest {
 
     @Test
     fun saveValidatesEmailBeforePosting() {
-        val api = FakeMore2Api()
+        val api = FakeInviteFriendRepository()
         setInviteFriend(api = api, mode = ThemeController.Mode.LIGHT)
 
         compose.onNodeWithTag("invite-friend-first-name-input").performTextInput("Chase")
@@ -160,7 +145,7 @@ class InviteFriendParityScreenshotTest {
 
     @Test
     fun savePostsSwiftPayloadShowsSuccessAndCompletes() {
-        val api = FakeMore2Api()
+        val api = FakeInviteFriendRepository()
         val saved = AtomicInteger()
         setInviteFriend(api = api, mode = ThemeController.Mode.LIGHT) {
             saved.incrementAndGet()
@@ -196,7 +181,7 @@ class InviteFriendParityScreenshotTest {
     }
 
     private fun setInviteFriend(
-        api: FakeMore2Api?,
+        api: FakeInviteFriendRepository?,
         mode: ThemeController.Mode,
         onSaved: () -> Unit = {},
     ) {
@@ -204,7 +189,7 @@ class InviteFriendParityScreenshotTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
             if (api != null) {
-                viewModel = InviteFriendViewModel(More2Repository(api))
+                viewModel = InviteFriendViewModel(api)
             }
         }
         compose.setContent {
@@ -212,11 +197,7 @@ class InviteFriendParityScreenshotTest {
                 if (api == null) {
                     InviteFriendScreen(onBack = {})
                 } else {
-                    InviteFriendScreen(
-                        onBack = {},
-                        onSaved = onSaved,
-                        viewModel = viewModel,
-                    )
+                    InviteFriendScreen(onBack = {}, onSaved = onSaved, viewModel = viewModel)
                 }
             }
         }
@@ -311,66 +292,26 @@ class InviteFriendParityScreenshotTest {
     private fun boundsHeight(bounds: androidx.compose.ui.unit.DpRect): Float =
         (bounds.bottom - bounds.top).value
 
-    private class FakeMore2Api : More2Api {
+    private class FakeInviteFriendRepository : InviteFriendRepository {
         val referFriendCalls = AtomicInteger()
         val lastReferFriendRequest = AtomicReference<ReferFriendRequest?>()
 
-        override suspend fun authorizedUsers(): AuthorizedUsersEnvelope =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun authorizedUser(id: Int): AuthorizedUserEnvelope =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun addAuthorizedUser(body: AuthorizedUserRequest): AuthorizedUserEnvelope =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun updateAuthorizedUser(
-            id: Int,
-            body: AuthorizedUserRequest,
-        ): AuthorizedUserEnvelope =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun deleteAuthorizedUser(id: Int): MutationResponse =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun activateAuthorizedUser(id: Int, body: EmptyRequest): MutationResponse =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun deactivateAuthorizedUser(id: Int, body: EmptyRequest): MutationResponse =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun referredFriends(limit: Int): Paginated<ReferredFriend> =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun referFriend(body: ReferFriendRequest): MutationResponse {
+        override suspend fun referFriend(
+            firstName: String,
+            lastName: String,
+            email: String,
+            description: String?,
+        ): Result<MutationResponse> {
             referFriendCalls.incrementAndGet()
+            val body = ReferFriendRequest(
+                friendFirstName = firstName,
+                friendLastName = lastName,
+                friendEmail = email,
+                description = description,
+            )
             lastReferFriendRequest.set(body)
-            return MutationResponse(success = true, message = "Referral sent")
+            return Result.success(MutationResponse(success = true, message = "Referral sent"))
         }
-
-        override suspend fun profile(): CurrentUserResponse =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun promotionalBanners(): Paginated<PromotionalBanner> =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun shippingRates(): DataEnvelope<ShippingRates> =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun faqs(): Paginated<FaqItem> =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun termsContent(): ResponseBody =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun privacyContent(): ResponseBody =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun verifyLogin(body: LoginRequest): LoginResponse =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
-
-        override suspend fun deactivateAccount(body: DeactivateAccountRequest): MutationResponse =
-            throw AssertionError("Unused in InviteFriendParityScreenshotTest")
     }
 
     private companion object {

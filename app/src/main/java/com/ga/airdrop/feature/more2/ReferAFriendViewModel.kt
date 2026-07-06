@@ -2,7 +2,10 @@ package com.ga.airdrop.feature.more2
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.ReferredFriend
+import com.ga.airdrop.data.repo.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -16,9 +19,23 @@ data class ReferAFriendUiState(
     val loadingReferrals: Boolean = false,
 )
 
+interface ReferAFriendRepository {
+    suspend fun currentUser(): Result<AirdropUser>
+    suspend fun referredFriends(limit: Int = 20): Result<List<ReferredFriend>>
+}
+
+private class DefaultReferAFriendRepository(
+    private val userRepository: UserRepository = UserRepository(ApiClient.service),
+) : ReferAFriendRepository {
+    override suspend fun currentUser(): Result<AirdropUser> = userRepository.currentUser()
+
+    override suspend fun referredFriends(limit: Int): Result<List<ReferredFriend>> =
+        userRepository.referredFriends(limit = limit)
+}
+
 /** FigmaReferAFriendViewController: referral link + GET /refer-friend list. */
 class ReferAFriendViewModel(
-    private val repository: More2Repository = More2Repository(),
+    private val repository: ReferAFriendRepository = DefaultReferAFriendRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ReferAFriendUiState())
@@ -30,7 +47,7 @@ class ReferAFriendViewModel(
 
     private fun loadReferralLink() {
         viewModelScope.launch {
-            repository.profile().onSuccess { user ->
+            repository.currentUser().onSuccess { user ->
                 val account = user.accountNumber
                 if (!account.isNullOrEmpty()) {
                     _state.update { it.copy(referralLink = "https://airdropja.com/refer/$account") }

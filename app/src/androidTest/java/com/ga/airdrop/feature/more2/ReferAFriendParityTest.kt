@@ -26,26 +26,10 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.data.model.AirdropUser
-import com.ga.airdrop.data.model.AuthorizedUserEnvelope
-import com.ga.airdrop.data.model.AuthorizedUserRequest
-import com.ga.airdrop.data.model.AuthorizedUsersEnvelope
-import com.ga.airdrop.data.model.CurrentUserResponse
-import com.ga.airdrop.data.model.DataEnvelope
-import com.ga.airdrop.data.model.DeactivateAccountRequest
-import com.ga.airdrop.data.model.EmptyRequest
-import com.ga.airdrop.data.model.FaqItem
-import com.ga.airdrop.data.model.LoginRequest
-import com.ga.airdrop.data.model.LoginResponse
-import com.ga.airdrop.data.model.MutationResponse
-import com.ga.airdrop.data.model.Paginated
-import com.ga.airdrop.data.model.PromotionalBanner
-import com.ga.airdrop.data.model.ReferFriendRequest
 import com.ga.airdrop.data.model.ReferredFriend
-import com.ga.airdrop.data.model.ShippingRates
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
-import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -69,7 +53,7 @@ class ReferAFriendParityTest {
 
     @Test
     fun referPageRestoresSwiftReferralLinkAndHistoryLight() {
-        val api = FakeMore2Api(
+        val repository = FakeReferAFriendRepository(
             friends = listOf(
                 ReferredFriend(
                     id = 7,
@@ -84,16 +68,16 @@ class ReferAFriendParityTest {
         val inviteClicks = AtomicInteger()
 
         setReferContent(
-            api = api,
+            repository = repository,
             mode = ThemeController.Mode.LIGHT,
             onInviteFriend = { inviteClicks.incrementAndGet() },
         )
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.profileCalls.get() == 1 && api.referredFriendsCalls.get() == 1
+            repository.profileCalls.get() == 1 && repository.referredFriendsCalls.get() == 1
         }
         compose.waitForIdle()
-        assertSwiftInitialLoads(api)
+        assertSwiftInitialLoads(repository)
 
         compose.onNodeWithTag("refer-hero-carousel").assertIsDisplayed()
         val heroBounds = compose.onNodeWithTag("refer-hero-carousel").getUnclippedBoundsInRoot()
@@ -131,15 +115,15 @@ class ReferAFriendParityTest {
 
     @Test
     fun referPageShowsSwiftEmptyStateDark() {
-        val api = FakeMore2Api(friends = emptyList())
+        val repository = FakeReferAFriendRepository(friends = emptyList())
 
-        setReferContent(api = api, mode = ThemeController.Mode.DARK)
+        setReferContent(repository = repository, mode = ThemeController.Mode.DARK)
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.profileCalls.get() == 1 && api.referredFriendsCalls.get() == 1
+            repository.profileCalls.get() == 1 && repository.referredFriendsCalls.get() == 1
         }
         compose.waitForIdle()
-        assertSwiftInitialLoads(api)
+        assertSwiftInitialLoads(repository)
 
         assertTextExists("Earn AirCoins for every friend you invite")
         scrollTo("refer-referrals-empty")
@@ -158,7 +142,7 @@ class ReferAFriendParityTest {
 
     @Test
     fun inviteCompletionFlagReloadsReferredFriendsLikeSwiftViewWillAppear() {
-        val api = FakeMore2Api(friends = emptyList())
+        val repository = FakeReferAFriendRepository(friends = emptyList())
         var triggerRefresh: (() -> Unit)? = null
         var consumed = 0
 
@@ -168,7 +152,7 @@ class ReferAFriendParityTest {
         compose.setContent {
             var refreshAfterInvite by remember { mutableStateOf(false) }
             triggerRefresh = { refreshAfterInvite = true }
-            val viewModel = remember { ReferAFriendViewModel(More2Repository(api)) }
+            val viewModel = remember { ReferAFriendViewModel(repository) }
             AirdropTheme {
                 ReferAFriendScreen(
                     onBack = {},
@@ -184,11 +168,11 @@ class ReferAFriendParityTest {
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.profileCalls.get() == 1 && api.referredFriendsCalls.get() == 1
+            repository.profileCalls.get() == 1 && repository.referredFriendsCalls.get() == 1
         }
-        assertSwiftInitialLoads(api)
+        assertSwiftInitialLoads(repository)
         compose.runOnIdle {
-            api.friends = listOf(
+            repository.friends = listOf(
                 ReferredFriend(
                     id = 11,
                     friendName = "Referred friend",
@@ -200,18 +184,18 @@ class ReferAFriendParityTest {
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.referredFriendsCalls.get() == 2 && consumed == 1
+            repository.referredFriendsCalls.get() == 2 && consumed == 1
         }
         compose.waitForIdle()
         assertEquals(
             "Swift invite completion reloads referred friends without refetching the referral link",
             1,
-            api.profileCalls.get(),
+            repository.profileCalls.get(),
         )
         assertEquals(
             "Swift invite completion should issue exactly one additional referred-friends call",
             2,
-            api.referredFriendsCalls.get(),
+            repository.referredFriendsCalls.get(),
         )
 
         scrollTo("refer-referral-row-11")
@@ -220,7 +204,7 @@ class ReferAFriendParityTest {
     }
 
     private fun setReferContent(
-        api: FakeMore2Api,
+        repository: FakeReferAFriendRepository,
         mode: ThemeController.Mode,
         onInviteFriend: () -> Unit = {},
     ) {
@@ -228,7 +212,7 @@ class ReferAFriendParityTest {
             ThemeController.set(mode)
         }
         compose.setContent {
-            val viewModel = remember { ReferAFriendViewModel(More2Repository(api)) }
+            val viewModel = remember { ReferAFriendViewModel(repository) }
             AirdropTheme {
                 ReferAFriendScreen(
                     onBack = {},
@@ -262,16 +246,16 @@ class ReferAFriendParityTest {
         )
     }
 
-    private fun assertSwiftInitialLoads(api: FakeMore2Api) {
+    private fun assertSwiftInitialLoads(repository: FakeReferAFriendRepository) {
         assertEquals(
             "Swift loadReferralData should fetch profile exactly once on first render",
             1,
-            api.profileCalls.get(),
+            repository.profileCalls.get(),
         )
         assertEquals(
             "Swift viewWillAppear should fetch referred friends exactly once on first render",
             1,
-            api.referredFriendsCalls.get(),
+            repository.referredFriendsCalls.get(),
         )
     }
 
@@ -304,68 +288,20 @@ class ReferAFriendParityTest {
         return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
     }
 
-    private class FakeMore2Api(
+    private class FakeReferAFriendRepository(
         @Volatile var friends: List<ReferredFriend>,
-    ) : More2Api {
+    ) : ReferAFriendRepository {
         val profileCalls = AtomicInteger()
         val referredFriendsCalls = AtomicInteger()
 
-        override suspend fun authorizedUsers(): AuthorizedUsersEnvelope =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun authorizedUser(id: Int): AuthorizedUserEnvelope =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun addAuthorizedUser(body: AuthorizedUserRequest): AuthorizedUserEnvelope =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun updateAuthorizedUser(
-            id: Int,
-            body: AuthorizedUserRequest,
-        ): AuthorizedUserEnvelope =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun deleteAuthorizedUser(id: Int): MutationResponse =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun activateAuthorizedUser(id: Int, body: EmptyRequest): MutationResponse =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun deactivateAuthorizedUser(id: Int, body: EmptyRequest): MutationResponse =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun referredFriends(limit: Int): Paginated<ReferredFriend> {
+        override suspend fun referredFriends(limit: Int): Result<List<ReferredFriend>> {
             referredFriendsCalls.incrementAndGet()
-            return Paginated(items = friends)
+            return Result.success(friends)
         }
 
-        override suspend fun referFriend(body: ReferFriendRequest): MutationResponse =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun profile(): CurrentUserResponse {
+        override suspend fun currentUser(): Result<AirdropUser> {
             profileCalls.incrementAndGet()
-            return CurrentUserResponse(user = AirdropUser(accountNumber = "AD-2048"))
+            return Result.success(AirdropUser(accountNumber = "AD-2048"))
         }
-
-        override suspend fun promotionalBanners(): Paginated<PromotionalBanner> =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun shippingRates(): DataEnvelope<ShippingRates> =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun faqs(): Paginated<FaqItem> =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun termsContent(): ResponseBody =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun privacyContent(): ResponseBody =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun verifyLogin(body: LoginRequest): LoginResponse =
-            throw AssertionError("Unused in ReferAFriendParityTest")
-
-        override suspend fun deactivateAccount(body: DeactivateAccountRequest): MutationResponse =
-            throw AssertionError("Unused in ReferAFriendParityTest")
     }
 }

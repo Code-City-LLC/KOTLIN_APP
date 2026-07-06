@@ -1908,10 +1908,10 @@ Findings verified/fixed:
   runtime surface: hero carousel, `Earn AirCoins for every friend you invite`,
   `Your Referral Link` + Copy, `Invite Friends`, and `Your Referrals`.
 - Android now wires `ReferAFriendViewModel` into the page again and reuses the
-  existing `/user/profile` and `/refer-friend` rails. The screen loads the
-  account-number referral URL, copies it with a toast, navigates to Invite
-  Friend, renders empty/list referral states, and reloads after a successful
-  invite.
+  shared `UserRepository(ApiClient.service)` rail for `/user/profile` and
+  `/refer-friend`. The screen loads the account-number referral URL, copies it
+  with a toast, navigates to Invite Friend, renders empty/list referral states,
+  and reloads after a successful invite.
 - `ReferAFriendParityTest` is the guard rail for the Swift-precedence fix: it
   rejects the stale `$2 USD` Figma-only copy and bottom-only `Invite` tag,
   verifies Swift hero dimensions, referral-link card, Copy toast, Invite Friend
@@ -1934,6 +1934,18 @@ Findings verified/fixed:
   adjacent `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`, and
   `PushDeepLinkParityTest` passed 13/13, covering Refer, Invite submit/contact
   rails, and Refer/Invite push deep links.
+- Follow-up on 2026-07-06 retired the duplicate Refer/Invite runtime dependency
+  on `More2Repository`. `ReferAFriendViewModel` and `InviteFriendViewModel` now
+  use page-specific repository contracts backed by the shared
+  `UserRepository(ApiClient.service)`, while the existing UI remains preserved.
+  `FlexibleDecodingTest` covers all live `/user/profile` envelope shapes used by
+  the referral link, and `UserRepositoryReferFriendTest` locks Swift's
+  `/refer-friend` list semantics plus the snake_case POST body. Verification:
+  `git diff --check`; `:app:compileProdDebugKotlin
+  :app:compileProdDebugUnitTestKotlin :app:compileProdDebugAndroidTestKotlin`;
+  focused unit `FlexibleDecodingTest` + `UserRepositoryReferFriendTest`; and
+  adjacent device `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
+  `PushDeepLinkParityTest` passed 13/13 on `airdrop_test2(AVD) - 15`.
 
 ### Dark Theme Icons
 

@@ -685,14 +685,15 @@ every friend you invite`, a `Your Referral Link` card with Copy, an
 `GET /refer-friend`.
 
 **Fix:** Closed. Android now reuses the existing `ReferAFriendViewModel` and
-`More2Api` rails to load `/user/profile` for the account-number referral URL and
-`/refer-friend` for the referrals list. The page renders Swift's referral-link
-card, Copy toast, `Invite Friends` route handoff, empty/list states, and
-refresh-after-invite reload while preserving the Figma hero assets. The stale
-`refer-invite-button` bottom-only surface is removed. `ReferAFriendParityTest`
-now rejects the old `$2 USD` landing-only copy, verifies Swift hero dimensions,
-profile/referrals API calls, Copy toast, Invite Friend navigation, referral row
-status pills, dark empty state, and post-invite reload.
+the shared `UserRepository(ApiClient.service)` rail to load `/user/profile` for
+the account-number referral URL and `/refer-friend` for the referrals list. The
+page renders Swift's referral-link card, Copy toast, `Invite Friends` route
+handoff, empty/list states, and refresh-after-invite reload while preserving the
+Figma hero assets. The stale `refer-invite-button` bottom-only surface is
+removed. `ReferAFriendParityTest` now rejects the old `$2 USD` landing-only
+copy, verifies Swift hero dimensions, profile/referrals API calls, Copy toast,
+Invite Friend navigation, referral row status pills, dark empty state, and
+post-invite reload.
 
 **Verification 2026-07-06:** Figma MCP design context refreshed for
 `40001940:26885` and `40001940:26797`; Swift source checked at
@@ -716,6 +717,22 @@ link. Focused `ReferAFriendParityTest` passed 4/4 on `airdrop_test2(AVD) - 15`;
 adjacent `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`, and
 `PushDeepLinkParityTest` passed 13/13, proving the full Refer page, Invite
 validation/payload/success rail, and Refer/Invite push deep-link routes.
+
+**Follow-up verification 2026-07-06:** Refer and Invite no longer depend on the
+feature-local `More2Repository` runtime rail. `ReferAFriendViewModel` and
+`InviteFriendViewModel` use small page-specific repository contracts backed by
+the shared `UserRepository(ApiClient.service)`, so `/user/profile`,
+`GET /refer-friend`, and `POST /refer-friend` now share the same Retrofit
+source of truth as the rest of the user/profile data layer. `FlexibleDecodingTest`
+locks all live `/user/profile` envelope shapes used by the referral link, and
+`UserRepositoryReferFriendTest` locks Swift's `/refer-friend` list contract plus
+the snake_case `friend_first_name`, `friend_last_name`, `friend_email`, and
+`description` request body. Verification: `git diff --check`;
+`:app:compileProdDebugKotlin :app:compileProdDebugUnitTestKotlin
+:app:compileProdDebugAndroidTestKotlin`; focused unit
+`FlexibleDecodingTest` + `UserRepositoryReferFriendTest`; adjacent device
+`ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`, and
+`PushDeepLinkParityTest` passed 13/13 on `airdrop_test2(AVD) - 15`.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 

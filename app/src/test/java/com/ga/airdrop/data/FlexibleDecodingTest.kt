@@ -67,6 +67,24 @@ class FlexibleDecodingTest {
     }
 
     @Test
+    fun `current user response unwraps all live profile envelope shapes`() {
+        val cases = listOf(
+            """{"data":{"user":{"account_number":"GA-1001"}}}""",
+            """{"data":{"account_number":"GA-1002"}}""",
+            """{"user":{"account_number":"GA-1003"}}""",
+            """{"user_account_number":"GA-1004"}""",
+        )
+
+        val accounts = cases.map { raw ->
+            AirdropJson.decodeFromString(CurrentUserResponse.serializer(), raw)
+                .user
+                ?.accountNumber
+        }
+
+        assertEquals(listOf("GA-1001", "GA-1002", "GA-1003", "GA-1004"), accounts)
+    }
+
+    @Test
     fun `user tier accepts plain string`() {
         val user = AirdropJson.decodeFromString(
             AirdropUser.serializer(),

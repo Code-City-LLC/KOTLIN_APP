@@ -2,8 +2,10 @@ package com.ga.airdrop.feature.more2
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.api.toUserMessage
-import com.ga.airdrop.data.model.ReferFriendRequest
+import com.ga.airdrop.data.model.MutationResponse
+import com.ga.airdrop.data.repo.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -20,9 +22,30 @@ data class InviteFriendUiState(
     val error: String? = null,
 )
 
+interface InviteFriendRepository {
+    suspend fun referFriend(
+        firstName: String,
+        lastName: String,
+        email: String,
+        description: String?,
+    ): Result<MutationResponse>
+}
+
+private class DefaultInviteFriendRepository(
+    private val userRepository: UserRepository = UserRepository(ApiClient.service),
+) : InviteFriendRepository {
+    override suspend fun referFriend(
+        firstName: String,
+        lastName: String,
+        email: String,
+        description: String?,
+    ): Result<MutationResponse> =
+        userRepository.referFriend(firstName, lastName, email, description)
+}
+
 /** FigmaInviteFriendViewController: name/email form → POST /refer-friend. */
 class InviteFriendViewModel(
-    private val repository: More2Repository = More2Repository(),
+    private val repository: InviteFriendRepository = DefaultInviteFriendRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(InviteFriendUiState())
@@ -63,12 +86,10 @@ class InviteFriendViewModel(
         _state.update { it.copy(saving = true) }
         viewModelScope.launch {
             repository.referFriend(
-                ReferFriendRequest(
-                    friendFirstName = first,
-                    friendLastName = last,
-                    friendEmail = email,
-                    description = desc.ifEmpty { null },
-                ),
+                firstName = first,
+                lastName = last,
+                email = email,
+                description = desc.ifEmpty { null },
             )
                 .onSuccess { response ->
                     _state.update {
