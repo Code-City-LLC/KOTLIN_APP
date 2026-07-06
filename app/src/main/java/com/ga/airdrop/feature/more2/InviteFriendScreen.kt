@@ -215,9 +215,10 @@ fun InviteFriendScreen(
                         "using the unique link provided in your invitation email. " +
                         "Referrals made without this link will not be eligible.",
                     style = AirdropType.body2,
-                    color = if (AirdropTheme.colors.isDark) BrandPalette.BlueMain
-                    else AirdropTheme.colors.textDarkTitle,
-                    modifier = Modifier.weight(1f),
+                    color = colors.textDarkTitle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("invite-friend-info-body"),
                 )
             }
         }

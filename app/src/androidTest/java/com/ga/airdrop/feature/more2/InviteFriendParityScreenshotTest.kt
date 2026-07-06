@@ -7,6 +7,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -14,6 +15,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -43,6 +45,22 @@ class InviteFriendParityScreenshotTest {
         assertIconContainsColor(ORANGE, "orange signal arcs in dark mode")
         assertIconContainsColor(WHITE_HANDSET, "white handset in app dark mode")
         saveRootScreenshot("invite_friend_contacts_icon_dark.png")
+    }
+
+    @Test
+    fun infoCardBodyUsesSwiftTextDarkTitleLight() {
+        setInviteFriend(mode = ThemeController.Mode.LIGHT)
+
+        assertInfoBodyContainsColor(DARK_HANDSET, "Swift textDarkTitle info body in light mode")
+        assertInfoBodyDoesNotContainColor(BLUE_MAIN, "Info body must not use BlueMain in light mode")
+    }
+
+    @Test
+    fun infoCardBodyUsesSwiftTextDarkTitleDark() {
+        setInviteFriend(mode = ThemeController.Mode.DARK)
+
+        assertInfoBodyContainsColor(WHITE_HANDSET, "Swift textDarkTitle info body in app dark mode")
+        assertInfoBodyDoesNotContainColor(BLUE_MAIN, "Info body must not use BlueMain in dark mode")
     }
 
     private fun setInviteFriend(mode: ThemeController.Mode) {
@@ -77,6 +95,25 @@ class InviteFriendParityScreenshotTest {
         ).captureToImage().asAndroidBitmap()
 
         assertTrue(label, bitmap.hasPixelNear(target))
+    }
+
+    private fun assertInfoBodyContainsColor(target: Int, label: String) {
+        val bitmap = captureInfoBody()
+
+        assertTrue(label, bitmap.hasPixelNear(target))
+    }
+
+    private fun assertInfoBodyDoesNotContainColor(target: Int, label: String) {
+        val bitmap = captureInfoBody()
+
+        assertFalse(label, bitmap.hasPixelNear(target))
+    }
+
+    private fun captureInfoBody(): Bitmap {
+        val node = compose.onNodeWithTag("invite-friend-info-body", useUnmergedTree = true)
+        node.performScrollTo()
+        compose.waitForIdle()
+        return node.captureToImage().asAndroidBitmap()
     }
 
     private fun Bitmap.hasPixelNear(target: Int): Boolean {
@@ -130,6 +167,7 @@ class InviteFriendParityScreenshotTest {
         const val ORANGE = 0xFFF15114.toInt()
         const val DARK_HANDSET = 0xFF292929.toInt()
         const val WHITE_HANDSET = 0xFFFFFFFF.toInt()
+        const val BLUE_MAIN = 0xFF2A2367.toInt()
         const val COLOR_TOLERANCE = 18
     }
 }
