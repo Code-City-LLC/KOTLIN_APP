@@ -155,6 +155,26 @@ assets; only repair the parts that are visibly or functionally wrong.
     `:app:connectedStagingDebugAndroidTest`: 2 tests passed
   - proof PNG:
     `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`
+- Android checks run for the Home authenticated data contract proof:
+  - Figma MCP design context refreshed for Home node `40001464:28899`.
+  - Swift source checked in
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaHomeViewController.swift`,
+    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaTabHeader.swift`,
+    and `AirdropAPI.swift`.
+  - Current Android production code already matches Swift's Home data rails:
+    `viewDidAppear`/resume reload calls current user, AirCoins status, and auction
+    shortlist; auction failure renders the empty card instead of stale data.
+  - Added `HomeDataContractTest` to prove the repository wire contracts used by
+    Home: `/user/profile`, `/aircoins/status`, and `/products` with
+    `page=1&per_page=4&order=created_at&direction=desc&in_stock=1`.
+  - `git diff --check`
+  - `:app:compileProdDebugKotlin :app:compileProdDebugAndroidTestKotlin`
+  - focused `HomeDataContractTest` through `:app:testProdDebugUnitTest`: passed.
+  - focused Home instrumentation group through `:app:connectedProdDebugAndroidTest`:
+    `HomeLiveDataParityTest`, `HomeActivityTilesScreenshotTest`, and
+    `HomeChromeOpacityParityTest` passed 18 tests on `airdrop_test2(AVD) - 15`.
+  - full `:app:connectedProdDebugAndroidTest`: 186 tests passed on
+    `airdrop_test2(AVD) - 15`.
 - Android checks run for the Home Refer-a-friend icon Swift/Figma proof:
   - Figma MCP design context and screenshot for Home refer card node
     `40001464:28925`:
@@ -1525,6 +1545,11 @@ Findings to verify/fix:
   cards. Android now refreshes on lifecycle `ON_RESUME`, preserves the existing
   initial ViewModel load, and clears stale auction highlights on failure.
   `HomeLiveDataParityTest` locks both rails.
+- Home source-level authenticated data contract is now covered against Swift:
+  repository tests prove `/user/profile`, `/aircoins/status`, and the auction
+  shortlist `/products` query used by Home. This closes the code-path proof gap;
+  real live-account server acceptance remains a separate credentialed run if
+  assigned.
 - Activity/highlight boxes were measured against Figma and Swift. Android
   matches the Swift/Figma values: activity tiles are `(screen - 40 - 10) / 2`
   wide and `108` high, with `32` icons, `10` stack gap, and `10x20` padding;
@@ -1888,7 +1913,7 @@ For each page, fill this before claiming completion:
 
 | Page | Android file(s) | Swift file | Figma node | Backend/API | Light seen | Dark seen | Taps verified | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `feature/home/HomeScreen.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt`, `feature/homedetails/components/HomeDetailsComponents.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/me`, `/aircoins/status`, auctions, warehouses | yes | yes | partial | MagentaCastle | Kemar-locked header/footer translucency, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, shared HomeDetailsHeader long-title autoscale, activity/highlight geometry, primary route callbacks, Refer-a-friend icon Swift-precedence, auction card/cart tap separation, bottom-tab state, and live-data viewDidAppear reload/auction-empty behavior verified; remaining risk is full authenticated end-to-end Home data proof |
+| Home | `feature/home/HomeScreen.kt`, `feature/home/HomeViewModel.kt`, `data/repo/UserRepository.kt`, `data/repo/MiscRepository.kt`, `data/repo/ProductsRepository.kt`, chrome components, `feature/homedetails/SalesTaxesScreen.kt`, `feature/homedetails/components/HomeDetailsComponents.kt` | `FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaWarehousesViewController.swift`, `FigmaSalesTaxesViewController.swift` | `40001464:28899`, Warehouse `40000944:3571`, Sales Taxes `40001531:11704` | `/user/profile`, `/aircoins/status`, `/products?page=1&per_page=4&order=created_at&direction=desc&in_stock=1`, warehouses | yes | yes | yes | MagentaCastle | Kemar-locked header/footer translucency, bottom-tab app-dark icon roles, activity icons, warehouse card tap/geometry, Warehouse detail Swift-precedence hero/badge, Sales Taxes app-dark step icons, shared HomeDetailsHeader long-title autoscale, activity/highlight geometry, primary route callbacks, Refer-a-friend icon Swift-precedence, auction card/cart tap separation, bottom-tab state, live-data viewDidAppear reload/auction-empty behavior, and Home authenticated data contracts verified; live-account server acceptance can still be broadened if credentials are assigned |
 | Calculator | `feature/calculator/CalculatorScreen.kt`, `CalculatorUi.kt`, `CalculatorViewModel.kt` | `FigmaCalculatorViewController.swift` | Standard `40001464:29102`, SeaDrop `40001464:30381`, Express `40001464:30723` | calculator estimate path preserved through existing repository/ViewModel | yes | yes | yes | MagentaCastle | Standard entry closed by Swift-precedence proof: full-width invoice + actual weight, no stale Figma `Select Unit`/`Total Weight`, solid in-scroll CTA, 32dp/24dp inner-header back rail, Swift field/info-card primitives; SeaDrop/Express branches preserved |
 | Cart / hosted checkout | `feature/cart/CartScreen.kt`, `CartViewModel.kt`, `CartStore.kt`, shared checkout helper | `FigmaCartViewController.swift` | `40008284:26547` | `/payments/create-checkout`, `/exchange-rates`, `/user` billing profile | yes | inherited | yes | MagentaCastle | Cart hosted checkout now has direct Swift-precedence functional proof: USD payload, `is_auction=true`, sorted package IDs, hosted URL open, clear-after-open, missing package-ID block, and Swift unauthenticated alert copy; Figma still contains stale static Cart details, so Swift remains the source |
 | Drop Alert | `feature/dropalert/DropAlertScreen.kt`, `DropAlertViewModel.kt`, `DropAlertRepository.kt`, `data/repo/PackagesRepository.kt` | `FigmaDropAlertViewController.swift`, `AirdropAPI.createDropAlert` | `40001826:22497`, related `40001836:22971` | `/drop-alerts`, `/user/profile`, multipart image upload path preserved through shared repository | yes | yes | yes | MagentaCastle | Consignee profile-failure manual-entry flow closed by Swift-precedence proof; active create-drop-alert path now delegates to shared `PackagesRepository` multipart implementation and has JVM proof for Swift's misspelled fields plus indexed invoice file parts; remaining risk is live authenticated server acceptance only |

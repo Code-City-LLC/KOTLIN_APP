@@ -105,6 +105,13 @@ light AND dark.
   rails; adjacent `HomeActivityTilesScreenshotTest` and
   `HomeChromeOpacityParityTest` still pass. Proof:
   `/tmp/kotlin_ui_proof/home_live_data/figma/figma_home_40001464_28899.png`.
+- **Home authenticated data contract:** Home was rechecked against Figma Home
+  node `40001464:28899`, Swift `FigmaHomeViewController.swift`,
+  `FigmaTabHeader.swift`, and `AirdropAPI.swift`. Existing UI and resume reload
+  behavior were preserved. `HomeDataContractTest` now proves `/user/profile`,
+  `/aircoins/status`, and the Swift auction shortlist query
+  `/products?page=1&per_page=4&order=created_at&direction=desc&in_stock=1`;
+  focused Home instrumentation still passes 18/18.
 - **AirCoins Swift data contract:** AirCoins balance/history was rechecked
   against Figma nodes `40001911:22972` / `40006461:26563` and Swift
   `FigmaAirCoinHistoryViewController.swift`. Visual geometry stayed aligned, but
