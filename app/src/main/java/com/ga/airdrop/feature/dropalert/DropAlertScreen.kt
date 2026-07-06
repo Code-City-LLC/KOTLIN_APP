@@ -327,8 +327,9 @@ private fun DescriptionField(value: String, onValueChange: (String) -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .height(128.dp)
-                .background(colors.gray150, RoundedCornerShape(Radius.xs))
-                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+                // Swift makeDescriptionField :556/557 — gray100 bg, radius 12.
+                .background(colors.gray100, RoundedCornerShape(12.dp))
+                .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
                 .padding(horizontal = Spacing.md, vertical = 12.dp),
         ) {
             BasicTextField(
@@ -368,14 +369,20 @@ private fun UploadSection(count: Int, onUploadClick: () -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(colors.gray100, RoundedCornerShape(Radius.xs))
-                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+                // Swift makeUploadCard :401/410-413 — radius 15 (Radius.s), 16 padding.
+                .background(colors.gray100, RoundedCornerShape(Radius.s))
+                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
                 .clickable(onClick = onUploadClick)
-                .padding(Spacing.md),
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            // Swift cardStack body→dashed custom spacing 12 (:395-396).
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                // Swift cardStack title→body 4 (:395).
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 Text(
                     text = "Upload Invoice",
                     // Swift FigmaDropAlertViewController.swift:367 — subtitle1 (semibold 16).

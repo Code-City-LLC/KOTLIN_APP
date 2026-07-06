@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -98,7 +99,8 @@ fun CalculatorResultsScreen(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            // Swift contentStack — flat 10 (Spacing.sm) between every group.
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 SummaryCard(title = primarySummaryTitle(current), value = primarySummaryValue(current, charges))
@@ -154,7 +156,8 @@ fun CalculatorResultsScreen(
                 Modifier
                     .padding(Spacing.md)
                     .navigationBarsPadding(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                // Swift footer row spacing 12 (:252).
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlineButton(text = "Drop Alert", onClick = onDropAlert, modifier = Modifier.weight(1f))
                 GradientButton(text = "Make Payment", onClick = onMakePayment, modifier = Modifier.weight(1f))
@@ -217,7 +220,8 @@ internal fun SummaryCard(
             .fillMaxWidth()
             .background(colors.gray150, RoundedCornerShape(Radius.s)) // Swift FigmaCalculatorResultsViewController.swift:409/:553 — Radius.s
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+            // Swift makeSummaryCard :431/438 — vertical 10 (top/bottom Spacing.sm).
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         Row(
@@ -270,7 +274,8 @@ internal fun ChargesCard(content: @Composable () -> Unit) {
             .background(colors.gray150, RoundedCornerShape(Radius.s)) // Swift FigmaCalculatorResultsViewController.swift:409/:553 — Radius.s
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        // Swift makeChargesCard :560 — inter-row 5 (Spacing.xs).
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         content()
     }
@@ -305,7 +310,9 @@ internal fun TotalPill(label: String, amount: Double) {
             .fillMaxWidth()
             .background(BrandPalette.OrangeTertiary6, RoundedCornerShape(Radius.s)) // Swift FigmaCalculatorResultsViewController.swift:615 — Radius.s
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+            // Swift makeTotalPill :636/639-640 — min 56 height, vertical 10.
+            .heightIn(min = 56.dp)
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {

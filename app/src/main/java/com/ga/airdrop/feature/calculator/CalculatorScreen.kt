@@ -103,7 +103,8 @@ fun CalculatorScreen(
                 BlueInfoCard(text = state.method.info)
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            // Swift main-stack gap 16 between the Product field and results panel.
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 CalcInputField(
                     label = "Product",
                     value = state.product,
@@ -115,7 +116,8 @@ fun CalculatorScreen(
                             painter = painterResource(R.drawable.ic_search),
                             contentDescription = null,
                             colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                            modifier = Modifier.size(24.dp),
+                            // Swift field trailing icons are 20 (FigmaCalculator:363-366).
+                            modifier = Modifier.size(20.dp),
                         )
                     },
                 )
