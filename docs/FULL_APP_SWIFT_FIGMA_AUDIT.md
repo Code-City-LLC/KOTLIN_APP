@@ -2043,6 +2043,22 @@ Findings verified/fixed:
   `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
   `More2InnerHeaderParityTest`, and `MoreRootTapRailsParityTest` passed 19/19
   on `airdrop_test2(AVD) - 15`.
+- Follow-up on 2026-07-06 fixed the remaining Refer lifecycle reload gap.
+  Swift `FigmaReferAFriendViewController.viewWillAppear` calls
+  `loadReferredFriends()` on every screen return, not only after a successful
+  invite save. Android now observes lifecycle `ON_RESUME` with the same
+  initial-resume guard used by the Shipments parity rail, preserving the first
+  render load while refreshing referrals when the user returns to Refer.
+  Figma MCP screenshots were refreshed again for `40001940:26885` and
+  `40001940:26797`; both remain stale landing-only frames, so Swift remains
+  the runtime source. Verification: `git diff --check`; prod
+  `UserRepositoryReferFriendTest`; focused staging device
+  `ReferAFriendParityTest` passed 6/6; adjacent staging device
+  `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
+  `More2InnerHeaderParityTest`, and `PushDeepLinkParityTest` passed 22/22 on
+  `airdrop_test2(AVD) - 15`. Proof screenshots:
+  `/tmp/kotlin_ui_proof_current/refer_resume_figma/refer_light_40001940_26885.png`,
+  `/tmp/kotlin_ui_proof_current/refer_resume_figma/refer_dark_40001940_26797.png`.
 
 ### Dark Theme Icons
 

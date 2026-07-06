@@ -802,6 +802,24 @@ staging device `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
 `More2InnerHeaderParityTest`, and `MoreRootTapRailsParityTest` passed 19/19 on
 `airdrop_test2(AVD) - 15`.
 
+**Follow-up verification 2026-07-06:** Refer lifecycle refresh was rechecked
+against Swift first and Figma second. Swift
+`FigmaReferAFriendViewController.viewWillAppear` calls
+`loadReferredFriends()` every time the page reappears, while Android only
+covered first composition and the saved-invite callback. Android now observes
+lifecycle `ON_RESUME` with the same initial-resume guard used by the Shipments
+Swift parity rail, preserving the one-call first render and refreshing the
+referrals list when the user returns to Refer. Figma MCP screenshots for
+`40001940:26885` and `40001940:26797` were refreshed again and remain stale
+landing-only frames, so Swift remains the runtime source. Verification:
+`git diff --check`; prod `UserRepositoryReferFriendTest`; focused staging
+device `ReferAFriendParityTest` passed 6/6; adjacent staging device
+`ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`,
+`More2InnerHeaderParityTest`, and `PushDeepLinkParityTest` passed 22/22 on
+`airdrop_test2(AVD) - 15`. Proof:
+`/tmp/kotlin_ui_proof_current/refer_resume_figma/refer_light_40001940_26885.png`,
+`/tmp/kotlin_ui_proof_current/refer_resume_figma/refer_dark_40001940_26797.png`.
+
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
 **✅ CLOSED — Home dark icon follow-up:** Services tile gear layer is no longer

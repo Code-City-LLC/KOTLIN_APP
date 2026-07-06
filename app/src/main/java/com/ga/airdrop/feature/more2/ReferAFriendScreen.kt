@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +50,9 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -81,10 +85,26 @@ fun ReferAFriendScreen(
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var copied by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadReferredFriends()
+    }
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val lifecycle = lifecycleOwner.lifecycle
+        var skipInitialResumeReplay = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (skipInitialResumeReplay) {
+                    skipInitialResumeReplay = false
+                } else {
+                    viewModel.loadReferredFriends()
+                }
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(refreshAfterInvite) {
         if (refreshAfterInvite) {

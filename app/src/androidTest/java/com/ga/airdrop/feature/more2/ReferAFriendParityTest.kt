@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.more2
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +21,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.DpRect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.R
@@ -250,6 +255,65 @@ class ReferAFriendParityTest {
         compose.onNodeWithText("Pending").assertIsDisplayed()
     }
 
+    @Test
+    fun referReloadsReferredFriendsOnResumeLikeSwiftViewWillAppear() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val repository = FakeReferAFriendRepository(friends = emptyList())
+        val lifecycleOwner = TestLifecycleOwner()
+
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            lifecycleOwner.handle(Lifecycle.Event.ON_CREATE)
+        }
+        compose.setContent {
+            val viewModel = remember { ReferAFriendViewModel(repository) }
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                AirdropTheme {
+                    ReferAFriendScreen(
+                        onBack = {},
+                        onInviteFriend = {},
+                        viewModel = viewModel,
+                    )
+                }
+            }
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.profileCalls.get() == 1 && repository.referredFriendsCalls.get() == 1
+        }
+        assertSwiftInitialLoads(repository)
+
+        compose.runOnIdle {
+            repository.friends = listOf(
+                ReferredFriend(
+                    id = 12,
+                    friendFirstName = "Resume",
+                    friendLastName = "Friend",
+                    friendEmail = "resume@example.com",
+                    status = 0,
+                ),
+            )
+        }
+        instrumentation.runOnMainSync {
+            lifecycleOwner.handle(Lifecycle.Event.ON_START)
+            lifecycleOwner.handle(Lifecycle.Event.ON_RESUME)
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.referredFriendsCalls.get() == 2
+        }
+        compose.waitForIdle()
+        assertEquals(
+            "Swift viewWillAppear reloads referred friends without refetching the referral link",
+            1,
+            repository.profileCalls.get(),
+        )
+
+        scrollTo("refer-referral-row-12")
+        compose.onNodeWithText("Resume Friend").assertIsDisplayed()
+        compose.onNodeWithText("resume@example.com").assertIsDisplayed()
+    }
+
     private fun setReferContent(
         repository: FakeReferAFriendRepository,
         mode: ThemeController.Mode,
@@ -350,6 +414,17 @@ class ReferAFriendParityTest {
         override suspend fun currentUser(): Result<AirdropUser> {
             profileCalls.incrementAndGet()
             return Result.success(AirdropUser(accountNumber = accountNumber))
+        }
+    }
+
+    private class TestLifecycleOwner : LifecycleOwner {
+        private val registry = LifecycleRegistry(this)
+
+        override val lifecycle: Lifecycle
+            get() = registry
+
+        fun handle(event: Lifecycle.Event) {
+            registry.handleLifecycleEvent(event)
         }
     }
 }
