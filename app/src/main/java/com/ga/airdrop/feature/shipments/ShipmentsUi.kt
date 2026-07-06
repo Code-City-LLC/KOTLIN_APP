@@ -624,6 +624,7 @@ fun PackageCard(
                 .height(54.dp)
                 .background(colors.gray150, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
                 .border(1.dp, colors.iconShape, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
+                .then(testTag?.let { Modifier.testTag("$it-method-strip") } ?: Modifier)
                 .padding(horizontal = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -632,7 +633,9 @@ fun PackageCard(
                 painter = painterResource(method.iconRes),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(method.tint),
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier
+                    .size(24.dp)
+                    .then(testTag?.let { Modifier.testTag("$it-method-icon") } ?: Modifier),
             )
             Text(text = method.title, style = AirdropType.title2, color = method.tint)
         }
@@ -660,7 +663,9 @@ fun PackageCard(
                 valueMaxLines = 1,
             )
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(testTag?.let { Modifier.testTag("$it-status-row") } ?: Modifier),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Column(Modifier.weight(1f)) {
@@ -671,6 +676,7 @@ fun PackageCard(
                         color = AlertPalette.Completed,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = testTag?.let { Modifier.testTag("$it-status-value") } ?: Modifier,
                     )
                 }
                 Box(

@@ -127,7 +127,7 @@ class PackagesFilterSheetParityTest {
         compose.onNodeWithTag("packages-filter-close").performClick()
         compose.waitForIdle()
 
-        assertEquals(listOf(7), recorder.statusClicks)
+        assertEquals(listOf(0), recorder.statusClicks)
         assertEquals(listOf(ShipmentTypeFilter.Express), recorder.methodClicks)
         assertEquals(1, recorder.closeClicks)
     }

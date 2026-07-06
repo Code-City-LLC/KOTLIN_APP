@@ -32,10 +32,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
-import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
@@ -273,13 +273,33 @@ internal fun PaymentPackageDetailsFooter(
                 .height(1.dp)
                 .background(colors.gray300)
         )
-        OutlineButton(
-            text = "View History",
+        PaymentPackageHistoryButton(
             onClick = onViewHistory,
             modifier = Modifier
                 .padding(start = Spacing.md, end = Spacing.md, top = Spacing.md)
                 .testTag("payment-package-view-history-button"),
         )
+    }
+}
+
+@Composable
+private fun PaymentPackageHistoryButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AirdropTheme.colors
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            // Swift FigmaPaymentPackageDetailsViewController.swift:297-298.
+            .height(50.dp)
+            .clip(RoundedCornerShape(Radius.xs))
+            .background(colors.gray100)
+            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(Radius.xs))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = "View History", style = AirdropType.button, color = BrandPalette.OrangeMain)
     }
 }
 

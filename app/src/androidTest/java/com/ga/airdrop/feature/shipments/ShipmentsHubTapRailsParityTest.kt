@@ -134,6 +134,50 @@ class ShipmentsHubTapRailsParityTest {
     }
 
     @Test
+    fun packagePreviewCardKeepsSwiftFigmaVisibleGeometry() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            CartStore.init(context)
+            CartStore.clear()
+        }
+
+        setShipmentsContent(FakeHubRepository())
+
+        val cardTag = "shipments-package-card-101"
+        compose.onNodeWithTag(cardTag).performScrollTo()
+        compose.onNodeWithTag("$cardTag-method-strip", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("$cardTag-method-icon", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("$cardTag-status-row", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("$cardTag-status-value", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("shipments-package-cart-toggle-101", useUnmergedTree = true).assertExists()
+
+        val card = bounds(cardTag)
+        val methodStrip = bounds("$cardTag-method-strip")
+        val methodIcon = bounds("$cardTag-method-icon")
+        val statusRow = bounds("$cardTag-status-row")
+        val statusValue = bounds("$cardTag-status-value")
+        val cartToggle = bounds("shipments-package-cart-toggle-101")
+
+        assertClose(280f, width(card), "Swift package card width")
+        assertClose(54f, height(methodStrip), "Swift package method strip height")
+        assertClose(24f, width(methodIcon), "Shipping method icon width")
+        assertClose(24f, height(methodIcon), "Shipping method icon height")
+        assertClose(24f, width(cartToggle), "Cart toggle width")
+        assertClose(24f, height(cartToggle), "Cart toggle height")
+
+        assertInside(card, methodStrip, "method strip")
+        assertInside(card, statusRow, "status row")
+        assertInside(card, statusValue, "status value")
+        assertInside(card, cartToggle, "cart toggle")
+        assertTrue(
+            "Status row must remain below method strip",
+            statusRow.top.value > methodStrip.bottom.value,
+        )
+    }
+
+    @Test
     fun hubSummaryKeepsSwiftFigmaGeometryAndIconPaletteLight() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
@@ -245,6 +289,17 @@ class ShipmentsHubTapRailsParityTest {
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
         assertEquals(label, expected, actual, 0.75f)
+    }
+
+    private fun assertInside(
+        parent: androidx.compose.ui.unit.DpRect,
+        child: androidx.compose.ui.unit.DpRect,
+        label: String,
+    ) {
+        assertTrue("$label left clipped", child.left.value >= parent.left.value - 0.75f)
+        assertTrue("$label top clipped", child.top.value >= parent.top.value - 0.75f)
+        assertTrue("$label right clipped", child.right.value <= parent.right.value + 0.75f)
+        assertTrue("$label bottom clipped", child.bottom.value <= parent.bottom.value + 0.75f)
     }
 
     private fun width(bounds: androidx.compose.ui.unit.DpRect): Float =

@@ -4,7 +4,9 @@ import java.util.Collections
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.fail
 import org.junit.Test
 
 /**
@@ -99,25 +101,44 @@ class ShipmentsBackendPaginationParityTest {
         val repo = RecordingOrdersRepository()
         val viewModel = OrdersViewModel(repo)
 
-        waitUntil { repo.calls.isNotEmpty() && !viewModel.state.value.loading }
+        waitUntil("orders initial load", { repo.calls.toString() }) {
+            repo.calls.isNotEmpty() && !viewModel.state.value.loading
+        }
         assertEquals(OrderCall(page = 1, perPage = 10, search = null), repo.calls.first())
 
         viewModel.loadNextPage()
-        waitUntil { repo.calls.any { it.page == 2 && it.perPage == 10 } }
+        waitUntil("orders page 2", { repo.calls.toString() }) {
+            repo.calls.any { it.page == 2 && it.perPage == 10 } &&
+                !viewModel.state.value.loadingMore
+        }
 
         viewModel.refresh()
-        waitUntil { repo.calls.count { it.page == 1 && it.search == null } >= 2 }
+        waitUntil("orders refresh", { repo.calls.toString() }) {
+            repo.calls.count { it.page == 1 && it.search == null } >= 2
+        }
 
         viewModel.onSearchTextChange("xy")
-        waitUntil { repo.calls.size >= 4 && repo.calls.last().search == null }
+        waitUntil("orders short search", { repo.calls.toString() }) {
+            repo.calls.size >= 4 && repo.calls.last().search == null
+        }
 
         viewModel.onSearchTextChange("xyz")
-        waitUntil { repo.calls.last().page == 1 && repo.calls.last().search == "xyz" }
+        waitUntil("orders debounced search", { repo.calls.toString() }) {
+            repo.calls.last().page == 1 && repo.calls.last().search == "xyz"
+        }
     }
 
-    private suspend fun waitUntil(condition: () -> Boolean) {
-        withTimeout(5_000) {
-            while (!condition()) delay(25)
+    private suspend fun waitUntil(
+        label: String = "condition",
+        snapshot: () -> String = { "" },
+        condition: () -> Boolean,
+    ) {
+        try {
+            withTimeout(5_000) {
+                while (!condition()) delay(25)
+            }
+        } catch (e: TimeoutCancellationException) {
+            fail("$label timed out; ${snapshot()}")
         }
     }
 
