@@ -59,6 +59,18 @@ class PackagesRepository(private val service: AirdropApiService) {
     suspend fun deletePackageInvoice(packageId: String, invoiceId: Int): Result<MutationResponse> =
         apiResult { service.deletePackageInvoice(packageId, invoiceId) }
 
+    suspend fun reportPackageDamage(
+        packageId: String,
+        description: String,
+        photos: List<UploadFile>,
+    ): Result<MutationResponse> = apiResult {
+        service.reportPackageDamage(
+            packageId = packageId,
+            fields = mapOf("description" to textPart(description.trim())),
+            photos = photos.take(5).map { it.toPart("photos[]") },
+        )
+    }
+
     suspend fun packageStatuses(refresh: Boolean = false): Result<List<PackageStatus>> = apiResult {
         if (!refresh) {
             cachedStatuses?.let { return@apiResult it }

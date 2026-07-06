@@ -246,6 +246,15 @@ interface AirdropApiService {
         @Path("invoiceId") invoiceId: Int,
     ): MutationResponse
 
+    // Damage reports are Delivered-only server side. Each file part is named "photos[]".
+    @Multipart
+    @POST("packages/{id}/damage-reports")
+    suspend fun reportPackageDamage(
+        @Path("id") packageId: String,
+        @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>,
+        @Part photos: List<MultipartBody.Part>,
+    ): MutationResponse
+
     @GET("package-statuses")
     suspend fun packageStatuses(): Paginated<PackageStatus>
 

@@ -124,6 +124,20 @@ data class InvoiceUploadFile(
     val bytes: ByteArray,
 )
 
+/** File payload for multipart package damage photos. */
+data class DamageReportUploadFile(
+    val fileName: String,
+    val mimeType: String, // image/png, image/jpeg
+    val bytes: ByteArray,
+) {
+    override fun equals(other: Any?): Boolean =
+        other is DamageReportUploadFile && fileName == other.fileName &&
+            mimeType == other.mimeType && bytes.contentEquals(other.bytes)
+
+    override fun hashCode(): Int =
+        31 * (31 * fileName.hashCode() + mimeType.hashCode()) + bytes.contentHashCode()
+}
+
 // ─── Repository interfaces (constructor-injected into the ViewModels) ─────
 
 interface ShipmentsHubRepository {
@@ -158,6 +172,13 @@ interface ShipmentsPackagesRepository {
 
     // RECONCILE: DELETE /packages/{packageId}/invoices/{invoiceId}
     suspend fun deleteInvoice(packageId: String, invoiceId: Int): Result<Unit>
+
+    // RECONCILE: multipart POST /packages/{id}/damage-reports, form field "photos[]" (max 5 images, 10MB each)
+    suspend fun reportDamage(
+        packageId: String,
+        description: String,
+        photos: List<DamageReportUploadFile>,
+    ): Result<Unit> = Result.failure(UnsupportedOperationException("Report damage not implemented"))
 }
 
 interface ShipmentsPaymentsRepository {

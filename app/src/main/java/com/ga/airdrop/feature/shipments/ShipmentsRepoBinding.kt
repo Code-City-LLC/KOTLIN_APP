@@ -201,6 +201,17 @@ private class DataShipmentsPackagesRepository(
 
     override suspend fun deleteInvoice(packageId: String, invoiceId: Int): Result<Unit> =
         repo.deletePackageInvoice(packageId, invoiceId).map { }
+
+    override suspend fun reportDamage(
+        packageId: String,
+        description: String,
+        photos: List<DamageReportUploadFile>,
+    ): Result<Unit> =
+        repo.reportPackageDamage(
+            packageId,
+            description,
+            photos.map { UploadFile(fileName = it.fileName, mimeType = it.mimeType, bytes = it.bytes) },
+        ).map { }
 }
 
 /**

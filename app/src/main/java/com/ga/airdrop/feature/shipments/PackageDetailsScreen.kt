@@ -1,12 +1,16 @@
 package com.ga.airdrop.feature.shipments
 
+import android.content.Context
+import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,9 +27,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,6 +44,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -42,12 +52,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.Canvas
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -55,6 +62,8 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Package details — Figma node 40001753:15716, behavior from
@@ -87,19 +96,28 @@ fun PackageDetailsScreen(
         // own viewModelScope.launch + thread-safe StateFlow.update.
         viewModel.viewModelScope.launch(Dispatchers.IO) {
             val files = uris.mapNotNull { uri ->
-                runCatching {
-                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: return@mapNotNull null
-                    val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                    var name = "invoice"
-                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (index >= 0 && cursor.moveToFirst()) name = cursor.getString(index)
-                    }
-                    InvoiceUploadFile(fileName = name, mimeType = mime, bytes = bytes)
-                }.getOrNull()
+                readPickedPackageFile(context, uri, fallbackName = "invoice")?.let {
+                    InvoiceUploadFile(fileName = it.fileName, mimeType = it.mimeType, bytes = it.bytes)
+                }
             }
             viewModel.uploadInvoices(files)
+        }
+    }
+
+    val damagePhotoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        viewModel.viewModelScope.launch(Dispatchers.IO) {
+            val files = uris.mapNotNull { uri ->
+                readPickedPackageFile(context, uri, fallbackName = "damage-photo")?.let {
+                    DamageReportUploadFile(
+                        fileName = it.fileName,
+                        mimeType = damagePhotoMime(it.fileName, it.mimeType),
+                        bytes = it.bytes,
+                    )
+                }
+            }
+            viewModel.addDamageReportPhotos(files)
         }
     }
 
@@ -175,6 +193,7 @@ fun PackageDetailsScreen(
                             onDeleteInvoice = viewModel::requestDeleteInvoice,
                             onCifInfo = { viewModel.showCifInfo(true) },
                             onAddToCart = viewModel::addToCart,
+                            onReportDamage = { viewModel.showReportDamageSheet(true) },
                         )
                     }
                 }
@@ -229,6 +248,15 @@ fun PackageDetailsScreen(
                 onDismiss = viewModel::dismissAddedToCart,
             )
         }
+        if (state.showDamageReportSubmitted) {
+            ShipmentsAlertDialog(
+                title = "Report received",
+                message = "Thanks — we'll review the damage photos and reach out within 24 hours.",
+                confirmText = "OK",
+                onConfirm = viewModel::dismissDamageReportSubmitted,
+                onDismiss = viewModel::dismissDamageReportSubmitted,
+            )
+        }
         if (state.confirmDeleteInvoiceId != null) {
             ShipmentsAlertDialog(
                 title = "Delete invoice",
@@ -248,6 +276,19 @@ fun PackageDetailsScreen(
                 onDismiss = viewModel::consumeTransientMessage,
             )
         }
+        if (state.showReportDamageSheet) {
+            ReportDamageSheet(
+                description = state.damageReportDescription,
+                photos = state.damageReportPhotos,
+                submitting = state.submittingDamageReport,
+                error = state.damageReportError,
+                onDescriptionChange = viewModel::onDamageReportDescription,
+                onAddPhoto = { damagePhotoPicker.launch(arrayOf("image/png", "image/jpeg")) },
+                onRemovePhoto = viewModel::removeDamageReportPhoto,
+                onSubmit = viewModel::submitDamageReport,
+                onDismiss = { viewModel.showReportDamageSheet(false) },
+            )
+        }
     }
 }
 
@@ -260,6 +301,7 @@ private fun PackageDetailsContent(
     onDeleteInvoice: (Int) -> Unit,
     onCifInfo: () -> Unit,
     onAddToCart: () -> Unit,
+    onReportDamage: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -447,7 +489,209 @@ private fun PackageDetailsContent(
             GradientButton(text = "Add to Cart", onClick = onAddToCart)
         }
 
+        if (state.showReportDamageCta) {
+            ReportDamageButton(onClick = onReportDamage)
+        }
+
         Spacer(Modifier.height(Spacing.md))
+    }
+}
+
+private data class PickedPackageFile(
+    val fileName: String,
+    val mimeType: String,
+    val bytes: ByteArray,
+)
+
+private fun readPickedPackageFile(context: Context, uri: Uri, fallbackName: String): PickedPackageFile? =
+    runCatching {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: return@runCatching null
+        val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+        var name = fallbackName
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (index >= 0 && cursor.moveToFirst()) name = cursor.getString(index)
+        }
+        PickedPackageFile(fileName = name, mimeType = mime, bytes = bytes)
+    }.getOrNull()
+
+private fun damagePhotoMime(fileName: String, mimeType: String): String {
+    val lowerMime = mimeType.lowercase()
+    val lowerName = fileName.lowercase()
+    return when {
+        lowerMime == "image/png" || lowerName.endsWith(".png") -> "image/png"
+        lowerMime == "image/jpeg" || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") -> "image/jpeg"
+        else -> lowerMime
+    }
+}
+
+@Composable
+private fun ReportDamageButton(onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .testTag("package-details-report-damage")
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.gray100)
+            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = "Report damage", style = AirdropType.button, color = BrandPalette.OrangeMain)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReportDamageSheet(
+    description: String,
+    photos: List<DamageReportUploadFile>,
+    submitting: Boolean,
+    error: String?,
+    onDescriptionChange: (String) -> Unit,
+    onAddPhoto: () -> Unit,
+    onRemovePhoto: (Int) -> Unit,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = colors.gray100,
+        shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
+        modifier = Modifier.testTag("package-details-report-damage-sheet"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(horizontal = Spacing.md)
+                .padding(top = Spacing.sm, bottom = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Text(text = "Report damage", style = AirdropType.h6, color = colors.textDarkTitle)
+            Text(
+                text = "Add photos of the damage. We'll review and reach out to you within 24 hours.",
+                style = AirdropType.body2,
+                color = colors.textDescription,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                photos.forEachIndexed { index, photo ->
+                    DamagePhotoTile(photo = photo, index = index, onRemove = { onRemovePhoto(index) })
+                }
+                AddDamagePhotoTile(enabled = !submitting && photos.size < 5, onClick = onAddPhoto)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(text = "Description", style = AirdropType.subtitle2, color = colors.textDarkTitle)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(128.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colors.gray150)
+                        .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
+                        .padding(horizontal = Spacing.md, vertical = 12.dp),
+                ) {
+                    BasicTextField(
+                        value = description,
+                        onValueChange = onDescriptionChange,
+                        textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
+                        cursorBrush = SolidColor(BrandPalette.OrangeMain),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("package-details-report-damage-description"),
+                        decorationBox = { innerTextField ->
+                            Box(Modifier.fillMaxSize()) {
+                                if (description.isBlank()) {
+                                    Text(
+                                        text = "Describe the damage (optional)",
+                                        style = AirdropType.body2,
+                                        color = colors.textPlaceholder,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
+                    )
+                }
+            }
+            error?.let {
+                Text(
+                    text = it,
+                    style = AirdropType.body3,
+                    color = androidx.compose.ui.graphics.Color(0xFFDC2626),
+                    modifier = Modifier.testTag("package-details-report-damage-error"),
+                )
+            }
+            GradientButton(
+                text = "Submit",
+                onClick = onSubmit,
+                enabled = !submitting,
+                loading = submitting,
+                modifier = Modifier.testTag("package-details-report-damage-submit"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddDamagePhotoTile(enabled: Boolean, onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Box(
+        modifier = Modifier
+            .size(width = 92.dp, height = 84.dp)
+            .testTag("package-details-report-damage-add-photo")
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.gray150)
+            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "+", style = AirdropType.h6, color = BrandPalette.OrangeMain)
+            Text(text = "Add", style = AirdropType.body3, color = BrandPalette.OrangeMain)
+        }
+    }
+}
+
+@Composable
+private fun DamagePhotoTile(photo: DamageReportUploadFile, index: Int, onRemove: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = Modifier
+            .size(width = 116.dp, height = 84.dp)
+            .testTag("package-details-report-damage-photo-$index")
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.gray150)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = photo.fileName,
+            style = AirdropType.body3,
+            color = colors.textDarkTitle,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+        Text(
+            text = "Remove",
+            style = AirdropType.body3,
+            color = BrandPalette.OrangeMain,
+            modifier = Modifier
+                .testTag("package-details-report-damage-remove-$index")
+                .clickable(onClick = onRemove),
+        )
     }
 }
 

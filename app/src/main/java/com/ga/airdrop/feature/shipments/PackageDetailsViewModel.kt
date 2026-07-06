@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.shipments
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -17,6 +18,12 @@ data class PackageDetailsUiState(
     val showCifInfo: Boolean = false,
     val showAddedToCart: Boolean = false,
     val confirmDeleteInvoiceId: Int? = null,
+    val showReportDamageSheet: Boolean = false,
+    val damageReportDescription: String = "",
+    val damageReportPhotos: List<DamageReportUploadFile> = emptyList(),
+    val submittingDamageReport: Boolean = false,
+    val damageReportError: String? = null,
+    val showDamageReportSubmitted: Boolean = false,
 ) {
     val statusInt: Int get() = detail?.status?.toIntOrNull() ?: 0
 
@@ -29,6 +36,13 @@ data class PackageDetailsUiState(
      * `totalContainer`, so it shares this gate.
      */
     val showChargesAndCart: Boolean get() = statusInt == 7 || statusInt == 18
+
+    /**
+     * Swift FigmaPackageDetailsViewController.updateReportDamageCTA:
+     * visible only for Delivered packages (status 8), with production release
+     * gated off until the backend rollout is promoted.
+     */
+    val showReportDamageCta: Boolean get() = statusInt == 8 && reportDamageFeatureEnabled()
 
     /**
      * Invoice trash gating — parity with Swift FigmaPackageDetailsViewController
@@ -71,6 +85,9 @@ internal fun statusLocksInvoiceDeletion(value: String): Boolean {
     normalized.toDoubleOrNull()?.let { return it >= 7.0 }
     return false
 }
+
+internal fun reportDamageFeatureEnabled(): Boolean =
+    BuildConfig.DEBUG || !BuildConfig.ENV_NAME.equals("Production", ignoreCase = true)
 
 /**
  * Package details — FigmaPackageDetailsViewController: GET /packages/{id},
@@ -166,6 +183,85 @@ class PackageDetailsViewModel(
 
     fun showCifInfo(show: Boolean) = _state.update { it.copy(showCifInfo = show) }
 
+    fun showReportDamageSheet(show: Boolean) =
+        _state.update { it.copy(showReportDamageSheet = show, damageReportError = null) }
+
+    fun onDamageReportDescription(value: String) =
+        _state.update {
+            it.copy(
+                damageReportDescription = value.take(MAX_DAMAGE_DESCRIPTION_LENGTH),
+                damageReportError = null,
+            )
+        }
+
+    fun addDamageReportPhotos(files: List<DamageReportUploadFile>) {
+        if (files.isEmpty()) return
+        val unsupported = files.firstOrNull { it.mimeType.lowercase() !in DAMAGE_PHOTO_MIME_TYPES }
+        if (unsupported != null) {
+            _state.update { it.copy(damageReportError = "Photos must be PNG or JPG/JPEG images.") }
+            return
+        }
+        val oversize = files.firstOrNull { it.bytes.size > MAX_DAMAGE_PHOTO_BYTES }
+        if (oversize != null) {
+            _state.update { it.copy(damageReportError = "Each photo cannot exceed 10 MB.") }
+            return
+        }
+        _state.update { state ->
+            val available = (MAX_DAMAGE_PHOTOS - state.damageReportPhotos.size).coerceAtLeast(0)
+            if (available == 0) {
+                state.copy(damageReportError = "You can attach at most 5 photos.")
+            } else {
+                val selected = files.take(available)
+                state.copy(
+                    damageReportPhotos = state.damageReportPhotos + selected,
+                    damageReportError = if (files.size > available) "You can attach at most 5 photos." else null,
+                )
+            }
+        }
+    }
+
+    fun removeDamageReportPhoto(index: Int) {
+        _state.update { state ->
+            state.copy(
+                damageReportPhotos = state.damageReportPhotos.filterIndexed { i, _ -> i != index },
+                damageReportError = null,
+            )
+        }
+    }
+
+    fun submitDamageReport() {
+        val state = _state.value
+        if (state.submittingDamageReport) return
+        viewModelScope.launch {
+            val description = state.damageReportDescription.trim()
+            _state.update { it.copy(submittingDamageReport = true, damageReportError = null) }
+            repo.reportDamage(packageId, description, state.damageReportPhotos)
+                .onSuccess {
+                    _state.update {
+                        it.copy(
+                            showReportDamageSheet = false,
+                            damageReportDescription = "",
+                            damageReportPhotos = emptyList(),
+                            submittingDamageReport = false,
+                            damageReportError = null,
+                            showDamageReportSubmitted = true,
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            submittingDamageReport = false,
+                            damageReportError = e.message ?: "Failed to submit damage report.",
+                        )
+                    }
+                }
+        }
+    }
+
+    fun dismissDamageReportSubmitted() =
+        _state.update { it.copy(showDamageReportSubmitted = false) }
+
     fun addToCart() {
         val detail = _state.value.detail ?: return
         // Swift FigmaPackageDetailsViewController:1186-1224 — add the real
@@ -177,4 +273,11 @@ class PackageDetailsViewModel(
     fun dismissAddedToCart() = _state.update { it.copy(showAddedToCart = false) }
 
     fun consumeTransientMessage() = _state.update { it.copy(transientMessage = null) }
+
+    private companion object {
+        const val MAX_DAMAGE_DESCRIPTION_LENGTH = 5_000
+        const val MAX_DAMAGE_PHOTOS = 5
+        const val MAX_DAMAGE_PHOTO_BYTES = 10 * 1024 * 1024
+        val DAMAGE_PHOTO_MIME_TYPES = setOf("image/png", "image/jpeg")
+    }
 }

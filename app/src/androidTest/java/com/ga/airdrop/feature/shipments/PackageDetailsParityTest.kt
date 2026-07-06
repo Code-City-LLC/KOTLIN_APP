@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -157,6 +158,61 @@ class PackageDetailsParityTest {
             tag = "package-details-timeline-icon-7",
             target = 0xFF39A634.toInt(),
             label = "Ready for Pickup timeline icon should be Swift completed green",
+        )
+    }
+
+    @Test
+    fun reportDamageCtaAppearsOnlyForDeliveredAndSubmitsSwiftPayload() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(
+                status = "8",
+                statusName = "Delivered",
+                history = listOf(
+                    PackageHistoryItem(
+                        status = 8,
+                        statusName = "Delivered",
+                        comment = "Delivered to customer",
+                        changedDate = "2024-01-20T16:30:00Z",
+                    )
+                ),
+            ),
+        )
+
+        assertEquals(0, compose.onAllNodesWithText("Add to Cart").fetchSemanticsNodes().size)
+        compose.onNodeWithTag("package-details-report-damage")
+            .performScrollTo()
+            .assertIsDisplayed()
+            .performClick()
+        compose.onNodeWithTag("package-details-report-damage-sheet").assertIsDisplayed()
+        compose.onNodeWithText("Add photos of the damage. We'll review and reach out to you within 24 hours.")
+            .assertIsDisplayed()
+        compose.onNodeWithTag("package-details-report-damage-description")
+            .performTextInput("  Cracked corner  ")
+        compose.onNodeWithTag("package-details-report-damage-submit")
+            .performClick()
+
+        compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.damageReports.size == 1 }
+        assertEquals(
+            DamageReportCall(packageId = "7", description = "Cracked corner", photoCount = 0),
+            packagesRepo.damageReports.single(),
+        )
+        compose.onNodeWithText("Report received").assertIsDisplayed()
+        compose.onNodeWithText("Thanks — we'll review the damage photos and reach out within 24 hours.")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun reportDamageCtaHiddenBeforeDelivered() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "7", statusName = "Ready for Pickup"),
+        )
+
+        assertEquals(
+            "Swift only shows Report damage for Delivered status 8 packages",
+            0,
+            compose.onAllNodesWithTag("package-details-report-damage").fetchSemanticsNodes().size,
         )
     }
 
@@ -310,6 +366,7 @@ class PackageDetailsParityTest {
         private var detail: ShipmentPackageDetail,
     ) : ShipmentsPackagesRepository {
         val deletedInvoiceIds = mutableListOf<Int>()
+        val damageReports = mutableListOf<DamageReportCall>()
 
         override suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?) =
             Result.success(emptyList<ShipmentPackage>())
@@ -326,7 +383,22 @@ class PackageDetailsParityTest {
             detail = detail.copy(invoices = detail.invoices.filterNot { it.id == invoiceId })
             return Result.success(Unit)
         }
+
+        override suspend fun reportDamage(
+            packageId: String,
+            description: String,
+            photos: List<DamageReportUploadFile>,
+        ): Result<Unit> {
+            damageReports += DamageReportCall(packageId, description, photos.size)
+            return Result.success(Unit)
+        }
     }
+
+    private data class DamageReportCall(
+        val packageId: String,
+        val description: String,
+        val photoCount: Int,
+    )
 
     private class FakeHubRepository : ShipmentsHubRepository {
         override suspend fun exchangeRate() = Result.success(161.0)
