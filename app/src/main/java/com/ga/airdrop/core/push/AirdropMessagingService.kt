@@ -16,6 +16,7 @@ import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
@@ -73,6 +74,13 @@ class AirdropMessagingService : FirebaseMessagingService() {
             .setContentIntent(pending)
             .build()
         manager.notify(System.identityHashCode(message), notification)
+    }
+
+    override fun onDestroy() {
+        // Cancel the IO scope so in-flight token-registration coroutines don't
+        // outlive the service — the scope used to leak (BUG_AUDIT C3).
+        scope.cancel()
+        super.onDestroy()
     }
 
     companion object {
