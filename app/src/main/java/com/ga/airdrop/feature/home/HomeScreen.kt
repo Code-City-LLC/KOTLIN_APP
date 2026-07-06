@@ -234,16 +234,12 @@ private val warehouseCards = listOf(
     ),
 )
 
-// Current Swift uses a clear card with glassOverlay62; this overrides the
-// older gray150 Figma component fill.
-internal fun homeWarehouseCardFillColor(colors: AirdropColorScheme): Color = colors.glassOverlay62
+// Current Swift FigmaHomeViewController.makeWarehouseCard uses gray150 with
+// iconShape border. The older glassOverlay62 pass made these cards too
+// transparent over the hero image.
+internal fun homeWarehouseCardFillColor(colors: AirdropColorScheme): Color = colors.gray150
 
-internal fun homeWarehouseCardBorderColor(colors: AirdropColorScheme): Color =
-    if (colors.isDark) {
-        Color.White.copy(alpha = 0.13f)
-    } else {
-        Color.Black.copy(alpha = 0.18f)
-    }
+internal fun homeWarehouseCardBorderColor(colors: AirdropColorScheme): Color = colors.iconShape
 
 @Composable
 private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Modifier) {

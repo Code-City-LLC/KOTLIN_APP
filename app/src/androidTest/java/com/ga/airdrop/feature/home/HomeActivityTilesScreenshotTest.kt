@@ -116,13 +116,13 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun warehouseCardsUseCurrentSwiftGlassColors() {
+    fun warehouseCardsUseCurrentSwiftSurfaceColors() {
         assertEquals(
-            SWIFT_LIGHT_GLASS_OVERLAY_62,
+            SWIFT_LIGHT_WAREHOUSE_FILL,
             homeWarehouseCardFillColor(lightAirdropColors).toArgb(),
         )
         assertEquals(
-            SWIFT_DARK_GLASS_OVERLAY_62,
+            SWIFT_DARK_WAREHOUSE_FILL,
             homeWarehouseCardFillColor(darkAirdropColors).toArgb(),
         )
         assertEquals(
@@ -527,10 +527,10 @@ class HomeActivityTilesScreenshotTest {
     private companion object {
         private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
-        private const val SWIFT_LIGHT_GLASS_OVERLAY_62 = 0x9EFFFFFF.toInt()
-        private const val SWIFT_DARK_GLASS_OVERLAY_62 = 0x9E292929.toInt()
-        private const val SWIFT_LIGHT_WAREHOUSE_BORDER = 0x2E000000.toInt()
-        private const val SWIFT_DARK_WAREHOUSE_BORDER = 0x21FFFFFF.toInt()
+        private const val SWIFT_LIGHT_WAREHOUSE_FILL = 0xFFFBFBFB.toInt()
+        private const val SWIFT_DARK_WAREHOUSE_FILL = 0xFF2E2E2E.toInt()
+        private const val SWIFT_LIGHT_WAREHOUSE_BORDER = 0xFFE5E5E5.toInt()
+        private const val SWIFT_DARK_WAREHOUSE_BORDER = 0xFF595959.toInt()
         private const val APP_ROOT_SPLASH_ADVANCE_MS = 1_700L
         private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
         private const val COLOR_TOLERANCE = 8
