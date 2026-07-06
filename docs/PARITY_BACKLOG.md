@@ -1307,7 +1307,13 @@ passed 7/7 on `airdrop_test2(AVD) - 15`.
 
 **Detail:** Kotlin InvoiceFileRow renders ic_eye then ic_trash (PackageDetailsScreen.kt:508-523). Swift stacks [icon, text, spacer, trashBtn, viewBtn] (FigmaPackageDetailsViewController.swift:687), i.e. trash first, eye at the far trailing edge.
 
-**Fix:** Verified closed. Android now renders the invoice row at Swift's 56dp height with the trailing actions ordered trash then eye, and keeps the existing view/delete callback rails. `PackageDetailsParityTest.invoiceAndCartButtonsKeepSwiftRuntimeRails` verifies invoice-view navigation, delete confirmation/repository call, and Add-to-Cart insertion.
+**Fix:** Verified closed. Android now renders the invoice row at Swift's 56dp height. Follow-up 2026-07-06 applies the new Swift/product rule from Swift commit `ccb55a1`: upload remains reachable at Ready for Pickup/status 7+, but existing invoice delete/trash actions are locked. Android hides `package-details-invoice-delete-*` and guards stale ViewModel delete requests when `packageInvoicesCanDelete(status,statusName)` is false, while status-6/pre-ready packages still show and execute invoice delete. `PackageDetailsParityTest.invoiceAndCartButtonsKeepSwiftRuntimeRails` verifies status-7 upload/view/Add-to-Cart with no delete affordance, and `invoiceDeleteStillWorksBeforeReadyForPickup` verifies the pre-ready delete path still works. Figma MCP screenshots for nodes `40001753:22636` and `40001753:23538` were refreshed and conflict in the static invoice controls, so Swift/product takes precedence. Verification: `git diff --check`; focused Gradle device `PackageDetailsParityTest` passed 4/4; adjacent Gradle device `PackageDetailsParityTest`, `InvoiceViewerParityTest`, and `ShipmentsHubTapRailsParityTest` passed 20/20; manual `adb shell am instrument ... PackageDetailsParityTest` passed 4/4 on `airdrop_test2(AVD) - 15`. Proof PNGs:
+`/tmp/kotlin_ui_proof_current/package_details_invoice_lock_figma/package_details_ready_40001753_22636.png`,
+`/tmp/kotlin_ui_proof_current/package_details_invoice_lock_figma/package_details_readonly_40001753_23538.png`,
+`/tmp/kotlin_ui_proof_current/package_details_invoice_lock_android/package_details/package_details_swift_top_light.png`,
+`/tmp/kotlin_ui_proof_current/package_details_invoice_lock_android/package_details/package_details_swift_charges_light.png`,
+`/tmp/kotlin_ui_proof_current/package_details_invoice_lock_android/package_details/package_details_swift_top_dark.png`,
+`/tmp/kotlin_ui_proof_current/package_details_invoice_lock_android/package_details/package_details_swift_charges_dark.png`.
 
 ---
 

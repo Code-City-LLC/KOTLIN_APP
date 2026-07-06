@@ -353,6 +353,7 @@ private fun PackageDetailsContent(
             detail.invoices.forEach { doc ->
                 InvoiceFileRow(
                     doc = doc,
+                    canDelete = state.canDeleteInvoices,
                     onView = { onViewInvoice(doc) },
                     onDelete = { onDeleteInvoice(doc.id) },
                 )
@@ -508,6 +509,7 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
 @Composable
 private fun InvoiceFileRow(
     doc: PackageInvoiceDoc,
+    canDelete: Boolean,
     onView: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -540,15 +542,17 @@ private fun InvoiceFileRow(
             )
             Text(text = "PDF File", style = AirdropType.body3, color = colors.textPlaceholder)
         }
-        Image(
-            painter = painterResource(R.drawable.ic_trash),
-            contentDescription = "Delete invoice",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
-            modifier = Modifier
-                .testTag("package-details-invoice-delete-${doc.id}")
-                .size(24.dp)
-                .clickable(onClick = onDelete),
-        )
+        if (canDelete) {
+            Image(
+                painter = painterResource(R.drawable.ic_trash),
+                contentDescription = "Delete invoice",
+                colorFilter = ColorFilter.tint(colors.iconSelected),
+                modifier = Modifier
+                    .testTag("package-details-invoice-delete-${doc.id}")
+                    .size(24.dp)
+                    .clickable(onClick = onDelete),
+            )
+        }
         Image(
             painter = painterResource(R.drawable.ic_eye),
             contentDescription = "View invoice",

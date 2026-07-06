@@ -23,6 +23,10 @@ data class PackageDetailsUiState(
     /** Charges + Add to Cart unlock at "Ready for Pickup" (status >= 7). */
     val readyForPickup: Boolean get() = statusInt >= 7
 
+    /** Swift ccb55a1: uploads stay available, invoice deletes lock at status 7+. */
+    val canDeleteInvoices: Boolean
+        get() = detail?.let { packageInvoicesCanDelete(it.status, it.statusName) } ?: true
+
     val chargesTotal: Double?
         get() = detail?.additionalChargesTotal
             ?: detail?.additionalCharges?.values?.sum()?.takeIf { detail.additionalCharges.isNotEmpty() }
@@ -92,13 +96,20 @@ class PackageDetailsViewModel(
         }
     }
 
-    fun requestDeleteInvoice(invoiceId: Int) =
+    fun requestDeleteInvoice(invoiceId: Int) {
+        if (!_state.value.canDeleteInvoices) return
         _state.update { it.copy(confirmDeleteInvoiceId = invoiceId) }
+    }
 
     fun dismissDeleteInvoice() = _state.update { it.copy(confirmDeleteInvoiceId = null) }
 
     fun confirmDeleteInvoice() {
-        val invoiceId = _state.value.confirmDeleteInvoiceId ?: return
+        val snapshot = _state.value
+        val invoiceId = snapshot.confirmDeleteInvoiceId ?: return
+        if (!snapshot.canDeleteInvoices) {
+            _state.update { it.copy(confirmDeleteInvoiceId = null) }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(confirmDeleteInvoiceId = null) }
             repo.deleteInvoice(packageId, invoiceId)
@@ -120,4 +131,28 @@ class PackageDetailsViewModel(
     fun dismissAddedToCart() = _state.update { it.copy(showAddedToCart = false) }
 
     fun consumeTransientMessage() = _state.update { it.copy(transientMessage = null) }
+}
+
+internal fun packageInvoicesCanDelete(status: String?, statusName: String?): Boolean {
+    val statusInt = status
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() && it.lowercase() != "nil" && it != "-" }
+        ?.toIntOrNull()
+    if (statusInt != null && statusInt >= 7) return false
+
+    val normalized = statusName
+        ?.trim()
+        ?.lowercase()
+        ?.takeIf { it.isNotEmpty() && it != "nil" && it != "-" }
+        .orEmpty()
+    if (
+        normalized.contains("ready") ||
+        normalized.contains("pickup") ||
+        normalized.contains("pick up") ||
+        normalized.contains("delivered") ||
+        normalized.contains("complete")
+    ) {
+        return false
+    }
+    return true
 }

@@ -1237,9 +1237,9 @@ assets; only repair the parts that are visibly or functionally wrong.
   Swift wins for the shipped detail screen. Android now uses Swift's Standard
   hero title `AirDrop`, method-tinted hero glyph, gray200 page / gray100 rounded
   sheet hierarchy, plain inline section cards, bullet timeline rows, upload
-  zone icon/dash sizing, 56dp invoice file rows ordered trash-then-eye, 48dp
-  CIF row, single exchange-rate row, zero-charge `USD 0.00 / JMD 0.00` total,
-  and the existing invoice view/delete/Add-to-Cart runtime rails.
+  zone icon/dash sizing, 56dp invoice file rows, 48dp CIF row, single
+  exchange-rate row, zero-charge `USD 0.00 / JMD 0.00` total, and the existing
+  invoice view/Add-to-Cart runtime rails.
   Checks run:
   `git diff --check`,
   `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`,
@@ -1252,6 +1252,30 @@ assets; only repair the parts that are visibly or functionally wrong.
   `/tmp/kotlin_ui_proof/package_details_swift/package_details/package_details_swift_top_dark.png`,
   `/tmp/kotlin_ui_proof/package_details_swift/package_details/package_details_swift_charges_light.png`,
   `/tmp/kotlin_ui_proof/package_details_swift/package_details/package_details_swift_charges_dark.png`.
+- Follow-up on 2026-07-06 applied the clarified Package Details invoice-action
+  rule from Swift commit `ccb55a1`. Swift
+  `FigmaPackageDetailsViewController.canDeleteInvoices(for:)` hides invoice
+  trash buttons and guards delete once the package is Ready for Pickup/status
+  `7+`, but upload remains available. Android now uses the same status/name
+  predicate: status-7 invoice rows keep the upload zone and eye/view action,
+  hide `package-details-invoice-delete-*`, and `PackageDetailsViewModel` ignores
+  stale delete requests if invoices are locked; status-6/pre-ready invoice
+  delete still works. Figma MCP screenshots were refreshed for Package Details
+  nodes `40001753:22636` and `40001753:23538`; they conflict with each other
+  and with current Swift in places, so Swift/product takes precedence.
+  Verification: `git diff --check`; focused Gradle device
+  `PackageDetailsParityTest` passed 4/4; adjacent Gradle device
+  `PackageDetailsParityTest`, `InvoiceViewerParityTest`, and
+  `ShipmentsHubTapRailsParityTest` passed 20/20; manual `adb shell am
+  instrument -w -r -e class
+  com.ga.airdrop.feature.shipments.PackageDetailsParityTest ...` passed 4/4 on
+  `airdrop_test2(AVD) - 15`. Proof PNGs:
+  `/tmp/kotlin_ui_proof_current/package_details_invoice_lock_figma/package_details_ready_40001753_22636.png`,
+  `/tmp/kotlin_ui_proof_current/package_details_invoice_lock_figma/package_details_readonly_40001753_23538.png`,
+  `/tmp/kotlin_ui_proof_current/package_details_invoice_lock_android/package_details/package_details_swift_top_light.png`,
+  `/tmp/kotlin_ui_proof_current/package_details_invoice_lock_android/package_details/package_details_swift_charges_light.png`,
+  `/tmp/kotlin_ui_proof_current/package_details_invoice_lock_android/package_details/package_details_swift_top_dark.png`,
+  `/tmp/kotlin_ui_proof_current/package_details_invoice_lock_android/package_details/package_details_swift_charges_dark.png`.
 - Payments/Orders now have Swift-precedence proof against Figma Payments node
   `40001753:18909`, Figma Orders node `40001753:19595`,
   `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaPaymentsViewController.swift`,
