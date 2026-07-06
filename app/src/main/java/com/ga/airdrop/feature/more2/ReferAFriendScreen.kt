@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
@@ -204,6 +207,7 @@ private data class HeroCard(
     val tint: Color,
     val textColor: Color,
     val tag: String,
+    val circleWhite: Boolean,
 )
 
 @Composable
@@ -217,6 +221,7 @@ private fun HeroCarousel() {
             tint = AlertPalette.Middle.OnHold,
             textColor = AlertPalette.OnHold,
             tag = "invite",
+            circleWhite = false,
         ),
         HeroCard(
             imageRes = R.drawable.img_more2_refer_cash,
@@ -225,6 +230,7 @@ private fun HeroCarousel() {
             tint = AlertPalette.Middle.Completed,
             textColor = AlertPalette.Completed,
             tag = "reward",
+            circleWhite = true,
         ),
         HeroCard(
             imageRes = R.drawable.img_more2_refer_cap,
@@ -233,16 +239,18 @@ private fun HeroCarousel() {
             tint = AlertPalette.Middle.Pending,
             textColor = AlertPalette.Pending,
             tag = "earn",
+            circleWhite = false,
         ),
     )
-    // Swift FigmaReferAFriendViewController.swift:207-300 — 238x220 cards
-    // filled with tint@0.18 + 1dp tint border (radius 15), bare 90dp
-    // illustration 18dp from the top, Title2 tinted title 10dp below,
-    // Body3 textDarkTitle body 6dp below.
+    // Figma nodes 40001940:26888/26889/26890 — 238-wide WHITE (gray100) cards,
+    // 1dp tint border (radius 15). Illustration sits inside a 122dp drop-shadowed
+    // circular badge (gray300, or white for the Cash card), Title2 tinted title,
+    // Body3 description-grey body. Card *pixels* per Kemar "Figma is the pixel
+    // source"; page structure (AirCoins block + referrals list) stays per Swift.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp)
+            .height(290.dp)
             .testTag("refer-hero-carousel")
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -251,21 +259,30 @@ private fun HeroCarousel() {
             Column(
                 modifier = Modifier
                     .width(238.dp)
-                    .fillMaxSize()
+                    .fillMaxHeight()
                     .testTag("refer-hero-card-${card.tag}")
                     .clip(RoundedCornerShape(Radius.s))
-                    .background(card.tint.copy(alpha = 0.18f))
+                    .background(colors.gray100)
                     .border(1.dp, card.tint, RoundedCornerShape(Radius.s))
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
-                Spacer(Modifier.height(18.dp))
-                Image(
-                    painter = painterResource(card.imageRes),
-                    contentDescription = null,
-                    modifier = Modifier.size(90.dp),
-                )
-                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .size(122.dp)
+                        .shadow(6.dp, CircleShape)
+                        .clip(CircleShape)
+                        .background(if (card.circleWhite) colors.gray100 else colors.gray300),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(card.imageRes),
+                        contentDescription = null,
+                        modifier = Modifier.size(80.dp),
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
                 Text(
                     text = card.title,
                     style = AirdropType.title2,
@@ -273,11 +290,11 @@ private fun HeroCarousel() {
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(5.dp))
                 Text(
                     text = card.body,
                     style = AirdropType.body3,
-                    color = colors.textDarkTitle,
+                    color = colors.textDescription,
                     textAlign = TextAlign.Center,
                 )
             }
