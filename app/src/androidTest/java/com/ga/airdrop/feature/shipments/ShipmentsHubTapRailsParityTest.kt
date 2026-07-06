@@ -272,6 +272,21 @@ class ShipmentsHubTapRailsParityTest {
         assertEquals(0, compose.onAllNodesWithText("No packages found").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithText("No payments found").fetchSemanticsNodes().size)
 
+        val routeCountBeforePlaceholderBodyTaps = navigatedRoutes.size
+        compose.onNodeWithTag("shipments-package-card--1", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
+        compose.onNodeWithTag("shipments-payment-card--1", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
+        compose.runOnIdle {
+            assertEquals(
+                "Swift placeholder body cards should not navigate to fake -1 detail routes",
+                routeCountBeforePlaceholderBodyTaps,
+                navigatedRoutes.size,
+            )
+        }
+
         compose.onNodeWithTag("shipments-package-cart-toggle--1", useUnmergedTree = true)
             .performScrollTo()
             .performClick()

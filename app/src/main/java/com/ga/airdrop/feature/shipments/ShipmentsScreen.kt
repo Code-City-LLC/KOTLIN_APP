@@ -110,7 +110,11 @@ fun ShipmentsScreen(
                             PackageCard(
                                 pkg = pkg,
                                 exchangeRate = state.exchangeRate,
-                                onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
+                                onClick = {
+                                    if (!isPlaceholder) {
+                                        onNavigate(Routes.packageDetails(pkg.id.toString()))
+                                    }
+                                },
                                 onToggleCart = {
                                     if (isPlaceholder) onNavigate(Routes.CART) else viewModel.toggleCart(pkg)
                                 },
@@ -138,9 +142,14 @@ fun ShipmentsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         val payments = state.payments.ifEmpty { swiftHubPaymentPlaceholders() }
                         payments.forEach { payment ->
+                            val isPlaceholder = payment.id < 0
                             PaymentCard(
                                 payment = payment,
-                                onClick = { openPayment(payment) },
+                                onClick = {
+                                    if (!isPlaceholder) {
+                                        openPayment(payment)
+                                    }
+                                },
                                 testTag = "shipments-payment-card-${payment.id}",
                                 modifier = Modifier.fillMaxWidth(),
                             )
