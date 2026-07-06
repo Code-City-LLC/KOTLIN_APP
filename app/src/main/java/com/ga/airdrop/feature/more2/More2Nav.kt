@@ -77,6 +77,9 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
             onSaved = {
                 navController.popBackStack()
             },
+            onViewReferralHistory = {
+                navController.navigate(Routes.REFERRED_FRIENDS)
+            },
         )
     }
 

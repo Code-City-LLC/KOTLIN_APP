@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
@@ -63,6 +64,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 fun InviteFriendScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit = onBack,
+    onViewReferralHistory: () -> Unit = {},
     viewModel: InviteFriendViewModel = viewModel(),
     onContactPickerIntent: ((Intent) -> Unit)? = null,
     externalInviteHandoff: ((InviteFriendHandoff, InviteContact, String) -> Boolean)? = null,
@@ -110,6 +112,15 @@ fun InviteFriendScreen(
                         runCatching { contactPicker.launch(intent) }
                     }
                 },
+            )
+
+            Text(
+                text = "View Referral History  \u2192",
+                style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
+                color = BrandPalette.OrangeDark,
+                modifier = Modifier
+                    .clickable(onClick = onViewReferralHistory)
+                    .testTag("invite-friend-history-link"),
             )
 
             Text(

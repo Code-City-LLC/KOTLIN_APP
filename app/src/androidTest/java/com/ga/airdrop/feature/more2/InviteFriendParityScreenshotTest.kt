@@ -50,9 +50,29 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithTag("invite-friend-email-chevron").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-info-body").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-save").assertIsDisplayed()
-        assertAbsent("View Referral History")
+        compose.onNodeWithTag("invite-friend-history-link").assertIsDisplayed()
+        compose.onNodeWithText("View Referral History  \u2192").assertIsDisplayed()
         assertAbsent("Description")
         saveRootScreenshot("invite_friend_figma_light.png")
+    }
+
+    @Test
+    fun historyEntryUsesExistingReferredFriendsRouteCallback() {
+        val historyClicks = AtomicInteger()
+        setInviteFriend(
+            mode = ThemeController.Mode.LIGHT,
+            onViewReferralHistory = { historyClicks.incrementAndGet() },
+        )
+
+        compose.onNodeWithTag("invite-friend-history-link").performClick()
+
+        compose.runOnIdle {
+            assertEquals(
+                "History link routes to existing Referred Friends screen",
+                1,
+                historyClicks.get(),
+            )
+        }
     }
 
     @Test
@@ -287,13 +307,19 @@ class InviteFriendParityScreenshotTest {
 
     private fun setInviteFriend(
         mode: ThemeController.Mode,
+        onViewReferralHistory: () -> Unit = {},
     ): InviteFriendViewModel =
-        setInviteFriend(api = FakeInviteFriendRepository(), mode = mode)
+        setInviteFriend(
+            api = FakeInviteFriendRepository(),
+            mode = mode,
+            onViewReferralHistory = onViewReferralHistory,
+        )
 
     private fun setInviteFriend(
         api: FakeInviteFriendRepository,
         mode: ThemeController.Mode,
         onSaved: () -> Unit = {},
+        onViewReferralHistory: () -> Unit = {},
     ): InviteFriendViewModel {
         lateinit var viewModel: InviteFriendViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -305,6 +331,7 @@ class InviteFriendParityScreenshotTest {
                 InviteFriendScreen(
                     onBack = {},
                     onSaved = onSaved,
+                    onViewReferralHistory = onViewReferralHistory,
                     viewModel = viewModel,
                 )
             }
