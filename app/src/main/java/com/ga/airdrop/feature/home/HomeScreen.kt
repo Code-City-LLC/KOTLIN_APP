@@ -31,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
@@ -64,9 +63,8 @@ import java.util.Locale
  * Home tab — Swift FigmaHomeViewController (Figma 40001464:28899).
  *
  * Geometry (FigmaHomeViewController.swift:220-276):
- *  - hero photo layer fixed at 375x534, top of the scroll content, under a
- *    flat black-10% scrim (:193-197) plus a bottom fade that dissolves the
- *    photo into the page background before the cards (Figma 40001464:28899);
+ *  - hero photo layer fixed at 375x534, top of the scroll content, under the
+ *    flat black-10% Swift scrim (:193-197);
  *  - content stack starts at y=326, so the warehouse cards overlap the
  *    photo's lower half and spill below its bottom edge;
  *  - stack spacing 8; custom 20 after the activities grid and after the
@@ -104,8 +102,8 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Box {
-                // Hero photo — 534dp, aspect-fill, honours the user-selected
-                // background; overlaid by the two Figma gradients below.
+                // Hero photo: 534dp, aspect-fill, honours the user-selected
+                // background; Swift applies only a flat black-10% scrim.
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -122,39 +120,8 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
                     )
-                    // (0) Swift FigmaHomeViewController.swift:193-197 — flat black-10%
-                    //     scrim uniformly darkening the whole hero (in addition to the
-                    //     Figma gradients below); missing here, regressed away.
+                    // Swift FigmaHomeViewController.swift:193-197.
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.10f)))
-                    // Hero overlays — EXACT Figma spec (Home 40001464:28899):
-                    // (A) node 40001464:28902 — full-height gradient darkening
-                    //     the lower photo: transparent @79.2% → #343538 @100%.
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    0.792f to Color.Transparent,
-                                    1f to Color(0xFF343538),
-                                )
-                            )
-                    )
-                    // (B) node 40001464:28903 — 110dp band at y=424 that fades
-                    //     the photo into the page background: white-5% @21% →
-                    //     gray200 (#f5f5f5 light / dark page bg) @85.2%. gray200
-                    //     is theme-aware so this is correct in dark mode too.
-                    Box(
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(110.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    0.21f to Color.White.copy(alpha = 0.05f),
-                                    0.852f to colors.gray200,
-                                )
-                            )
-                    )
                 }
 
                 // Content overlaps the photo from y=326 (Swift :245).
