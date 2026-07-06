@@ -176,6 +176,73 @@ object ShipmentStatusCatalog {
     private fun normalize(s: String) = s.lowercase(Locale.US).filter { it.isLetterOrDigit() }
 }
 
+data class PackageTimelineStatus(
+    val id: Int,
+    val label: String,
+)
+
+data class PackageTimelineRow(
+    val status: PackageTimelineStatus,
+    val history: PackageHistoryItem?,
+)
+
+object PackageTimelineProgression {
+    val visibleStatuses = listOf(
+        PackageTimelineStatus(1, "Drop Alerted"),
+        PackageTimelineStatus(2, "Shipment Received"),
+        PackageTimelineStatus(3, "Port of Departure MIA"),
+        PackageTimelineStatus(4, "Arrived at Port JAM"),
+        PackageTimelineStatus(7, "Ready for Pickup"),
+        PackageTimelineStatus(18, "Paid and Ready for Pick Up"),
+        PackageTimelineStatus(8, "Delivered"),
+    )
+
+    private val actualProgression = listOf(1, 2, 3, 4, 5, 6, 7, 18, 8, 9, 10, 12, 14, 15, 16, 17)
+    private val inFlightOrange = Color(0xFFF07F17)
+
+    fun statusesFor(currentStatus: Int?, showFullTimeline: Boolean = false): List<PackageTimelineStatus> {
+        if (currentStatus == null) return if (showFullTimeline) visibleStatuses else emptyList()
+
+        val visibleIndex = visibleStatuses.indexOfFirst { it.id == currentStatus }
+        if (showFullTimeline) return visibleStatuses
+        if (visibleIndex >= 0) return visibleStatuses.take(visibleIndex + 1)
+
+        val progressionIndex = actualProgression.indexOf(currentStatus)
+        if (progressionIndex < 0) return visibleStatuses
+
+        val lastVisibleIndex = visibleStatuses.indexOfLast { status ->
+            val statusProgressionIndex = actualProgression.indexOf(status.id)
+            statusProgressionIndex >= 0 && statusProgressionIndex <= progressionIndex
+        }
+        return if (lastVisibleIndex >= 0) visibleStatuses.take(lastVisibleIndex + 1) else emptyList()
+    }
+
+    fun inlineRows(detail: ShipmentPackageDetail): List<PackageTimelineRow> {
+        val currentStatus = detail.status?.trim()?.toIntOrNull()
+        return statusesFor(currentStatus, showFullTimeline = false).map { status ->
+            PackageTimelineRow(
+                status = status,
+                history = detail.history.firstOrNull { it.status == status.id },
+            )
+        }
+    }
+
+    fun colorFor(statusId: Int, currentStatus: Int?, placeholder: Color): Color {
+        if (currentStatus == null) return placeholder
+        if (statusId == currentStatus) {
+            return if (statusId <= 4) inFlightOrange else AlertPalette.Completed
+        }
+
+        val currentIndex = actualProgression.indexOf(currentStatus)
+        val statusIndex = actualProgression.indexOf(statusId)
+        return if (currentIndex >= 0 && statusIndex >= 0 && statusIndex < currentIndex) {
+            AlertPalette.Completed
+        } else {
+            placeholder
+        }
+    }
+}
+
 /** Status → text color, substring rules from FigmaPackagesViewController. */
 fun packageStatusColor(statusName: String?): Color {
     val s = statusName.orEmpty().lowercase(Locale.US)
