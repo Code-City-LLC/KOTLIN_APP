@@ -104,6 +104,53 @@ class ShipmentsHubTapRailsParityTest {
     }
 
     @Test
+    fun hubDoesNotDoubleRefreshWhenFirstComposedIntoAlreadyResumedLifecycle() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        val repo = FakeHubRepository()
+        val viewModel = ShipmentsViewModel(repo)
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repo.ordersCalls.get() == 1 && !viewModel.state.value.loading
+        }
+
+        navigatedRoutes.clear()
+        compose.setContent {
+            AirdropThemeProvider {
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .height(812.dp)
+                        .background(AirdropTheme.colors.gray200)
+                ) {
+                    ShipmentsScreen(
+                        onNavigate = navigatedRoutes::add,
+                        viewModel = viewModel,
+                    )
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText(repo.readyText).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.waitForIdle()
+
+        compose.runOnIdle {
+            assertEquals(
+                "Swift viewDidAppear should be represented by one first-entry hub load, not VM init plus an immediate resumed-state duplicate",
+                1,
+                repo.exchangeRateCalls.get(),
+            )
+            assertEquals(1, repo.summaryCalls.get())
+            assertEquals(1, repo.packagesCalls.get())
+            assertEquals(1, repo.paymentsCalls.get())
+            assertEquals(1, repo.ordersCalls.get())
+        }
+    }
+
+    @Test
     fun hubSummaryCardsViewMoreCardsAndCartToggleKeepSwiftRails() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext

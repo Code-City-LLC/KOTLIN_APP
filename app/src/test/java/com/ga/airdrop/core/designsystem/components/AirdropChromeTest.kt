@@ -1,51 +1,43 @@
 package com.ga.airdrop.core.designsystem.components
 
 import androidx.compose.ui.graphics.Color
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ⚠️ LOCKED-CHROME GUARD (Kemar 2026-07-05, tightened 2026-07-06). The tab header
- * + bottom bar MUST be TRANSLUCENT but SUBTLE (frosted), matching Figma
- * (rgba(...,0.70) + backdrop-blur-[10px]). This has been reverted to opaque
- * gray200 three times (479b245, 789f86f, 37eabc9); separately, a flat 0.70 alpha
- * (no blur) read "far too transparent" and Kemar rejected THAT too.
- *
- * So the alpha is now guarded on BOTH ends: it must be < 1f (never opaque) AND
- * >= 0.80f (never too see-through — approximates Figma's frosted opacity since
- * Compose lacks a cheap backdrop blur). If any assertion fails, someone pushed
- * the chrome to an extreme Kemar forbade. Fix [AirdropChrome.SCRIM_ALPHA] back
- * into the frosted band; do NOT weaken this test.
+ * Swift-precedence chrome guard. Figma still shows translucent Home chrome, but
+ * Swift `FigmaTabHeader`/`FigmaBottomTabBar` render an opaque gray200 overlay
+ * above their blur layers, so Android must not keep the stale flat-alpha
+ * approximation.
  */
 class AirdropChromeTest {
     private val gray200 = Color(0xFF333333)
 
-    private fun assertFrosted(name: String, alpha: Float) {
-        assertTrue("$name must be translucent (Kemar-LOCKED), not opaque", alpha < 1f)
-        assertTrue(
-            "$name must not be too see-through (Kemar 2026-07-06: 0.70 flat was too transparent)",
-            alpha >= 0.80f,
-        )
+    private fun assertOpaqueSwiftSurface(name: String, color: Color) {
+        assertEquals("$name must be opaque like Swift gray200", 1f, color.alpha, 0f)
+        assertEquals("$name must keep the gray200 red channel", gray200.red, color.red, 0f)
+        assertEquals("$name must keep the gray200 green channel", gray200.green, color.green, 0f)
+        assertEquals("$name must keep the gray200 blue channel", gray200.blue, color.blue, 0f)
     }
 
     @Test
-    fun headerHeroBackgroundIsFrostedTranslucent() {
-        assertFrosted(
+    fun headerHeroBackgroundIsOpaqueSwiftSurface() {
+        assertOpaqueSwiftSurface(
             "Home hero header",
-            AirdropChrome.headerBackground(overImage = true, gray200 = gray200).alpha,
+            AirdropChrome.headerBackground(overImage = true, gray200 = gray200),
         )
     }
 
     @Test
-    fun headerSolidBackgroundIsFrostedTranslucent() {
-        assertFrosted(
+    fun headerSolidBackgroundIsOpaqueSwiftSurface() {
+        assertOpaqueSwiftSurface(
             "Solid header",
-            AirdropChrome.headerBackground(overImage = false, gray200 = gray200).alpha,
+            AirdropChrome.headerBackground(overImage = false, gray200 = gray200),
         )
     }
 
     @Test
-    fun bottomBarBackgroundIsFrostedTranslucent() {
-        assertFrosted("Bottom tab bar", AirdropChrome.bottomBarBackground(gray200).alpha)
+    fun bottomBarBackgroundIsOpaqueSwiftSurface() {
+        assertOpaqueSwiftSurface("Bottom tab bar", AirdropChrome.bottomBarBackground(gray200))
     }
 }

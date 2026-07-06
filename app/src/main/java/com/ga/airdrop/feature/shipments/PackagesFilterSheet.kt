@@ -11,13 +11,14 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -68,137 +69,156 @@ fun PackagesFilterSheet(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(colors.gray150)
+                .background(Color.Black.copy(alpha = 0.30f))
                 .testTag("packages-filter-root")
         ) {
             Column(
                 Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Spacer(Modifier.height(packagesFilterHeaderClearance()))
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(start = Spacing.md, end = Spacing.md, top = 16.dp, bottom = Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    PackagesFilterSectionCard(
-                        title = "Shipment Method",
-                        modifier = Modifier.testTag("packages-filter-method-card"),
-                    ) {
-                        // Swift toggles: re-tapping the active row resets to "All"
-                        // (FigmaPackagesFilterVC:257-261) — the only way to clear a
-                        // filter, since there is no explicit "All" row.
-                        MethodRow(
-                            method = ShipmentMethodUi.Standard,
-                            selected = selectedMethod == ShipmentTypeFilter.Standard,
-                            onClick = {
-                                onSelectMethod(
-                                    if (selectedMethod == ShipmentTypeFilter.Standard) ShipmentTypeFilter.All
-                                    else ShipmentTypeFilter.Standard,
-                                )
-                            },
-                            showDivider = true,
-                        )
-                        MethodRow(
-                            method = ShipmentMethodUi.SeaDrop,
-                            selected = selectedMethod == ShipmentTypeFilter.Seadrop,
-                            onClick = {
-                                onSelectMethod(
-                                    if (selectedMethod == ShipmentTypeFilter.Seadrop) ShipmentTypeFilter.All
-                                    else ShipmentTypeFilter.Seadrop,
-                                )
-                            },
-                            showDivider = true,
-                        )
-                        MethodRow(
-                            method = ShipmentMethodUi.Express,
-                            selected = selectedMethod == ShipmentTypeFilter.Express,
-                            onClick = {
-                                onSelectMethod(
-                                    if (selectedMethod == ShipmentTypeFilter.Express) ShipmentTypeFilter.All
-                                    else ShipmentTypeFilter.Express,
-                                )
-                            },
-                            showDivider = false,
-                        )
-                    }
-
-                    PackagesFilterSectionCard(
-                        title = "Status of Shipment",
-                        modifier = Modifier.testTag("packages-filter-status-card"),
-                    ) {
-                        statuses.forEachIndexed { index, status ->
-                            StatusRow(
-                                status = status,
-                                selected = selectedStatus == status.id,
-                                // Swift re-tap resets to 0/All (FigmaPackagesFilterVC:313-317).
-                                onClick = {
-                                    onSelectStatus(if (selectedStatus == status.id) 0 else status.id)
-                                },
-                                showDivider = index != statuses.lastIndex,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(Spacing.md))
-                }
-            }
-
-            // Swift FigmaPackagesFilterViewController uses an opaque adaptive
-            // gray100 inner header; Figma's older glass layer is secondary.
-            Column(
-                Modifier
-                    .align(Alignment.TopCenter)
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .fillMaxHeight(0.92f)
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                     .background(colors.gray100)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .testTag("packages-filter-header")
+                    .testTag("packages-filter-sheet")
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .padding(horizontal = Spacing.md)
-                        .testTag("packages-filter-header-row"),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Sorting by",
-                        style = AirdropType.title2,
-                        color = colors.textDarkTitle,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable(onClick = onClose)
-                            .testTag("packages-filter-close"),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_cross),
-                            contentDescription = "Close",
-                            colorFilter = ColorFilter.tint(colors.iconSelected),
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .height(1.dp)
-                        .background(colors.iconShape)
-                )
+                        .height(20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .width(36.dp)
+                            .height(5.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(colors.gray300)
+                            .testTag("packages-filter-grabber")
+                    )
+                }
+
+                // Swift pageSheet owns the rounded shell/grabber; content starts
+                // with the opaque adaptive inner header.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(colors.gray100)
+                        .testTag("packages-filter-header")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .padding(horizontal = Spacing.md)
+                            .testTag("packages-filter-header-row"),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Sorting by",
+                            style = AirdropType.title2,
+                            color = colors.textDarkTitle,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clickable(onClick = onClose)
+                                .testTag("packages-filter-close"),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_cross),
+                                contentDescription = "Close",
+                                colorFilter = ColorFilter.tint(colors.iconSelected),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(colors.iconShape)
+                    )
+                }
+
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .background(colors.gray150)
+                        .verticalScroll(rememberScrollState())
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                ) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = Spacing.md, end = Spacing.md, top = 16.dp, bottom = Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        PackagesFilterSectionCard(
+                            title = "Shipment Method",
+                            modifier = Modifier.testTag("packages-filter-method-card"),
+                        ) {
+                            // Swift toggles: re-tapping the active row resets to "All"
+                            // (FigmaPackagesFilterVC:257-261) — the only way to clear a
+                            // filter, since there is no explicit "All" row.
+                            MethodRow(
+                                method = ShipmentMethodUi.Standard,
+                                selected = selectedMethod == ShipmentTypeFilter.Standard,
+                                onClick = {
+                                    onSelectMethod(
+                                        if (selectedMethod == ShipmentTypeFilter.Standard) ShipmentTypeFilter.All
+                                        else ShipmentTypeFilter.Standard,
+                                    )
+                                },
+                                showDivider = true,
+                            )
+                            MethodRow(
+                                method = ShipmentMethodUi.SeaDrop,
+                                selected = selectedMethod == ShipmentTypeFilter.Seadrop,
+                                onClick = {
+                                    onSelectMethod(
+                                        if (selectedMethod == ShipmentTypeFilter.Seadrop) ShipmentTypeFilter.All
+                                        else ShipmentTypeFilter.Seadrop,
+                                    )
+                                },
+                                showDivider = true,
+                            )
+                            MethodRow(
+                                method = ShipmentMethodUi.Express,
+                                selected = selectedMethod == ShipmentTypeFilter.Express,
+                                onClick = {
+                                    onSelectMethod(
+                                        if (selectedMethod == ShipmentTypeFilter.Express) ShipmentTypeFilter.All
+                                        else ShipmentTypeFilter.Express,
+                                    )
+                                },
+                                showDivider = false,
+                            )
+                        }
+
+                        PackagesFilterSectionCard(
+                            title = "Status of Shipment",
+                            modifier = Modifier.testTag("packages-filter-status-card"),
+                        ) {
+                            statuses.forEachIndexed { index, status ->
+                                StatusRow(
+                                    status = status,
+                                    selected = selectedStatus == status.id,
+                                    // Swift re-tap resets to 0/All (FigmaPackagesFilterVC:313-317).
+                                    onClick = {
+                                        onSelectStatus(if (selectedStatus == status.id) 0 else status.id)
+                                    },
+                                    showDivider = index != statuses.lastIndex,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(Spacing.md))
+                    }
+                }
             }
         }
     }
-}
-
-@Composable
-private fun packagesFilterHeaderClearance(): androidx.compose.ui.unit.Dp {
-    val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    return statusBar + 57.dp
 }
 
 @Composable

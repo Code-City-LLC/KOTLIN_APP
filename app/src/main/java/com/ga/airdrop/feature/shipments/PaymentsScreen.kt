@@ -30,8 +30,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -190,57 +196,97 @@ private fun PaymentTypeFilterDialog(
     onDismiss: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(Radius.s))
-                .background(colors.gray100)
-                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
+                .fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.30f))
+                .testTag("payments-type-filter-root"),
         ) {
-            Row(
+            Column(
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .background(colors.gray200)
-                    .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .testTag("payments-type-filter-sheet"),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = "Filter payments",
-                    style = AirdropType.title2,
-                    color = colors.textDarkTitle,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            PaymentTypeFilter.entries.forEachIndexed { index, filter ->
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSelect(filter) }
-                        .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .clip(RoundedCornerShape(Radius.s))
+                        .background(colors.gray100)
+                        .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
                 ) {
                     Text(
-                        text = filter.label,
-                        style = AirdropType.subtitle1,
-                        color = if (filter == selected) BrandPalette.OrangeMain else colors.textDarkTitle,
-                        modifier = Modifier.weight(1f),
+                        text = "Filter Payments",
+                        style = AirdropType.title2,
+                        color = colors.textDarkTitle,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp, start = Spacing.md, end = Spacing.md),
                     )
-                    if (filter == selected) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_check),
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
-                            modifier = Modifier.size(20.dp),
-                        )
+                    Text(
+                        text = "Show payments for",
+                        style = AirdropType.body2,
+                        color = colors.textDescription,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = Spacing.md, end = Spacing.md, bottom = 8.dp),
+                    )
+                    PaymentTypeFilter.entries.forEachIndexed { index, filter ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp)
+                                .clickable { onSelect(filter) }
+                                .padding(horizontal = Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = filter.label,
+                                style = AirdropType.subtitle1,
+                                color = if (filter == selected) BrandPalette.OrangeMain else colors.textDarkTitle,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (filter == selected) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_check),
+                                    contentDescription = null,
+                                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+                        if (index != PaymentTypeFilter.entries.lastIndex) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(colors.divider)
+                            )
+                        }
                     }
                 }
-                if (index != PaymentTypeFilter.entries.lastIndex) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(colors.divider)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .clip(RoundedCornerShape(Radius.s))
+                        .background(colors.gray100)
+                        .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+                        .clickable(onClick = onDismiss)
+                        .testTag("payments-type-filter-cancel"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Cancel",
+                        style = AirdropType.subtitle1,
+                        color = BrandPalette.OrangeMain,
                     )
                 }
             }

@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.shipments
 
+import android.content.ContentValues
 import android.graphics.Bitmap
+import android.provider.MediaStore
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
@@ -77,6 +79,8 @@ class PackagesFilterSheetParityTest {
         assertEquals(0, compose.onAllNodesWithText("AirDrop Standard").fetchSemanticsNodes().size)
 
         val root = compose.onNodeWithTag("packages-filter-root").getUnclippedBoundsInRoot()
+        val sheet = compose.onNodeWithTag("packages-filter-sheet").getUnclippedBoundsInRoot()
+        val grabber = compose.onNodeWithTag("packages-filter-grabber").getUnclippedBoundsInRoot()
         val header = compose.onNodeWithTag("packages-filter-header").getUnclippedBoundsInRoot()
         val headerRow = compose.onNodeWithTag("packages-filter-header-row").getUnclippedBoundsInRoot()
         val methodCard = compose.onNodeWithTag("packages-filter-method-card").getUnclippedBoundsInRoot()
@@ -95,6 +99,11 @@ class PackagesFilterSheetParityTest {
         val readyIcon = compose.onNodeWithTag("packages-filter-status-icon-7", useUnmergedTree = true)
             .getUnclippedBoundsInRoot()
 
+        assertTrue("Swift pageSheet shell should not be fullscreen", boundsTop(sheet) > boundsTop(root) + 24f)
+        assertClose(0f, boundsBottom(root) - boundsBottom(sheet), "Swift pageSheet bottom edge")
+        assertClose(36f, boundsWidth(grabber), "Swift pageSheet grabber width")
+        assertClose(5f, boundsHeight(grabber), "Swift pageSheet grabber height")
+        assertClose(20f, boundsTop(header) - boundsTop(sheet), "Swift grabber/header gap")
         assertClose(56f, boundsHeight(headerRow), "Swift header row height")
         assertClose(16f, boundsTop(methodCard) - boundsBottom(header), "Swift content gap below header")
         assertClose(40f, boundsWidth(root) - boundsWidth(methodCard), "Swift 20dp horizontal page inset")
@@ -138,6 +147,7 @@ class PackagesFilterSheetParityTest {
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        saveSheetScreenshotToMediaStore(bitmap, filename)
     }
 
     private fun screenshotDir(): File {
@@ -147,6 +157,35 @@ class PackagesFilterSheetParityTest {
         )
         dir.mkdirs()
         return dir
+    }
+
+    private fun saveSheetScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val relativePath = "Pictures/kotlin_ui_proof/packages_filter_sheet/"
+        runCatching {
+            context.contentResolver.delete(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
+                arrayOf(filename, relativePath),
+            )
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        runCatching {
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return
+            val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+            outputStream.use { output ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(uri, values, null, null)
+        }
     }
 
     private fun boundsWidth(bounds: DpRect): Float = (bounds.right - bounds.left).value

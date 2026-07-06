@@ -78,13 +78,17 @@ internal fun ShipmentsRefreshOnResume(key: Any, onRefresh: () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, key) {
         val lifecycle = lifecycleOwner.lifecycle
+        var skipInitialResumeReplay = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) onRefresh()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (skipInitialResumeReplay) {
+                    skipInitialResumeReplay = false
+                } else {
+                    onRefresh()
+                }
+            }
         }
         lifecycle.addObserver(observer)
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            onRefresh()
-        }
         onDispose { lifecycle.removeObserver(observer) }
     }
 }

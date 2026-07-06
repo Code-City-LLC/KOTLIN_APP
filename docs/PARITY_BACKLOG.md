@@ -73,11 +73,12 @@ light AND dark.
   `AuctionProductDetailsCartFlowParityTest`) passed 13/13 on
   `airdrop_test2(AVD) - 15`.
 - **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
-- **Kemar-locked chrome override:** Home/header/footer chrome must stay
-  translucent and frosted, not opaque. Figma node `40001464:28926` and
-  `AirdropChromeTest`/`HomeChromeOpacityParityTest` are the guard rails. Swift
-  currently uses an opaque semantic surface here, but Kemar explicitly overrode
-  that deviation; do not restore opaque chrome without a new product ruling.
+- **Swift-precedence chrome correction:** Home/header/footer chrome now follows
+  Swift over the stale Figma-only translucent node. Figma node `40001464:28926`
+  still shows translucent dark/white chrome, but Swift `FigmaTabHeader` and
+  `FigmaBottomTabBar` render an opaque semantic `gray200` overlay above the
+  blur layer. `AirdropChromeTest`/`HomeChromeOpacityParityTest` are the guard
+  rails for the Swift surface.
 - **Home activity dark icons:** Services, Ship Tax, Calculator, and Drop Alert
   activity icons now use explicit app-theme light/dark drawables matching Swift
   `FigmaIcons.swift` and Figma tile nodes. Verified proof:
@@ -437,6 +438,9 @@ light AND dark.
   `/tmp/kotlin_ui_proof/payment_package_details/payment_package_details_swift_dark.png`,
   `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_light.png`,
   `/tmp/kotlin_ui_proof/payment_package_details/payment_package_history_swift_dark.png`.
+  Follow-up 2026-07-06: payment-detail timeline icons now pass the app-theme
+  dark flag into `ShipmentStatusCatalog.iconRes`, preventing app-dark timeline
+  rows from reusing unreadable light vectors.
 - **InvoiceViewer Swift/Figma slice:** Figma MCP has no dedicated reachable
   InvoiceViewer frame in the app canvas; the full page metadata timed out and
   Swift explicitly says this viewer follows the document-download shell. Figma
@@ -463,6 +467,15 @@ light AND dark.
   callbacks. Proof:
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_light.png`,
   `/tmp/kotlin_ui_proof/packages_filter_sheet/packages_filter_swift_dark.png`.
+  Follow-up 2026-07-06: the row/card internals stayed intact, but the host
+  surface was corrected from a fullscreen dialog to Swift's pageSheet-style
+  shell (`.large()` detent, visible grabber, 24pt corner radius). Android now
+  renders a bottom sheet with dimmed backdrop, 24dp top radius, grabber, and
+  navigation-inset safe area. `PackagesFilterSheetParityTest` locks the
+  non-fullscreen shell, bottom edge, grabber size, and existing row geometry.
+  Current proof:
+  `/tmp/kotlin_ui_proof/current_swift_chrome_shipments/packages_filter_sheet/packages_filter_sheet/packages_filter_swift_light.png`,
+  `/tmp/kotlin_ui_proof/current_swift_chrome_shipments/packages_filter_sheet/packages_filter_sheet/packages_filter_swift_dark.png`.
 - **Packages filter live flow + dark status icons:** Packages node
   `40001666:42198` and Packages filter node `40006358:75618` were refreshed
   through Figma MCP, then compared against Swift
@@ -490,13 +503,18 @@ light AND dark.
   Android now keeps Payments' top-right invoice download, orange
   pull-to-refresh, filter accessory, and Swift `Download failed` invoice alert,
   suppresses list-load failure modals to the empty state, and adds the Orders
-  trailing more-square accessory as a decorative visual element. Proof:
+  trailing more-square accessory as a decorative visual element. Follow-up
+  2026-07-06: the Payments filter now opens a Swift `UIAlertController`
+  action-sheet equivalent instead of a centered Android dialog: dimmed
+  backdrop, bottom-anchored grouped options, selected orange row/check, and a
+  separate Cancel rail. Proof:
   `/tmp/kotlin_ui_proof/payments_orders_swift/figma/figma_payments_40001753_18909.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/figma/figma_orders_40001753_19595.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/payments_swift_light.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/payments_swift_dark.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/orders_swift_light.png`,
-  `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/orders_swift_dark.png`.
+  `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/orders_swift_dark.png`,
+  `/tmp/kotlin_ui_proof/current_swift_chrome_shipments/payments_orders/payments_orders/payments_filter_sheet.png`.
 - **Shipments section-card divider follow-up:** Swift
   `FigmaOrderDetailsViewController.swift`,
   `FigmaProductPaymentDetailsViewController.swift`, and
@@ -526,16 +544,12 @@ light AND dark.
   `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/app_root_home_after_more_tab.png`,
   `/tmp/kotlin_ui_proof/home_tab_navigation/android/home_tab_navigation/harness_home_after_more_start.png`.
 - **Home header/footer chrome opacity:** Figma Home node `40001464:28899` shows
-  translucent Home chrome. Swift `FigmaTabHeader`/`FigmaBottomTabBar` still use
-  an opaque `gray200` overlay, but Kemar explicitly overrode that Swift
-  deviation and locked the shared tab chrome to Figma translucency. Android
-  keeps `AirdropChrome` as the source of truth; the flat 0.70 scrim was too
-  see-through without Figma blur, so `HomeChromeOpacityParityTest` now locks the
-  0.90 frosted approximation with magenta-underlay pixel samples in app light
-  and app dark. Proof:
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/figma/figma_home_40001464_28899.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_frosted_light.png`,
-  `/tmp/kotlin_ui_proof/home_chrome_opacity/android/home_chrome_opacity/home_chrome_opacity_frosted_dark.png`.
+  translucent Home chrome. Swift `FigmaTabHeader`/`FigmaBottomTabBar` use an
+  opaque `gray200` overlay above their blur layers, and Swift now takes
+  precedence for this conflict. Android keeps `AirdropChrome` as the source of
+  truth; `HomeChromeOpacityParityTest` locks opaque light/dark `gray200` pixel
+  samples plus Swift theme-tinted Home header icons. Proof filenames:
+  `home_chrome_swift_opaque_light.png` and `home_chrome_swift_opaque_dark.png`.
 - **Bottom-tab active icon shape:** Shared tab chrome was compared against
   Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma Help nav
   icon node `40000770:4747`. Swift takes precedence: active icon + label are
@@ -581,6 +595,14 @@ light AND dark.
   `viewDidAppear`; Android now mirrors that via lifecycle `ON_RESUME`.
   `ShipmentsHubTapRailsParityTest` proves exchange rate, summary, packages,
   payments, and orders are all requested again after resume.
+- **Shipments first-entry refresh ownership:** Android previously loaded the hub
+  in `ShipmentsViewModel.init` and immediately loaded again when the Composable
+  entered an already-resumed lifecycle. Swift loads the visible hub rails once
+  on first `viewDidAppear`, then again on later appearances. Android now keeps
+  VM init as the first visible load, removes the immediate resumed-state
+  duplicate from `ShipmentsRefreshOnResume`, and coalesces overlapping refresh
+  jobs. `ShipmentsHubTapRailsParityTest` locks one first-entry call and a later
+  `ON_RESUME` reload.
 - **Shipments search-field split:** Figma MCP screenshots were refreshed for
   Packages `40001666:42198`, Payments `40001753:18909`, and Orders
   `40001753:19595`. Swift takes precedence over the static Figma search copy and

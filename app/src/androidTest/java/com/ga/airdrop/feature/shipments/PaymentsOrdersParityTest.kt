@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.shipments
 
+import android.content.ContentValues
 import android.graphics.Bitmap
+import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -181,10 +183,21 @@ class PaymentsOrdersParityTest {
         compose.onNodeWithContentDescription("Download invoice").assertIsDisplayed()
 
         compose.onNodeWithTag("payments-header-more").performClick()
-        compose.onNodeWithText("Filter payments").assertIsDisplayed()
+        compose.onNodeWithText("Filter Payments").assertIsDisplayed()
+        compose.onNodeWithText("Show payments for").assertIsDisplayed()
         compose.onNodeWithText("All").assertIsDisplayed()
         compose.onNodeWithText("Package").assertIsDisplayed()
         compose.onNodeWithText("Product").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
+        saveNodeScreenshot("payments-type-filter-root", "payments_filter_sheet.png")
+        val root = compose.onNodeWithTag("payments-type-filter-root").getUnclippedBoundsInRoot()
+        val sheet = compose.onNodeWithTag("payments-type-filter-sheet").getUnclippedBoundsInRoot()
+        val bottomSafeAreaGap = boundsBottom(root) - boundsBottom(sheet)
+        assertTrue(
+            "Swift action sheet should be bottom anchored above the navigation inset, gap=$bottomSafeAreaGap",
+            bottomSafeAreaGap in 12f..96f,
+        )
+        assertClose(24f, boundsWidth(root) - boundsWidth(sheet), "Swift action sheet horizontal inset")
         compose.onNodeWithText("All").performClick()
         compose.waitForIdle()
     }
@@ -271,6 +284,16 @@ class PaymentsOrdersParityTest {
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        saveScreenshotToMediaStore(bitmap, filename)
+    }
+
+    private fun saveNodeScreenshot(tag: String, filename: String) {
+        val bitmap = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+        val output = File(screenshotDir(), filename)
+        FileOutputStream(output).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+        saveScreenshotToMediaStore(bitmap, filename)
     }
 
     private fun screenshotDir(): File {
@@ -280,6 +303,35 @@ class PaymentsOrdersParityTest {
         )
         dir.mkdirs()
         return dir
+    }
+
+    private fun saveScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val relativePath = "Pictures/kotlin_ui_proof/payments_orders/"
+        runCatching {
+            context.contentResolver.delete(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
+                arrayOf(filename, relativePath),
+            )
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        runCatching {
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return
+            val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+            outputStream.use { output ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(uri, values, null, null)
+        }
     }
 
     private fun assertTextMissing(text: String) {
@@ -293,6 +345,8 @@ class PaymentsOrdersParityTest {
     private fun boundsLeft(bounds: DpRect): Float = bounds.left.value
 
     private fun boundsRight(bounds: DpRect): Float = bounds.right.value
+
+    private fun boundsBottom(bounds: DpRect): Float = bounds.bottom.value
 
     private fun assertClose(expected: Float, actual: Float, label: String, tolerance: Float = 1.5f) {
         assertTrue("$label expected $expected but was $actual", kotlin.math.abs(expected - actual) <= tolerance)

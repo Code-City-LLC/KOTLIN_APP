@@ -373,7 +373,7 @@ internal fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
                         else -> colors.textPlaceholder
                     }
                     MetroStep(
-                        iconRes = ShipmentStatusCatalog.iconRes(statusId),
+                        iconRes = ShipmentStatusCatalog.iconRes(statusId, dark = colors.isDark),
                         title = title,
                         titleColor = color,
                         date = timelineDateOrDash(date),

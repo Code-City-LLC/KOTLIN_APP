@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.shipments
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -30,13 +31,15 @@ class ShipmentsViewModel(
 
     private val _state = MutableStateFlow(ShipmentsUiState())
     val state: StateFlow<ShipmentsUiState> = _state
+    private var refreshJob: Job? = null
 
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             repo.exchangeRate().onSuccess { rate ->
                 _state.update { it.copy(exchangeRate = rate) }
