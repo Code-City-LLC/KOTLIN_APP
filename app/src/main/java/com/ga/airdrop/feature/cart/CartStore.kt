@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.ga.airdrop.core.session.SessionStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -66,11 +67,10 @@ object CartStore {
     fun contains(id: Int): Boolean = _items.value.any { it.id == id }
 
     /** Returns true when the line was added (false = already in cart). */
-    fun add(line: CartLine): Boolean {
-        if (contains(line.id)) return false
-        mutate { it + line }
-        return true
-    }
+    fun add(line: CartLine): Boolean =
+        // Fold the membership check into the atomic transform so racing adds of
+        // the same id cannot both pass a separate contains() check.
+        mutate { list -> if (list.any { it.id == line.id }) list else list + line }
 
     /** Returns the resulting membership (true = now in cart), like Swift `toggle`. */
     fun toggle(line: CartLine): Boolean {
@@ -95,10 +95,18 @@ object CartStore {
     /** Swift parity: `items.reduce(0) { $0 + qty * priceUSD }`. */
     fun totalUsd(): Double = _items.value.sumOf { it.qty * it.priceUsd }
 
-    private fun mutate(transform: (List<CartLine>) -> List<CartLine>) {
-        _items.value = sorted(transform(_items.value))
-        persist()
-        publishCount()
+    private fun mutate(transform: (List<CartLine>) -> List<CartLine>): Boolean {
+        var changed = false
+        _items.update { current ->
+            val next = sorted(transform(current))
+            changed = next != current
+            next
+        }
+        if (changed) {
+            persist()
+            publishCount()
+        }
+        return changed
     }
 
     private fun sorted(lines: List<CartLine>): List<CartLine> =
