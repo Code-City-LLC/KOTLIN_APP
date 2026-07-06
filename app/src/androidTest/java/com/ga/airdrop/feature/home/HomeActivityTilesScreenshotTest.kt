@@ -78,6 +78,38 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
+    fun warehouseCardsUseSwiftFigmaGeometry() {
+        setHomeContent()
+
+        listOf(
+            WarehouseGeometryCase(type = "standard", imageDescription = "Standard"),
+            WarehouseGeometryCase(type = "seadrop", imageDescription = "SeaDrop"),
+            WarehouseGeometryCase(type = "express", imageDescription = "Express"),
+        ).forEach { warehouseCase ->
+            compose.onNodeWithTag("home-warehouse-carousel")
+                .performScrollToNode(hasTestTag("home-warehouse-${warehouseCase.type}"))
+            compose.waitForIdle()
+
+            val card = compose.onNodeWithTag("home-warehouse-${warehouseCase.type}")
+                .getUnclippedBoundsInRoot()
+            val image = compose.onNodeWithContentDescription(
+                warehouseCase.imageDescription,
+                useUnmergedTree = true,
+            ).getUnclippedBoundsInRoot()
+
+            assertClose(238f, boundsWidth(card), "Swift warehouse card width for ${warehouseCase.type}")
+            assertClose(326f, boundsHeight(card), "Swift warehouse card height for ${warehouseCase.type}")
+            assertClose(80f, boundsWidth(image), "Swift warehouse image width for ${warehouseCase.type}")
+            assertClose(80f, boundsHeight(image), "Swift warehouse image height for ${warehouseCase.type}")
+            assertClose(
+                30f,
+                boundsTop(image) - boundsTop(card),
+                "Swift warehouse image top inset for ${warehouseCase.type}",
+            )
+        }
+    }
+
+    @Test
     fun homeActionCardsEmitSwiftRoutes() {
         val navigatedRoutes = mutableListOf<String>()
         setHomeContent { route -> navigatedRoutes += route }
@@ -398,6 +430,8 @@ class HomeActivityTilesScreenshotTest {
     private fun boundsHeight(bounds: androidx.compose.ui.unit.DpRect): Float =
         (bounds.bottom - bounds.top).value
 
+    private fun boundsTop(bounds: androidx.compose.ui.unit.DpRect): Float = bounds.top.value
+
     private fun assertIconContainsColor(tag: String, target: Int, label: String) {
         val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
             .captureToImage()
@@ -440,6 +474,11 @@ class HomeActivityTilesScreenshotTest {
         val type: String,
         val expectedTitle: String,
         val screenshot: String,
+    )
+
+    private data class WarehouseGeometryCase(
+        val type: String,
+        val imageDescription: String,
     )
 
     private companion object {
