@@ -166,6 +166,7 @@ fun InviteFriendScreen(
                 label = "First Name",
                 value = state.firstName,
                 onValueChange = viewModel::onFirstName,
+                fieldTag = "invite-friend-first-name-input",
                 placeholder = "Chase",
                 required = true,
                 asteriskColor = BrandPalette.OrangeMain,
@@ -174,6 +175,7 @@ fun InviteFriendScreen(
                 label = "Last Name",
                 value = state.lastName,
                 onValueChange = viewModel::onLastName,
+                fieldTag = "invite-friend-last-name-input",
                 placeholder = "Campbell",
                 required = true,
                 asteriskColor = BrandPalette.OrangeMain,
@@ -182,6 +184,7 @@ fun InviteFriendScreen(
                 label = "Email Address",
                 value = state.email,
                 onValueChange = viewModel::onEmail,
+                fieldTag = "invite-friend-email-input",
                 placeholder = "chase.campbell@gmail.com",
                 required = true,
                 asteriskColor = BrandPalette.OrangeMain,
@@ -191,6 +194,7 @@ fun InviteFriendScreen(
                 label = "Description",
                 value = state.description,
                 onValueChange = viewModel::onDescription,
+                fieldTag = "invite-friend-description-input",
                 placeholder = "Good friend",
             )
 
@@ -224,7 +228,12 @@ fun InviteFriendScreen(
         }
 
         More2BottomBar {
-            More2PrimaryButton(text = "Save", onClick = viewModel::save, loading = state.saving)
+            More2PrimaryButton(
+                text = "Save",
+                onClick = viewModel::save,
+                loading = state.saving,
+                modifier = Modifier.testTag("invite-friend-save"),
+            )
         }
     }
 
