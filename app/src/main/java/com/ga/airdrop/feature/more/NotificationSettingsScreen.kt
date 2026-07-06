@@ -66,7 +66,8 @@ fun NotificationSettingsScreen(
     val packageSubEnabled = state.master && state.packageMaster
     val promosSubEnabled = state.master && state.promosMaster
 
-    Box(Modifier.fillMaxSize().background(colors.gray100)) {
+    // Swift FigmaNotificationSettingsViewController.swift:60 — page bg gray200 (BG token).
+    Box(Modifier.fillMaxSize().background(colors.gray200)) {
         Column(Modifier.fillMaxSize()) {
             MoreDetailHeader(title = "Notification Settings", onBack = onBack)
             Column(

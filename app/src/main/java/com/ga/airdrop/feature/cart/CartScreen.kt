@@ -103,7 +103,8 @@ fun CartScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(Spacing.md),
+                // Swift contentStack insets (:274-277): top 16, sides 20, bottom 24.
+                .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
             // Swift contentStack spacing 24 between sections.
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
@@ -386,7 +387,8 @@ private fun NoteCard(note: String, onNoteChange: (String) -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 90.dp)
+            // Swift buildNoteCard (:565) — fixed 90pt height.
+            .height(90.dp)
             .background(colors.gray100, RoundedCornerShape(12.dp))
             .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
@@ -477,7 +479,8 @@ private fun PromiseCard() {
                 com.ga.airdrop.core.designsystem.theme.AlertPalette.Middle.OnHold,
                 RoundedCornerShape(Radius.s),
             )
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
+            // Swift buildPromiseCard row insets (:686-689) — 14 all sides.
+            .padding(14.dp),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Image(

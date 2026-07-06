@@ -282,7 +282,8 @@ internal fun ChargeRow(label: String, amount: Double) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = label,
-            style = AirdropType.body2,
+            // Swift FigmaCalculatorResultsViewController.swift:586 — subtitle2 (semibold).
+            style = AirdropType.subtitle2,
             color = colors.textDarkTitle,
             modifier = Modifier.weight(1f),
         )

@@ -173,7 +173,8 @@ fun SalesTaxesScreen(onBack: () -> Unit) {
             Text(
                 text = "Enjoy tax-free shopping on Amazon, eBay, Walmart, Alibaba and more " +
                     "with AirDrop’s official Florida Tax Exemption Certificate.",
-                style = AirdropType.h6,
+                // Swift FigmaSalesTaxesViewController.swift:134 = Typography.h5() (24pt).
+                style = AirdropType.h5,
                 color = colors.textDarkTitle,
             )
             Text(

@@ -200,7 +200,7 @@ fun DropAlertScreen(
             Text(
                 text = "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
                     "Only the following formats are allowed: pdf, jpg, bmp, png, doc, docx html.",
-                style = AirdropType.body2,
+                style = AirdropType.body3,
                 color = colors.textDescription,
             )
 
@@ -311,8 +311,8 @@ private fun InsuranceInfoCard() {
     if (showTerms) {
         SimpleAlertDialog(
             title = "Terms and Conditions",
-            message = "Your package is insured for the value entered. Coverage is " +
-                "subject to our terms and conditions.",
+            message = "Your package is insured up to the declared value. Refer to the " +
+                "full Terms & Conditions in the menu for coverage details.",
             onDismiss = { showTerms = false },
         )
     }
@@ -354,13 +354,14 @@ private fun UploadSection(count: Int, onUploadClick: () -> Unit) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "Upload Your Invoice",
-                style = AirdropType.title2,
+                // Swift FigmaDropAlertViewController.swift:350 — subtitle1 (semibold 16).
+                style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = "($count/${DropAlertViewModel.MAX_INVOICES})",
-                style = AirdropType.body2,
+                style = AirdropType.body3,
                 color = colors.textDescription,
             )
         }
@@ -377,13 +378,14 @@ private fun UploadSection(count: Int, onUploadClick: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "Upload Invoice",
-                    style = AirdropType.title1,
+                    // Swift FigmaDropAlertViewController.swift:367 — subtitle1 (semibold 16).
+                    style = AirdropType.subtitle1,
                     color = colors.textDarkTitle,
                     textAlign = TextAlign.Center,
                 )
                 Text(
                     text = "PNG, JPG and PDF files are allowed",
-                    style = AirdropType.body2,
+                    style = AirdropType.body3,
                     color = colors.textDescription,
                     textAlign = TextAlign.Center,
                 )

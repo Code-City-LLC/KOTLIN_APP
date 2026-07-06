@@ -419,7 +419,8 @@ private fun InfoCard(
                     Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(colors.iconShape)
+                        // Swift FigmaWarehousesViewController.swift:659 — row divider gray300.
+                        .background(colors.gray300)
                 )
             }
         }

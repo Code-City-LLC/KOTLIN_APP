@@ -79,17 +79,25 @@ fun LiveAgentChatScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .height(56.dp),
             ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_small_arrow_down),
-                    contentDescription = "Back",
-                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                    modifier = Modifier
+                // Swift FigmaRouteViewController.swift:1023-1028 — 40x40 back button
+                // (24 chevron centered), leading inset 16 (was a bare 24 icon).
+                Box(
+                    Modifier
                         .align(Alignment.CenterStart)
-                        .padding(start = Spacing.md)
-                        .size(24.dp)
-                        .rotate(90f)
+                        .padding(start = 16.dp)
+                        .size(40.dp)
                         .clickable(onClick = onBack),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_small_arrow_down),
+                        contentDescription = "Back",
+                        colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                        modifier = Modifier
+                            .size(24.dp)
+                            .rotate(90f),
+                    )
+                }
                 Text(
                     text = "Live Agent Chat",
                     style = AirdropType.subtitle1,
