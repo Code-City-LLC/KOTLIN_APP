@@ -49,7 +49,8 @@ fun OrderDetailsScreen(
     val state by viewModel.state.collectAsState()
     val order = state.order
 
-    Box(Modifier.fillMaxSize().background(colors.gray150)) {
+    // Swift FigmaOrderDetailsViewController.swift:60 — page bg gray100.
+    Box(Modifier.fillMaxSize().background(colors.gray100)) {
         Column(
             Modifier
                 .fillMaxSize()

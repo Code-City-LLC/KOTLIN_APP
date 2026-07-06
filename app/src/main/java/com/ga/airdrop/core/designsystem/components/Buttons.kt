@@ -75,13 +75,16 @@ fun OutlineButton(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(50.dp)
+            // Swift secondary button — 52pt (FigmaCalculatorResults:296 / DropAlert:80).
+            .height(52.dp)
             .clip(RoundedCornerShape(Radius.xs))
             .background(colors.gray100)
             .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(Radius.xs))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = text, style = AirdropType.button, color = colors.textDarkTitle)
+        // Swift secondary button label = orangeMain (FigmaCalculatorResults:290 /
+        // DropAlert:74), not textDarkTitle.
+        Text(text = text, style = AirdropType.button, color = BrandPalette.OrangeMain)
     }
 }

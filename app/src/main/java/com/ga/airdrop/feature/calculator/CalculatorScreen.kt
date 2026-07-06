@@ -267,19 +267,17 @@ private fun CalculatorPrimaryButton(
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(Radius.xs))
-            .background(BrandPalette.OrangeMain)
+            // Swift setLoading (FigmaCalculatorViewController.swift:855-859): dim to
+            // 0.7 alpha + swap title to "Calculating..." — NO spinner.
+            .background(BrandPalette.OrangeMain.copy(alpha = if (loading) 0.7f else 1f))
             .clickable(enabled = !loading, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        if (loading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = BrandPalette.White,
-                strokeWidth = 2.dp,
-            )
-        } else {
-            Text(text = text, style = AirdropType.button, color = BrandPalette.White)
-        }
+        Text(
+            text = if (loading) "Calculating..." else text,
+            style = AirdropType.button,
+            color = BrandPalette.White,
+        )
     }
 }
 
