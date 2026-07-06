@@ -25,6 +25,10 @@ object ApiClient {
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
+            // Overall cap across DNS+connect+redirects+body so a trickling or
+            // half-dead server can't hang a call forever (BUG_AUDIT H8 — only
+            // the per-phase timeouts were set). Comfortably above read+write.
+            .callTimeout(120, TimeUnit.SECONDS)
             .addInterceptor(AuthInterceptor())
             .apply {
                 if (BuildConfig.DEBUG) {
