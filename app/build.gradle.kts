@@ -3,10 +3,10 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    // Enable once google-services.json for com.ga.airdrop.app is provided
-    // (Firebase console → project settings → Android app). Until then FCM
-    // token registration no-ops at runtime (guarded by FirebaseApp check).
-    // alias(libs.plugins.google.services)
+    // FCM enabled: google-services.json (project airdrop-app-b9423, the live
+    // Firebase project every AIRDROP client uses) is committed at app/. Covers
+    // com.ga.airdrop.app + the .staging flavor. Kotlin push is no longer inert.
+    alias(libs.plugins.google.services)
 }
 
 android {

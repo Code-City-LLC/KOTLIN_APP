@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "821392599750",
+    "project_id": "airdrop-app-b9423",
+    "storage_bucket": "airdrop-app-b9423.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:821392599750:android:08428b6db42d43c3edc5c7",
+        "android_client_info": {
+          "package_name": "com.ga.airdrop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVUavLgnM2MmtTdLEuUmokL4yh1N01WnU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:821392599750:android:701ba3e6f5c411f7edc5c7",
+        "android_client_info": {
+          "package_name": "com.ga.airdrop.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVUavLgnM2MmtTdLEuUmokL4yh1N01WnU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:821392599750:android:701ba3e6f5c411f7edc5c7",
+        "android_client_info": {
+          "package_name": "com.ga.airdrop.app.staging"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVUavLgnM2MmtTdLEuUmokL4yh1N01WnU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
