@@ -182,6 +182,9 @@ private fun ProductListScreen(
                             product = product,
                             inCart = cartLines.any { it.id == product.id },
                             onClick = {
+                                // Swift-style hand-off — featured detail has no
+                                // show endpoint (VERIFICATION_LEDGER P1).
+                                ShopProductHandoffStore.put(product)
                                 onNavigate(Routes.auctionProductDetails(product.routeSlug, featured))
                             },
                             onToggleCart = { CartStore.toggle(product.toCartLine()) },

@@ -58,6 +58,10 @@ fun ShopScreen(
     LaunchedEffect(Unit) { CartStore.init(context) }
 
     fun openDetails(product: ShopProduct, featured: Boolean) {
+        // Swift passes the object into the details VC; featured products have
+        // no show endpoint, so the hand-off is what makes their detail load
+        // (VERIFICATION_LEDGER P1).
+        ShopProductHandoffStore.put(product)
         onNavigate(Routes.auctionProductDetails(product.routeSlug, featured))
     }
 

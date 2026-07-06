@@ -161,3 +161,29 @@ private object UnboundShopCheckoutRepository : ShopCheckoutRepository {
 object ShopCheckoutStore {
     @Volatile var product: ShopProduct? = null
 }
+
+/**
+ * Hand-off holder for Product Details (VERIFICATION_LEDGER P1). Swift pushes
+ * `FigmaFeatureProductDetailsViewController(product:)` — the object travels
+ * with the navigation. Laravel has NO featured show route (`/products/{slug}`
+ * 404s for featured slugs; `featured-products?slug=` returns 200-but-empty),
+ * so re-fetching by slug broke every featured detail. The list stores the
+ * tapped product here right before navigating; the details ViewModel consumes
+ * it keyed by routeSlug, so a stale entry can never serve the wrong product
+ * and deep links (no entry) still use the network path.
+ */
+object ShopProductHandoffStore {
+    @Volatile
+    private var entry: ShopProduct? = null
+
+    fun put(product: ShopProduct) {
+        entry = product
+    }
+
+    /** One-shot: returns the stored product only if it matches [routeSlug]. */
+    fun consume(routeSlug: String): ShopProduct? {
+        val handed = entry ?: return null
+        entry = null
+        return handed.takeIf { it.routeSlug == routeSlug }
+    }
+}

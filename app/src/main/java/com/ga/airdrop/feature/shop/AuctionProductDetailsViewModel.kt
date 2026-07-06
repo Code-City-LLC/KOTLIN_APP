@@ -39,6 +39,15 @@ class AuctionProductDetailsViewModel(
     }
 
     fun load() {
+        // Swift parity (VERIFICATION_LEDGER P1): the pushing list hands the
+        // tapped product over — no featured show endpoint exists, so the slug
+        // re-fetch 404s for every featured product. Deep links (no hand-off)
+        // keep the network path below.
+        ShopProductHandoffStore.consume(slug)?.let { handed ->
+            _state.update { it.copy(product = handed, loading = false, error = null) }
+            if (!featured) loadRelated()
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             // RECONCILE: GET /products/{slug} (featured → /featured-products/{slug});
