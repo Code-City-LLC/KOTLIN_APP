@@ -1919,10 +1919,14 @@ Findings to verify/fix:
   `iconSelected` strokes to white through `AirdropTheme.colors.isDark`.
   `MoreRootTapRailsParityTest` pixel-checks all 12 icons in app light and dark.
 - Shared bottom-tab icons were compared against Swift `FigmaBottomTabBar`
-  first and Figma Home node `40001464:28899` second. Android already followed
-  Swift by tinting all active/inactive tab vectors from the app theme; the new
-  `AirdropBottomBarIconParityTest` pixel-checks every tab icon plus the
-  selected label in app light and app dark.
+  first and Figma Help nav icon node `40000770:4747` second. Swift uses the
+  same outline `FigmaIcon.home/shipment/shop/help/more` for active and inactive
+  states and changes only tint/label. Android was still swapping to filled
+  selected assets. `AirdropBottomBar` now always uses the outline nav assets,
+  and `AirdropBottomBarIconParityTest` pixel-checks every tab color plus the
+  active/inactive alpha mask in app light and app dark. Proof:
+  `/tmp/kotlin_ui_proof/bottom_tab_outline/bottom_tab_outline_swift_light.png`,
+  `/tmp/kotlin_ui_proof/bottom_tab_outline/bottom_tab_outline_swift_dark.png`.
 - Sales Taxes / Ship Tax detail step icons were compared against Swift
   `FigmaSalesTaxesViewController.swift` first and Figma node
   `40001531:11704` second. Android now uses explicit app-dark variants for the

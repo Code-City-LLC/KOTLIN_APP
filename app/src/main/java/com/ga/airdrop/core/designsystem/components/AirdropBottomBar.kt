@@ -113,7 +113,7 @@ private fun TabItem(
     ) {
         val tint: Color = if (isSelected) BrandPalette.OrangeMain else colors.iconSelected
         Image(
-            painter = painterResource(tab.iconRes(isSelected)),
+            painter = painterResource(tab.iconRes()),
             contentDescription = tab.label,
             // Swift: 28pt in both states.
             modifier = Modifier.size(28.dp),
@@ -136,10 +136,10 @@ private fun TabItem(
     }
 }
 
-private fun AirdropTab.iconRes(selected: Boolean): Int = when (this) {
-    AirdropTab.Home -> if (selected) R.drawable.ic_home_filled else R.drawable.ic_home
-    AirdropTab.Shipments -> if (selected) R.drawable.ic_shipment_filled else R.drawable.ic_nav_shipment
-    AirdropTab.Shop -> if (selected) R.drawable.ic_shop_filled else R.drawable.ic_nav_shop
-    AirdropTab.Help -> if (selected) R.drawable.ic_help_filled else R.drawable.ic_nav_help
-    AirdropTab.More -> if (selected) R.drawable.ic_more_filled else R.drawable.ic_nav_more
+private fun AirdropTab.iconRes(): Int = when (this) {
+    AirdropTab.Home -> R.drawable.ic_home
+    AirdropTab.Shipments -> R.drawable.ic_nav_shipment
+    AirdropTab.Shop -> R.drawable.ic_nav_shop
+    AirdropTab.Help -> R.drawable.ic_nav_help
+    AirdropTab.More -> R.drawable.ic_nav_more
 }
