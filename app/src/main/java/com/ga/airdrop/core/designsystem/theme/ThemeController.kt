@@ -2,6 +2,7 @@ package com.ga.airdrop.core.designsystem.theme
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -38,5 +39,28 @@ object ThemeController {
         if (::prefs.isInitialized) {
             prefs.edit().putString(KEY_MODE, newMode.name).apply()
         }
+    }
+
+    /**
+     * The uiMode night bit this Mode forces for Android resource-qualifier
+     * resolution (values-night: @color/icon_duotone, window_background,
+     * themes-night). SYSTEM returns null — "don't override, pass the OS bit
+     * through" (Swift FigmaAppTheme `.unspecified` parity). Consumed by
+     * MainActivity.attachBaseContext so the whole activity's resources resolve
+     * against ThemeController, in lockstep with Compose.
+     */
+    fun nightMask(): Int? = when (mode) {
+        Mode.DARK -> Configuration.UI_MODE_NIGHT_YES
+        Mode.LIGHT -> Configuration.UI_MODE_NIGHT_NO
+        Mode.SYSTEM -> null
+    }
+
+    /** The effective dark bit for the current mode; SYSTEM reads the OS uiMode. */
+    fun resolvedNight(context: Context): Boolean = when (mode) {
+        Mode.DARK -> true
+        Mode.LIGHT -> false
+        Mode.SYSTEM ->
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
     }
 }

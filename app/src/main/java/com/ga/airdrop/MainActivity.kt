@@ -1,9 +1,12 @@
 package com.ga.airdrop
 
+import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -12,6 +15,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.network.TokenRefresher
@@ -28,6 +32,32 @@ import retrofit2.HttpException
 // unchanged.
 class MainActivity : FragmentActivity() {
 
+    // The resolved night bit the activity was built with (set in
+    // attachBaseContext). A ThemeController Mode change that flips this bit needs
+    // an activity recreate so the values-night resources (duotone icons, window
+    // background) re-resolve in lockstep with Compose.
+    private var attachedNight = false
+
+    /**
+     * Dark-mode night-sync: force the activity's uiMode night bit from
+     * ThemeController so @color/icon_duotone, @color/window_background and
+     * themes-night follow the in-app theme instead of the OS uiMode (Swift
+     * FigmaAppTheme.apply parity). SYSTEM passes the OS bit through unchanged.
+     */
+    override fun attachBaseContext(newBase: Context) {
+        val mask = ThemeController.nightMask()
+        val base = if (mask != null) {
+            val config = Configuration(newBase.resources.configuration)
+            config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or mask
+            newBase.createConfigurationContext(config)
+        } else {
+            newBase
+        }
+        attachedNight = (base.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+        super.attachBaseContext(base)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -38,6 +68,16 @@ class MainActivity : FragmentActivity() {
         val lockedAtLaunch = BiometricGate.requiresAuthOnLaunch(this)
         setContent {
             AirdropTheme {
+                // Recreate only when the effective night bit actually flips
+                // (SYSTEM↔matching light/dark is a no-op), so resource-night
+                // catches up with Compose without recreate loops. OS-level night
+                // changes in SYSTEM mode already recreate via the manifest (no
+                // uiMode configChanges), so system mode stays correct for free.
+                LaunchedEffect(ThemeController.mode) {
+                    if (ThemeController.resolvedNight(applicationContext) != attachedNight) {
+                        recreate()
+                    }
+                }
                 var locked by rememberSaveable { mutableStateOf(lockedAtLaunch) }
                 AppRoot()
                 if (locked) {
