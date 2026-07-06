@@ -23,7 +23,9 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -118,6 +120,95 @@ class DocumentsScreenScreenshotTest {
         }
     }
 
+    @Test
+    fun uploadUsesSwiftMultipartShapeShowsAlertAndReloads() {
+        val repository = CountingDocumentsRepository()
+        lateinit var viewModel: DocumentsViewModel
+        val slot = DOCUMENT_SLOTS.first { it.docType == "file_1583" }
+        val bytes = byteArrayOf(1, 5, 8, 3)
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel = DocumentsViewModel(repository)
+            viewModel.upload(slot, "form-1583.pdf", "application/pdf", bytes)
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.uploadCount.get() == 1 &&
+                repository.loadCount.get() == 1 &&
+                viewModel.state.value.uploadingType == null &&
+                !viewModel.state.value.loading
+        }
+
+        val upload = repository.lastUpload.get()
+        assertEquals("file_1583", upload?.docType)
+        assertEquals("form-1583.pdf", upload?.fileName)
+        assertEquals("application/pdf", upload?.mimeType)
+        assertArrayEquals(bytes, upload?.bytes)
+        assertEquals("Uploaded" to "1583 Form was uploaded.", viewModel.state.value.alert)
+    }
+
+    @Test
+    fun deletePrefersRemoteDocTypeLikeSwiftAndReloads() {
+        val repository = CountingDocumentsRepository(
+            documents = mapOf(
+                "airdrop_contract" to sampleFile.copy(docType = "server_contract_type"),
+            ),
+        )
+        lateinit var viewModel: DocumentsViewModel
+        val slot = DOCUMENT_SLOTS.first { it.docType == "airdrop_contract" }
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel = DocumentsViewModel(repository)
+            viewModel.load()
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.loadCount.get() == 1 && !viewModel.state.value.loading
+        }
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.delete(slot)
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.deleteCount.get() == 1 &&
+                repository.loadCount.get() == 2 &&
+                !viewModel.state.value.loading
+        }
+
+        assertEquals("server_contract_type", repository.lastDelete.get())
+        assertEquals("Deleted" to "AirDrop Contract was removed.", viewModel.state.value.alert)
+    }
+
+    @Test
+    fun deleteFallsBackToSlotTypeWhenRemoteDocTypeIsMissing() {
+        val repository = CountingDocumentsRepository(
+            documents = mapOf(
+                "trn" to sampleFile.copy(docType = ""),
+            ),
+        )
+        lateinit var viewModel: DocumentsViewModel
+        val slot = DOCUMENT_SLOTS.first { it.docType == "trn" }
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel = DocumentsViewModel(repository)
+            viewModel.load()
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.loadCount.get() == 1 && !viewModel.state.value.loading
+        }
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.delete(slot)
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.deleteCount.get() == 1 &&
+                repository.loadCount.get() == 2 &&
+                !viewModel.state.value.loading
+        }
+
+        assertEquals("trn", repository.lastDelete.get())
+        assertEquals("Deleted" to "TRN was removed.", viewModel.state.value.alert)
+    }
+
     private fun setDocumentCard(
         mode: ThemeController.Mode,
         file: MoreDocumentFile?,
@@ -187,12 +278,25 @@ class DocumentsScreenScreenshotTest {
         uploadStatus = true,
     )
 
-    private class CountingDocumentsRepository : DocumentsRepository {
+    private data class UploadRecord(
+        val docType: String,
+        val fileName: String,
+        val mimeType: String,
+        val bytes: ByteArray,
+    )
+
+    private class CountingDocumentsRepository(
+        private val documents: Map<String, MoreDocumentFile> = emptyMap(),
+    ) : DocumentsRepository {
         val loadCount = AtomicInteger()
+        val uploadCount = AtomicInteger()
+        val deleteCount = AtomicInteger()
+        val lastUpload = AtomicReference<UploadRecord?>()
+        val lastDelete = AtomicReference<String?>()
 
         override suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>> {
             loadCount.incrementAndGet()
-            return Result.success(emptyMap())
+            return Result.success(documents)
         }
 
         override suspend fun uploadUserDocument(
@@ -200,9 +304,16 @@ class DocumentsScreenScreenshotTest {
             fileName: String,
             mimeType: String,
             bytes: ByteArray,
-        ): Result<Unit> = Result.success(Unit)
+        ): Result<Unit> {
+            uploadCount.incrementAndGet()
+            lastUpload.set(UploadRecord(docType, fileName, mimeType, bytes))
+            return Result.success(Unit)
+        }
 
-        override suspend fun deleteUserDocument(identifier: String): Result<Unit> =
-            Result.success(Unit)
+        override suspend fun deleteUserDocument(identifier: String): Result<Unit> {
+            deleteCount.incrementAndGet()
+            lastDelete.set(identifier)
+            return Result.success(Unit)
+        }
     }
 }
