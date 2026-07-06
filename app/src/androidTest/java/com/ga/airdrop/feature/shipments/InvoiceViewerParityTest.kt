@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.shipments
 
+import androidx.activity.ComponentActivity
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -14,7 +15,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.DpRect
@@ -39,7 +40,7 @@ import org.junit.runner.RunWith
 class InvoiceViewerParityTest {
 
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun invoiceViewerUsesSwiftSurfaceGeometryLight() {

@@ -1310,6 +1310,18 @@ assets; only repair the parts that are visibly or functionally wrong.
   `@color/icon_duotone` follows resource-night while `ThemeController` controls
   the app theme. Android now selects the existing white-handset dark vector when
   `colors.isDark` is true.
+- Follow-up 2026-07-06 after the fake-page escalation: Figma MCP refreshed
+  `40001940:26797` again and confirmed it is still not the Send Invitation
+  form; it renders the stale Refer landing screen. Swift
+  `FigmaInviteFriendViewController.swift` remains canonical for Invite Friend.
+  Android now also proves the Contacts row is functional, not just visual:
+  `InviteFriendParityScreenshotTest.contactsRowLaunchesEmailPickerAndPrefillsReturnedContact`
+  clicks the row, verifies the `ACTION_PICK` intent targets
+  `ContactsContract.CommonDataKinds.Email.CONTENT_URI`, and confirms the picked
+  display name/email prefill the first name, last name, and email fields through
+  the same ViewModel path used by the runtime contacts result callback.
+  Focused `InviteFriendParityScreenshotTest`: 8 connected tests passed on
+  `airdrop_test2(AVD) - 15`.
 - Legal live CMS content now has Swift-precedence proof: Android strips frozen
   CMS colors, recolors parsed heading spans to `textDarkTitle`, leaves body text
   on `textDescription`, and keeps orange links through `setLinkTextColor`.
@@ -1752,6 +1764,28 @@ Findings verified/fixed:
   - `ReferAFriendParityTest`, `PushDeepLinkParityTest`, and
     `InviteFriendParityScreenshotTest`: 6 connected tests passed on
     `airdrop_test2(AVD) - 15`
+- Follow-up 2026-07-06 after Kemar escalated that the page still felt fake:
+  Figma MCP design context was refreshed again for `40001940:26885` and
+  `40001940:26797`; both nodes still render the stale `$2 USD` landing frame
+  with a bottom `Invite` CTA and no referral-link/referrals section. Swift
+  still wins because `FigmaReferAFriendViewController.swift` is the executable
+  app screen and includes the referral link card, inline `Invite Friends` CTA,
+  and real referred-friends list.
+- The Android proof was strengthened so a fake/static page cannot pass:
+  `ReferAFriendParityTest.backendReferralRowsRenderInsteadOfFakeStaticEmptyPage`
+  now feeds three backend `ReferredFriend` rows, verifies the Swift `limit=20`
+  list call, asserts the empty-state copy disappears, and checks rendered
+  name/email/status rows covering `Completed`, `Cancelled`, and fallback
+  `Pending`. Focused `ReferAFriendParityTest`: 4 connected tests passed on
+  `airdrop_test2(AVD) - 15`.
+- Rebase follow-up 2026-07-06: upstream commit `a92d9ea` applied the Figma
+  white-card/drop-shadow badge variant and expanded the carousel to `290`dp.
+  The rebased full connected suite caught this as a Swift-precedence regression:
+  Swift `makeHeroCarousel()` is `220`pt high and `makeHeroCard()` is `238`pt
+  wide with tint@0.18 fill, bare `90`pt image, `18/10/6` vertical spacing, and
+  body text on `textDarkTitle`. Android restored that executable Swift contract;
+  focused `ReferAFriendParityTest`: 4 connected tests passed on
+  `airdrop_test2(AVD) - 15`.
 
 ### Dark Theme Icons
 
@@ -1784,6 +1818,14 @@ Findings to verify/fix:
   `40001531:11704` second. Android now uses explicit app-dark variants for the
   six 40dp step icons and `SalesTaxesParityTest` pixel-checks orange primary
   paths plus Swift `textDarkTitle` secondary strokes in app light and dark.
+- Follow-up 2026-07-06 full-suite regression: app-light More root and Sales
+  Taxes icons were still able to read Android resource-night
+  `@color/icon_duotone` while `ThemeController` kept the app in light mode.
+  The shared light vectors now pin the Swift `iconSelected` secondary role to
+  `#292929` while preserving orange primary paths and the existing app-dark
+  variants. Focused `SalesTaxesParityTest` + `MoreRootTapRailsParityTest`: 6
+  connected tests passed; final full `connectedProdDebugAndroidTest`: 181
+  connected tests passed on `airdrop_test2(AVD) - 15`.
 - Shared `HomeDetailsHeader` long titles now follow Swift's shrink-to-fit rule:
   Android keeps the `title1` default and 56dp header rail, then scales down to
   Swift's `0.8` floor before allowing a two-line wrap. Figma node

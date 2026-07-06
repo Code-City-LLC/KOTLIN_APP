@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.more2
 
+import android.content.Intent
 import android.graphics.Bitmap
+import android.provider.ContactsContract
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
@@ -85,6 +87,46 @@ class InviteFriendParityScreenshotTest {
 
         assertInfoBodyContainsColor(WHITE_HANDSET, "Swift textDarkTitle info body in app dark mode")
         assertInfoBodyDoesNotContainColor(BLUE_MAIN, "Info body must not use BlueMain in dark mode")
+    }
+
+    @Test
+    fun contactsRowLaunchesEmailPickerAndPrefillsReturnedContact() {
+        val api = FakeMore2Api()
+        val launchedIntent = AtomicReference<Intent?>()
+        lateinit var viewModel: InviteFriendViewModel
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            viewModel = InviteFriendViewModel(More2Repository(api))
+        }
+
+        compose.setContent {
+            AirdropTheme {
+                InviteFriendScreen(
+                    onBack = {},
+                    viewModel = viewModel,
+                    onContactPickerIntent = { intent ->
+                        launchedIntent.set(intent)
+                        viewModel.prefillContact(
+                            displayName = "Jordan Marie Smith",
+                            email = "jordan@example.com",
+                        )
+                    },
+                )
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+
+        compose.runOnIdle {
+            val intent = launchedIntent.get()
+            assertEquals(Intent.ACTION_PICK, intent?.action)
+            assertEquals(ContactsContract.CommonDataKinds.Email.CONTENT_URI, intent?.data)
+        }
+        compose.onNodeWithText("Jordan").assertIsDisplayed()
+        compose.onNodeWithText("Marie Smith").assertIsDisplayed()
+        compose.onNodeWithText("jordan@example.com").assertIsDisplayed()
     }
 
     @Test

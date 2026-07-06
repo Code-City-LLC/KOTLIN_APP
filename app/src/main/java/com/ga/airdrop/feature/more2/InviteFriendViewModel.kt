@@ -39,6 +39,14 @@ class InviteFriendViewModel(
     fun prefillContact(firstName: String, lastName: String, email: String) =
         _state.update { it.copy(firstName = firstName, lastName = lastName, email = email) }
 
+    /** Android contacts return a display name; keep it in the Swift first/last field shape. */
+    fun prefillContact(displayName: String, email: String) {
+        val parts = displayName.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        val first = parts.firstOrNull().orEmpty()
+        val last = if (parts.size > 1) parts.drop(1).joinToString(" ") else ""
+        prefillContact(first, last, email)
+    }
+
     fun save() {
         val s = _state.value
         if (s.saving) return

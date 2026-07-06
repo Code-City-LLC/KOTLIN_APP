@@ -1,18 +1,23 @@
 package com.ga.airdrop.feature.more2
 
 import android.content.res.Resources
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.DpRect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -36,6 +41,8 @@ import com.ga.airdrop.data.model.PromotionalBanner
 import com.ga.airdrop.data.model.ReferFriendRequest
 import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.model.ShippingRates
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
@@ -138,6 +145,79 @@ class ReferAFriendParityTest {
         compose.runOnIdle {
             assertEquals("Invite Friends button should open Swift Invite flow", 1, inviteClicks.get())
         }
+        saveRootScreenshot("refer_friend_swift_precedence_light.png")
+    }
+
+    @Test
+    fun backendReferralRowsRenderInsteadOfFakeStaticEmptyPage() {
+        val api = FakeMore2Api(
+            referrals = listOf(
+                ReferredFriend(
+                    id = 42,
+                    friendFirstName = "Chase",
+                    friendLastName = "Campbell",
+                    friendEmail = "chase@example.com",
+                    status = 1,
+                    statusText = "Completed",
+                ),
+                ReferredFriend(
+                    id = 43,
+                    friendFirstName = "Morgan",
+                    friendLastName = "Lee",
+                    friendEmail = "morgan@example.com",
+                    status = 2,
+                    statusText = null,
+                ),
+                ReferredFriend(
+                    id = 44,
+                    friendName = "Taylor Morgan",
+                    friendEmail = "taylor@example.com",
+                    status = 0,
+                    statusText = null,
+                ),
+            ),
+        )
+        lateinit var viewModel: ReferAFriendViewModel
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            viewModel = ReferAFriendViewModel(More2Repository(api))
+        }
+
+        compose.setContent {
+            AirdropTheme {
+                ReferAFriendScreen(
+                    onBack = {},
+                    onInviteFriend = {},
+                    viewModel = viewModel,
+                )
+            }
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            api.referredFriendsCalls.get() == 1 &&
+                !viewModel.state.value.loadingReferrals &&
+                viewModel.state.value.referrals.size == 3
+        }
+        compose.waitForIdle()
+
+        assertEquals("Swift asks the referred-friends endpoint for limit 20", 20, api.lastLimit.get())
+        assertEquals(
+            "Fake/static empty copy must disappear when backend rows exist",
+            0,
+            compose.onAllNodesWithText("referred anyone", substring = true)
+                .fetchSemanticsNodes().size,
+        )
+        compose.onNodeWithText("Chase Campbell").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("chase@example.com").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Completed").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Morgan Lee").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("morgan@example.com").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Cancelled").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Taylor Morgan").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("taylor@example.com").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Pending").performScrollTo().assertIsDisplayed()
+        saveRootScreenshot("refer_friend_backend_rows_light.png")
     }
 
     @Test
@@ -189,9 +269,12 @@ class ReferAFriendParityTest {
         )
     }
 
-    private class FakeMore2Api : More2Api {
+    private class FakeMore2Api(
+        private val referrals: List<ReferredFriend> = emptyList(),
+    ) : More2Api {
         val profileCalls = AtomicInteger()
         val referredFriendsCalls = AtomicInteger()
+        val lastLimit = AtomicInteger()
 
         override suspend fun authorizedUsers(): AuthorizedUsersEnvelope =
             throw AssertionError("Unused in ReferAFriendParityTest")
@@ -219,7 +302,8 @@ class ReferAFriendParityTest {
 
         override suspend fun referredFriends(limit: Int): Paginated<ReferredFriend> {
             referredFriendsCalls.incrementAndGet()
-            return Paginated(emptyList())
+            lastLimit.set(limit)
+            return Paginated(referrals)
         }
 
         override suspend fun referFriend(body: ReferFriendRequest): MutationResponse =
@@ -266,5 +350,18 @@ class ReferAFriendParityTest {
         val bitmap = BitmapFactory.decodeResource(resources, resId)
         assertEquals("$label Swift asset width", expectedWidth, bitmap.width)
         assertEquals("$label Swift asset height", expectedHeight, bitmap.height)
+    }
+
+    private fun saveRootScreenshot(filename: String) {
+        val bitmap: Bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val output = File(screenshotDir(), filename)
+        FileOutputStream(output).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
+
+    private fun screenshotDir(): File {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
     }
 }

@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.home
 
+import androidx.activity.ComponentActivity
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
@@ -7,7 +8,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -38,7 +39,7 @@ import org.junit.runner.RunWith
 class HomeActivityTilesScreenshotTest {
 
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun captureHomeActivityTilesLight() {

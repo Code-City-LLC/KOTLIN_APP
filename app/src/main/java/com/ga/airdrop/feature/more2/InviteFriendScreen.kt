@@ -59,6 +59,7 @@ fun InviteFriendScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit = onBack,
     viewModel: InviteFriendViewModel = viewModel(),
+    onContactPickerIntent: ((Intent) -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
@@ -80,10 +81,7 @@ fun InviteFriendScreen(
                 if (cursor.moveToFirst()) {
                     val email = cursor.getString(0).orEmpty()
                     val displayName = cursor.getString(1).orEmpty()
-                    val parts = displayName.trim().split(Regex("\\s+"))
-                    val first = parts.firstOrNull().orEmpty()
-                    val last = if (parts.size > 1) parts.drop(1).joinToString(" ") else ""
-                    viewModel.prefillContact(first, last, email)
+                    viewModel.prefillContact(displayName, email)
                 }
             }
         }
@@ -114,13 +112,16 @@ fun InviteFriendScreen(
                     .background(colors.gray100)
                     .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
                     .clickable {
-                        runCatching {
-                            contactPicker.launch(
-                                Intent(
-                                    Intent.ACTION_PICK,
-                                    ContactsContract.CommonDataKinds.Email.CONTENT_URI,
-                                ),
-                            )
+                        val intent = Intent(
+                            Intent.ACTION_PICK,
+                            ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+                        )
+                        if (onContactPickerIntent != null) {
+                            onContactPickerIntent(intent)
+                        } else {
+                            runCatching {
+                                contactPicker.launch(intent)
+                            }
                         }
                     }
                     .padding(horizontal = Spacing.md),
