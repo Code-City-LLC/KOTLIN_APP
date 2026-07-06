@@ -1351,9 +1351,18 @@ assets; only repair the parts that are visibly or functionally wrong.
   of `No description available.` Proof:
   `/tmp/kotlin_ui_proof/product_description_fallback/figma/auction_product_details_40002072_24025.png`,
   `/tmp/kotlin_ui_proof/product_description_fallback/android/auction_description_fallback_swift_light.png`.
+- Product Detail add-to-cart is now Swift-first. Figma node `40002072:24025`
+  supplies the bottom `Add to Cart` surface, while Swift
+  `FigmaAuctionProductDetailsViewController.onAddToCart` defines runtime
+  behavior: add through `FigmaCartStore`, update badge state, show `Added to
+  cart` / `Already in cart`, and let `View Cart` push My Cart. Android keeps the
+  existing `CartStore` source of truth and now proves the Product Detail CTA
+  adds exactly one package-backed line, preserves Swift's single-unit hosted
+  checkout behavior even after the visual quantity stepper is increased,
+  rejects duplicate lines, and routes both `View Cart` and the header Cart icon
+  to `Routes.CART`.
 - This does not close Shop as pixel-perfect: root and detail geometry still need
-  the owner/verifier pass against Swift + Figma in light and dark, and the
-  add-to-cart/cart path still needs proof.
+  the owner/verifier pass against Swift + Figma in light and dark.
 
 ### More/Profile/Legal
 
@@ -1938,7 +1947,7 @@ For each page, fill this before claiming completion:
 | AirCoins | `feature/homedetails/AirCoinScreen.kt`, `feature/homedetails/AirCoinViewModel.kt`, `data/repo/MiscRepository.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, `/aircoins/history?page=1&per_page=50` contract tested | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI and Swift history page-size data contract; live authenticated server acceptance can still be broadened if credentials are assigned |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Payment Methods `40001428:9188`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Add Authorized User `40001541:45296`, Authorized User Detail stale node `40001185:5345`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates`, `/authorized-users`, `/authorized-users/{id}` mutations, `/paymentMethods` UI rail to Cart | partial | partial | partial | Codex | More root profile/menu/header tap rails plus app-dark menu icon pixels, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Add Authorized User add/edit payload rails, Authorized User Detail one-load/read-only/mutation/delete rails, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
-| Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | no | partial | partial | BlueDeer/others | `a1768d2` route proof captured; visual parity/cart still open |
+| Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40002072:24025` | products/auction/cart | partial | partial | partial | BlueDeer/others | `a1768d2` route proof captured; Product Detail related empty-state, fallback copy, invalid feature purchase links, and add-to-cart/cart handoff are now Swift/Figma-proven; full Shop root/detail pixel pass in light and dark still open |
 
 ---
 

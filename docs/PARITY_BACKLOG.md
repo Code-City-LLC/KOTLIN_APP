@@ -35,6 +35,16 @@ light AND dark.
   of `No description available.` Proof:
   `/tmp/kotlin_ui_proof/product_description_fallback/figma/auction_product_details_40002072_24025.png`,
   `/tmp/kotlin_ui_proof/product_description_fallback/android/auction_description_fallback_swift_light.png`.
+- **Auction Product Details add-to-cart/cart handoff:** Product detail node
+  `40002072:24025` was refreshed through Figma MCP and Swift
+  `FigmaAuctionProductDetailsViewController.onAddToCart` is the runtime source:
+  product detail adds through `FigmaCartStore`, updates the cart badge, shows
+  `Added to cart` / `Already in cart`, and `View Cart` pushes My Cart. Android
+  keeps the existing `CartStore` path and now has focused instrumentation proof
+  that Product Detail adds exactly one package-backed cart line, preserves
+  Swift's single-unit hosted-checkout behavior even when the visual quantity is
+  increased, rejects duplicate lines, and routes both the dialog and header cart
+  icon to `Routes.CART`.
 - **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
 - **Kemar-locked chrome override:** Home/header/footer chrome must stay
   translucent and frosted, not opaque. Figma node `40001464:28926` and
@@ -1204,6 +1214,15 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 **Detail:** Swift's nil-description fallback is the long `Detailed product description will be loaded…` sentence (FigmaAuctionProductDetailsViewController.swift:574). Android already preserved `**...**` bold spans in the current tree, but still showed `No description available.` for null/blank descriptions.
 
 **Fix:** Closed. `cleanDescription` now returns Swift's full fallback copy for null/blank descriptions while preserving the existing annotated bold-span path. `AuctionProductDetailsRelatedParityTest.nullDescriptionUsesSwiftFallbackCopy` verifies the Swift copy and rejects the old Android-only fallback.
+
+---
+
+## [CLOSED] Auction Product Details — add-to-cart/cart handoff
+`app/src/main/java/com/ga/airdrop/feature/shop/AuctionProductDetailsScreen.kt:151` — Product Detail had no focused proof that the bottom Add to Cart CTA and header Cart icon were wired to the same cart flow as Swift.
+
+**Detail:** Figma product-detail node `40002072:24025` shows the auction Product Details surface with bottom `Add to Cart`, and Swift `FigmaAuctionProductDetailsViewController.onAddToCart` is the runtime authority: add through `FigmaCartStore`, update the header badge, show `Added to cart` or `Already in cart`, and push `FigmaCartViewController` from `View Cart` or the header cart button. Android already reused `CartStore` and `Routes.CART`, but the flow was only implied by code and adjacent Cart tests.
+
+**Fix:** Closed. `AuctionProductDetailsCartFlowParityTest` verifies the full Android rail without introducing a duplicate cart path: increasing the visual quantity still stores a single Swift-compatible checkout unit, the cart line preserves product id/package id/title/price, duplicate adds keep one line and show Swift's duplicate dialog, `View Cart` routes to `Routes.CART`, and the header cart icon routes to `Routes.CART`. The production change is limited to test tags on the existing CTA and quantity stepper.
 
 ---
 

@@ -162,6 +162,7 @@ fun AuctionProductDetailsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
+                        .testTag("auction-details-primary-cta")
                         .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
                         .clickable(enabled = product != null) {
                             if (featured) {
@@ -528,6 +529,7 @@ private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) {
         Box(
             modifier = Modifier
                 .size(36.dp)
+                .testTag("auction-details-quantity-decrease")
                 .clickable { onChange(-1) },
             contentAlignment = Alignment.Center,
         ) {
@@ -546,6 +548,7 @@ private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) {
         Box(
             modifier = Modifier
                 .size(36.dp)
+                .testTag("auction-details-quantity-increase")
                 .clickable { onChange(1) },
             contentAlignment = Alignment.Center,
         ) {
