@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -32,6 +34,7 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -163,8 +166,18 @@ class ShipmentsHubTapRailsParityTest {
         try {
             setShipmentsContent(FakeHubRepository())
 
+            compose.onNodeWithTag("shipments-summary-track-shipment").performClick()
+            compose.onNodeWithTag("shipments-quick-track-sheet").assertIsDisplayed()
+            compose.runOnIdle {
+                assertTrue("Track Shipment opens Swift quick-track sheet, not Packages", navigatedRoutes.isEmpty())
+            }
+            compose.onNodeWithTag("shipments-quick-track-field").performTextInput("ARD000000101")
+            compose.onNodeWithTag("shipments-quick-track-submit").performClick()
+            compose.waitUntil(timeoutMillis = 5_000) {
+                navigatedRoutes.lastOrNull() == Routes.packageDetails("101")
+            }
+
             listOf(
-                "shipments-summary-track-shipment" to Routes.PACKAGES,
                 "shipments-summary-packages" to Routes.PACKAGES,
                 "shipments-summary-payments" to Routes.PAYMENTS,
                 "shipments-summary-orders" to Routes.ORDERS,
@@ -320,9 +333,12 @@ class ShipmentsHubTapRailsParityTest {
         saveRootScreenshot("shipments_hub_swift_dark.png")
     }
 
-    private fun setShipmentsContent(repo: FakeHubRepository) {
+    private fun setShipmentsContent(
+        repo: FakeHubRepository,
+        packagesRepo: ShipmentsPackagesRepository = FakePackagesRepository(),
+    ) {
         navigatedRoutes.clear()
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(repo, packagesRepo)
         compose.setContent {
             AirdropThemeProvider {
                 Box(
@@ -512,6 +528,8 @@ class ShipmentsHubTapRailsParityTest {
                     weightLbs = 1.3,
                     statusName = "Ready for Pick-Up",
                     shippingMethod = "Standard",
+                    trackingCode = "ARD000000101",
+                    courierNumber = "COUR101",
                     additionalChargesTotal = 50.0,
                 )
 
@@ -548,6 +566,45 @@ class ShipmentsHubTapRailsParityTest {
                     invoiceAmountUsd = 1550.0,
                 )
         }
+    }
+
+    private class FakePackagesRepository(
+        private val packages: List<ShipmentPackage> = listOf(FakeHubRepository.samplePackage()),
+    ) : ShipmentsPackagesRepository {
+
+        override suspend fun packages(
+            page: Int,
+            perPage: Int,
+            status: Int?,
+            search: String?,
+        ): Result<List<ShipmentPackage>> {
+            val query = search.orEmpty().trim().uppercase(Locale.US)
+            val filtered = if (query.isEmpty()) {
+                packages
+            } else {
+                packages.filter {
+                    it.trackingCode.matches(query) ||
+                        it.courierNumber.matches(query) ||
+                        it.id.toString() == query
+                }
+            }
+            return Result.success(filtered)
+        }
+
+        override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> =
+            Result.failure(IllegalStateException("Package detail not used by quick-track test"))
+
+        override suspend fun packageStatuses(): Result<List<PackageStatusInfo>> =
+            Result.success(emptyList())
+
+        override suspend fun uploadInvoices(packageId: String, files: List<InvoiceUploadFile>): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun deleteInvoice(packageId: String, invoiceId: Int): Result<Unit> =
+            Result.success(Unit)
+
+        private fun String?.matches(query: String): Boolean =
+            this?.trim()?.uppercase(Locale.US) == query
     }
 
     private class TestLifecycleOwner : LifecycleOwner {

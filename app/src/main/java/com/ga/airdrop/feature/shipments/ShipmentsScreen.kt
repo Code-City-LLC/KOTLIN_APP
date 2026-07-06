@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,8 +21,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,15 +36,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.AirdropHeader
 import com.ga.airdrop.core.designsystem.components.AirdropHeaderStyle
+import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -56,6 +68,7 @@ fun ShipmentsScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    val quickTrack by viewModel.quickTrack.collectAsState()
     val headerInfo by SessionStore.header.collectAsState()
     // Shared cart membership — Swift FigmaCartStore; drives the +/check icons.
     val cartLines by com.ga.airdrop.feature.cart.CartStore.items.collectAsState()
@@ -87,7 +100,11 @@ fun ShipmentsScreen(
                 // Swift contentStack spacing 24 between sections.
                 verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
-                SummarySection(state = state, onNavigate = onNavigate)
+                SummarySection(
+                    state = state,
+                    onNavigate = onNavigate,
+                    onTrackShipment = viewModel::openQuickTrack,
+                )
 
                 // Packages preview — horizontal cards scroll edge-to-edge
                 // with 20 content padding (Swift scroll full-bleed).
@@ -202,6 +219,24 @@ fun ShipmentsScreen(
             onAirCoinsClick = { onNavigate(Routes.AIRCOIN_HISTORY) },
             modifier = Modifier.align(Alignment.TopCenter),
         )
+
+        if (quickTrack.visible) {
+            QuickTrackSheet(
+                state = quickTrack,
+                onCodeChange = viewModel::updateQuickTrackCode,
+                onDismiss = viewModel::dismissQuickTrack,
+                onTrack = {
+                    viewModel.submitQuickTrack { packageId ->
+                        onNavigate(Routes.packageDetails(packageId.toString()))
+                    }
+                },
+                onRecent = { code ->
+                    viewModel.submitQuickTrack(code) { packageId ->
+                        onNavigate(Routes.packageDetails(packageId.toString()))
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -211,19 +246,23 @@ private data class SummaryTile(
     val label: String,
     val baseIconRes: Int,
     val accentIconRes: Int,
-    val route: String,
+    val route: String?,
     val testTag: String,
 )
 
 @Composable
-private fun SummarySection(state: ShipmentsUiState, onNavigate: (String) -> Unit) {
+private fun SummarySection(
+    state: ShipmentsUiState,
+    onNavigate: (String) -> Unit,
+    onTrackShipment: () -> Unit,
+) {
     val colors = AirdropTheme.colors
     val tiles = listOf(
         SummaryTile(
             "Track Shipment",
             R.drawable.ic_joinery_base,
             R.drawable.ic_joinery_accent,
-            Routes.PACKAGES,
+            null,
             "track-shipment",
         ) to state.summary.totalShipments,
         SummaryTile(
@@ -266,12 +305,199 @@ private fun SummarySection(state: ShipmentsUiState, onNavigate: (String) -> Unit
                         SummaryTileCard(
                             tile = tile,
                             count = count,
-                            onClick = { onNavigate(tile.route) },
+                            onClick = {
+                                if (tile.route == null) onTrackShipment() else onNavigate(tile.route)
+                            },
                             modifier = Modifier.weight(1f),
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickTrackSheet(
+    state: QuickTrackUiState,
+    onCodeChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onTrack: () -> Unit,
+    onRecent: (String) -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        containerColor = colors.gray100,
+        shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
+        modifier = Modifier.testTag("shipments-quick-track-sheet"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(horizontal = Spacing.md)
+                .padding(top = 8.dp, bottom = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "Track a package",
+                    style = AirdropType.subtitle1,
+                    color = colors.textDarkTitle,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(colors.gray150)
+                        .clickable(onClick = onDismiss)
+                        .testTag("shipments-quick-track-back"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_more2_back_chevron),
+                        contentDescription = "Back",
+                        colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+            Text(
+                text = "Enter an AirDrop tracking number or courier reference.",
+                style = AirdropType.body3,
+                color = colors.textDescription,
+            )
+            QuickTrackInput(
+                value = state.code,
+                onValueChange = onCodeChange,
+                onSearch = onTrack,
+            )
+            if (state.error != null) {
+                Text(
+                    text = state.error,
+                    style = AirdropType.body3,
+                    color = AlertPalette.Error,
+                    modifier = Modifier.testTag("shipments-quick-track-error"),
+                )
+            }
+            GradientButton(
+                text = "Track",
+                onClick = onTrack,
+                loading = state.loading,
+                enabled = !state.loading,
+                modifier = Modifier.testTag("shipments-quick-track-submit"),
+            )
+            Text(
+                text = "Recent",
+                style = AirdropType.subtitle2,
+                color = colors.textDescription,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            if (state.recents.isEmpty()) {
+                Text(
+                    text = "No recent tracking lookups.",
+                    style = AirdropType.body3,
+                    color = colors.textDescription,
+                    modifier = Modifier.testTag("shipments-quick-track-empty-recents"),
+                )
+            } else {
+                state.recents.forEachIndexed { index, recent ->
+                    QuickTrackRecentRow(recent, index, onRecent)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickTrackInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSearch: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = AirdropType.body1.copy(color = colors.textDarkTitle),
+        cursorBrush = SolidColor(BrandPalette.OrangeMain),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.gray150)
+            .testTag("shipments-quick-track-field"),
+        decorationBox = { innerTextField ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = "e.g. ARD00000057961",
+                        style = AirdropType.body1,
+                        color = colors.textDescription,
+                    )
+                }
+                innerTextField()
+            }
+        },
+    )
+}
+
+@Composable
+private fun QuickTrackRecentRow(
+    recent: QuickTrackRecent,
+    index: Int,
+    onRecent: (String) -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    val meta = listOfNotNull(recent.description, recent.statusName)
+        .filter { it.isNotBlank() }
+        .joinToString(" • ")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.xs))
+            .background(colors.gray150)
+            .clickable { onRecent(recent.code) }
+            .testTag("shipments-quick-track-recent-$index")
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_packages_accent),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+            modifier = Modifier.size(22.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = recent.trackingCode?.takeIf { it.isNotBlank() } ?: recent.code,
+                style = AirdropType.subtitle2,
+                color = colors.textDarkTitle,
+            )
+            Text(
+                text = meta.ifBlank { "Tap to re-track" },
+                style = AirdropType.body3,
+                color = colors.textDescription,
+                maxLines = 1,
+            )
         }
     }
 }
