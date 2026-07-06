@@ -3,8 +3,6 @@ package com.ga.airdrop.feature.more2
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
@@ -13,12 +11,16 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.data.model.AirdropUser
+import com.ga.airdrop.data.model.ReferredFriend
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
@@ -44,73 +46,93 @@ class ReferAFriendParityTest {
     }
 
     @Test
-    fun referLandingMatchesCurrentSwiftFigmaLight() {
+    fun referLandingMatchesLocalSwiftLight() {
         val inviteClicks = AtomicInteger()
+        setReferContent(
+            mode = ThemeController.Mode.LIGHT,
+            repository = FakeReferRepository(
+                accountNumber = "AD-2048",
+                referrals = listOf(sampleFriend(id = 21)),
+            ),
+            onInviteFriend = { inviteClicks.incrementAndGet() },
+        )
 
-        setReferContent(ThemeController.Mode.LIGHT) {
-            inviteClicks.incrementAndGet()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("https://airdropja.com/refer/AD-2048").fetchSemanticsNodes().isNotEmpty()
         }
 
         compose.onNodeWithTag("refer-figma-screen").assertIsDisplayed()
         compose.onNodeWithTag("refer-hero-carousel").assertIsDisplayed()
         compose.onNodeWithTag("refer-hero-card-reward").assertIsDisplayed()
-        compose.onNodeWithTag("refer-earn-title").assertIsDisplayed()
-        compose.onNodeWithTag("refer-earn-body").assertIsDisplayed()
-        compose.onNodeWithTag("refer-invite-button").assertIsDisplayed()
-
-        assertTextExists("Refer. Reward. Repeat.")
-        assertTextExists("Earn $2 USD Per Invite")
+        assertTextExists("Earn AirCoins for every friend you invite")
         assertTextExists(
-            "Each friend who signs up and completes their first order adds $2 USD to your " +
+            "Each friend who signs up and completes their first order adds AirCoins to your " +
                 "account. Apply your rewards toward your next shipment — there’s no limit to how " +
                 "much you can earn!",
         )
-        assertAbsent("Earn AirCoins for every friend you invite")
-        assertAbsent("Your Referral Link")
-        assertAbsent("Your Referrals")
+        assertTextExists("Your Referral Link")
+        assertTextExists("https://airdropja.com/refer/AD-2048")
+        assertTextExists("Invite Friends")
+        assertTextExists("Your Referrals")
+        compose.onNodeWithTag("refer-referral-row-21").performScrollTo().assertIsDisplayed()
+        assertTextExists("Maya Brown")
+        assertTextExists("maya@example.com")
+        assertTextExists("Completed")
+        assertAbsent("Earn $2 USD Per Invite")
+        assertAbsent("Your Referral Link moved")
 
         val card = compose.onNodeWithTag("refer-hero-card-reward").getUnclippedBoundsInRoot()
-        val body = compose.onNodeWithTag("refer-hero-card-body-reward").getUnclippedBoundsInRoot()
-        assertEquals("Figma carousel card width", 238f, boundsWidth(card), 1f)
-        assertEquals("Figma carousel card height", 339f, boundsHeight(card), 1f)
-        assertTrue(
-            "Reward-card body text must fit inside the Figma card, not clip",
-            body.bottom.value <= card.bottom.value - 42f,
-        )
+        assertEquals("Swift-local carousel card width", 238f, boundsWidth(card), 1f)
+        assertEquals("Swift-local carousel card height", 220f, boundsHeight(card), 1f)
 
-        compose.onNodeWithTag("refer-invite-button").performClick()
+        compose.onNodeWithTag("refer-invite-button").performScrollTo().performClick()
         compose.runOnIdle {
-            assertEquals("Invite CTA opens Send Invitation", 1, inviteClicks.get())
+            assertEquals("Invite Friends CTA opens Send Invitation", 1, inviteClicks.get())
         }
-        saveRootScreenshot("refer_friend_figma_light.png")
+
+        compose.onNodeWithTag("refer-copy-link-button").performScrollTo().performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("Link copied").fetchSemanticsNodes().isNotEmpty()
+        }
+        saveRootScreenshot("refer_friend_swift_local_light.png")
     }
 
     @Test
-    fun referLandingMatchesCurrentSwiftFigmaDark() {
-        setReferContent(ThemeController.Mode.DARK)
+    fun referLandingMatchesLocalSwiftDarkEmptyState() {
+        setReferContent(
+            mode = ThemeController.Mode.DARK,
+            repository = FakeReferRepository(accountNumber = "AD-2048", referrals = emptyList()),
+        )
 
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("You haven’t referred anyone yet. Tap Invite Friends above to share AirDrop.")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
         compose.onNodeWithTag("refer-figma-screen").assertIsDisplayed()
-        compose.onNodeWithTag("refer-hero-card-reward").assertIsDisplayed()
-        assertTextExists("Earn $2 USD Per Invite")
-        assertAbsent("Your Referral Link")
-        assertAbsent("Your Referrals")
-        saveRootScreenshot("refer_friend_figma_dark.png")
+        compose.onNodeWithTag("refer-referral-link-card").assertIsDisplayed()
+        compose.onNodeWithTag("refer-referrals-empty").performScrollTo().assertIsDisplayed()
+        assertTextExists("Your Referrals")
+        assertAbsent("Your Referral Link moved into Send Invitation")
+        saveRootScreenshot("refer_friend_swift_local_dark.png")
     }
 
     private fun setReferContent(
         mode: ThemeController.Mode,
+        repository: FakeReferRepository,
         onInviteFriend: () -> Unit = {},
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
         }
         compose.setContent {
-            val refreshAfterInvite by remember { mutableStateOf(false) }
+            val viewModel = remember { ReferAFriendViewModel(repository) }
             AirdropTheme {
                 ReferAFriendScreen(
                     onBack = {},
                     onInviteFriend = onInviteFriend,
-                    refreshAfterInvite = refreshAfterInvite,
+                    refreshAfterInvite = false,
+                    viewModel = viewModel,
                 )
             }
         }
@@ -161,5 +183,24 @@ class ReferAFriendParityTest {
     private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
+    }
+
+    private fun sampleFriend(id: Int) = ReferredFriend(
+        id = id,
+        friendFirstName = "Maya",
+        friendLastName = "Brown",
+        friendEmail = "maya@example.com",
+        status = 1,
+    )
+
+    private class FakeReferRepository(
+        private val accountNumber: String,
+        private val referrals: List<ReferredFriend>,
+    ) : ReferAFriendRepository {
+        override suspend fun currentUser(): Result<AirdropUser> =
+            Result.success(AirdropUser(accountNumber = accountNumber))
+
+        override suspend fun referredFriends(limit: Int): Result<List<ReferredFriend>> =
+            Result.success(referrals.take(limit))
     }
 }

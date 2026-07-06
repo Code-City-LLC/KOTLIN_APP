@@ -12,7 +12,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ReferAFriendUiState(
-    val rendered: Boolean = true,
+    val referralLink: String = "https://airdropja.com/refer",
+    val referrals: List<ReferredFriend> = emptyList(),
+    val loadingReferrals: Boolean = true,
+    val error: String? = null,
 )
 
 data class ReferredFriendsUiState(
@@ -35,13 +38,55 @@ private class DefaultReferAFriendRepository(
         userRepository.referredFriends(limit = limit)
 }
 
-/** FigmaReferAFriendViewController: static carousel landing + Invite CTA. */
+/** Swift-local FigmaReferAFriendViewController: referral link + inline referrals. */
 class ReferAFriendViewModel(
-    @Suppress("unused") private val repository: ReferAFriendRepository = DefaultReferAFriendRepository(),
+    private val repository: ReferAFriendRepository = DefaultReferAFriendRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ReferAFriendUiState())
     val state: StateFlow<ReferAFriendUiState> = _state
+
+    init {
+        loadReferralData()
+        loadFriends()
+    }
+
+    private fun loadReferralData() {
+        viewModelScope.launch {
+            repository.currentUser()
+                .onSuccess { user ->
+                    val account = user.accountNumber.orEmpty()
+                    if (account.isNotBlank()) {
+                        _state.update { it.copy(referralLink = "https://airdropja.com/refer/$account") }
+                    }
+                }
+        }
+    }
+
+    fun loadFriends() {
+        _state.update { it.copy(loadingReferrals = true, error = null) }
+        viewModelScope.launch {
+            repository.referredFriends(limit = 200)
+                .onSuccess { friends ->
+                    _state.update {
+                        it.copy(
+                            loadingReferrals = false,
+                            referrals = friends,
+                            error = null,
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            loadingReferrals = false,
+                            referrals = emptyList(),
+                            error = error.message,
+                        )
+                    }
+                }
+        }
+    }
 }
 
 /** FigmaReferredFriendsViewController: GET /refer-friend/history?limit=200 history list. */
