@@ -100,6 +100,66 @@ class PackageDetailsParityTest {
         compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
     }
 
+    @Test
+    fun timelineUsesSwiftVisibleProgressionWhenHistoryIsSparseAtReadyForPickup() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(
+                status = "7",
+                statusName = "Ready for Pickup",
+                history = listOf(
+                    PackageHistoryItem(
+                        status = 7,
+                        statusName = "Ready for Pickup",
+                        comment = "Ready at counter",
+                        changedDate = "2024-01-14T12:30:00Z",
+                    )
+                ),
+            ),
+        )
+
+        listOf(
+            "Drop Alerted",
+            "Shipment Received",
+            "Port of Departure MIA",
+            "Arrived at Port JAM",
+            "Ready for Pickup",
+        ).forEach { text ->
+            compose.onNodeWithText(text)
+                .performScrollTo()
+                .assertIsDisplayed()
+        }
+        compose.onNodeWithText("Ready at counter")
+            .performScrollTo()
+            .assertIsDisplayed()
+        assertEquals(
+            "Swift hides backend-only status 6 from the compact package timeline",
+            0,
+            compose.onAllNodesWithText("Processing at our Warehouse").fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            "Swift stops the compact package timeline at Ready for Pickup for status 7",
+            0,
+            compose.onAllNodesWithText("Paid and Ready for Pick Up").fetchSemanticsNodes().size,
+        )
+
+        listOf(1, 2, 3, 4, 7).forEach { statusId ->
+            val icon = compose.onNodeWithTag("package-details-timeline-icon-$statusId")
+                .performScrollTo()
+                .getUnclippedBoundsInRoot()
+            assertClose(24f, boundsWidth(icon), "Swift timeline icon $statusId width")
+            assertClose(24f, boundsHeight(icon), "Swift timeline icon $statusId height")
+        }
+        assertEquals(1, compose.onAllNodesWithTag("package-details-timeline-connector-1").fetchSemanticsNodes().size)
+        assertEquals(1, compose.onAllNodesWithTag("package-details-timeline-connector-4").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithTag("package-details-timeline-connector-7").fetchSemanticsNodes().size)
+        assertNodeContainsColor(
+            tag = "package-details-timeline-icon-7",
+            target = 0xFF39A634.toInt(),
+            label = "Ready for Pickup timeline icon should be Swift completed green",
+        )
+    }
+
     private fun setPackageDetailsContent(
         mode: ThemeController.Mode,
         detail: ShipmentPackageDetail = sampleDetail(),
@@ -208,19 +268,7 @@ class PackageDetailsParityTest {
     private fun sampleDetail(
         status: String = "7",
         statusName: String = "Ready for Pickup",
-    ) = ShipmentPackageDetail(
-        id = 7,
-        status = status,
-        statusName = statusName,
-        shippingMethod = "Standard",
-        trackingCode = "AR000000043525",
-        store = "Global HUB",
-        shipper = "DHL / Airborne",
-        courierNumber = "1Z83X5220392160325",
-        description = "Plastic phone case",
-        weightLbs = 4.5,
-        numberOfPieces = 1,
-        history = listOf(
+        history: List<PackageHistoryItem> = listOf(
             PackageHistoryItem(
                 status = 1,
                 statusName = "Drop Alerted",
@@ -233,6 +281,19 @@ class PackageDetailsParityTest {
                 changedDate = null,
             ),
         ),
+    ) = ShipmentPackageDetail(
+        id = 7,
+        status = status,
+        statusName = statusName,
+        shippingMethod = "Standard",
+        trackingCode = "AR000000043525",
+        store = "Global HUB",
+        shipper = "DHL / Airborne",
+        courierNumber = "1Z83X5220392160325",
+        description = "Plastic phone case",
+        weightLbs = 4.5,
+        numberOfPieces = 1,
+        history = history,
         invoices = listOf(
             PackageInvoiceDoc(
                 id = 101,
@@ -297,6 +358,8 @@ class PackageDetailsParityTest {
     }
 
     private fun boundsLeft(bounds: DpRect): Float = bounds.left.value
+
+    private fun boundsWidth(bounds: DpRect): Float = (bounds.right - bounds.left).value
 
     private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value
 

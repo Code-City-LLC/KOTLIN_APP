@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,7 +59,7 @@ import com.ga.airdrop.core.navigation.Routes
 /**
  * Package details — Figma node 40001753:15716, behavior from
  * FigmaPackageDetailsViewController: method hero + circular badge, Summary
- * card, Shipment Timeline (bullet rows), invoice upload zone (multipart POST
+ * card, Shipment Timeline (status-icon rows), invoice upload zone (multipart POST
  * /packages/{id}/invoices) + list + pre-ready delete, CIF info, Breakdown of
  * Charges and Add to Cart (status >= 7).
  */
@@ -294,33 +295,55 @@ private fun PackageDetailsContent(
             DetailRow("Number of Pieces", (detail.numberOfPieces ?: 1).toString())
         }
 
-        // Shipment Timeline — Swift makeTimelineRow (:441-487): 10dp
-        // status-tinted bullet + subtitle1 name in the same color, comment +
-        // date as separate body3 textDescription lines, no connector.
+        // Shipment Timeline — Swift PackageTimelineProgression: canonical
+        // customer-visible statuses through the current package status.
         DetailSectionCard(
             title = "Shipment Timeline",
             tag = "package-details-section-timeline",
             titleContentGap = 14.dp,
             contentSpacing = 12.dp,
         ) {
-            val steps = detail.history.ifEmpty {
-                listOf(
-                    PackageHistoryItem(
-                        status = detail.status?.toIntOrNull(),
-                        statusName = detail.statusName,
-                        changedDate = null,
+            val inlineRows = PackageTimelineProgression.inlineRows(detail)
+            if (inlineRows.isNotEmpty()) {
+                val currentStatus = detail.status?.trim()?.toIntOrNull()
+                inlineRows.forEachIndexed { index, row ->
+                    TimelineIconRow(
+                        statusName = row.status.label,
+                        statusCode = row.status.id,
+                        color = PackageTimelineProgression.colorFor(
+                            statusId = row.status.id,
+                            currentStatus = currentStatus,
+                            placeholder = colors.textPlaceholder,
+                        ),
+                        comment = row.history?.comment?.takeIf { it.isNotBlank() },
+                        date = ShipmentsFormat.timelineDate(row.history?.changedDate).takeIf { it != "N/A" },
+                        showConnector = index != inlineRows.lastIndex,
+                        tag = "package-details-timeline-row-${row.status.id}",
                     )
-                )
-            }
-            steps.forEach { item ->
-                val statusName = item.statusName ?: "—"
-                TimelineBulletRow(
-                    statusName = statusName,
-                    color = timelineStatusColor(statusName),
-                    comment = item.comment?.takeIf { it.isNotBlank() },
-                    date = ShipmentsFormat.timelineDate(item.changedDate).takeIf { it != "N/A" },
-                    tag = "package-details-timeline-row-${item.status ?: statusName}",
-                )
+                }
+            } else {
+                val steps = detail.history.ifEmpty {
+                    listOf(
+                        PackageHistoryItem(
+                            status = detail.status?.toIntOrNull(),
+                            statusName = detail.statusName,
+                            changedDate = null,
+                        )
+                    )
+                }
+                steps.forEachIndexed { index, item ->
+                    val statusName = item.statusName ?: "—"
+                    val statusCode = item.status ?: ShipmentStatusCatalog.idFor(statusName)
+                    TimelineIconRow(
+                        statusName = statusName,
+                        statusCode = statusCode,
+                        color = timelineStatusColor(statusName),
+                        comment = item.comment?.takeIf { it.isNotBlank() },
+                        date = ShipmentsFormat.timelineDate(item.changedDate).takeIf { it != "N/A" },
+                        showConnector = index != steps.lastIndex,
+                        tag = "package-details-timeline-row-${item.status ?: statusName}",
+                    )
+                }
             }
         }
 
@@ -717,14 +740,15 @@ private fun DetailKeyValueRow(label: String, value: String) {
     }
 }
 
-/** Swift makeTimelineRow — 10dp status-tinted bullet + subtitle1 name (same color),
- *  optional comment + date as body3 textDescription lines, 12dp row gap. */
+/** Swift makeTimelineRow — 24dp status icon + 1dp connector + subtitle1 text. */
 @Composable
-private fun TimelineBulletRow(
+private fun TimelineIconRow(
     statusName: String,
+    statusCode: Int?,
     color: androidx.compose.ui.graphics.Color,
     comment: String?,
     date: String?,
+    showConnector: Boolean,
     tag: String? = null,
 ) {
     val colors = AirdropTheme.colors
@@ -733,14 +757,31 @@ private fun TimelineBulletRow(
             .fillMaxWidth()
             .then(if (tag != null) Modifier.testTag(tag) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Box(
-            Modifier
-                .padding(top = 8.dp)
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
+        Column(
+            modifier = Modifier.width(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Image(
+                painter = painterResource(ShipmentStatusCatalog.iconRes(statusCode ?: 0, dark = colors.isDark)),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(color),
+                modifier = Modifier
+                    .size(24.dp)
+                    .testTag("package-details-timeline-icon-${statusCode ?: statusName}"),
+            )
+            if (showConnector) {
+                Box(
+                    Modifier
+                        .padding(top = 4.dp)
+                        .width(1.dp)
+                        .height(34.dp)
+                        .background(color)
+                        .testTag("package-details-timeline-connector-${statusCode ?: statusName}")
+                )
+            }
+        }
         Column(Modifier.weight(1f)) {
             Text(text = statusName, style = AirdropType.subtitle1, color = color)
             if (!comment.isNullOrBlank()) {
