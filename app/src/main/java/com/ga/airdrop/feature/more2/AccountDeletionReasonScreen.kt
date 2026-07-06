@@ -60,11 +60,16 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 fun AccountDeletionReasonScreen(
     onBack: () -> Unit,
     onDeleted: () -> Unit,
+    onVerificationMissing: () -> Unit = onBack,
     viewModel: AccountDeletionReasonViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(Unit) {
+        if (!viewModel.hasVerifiedCredentials()) onVerificationMissing()
+    }
 
     LaunchedEffect(state.deleted) {
         if (state.deleted) onDeleted()

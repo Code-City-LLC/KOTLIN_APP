@@ -17,6 +17,9 @@ internal object AccountDeletionFlow {
     var email: String = ""
     var password: String = ""
 
+    fun hasVerifiedCredentials(): Boolean =
+        email.isNotBlank() && password.isNotBlank()
+
     fun clear() {
         email = ""
         password = ""

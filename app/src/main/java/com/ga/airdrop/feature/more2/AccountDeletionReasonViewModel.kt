@@ -44,7 +44,11 @@ class AccountDeletionReasonViewModel(
 
     fun selectReason(reason: String) = _state.update { it.copy(selectedReason = reason) }
 
+    fun hasVerifiedCredentials(): Boolean =
+        AccountDeletionFlow.hasVerifiedCredentials()
+
     fun requestDelete() {
+        if (!requireVerifiedCredentials()) return
         if (_state.value.selectedReason == null) {
             _state.update {
                 it.copy(error = "Please select a reason for deleting your account")
@@ -59,6 +63,7 @@ class AccountDeletionReasonViewModel(
 
     fun confirmDelete(context: Context) {
         if (_state.value.deleting) return
+        if (!requireVerifiedCredentials()) return
         val appContext = context.applicationContext
         _state.update { it.copy(showConfirmModal = false, deleting = true) }
         viewModelScope.launch {
@@ -80,5 +85,17 @@ class AccountDeletionReasonViewModel(
                     _state.update { it.copy(deleting = false, error = e.toUserMessage()) }
                 }
         }
+    }
+
+    private fun requireVerifiedCredentials(): Boolean {
+        if (hasVerifiedCredentials()) return true
+        _state.update {
+            it.copy(
+                showConfirmModal = false,
+                deleting = false,
+                error = "Please verify your email and password again to delete your account.",
+            )
+        }
+        return false
     }
 }

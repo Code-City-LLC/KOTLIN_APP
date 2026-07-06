@@ -36,6 +36,7 @@ import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.more.BackgroundStore
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
@@ -53,7 +54,7 @@ class AccountDeletionReasonParityTest {
 
     @Test
     fun confirmationSheetFollowsSwiftRuntimeWithoutFigmaGrabHandle() {
-        val viewModel = setReasonScreen()
+        val viewModel = setReasonScreen(verifiedCredentials = true)
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.selectReason("Other")
@@ -78,6 +79,57 @@ class AccountDeletionReasonParityTest {
         )
         assertNoFigmaHandleInTopBand(sheet.captureToImage().asAndroidBitmap())
         saveSheetScreenshot("account_deletion_reason_confirm_swift_light.png")
+    }
+
+    @Test
+    fun directReasonRouteWithoutVerifiedPasswordReturnsToVerification() {
+        val api = FakeMore2Api()
+        lateinit var viewModel: AccountDeletionReasonViewModel
+        val missingVerificationCallbacks = AtomicInteger()
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            AccountDeletionFlow.clear()
+            viewModel = AccountDeletionReasonViewModel(More2Repository(api))
+        }
+
+        compose.setContent {
+            AirdropTheme {
+                AccountDeletionReasonScreen(
+                    onBack = {},
+                    onDeleted = {},
+                    onVerificationMissing = { missingVerificationCallbacks.incrementAndGet() },
+                    viewModel = viewModel,
+                )
+            }
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            missingVerificationCallbacks.get() == 1
+        }
+        compose.waitForIdle()
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.selectReason("Other")
+            viewModel.requestDelete()
+            viewModel.confirmDelete(InstrumentationRegistry.getInstrumentation().targetContext)
+        }
+        compose.waitForIdle()
+
+        assertEquals(
+            "Direct/process-restored reason route must return to credential verification once",
+            1,
+            missingVerificationCallbacks.get(),
+        )
+        assertEquals(
+            "Swift initializer parity: deletion must not POST without verified password handoff",
+            0,
+            api.deactivateCalls.get(),
+        )
+        assertEquals(
+            "Please verify your email and password again to delete your account.",
+            viewModel.state.value.error,
+        )
     }
 
     @Test
@@ -116,11 +168,19 @@ class AccountDeletionReasonParityTest {
         assertEquals("", AccountDeletionFlow.password)
     }
 
-    private fun setReasonScreen(): AccountDeletionReasonViewModel {
+    private fun setReasonScreen(
+        verifiedCredentials: Boolean = false,
+    ): AccountDeletionReasonViewModel {
         val api = FakeMore2Api()
         lateinit var viewModel: AccountDeletionReasonViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
+            if (verifiedCredentials) {
+                AccountDeletionFlow.email = "k@example.com"
+                AccountDeletionFlow.password = "secret-password"
+            } else {
+                AccountDeletionFlow.clear()
+            }
             viewModel = AccountDeletionReasonViewModel(More2Repository(api))
         }
 
@@ -211,6 +271,7 @@ class AccountDeletionReasonParityTest {
 
     private class FakeMore2Api : More2Api {
         val lastPassword = AtomicReference<String>()
+        val deactivateCalls = AtomicInteger()
 
         override suspend fun authorizedUsers(): AuthorizedUsersEnvelope =
             throw AssertionError("Unused in AccountDeletionReasonParityTest")
@@ -264,6 +325,7 @@ class AccountDeletionReasonParityTest {
             throw AssertionError("Unused in AccountDeletionReasonParityTest")
 
         override suspend fun deactivateAccount(body: DeactivateAccountRequest): MutationResponse {
+            deactivateCalls.incrementAndGet()
             lastPassword.set(body.password)
             return MutationResponse(success = true, message = "deleted")
         }

@@ -129,6 +129,12 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
     composable(Routes.ACCOUNT_DELETION_REASON) {
         AccountDeletionReasonScreen(
             onBack = { navController.popBackStack() },
+            onVerificationMissing = {
+                navController.navigate(Routes.ACCOUNT_DELETION) {
+                    popUpTo(Routes.ACCOUNT_DELETION_REASON) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
             onDeleted = {
                 // Swift FigmaAccountDeletionReasonViewController.swift:422 —
                 // completeDeactivation root-swaps to FigmaLoginViewController
