@@ -6,11 +6,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -43,7 +49,7 @@ class CartHostedCheckoutParityTest {
     }
 
     @Test
-    fun makePaymentSendsSwiftCheckoutPayloadOpensUrlAndClearsCart() {
+    fun makePaymentSendsSwiftCheckoutPayloadOpensUrlAndPreservesCartUntilVerifiedReturn() {
         val repo = FakeCartCheckoutRepository()
         val openedUrl = AtomicReference<String?>()
         val cartCountDuringOpen = AtomicInteger(-1)
@@ -64,7 +70,7 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("Make Payment").performClick()
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            openedUrl.get() == CheckoutUrl && CartStore.count == 0
+            openedUrl.get() == CheckoutUrl
         }
 
         assertEquals("Swift Cart sends sorted package IDs from FigmaCartStore lines", listOf(7001, 7002), repo.lastPackageIds)
@@ -72,7 +78,59 @@ class CartHostedCheckoutParityTest {
         assertEquals("Swift Cart checkout sends is_auction=true", true, repo.lastIsAuction)
         assertEquals("Cart must still exist while the hosted checkout open callback fires", 2, cartCountDuringOpen.get())
         assertEquals("Stripe hosted checkout URL should be opened once", CheckoutUrl, openedUrl.get())
-        assertEquals("Cart clears only after the checkout URL open path runs", 0, CartStore.count)
+        assertEquals(
+            "Cart stays until the verified checkout-return flow confirms payment",
+            2,
+            CartStore.count,
+        )
+    }
+
+    @Test
+    fun yourNoteRowOpensFigmaPopupAndSavesPreviewDark() {
+        setCartContent(
+            repo = FakeCartCheckoutRepository(),
+            mode = ThemeController.Mode.DARK,
+            lines = listOf(
+                CartStore.CartLine(id = 5001, packageId = 9001, title = "Swift Note Package", priceUsd = 11.0),
+            ),
+            openCheckoutUrl = {},
+        )
+
+        waitForCart()
+        compose.onNodeWithTag("cart-note-row").performScrollTo().assertIsDisplayed()
+        assertClose(
+            59f,
+            boundsHeight(compose.onNodeWithTag("cart-note-row").getUnclippedBoundsInRoot()),
+            "Figma Your Note row height",
+        )
+        compose.onNodeWithTag("cart-note-chat-icon", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("cart-note-chevron", useUnmergedTree = true).assertIsDisplayed()
+
+        compose.onNodeWithTag("cart-note-row").performClick()
+        compose.onNodeWithTag("cart-note-dialog").assertIsDisplayed()
+        assertClose(
+            337f,
+            boundsWidth(compose.onNodeWithTag("cart-note-dialog").getUnclippedBoundsInRoot()),
+            "Figma Your Note popup width",
+        )
+        assertClose(
+            566f,
+            boundsHeight(compose.onNodeWithTag("cart-note-dialog").getUnclippedBoundsInRoot()),
+            "Figma Your Note popup height",
+        )
+        assertClose(
+            332f,
+            boundsHeight(compose.onNodeWithTag("cart-note-input-card").getUnclippedBoundsInRoot()),
+            "Figma Your Note text area height",
+        )
+        compose.onNodeWithTag("cart-note-dialog-title").assertIsDisplayed()
+        compose.onNodeWithText("Enter Your text").assertIsDisplayed()
+
+        compose.onNodeWithTag("cart-note-input").performTextInput("Leave at front desk")
+        compose.onNodeWithTag("cart-note-save").performClick()
+
+        assertTrue(compose.onAllNodesWithTag("cart-note-dialog").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithText("Your Note — Leave at front desk").assertIsDisplayed()
     }
 
     @Test
@@ -135,12 +193,13 @@ class CartHostedCheckoutParityTest {
 
     private fun setCartContent(
         repo: FakeCartCheckoutRepository,
+        mode: ThemeController.Mode = ThemeController.Mode.LIGHT,
         lines: List<CartStore.CartLine>,
         openCheckoutUrl: (String) -> Unit,
     ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.set(ThemeController.Mode.LIGHT)
+            ThemeController.set(mode)
             CartStore.init(context)
             CartStore.clear()
             lines.forEach { CartStore.add(it) }
@@ -170,6 +229,14 @@ class CartHostedCheckoutParityTest {
             compose.onAllNodesWithText("Make Payment").fetchSemanticsNodes().isNotEmpty()
         }
     }
+
+    private fun assertClose(expected: Float, actual: Float, label: String, tolerance: Float = 1f) {
+        assertTrue("$label expected $expected but was $actual", kotlin.math.abs(expected - actual) <= tolerance)
+    }
+
+    private fun boundsWidth(bounds: DpRect): Float = (bounds.right - bounds.left).value
+
+    private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value
 
     private class FakeCartCheckoutRepository(
         private val checkoutFailure: Throwable? = null,

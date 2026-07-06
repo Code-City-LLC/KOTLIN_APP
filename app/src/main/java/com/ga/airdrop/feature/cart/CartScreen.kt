@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,21 +31,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
-import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
+import com.ga.airdrop.core.designsystem.theme.GradientPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.feature.shop.ShopChevronRight
@@ -124,11 +128,9 @@ fun CartScreen(
                     }
                 }
 
-                // ─── Your Note — header ABOVE the 90dp note card (Swift) ───
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    CartSectionHeader("Your Note")
-                    NoteCard(note = state.note, onNoteChange = viewModel::updateNote)
-                }
+                // ─── Your Note — Figma 40006741:63981 / Swift origin/main
+                // buildNoteRow: 59dp tappable row that opens the note popup.
+                YourNoteRow(note = state.note, onClick = viewModel::openNoteDialog)
 
                 // ─── Charges ───
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -307,6 +309,15 @@ fun CartScreen(
             },
         )
     }
+
+    if (state.showNoteDialog) {
+        YourNoteDialog(
+            noteDraft = state.noteDraft,
+            onNoteDraftChange = viewModel::updateNoteDraft,
+            onDismiss = viewModel::dismissNoteDialog,
+            onSave = viewModel::saveNoteDraft,
+        )
+    }
 }
 
 /* ─── Section header — Figma "Header Section" with info icon ───────────── */
@@ -383,36 +394,139 @@ private fun CartItemCard(line: CartStore.CartLine, onRemove: () -> Unit) {
     }
 }
 
-/* ─── Your Note card ───────────────────────────────────────────────────── */
+/* ─── Your Note row + popup ────────────────────────────────────────────── */
 
 @Composable
-private fun NoteCard(note: String, onNoteChange: (String) -> Unit) {
+private fun YourNoteRow(note: String, onClick: () -> Unit) {
     val colors = AirdropTheme.colors
-    // Swift buildNoteCard (:541-576): fixed 90pt gray100 radius-12 multiline
-    // field; the "Your Note" header lives ABOVE the card.
-    Box(
-        Modifier
+    Row(
+        modifier = Modifier
             .fillMaxWidth()
-            // Swift buildNoteCard (:565) — fixed 90pt height.
-            .height(90.dp)
-            .background(colors.gray100, RoundedCornerShape(12.dp))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            .height(59.dp)
+            .testTag("cart-note-row")
+            .background(colors.gray100, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (note.isEmpty()) {
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_chat),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(24.dp)
+                    .testTag("cart-note-chat-icon"),
+            )
             Text(
-                text = "Add any delivery notes or special requests",
-                style = AirdropType.body2,
-                color = colors.textPlaceholder,
+                text = if (note.isBlank()) "Your Note" else "Your Note — ${note.take(40)}",
+                style = AirdropType.subtitle1,
+                color = colors.textDarkTitle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("cart-note-title"),
             )
         }
-        BasicTextField(
-            value = note,
-            onValueChange = onNoteChange,
-            textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-            cursorBrush = SolidColor(BrandPalette.OrangeMain),
-            modifier = Modifier.fillMaxWidth(),
+        Image(
+            painter = painterResource(R.drawable.ic_small_arrow_down),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.textDarkTitle),
+            modifier = Modifier
+                .size(24.dp)
+                .rotate(-90f)
+                .testTag("cart-note-chevron"),
         )
+    }
+}
+
+@Composable
+private fun YourNoteDialog(
+    noteDraft: String,
+    onNoteDraftChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            modifier = Modifier
+                .width(337.dp)
+                .height(566.dp)
+                .testTag("cart-note-dialog")
+                .background(colors.gray100, RoundedCornerShape(14.dp))
+                .padding(horizontal = 13.dp, vertical = 13.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_chat),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .testTag("cart-note-dialog-icon"),
+                )
+                Text(
+                    text = "Your Note",
+                    style = AirdropType.subtitle1,
+                    color = colors.textDarkTitle,
+                    modifier = Modifier.testTag("cart-note-dialog-title"),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(332.dp)
+                    .testTag("cart-note-input-card")
+                    .background(colors.gray100, RoundedCornerShape(10.dp))
+                    .border(1.dp, colors.iconShape, RoundedCornerShape(10.dp))
+                    .padding(10.dp),
+            ) {
+                if (noteDraft.isEmpty()) {
+                    Text(
+                        text = "Enter Your text",
+                        style = AirdropType.body3,
+                        color = colors.textDescription,
+                    )
+                }
+                BasicTextField(
+                    value = noteDraft,
+                    onValueChange = onNoteDraftChange,
+                    textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
+                    cursorBrush = SolidColor(BrandPalette.OrangeMain),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("cart-note-input"),
+                )
+            }
+            Box(Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .testTag("cart-note-save")
+                    .background(
+                        Brush.verticalGradient(GradientPalette.SignInButton),
+                        RoundedCornerShape(10.dp),
+                    )
+                    .clickable(onClick = onSave),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "Save", style = AirdropType.button, color = BrandPalette.White)
+            }
+        }
     }
 }
 

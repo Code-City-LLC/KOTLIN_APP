@@ -28,6 +28,8 @@ data class CartUiState(
     val loadedFirstName: String = "",
     val form: CartBillingForm = CartBillingForm(),
     val note: String = "",
+    val noteDraft: String = "",
+    val showNoteDialog: Boolean = false,
     val paying: Boolean = false,
     val errorTitle: String? = null,
     val errorMessage: String? = null,
@@ -93,6 +95,27 @@ class CartViewModel(
 
     fun updateNote(value: String) {
         _state.update { it.copy(note = value) }
+    }
+
+    fun openNoteDialog() {
+        _state.update { it.copy(noteDraft = it.note, showNoteDialog = true) }
+    }
+
+    fun updateNoteDraft(value: String) {
+        _state.update { it.copy(noteDraft = value) }
+    }
+
+    fun saveNoteDraft() {
+        _state.update {
+            it.copy(
+                note = it.noteDraft.trim(),
+                showNoteDialog = false,
+            )
+        }
+    }
+
+    fun dismissNoteDialog() {
+        _state.update { it.copy(noteDraft = it.note, showNoteDialog = false) }
     }
 
     fun removeItem(id: Int) = CartStore.remove(id)
