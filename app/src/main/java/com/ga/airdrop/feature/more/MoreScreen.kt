@@ -86,6 +86,10 @@ private data class MoreMenuItem(
     val darkIconRes: Int,
     val route: String,
     val testTag: String,
+    // For single-tone glyphs with no _dark twin: @color/icon_duotone follows
+    // resource-night, but this app themes via ThemeController (§1237 trap),
+    // so such icons must be tinted with the title color explicitly.
+    val tintWithTitleColor: Boolean = false,
 )
 
 // Order matches Figma node 40001948:22354 verbatim.
@@ -182,6 +186,7 @@ private val moreMenuItems = listOf(
         R.drawable.ic_calc_info_circle,
         Routes.ABOUT,
         MoreRootTags.ABOUT,
+        tintWithTitleColor = true,
     ),
 )
 
@@ -266,6 +271,7 @@ internal fun MoreScreenContent(
                         title = item.title,
                         onClick = { onNavigate(item.route) },
                         modifier = Modifier.testTag(item.testTag),
+                        tint = if (item.tintWithTitleColor) colors.textDarkTitle else null,
                         iconTestTag = "${item.testTag}-icon",
                     )
                 }
