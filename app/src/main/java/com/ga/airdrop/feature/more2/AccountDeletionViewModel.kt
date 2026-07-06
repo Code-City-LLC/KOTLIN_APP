@@ -14,15 +14,31 @@ import kotlinx.coroutines.launch
  * (route args must not carry a password).
  */
 internal object AccountDeletionFlow {
-    var email: String = ""
-    var password: String = ""
+    /** Immutable credential snapshot — email and password always paired. */
+    data class Credentials(val email: String, val password: String)
+
+    // A single @Volatile reference to an immutable snapshot: set() swaps both
+    // fields at once, so a concurrent reader can never observe one user's email
+    // paired with another user's password (BUG_AUDIT C1 — was two
+    // unsynchronized vars written one at a time).
+    @Volatile
+    private var creds: Credentials? = null
+
+    fun set(email: String, password: String) {
+        creds = Credentials(email, password)
+    }
+
+    /** Atomic paired read; email and password come from the same set(). */
+    fun snapshot(): Credentials? = creds
+
+    val email: String get() = creds?.email ?: ""
+    val password: String get() = creds?.password ?: ""
 
     fun hasVerifiedCredentials(): Boolean =
-        email.isNotBlank() && password.isNotBlank()
+        creds?.let { it.email.isNotBlank() && it.password.isNotBlank() } == true
 
     fun clear() {
-        email = ""
-        password = ""
+        creds = null
     }
 }
 
@@ -74,8 +90,7 @@ class AccountDeletionViewModel(
             repository.verifyCredentials(email, password)
                 .onSuccess { valid ->
                     if (valid) {
-                        AccountDeletionFlow.email = email
-                        AccountDeletionFlow.password = password
+                        AccountDeletionFlow.set(email, password)
                         _state.update { it.copy(loading = false, verified = true) }
                     } else {
                         _state.update {
