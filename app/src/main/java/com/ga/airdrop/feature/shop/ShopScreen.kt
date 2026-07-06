@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.components.AirdropHeader
@@ -61,7 +62,12 @@ fun ShopScreen(
     }
 
     // Swift FigmaShopViewController.swift:42 — gray200 background.
-    Box(Modifier.fillMaxSize().background(colors.gray200)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(colors.gray200)
+            .testTag("shop-root")
+    ) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -81,6 +87,7 @@ fun ShopScreen(
                     onValueChange = viewModel::onQueryChange,
                     placeholder = "Search",
                     onFilterClick = { viewModel.setSortSheetVisible(true) },
+                    modifier = Modifier.testTag("shop-root-search"),
                 )
 
                 // ─── Auction section (2-column grid of 4) ───
@@ -111,7 +118,9 @@ fun ShopScreen(
                                             inCart = cartLines.any { it.id == product.id },
                                             onClick = { openDetails(product, featured = false) },
                                             onToggleCart = { CartStore.toggle(product.toCartLine()) },
-                                            modifier = Modifier.weight(1f),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag("shop-root-auction-card-${product.id}"),
                                             // Swift Shop root: 1-line title, 15/10 insets.
                                             titleLines = 1,
                                             rootInsets = true,
@@ -147,7 +156,9 @@ fun ShopScreen(
                                     onClick = { openDetails(product, featured = true) },
                                     // Swift: no cart toggle on Shop-root featured cards.
                                     onToggleCart = null,
-                                    modifier = Modifier.width(160.dp),
+                                    modifier = Modifier
+                                        .width(160.dp)
+                                        .testTag("shop-root-featured-card-${product.id}"),
                                     // Swift Shop root: 1-line title, 15/10 insets.
                                     titleLines = 1,
                                     rootInsets = true,

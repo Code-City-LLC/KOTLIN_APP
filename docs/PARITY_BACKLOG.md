@@ -9,9 +9,9 @@ light AND dark.
 
 ---
 
-## STATUS LEDGER (updated 2026-07-05 — MagentaCastle/Codex)
+## STATUS LEDGER (updated 2026-07-06 — MagentaCastle/Codex)
 
-> The list below was catalogued at `08e36e2`. Since then **42 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
+> The list below was catalogued at `08e36e2`. Since then **43 items are fixed or verified on-device** and locked by regression proof. Do not redo them.
 
 **✅ DONE (pushed):**
 - Package details §45 (gray200/gray100 surfaces), §54 (status-tinted bullet dots), §63 (inline titles/no dividers/title2 values), §72 (Exchange-Rate + plain Total footer) → `db84b0d`
@@ -45,6 +45,19 @@ light AND dark.
   Swift's single-unit hosted-checkout behavior even when the visual quantity is
   increased, rejects duplicate lines, and routes both the dialog and header cart
   icon to `Routes.CART`.
+- **Shop root screen-level Swift/Figma proof:** Shop root node
+  `40001846:53519` was refreshed through Figma MCP and compared with Swift
+  `FigmaShopViewController.swift`. Swift keeps the shared frosted tab header
+  while the static Figma node still contains an inner `Auction Highlights`
+  header, so Android does not change header chrome without a product ruling.
+  Android now locks the Swift/Figma content geometry: search field x=20,
+  y=126, w=335, h=50; root auction cards 245dp high; featured root cards
+  160x245dp; root auction cards have a cart toggle, while featured cards route
+  to featured details without a plus button. Root cause fixed: shared
+  `ShopSearchField` used min-height and rendered 52.19dp high; it is now exact
+  50dp. Proof: `ShopRootScreenParityTest` passed 4/4 on
+  `airdrop_test2(AVD) - 15`; adjacent `ShopRootListParityTest` +
+  `AuctionProductDetailsCartFlowParityTest` passed 7/7.
 - **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
 - **Kemar-locked chrome override:** Home/header/footer chrome must stay
   translucent and frosted, not opaque. Figma node `40001464:28926` and
@@ -976,6 +989,35 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 **Detail:** Swift pins contentStack.topAnchor at constant 126 from the scroll content top with 20pt side insets only (FigmaShopViewController.swift:109-113). Kotlin stacks Spacer(126.dp) THEN a Column with .padding(Spacing.md) on all four sides, adding an extra 20dp above the search field. (The bottom currently works out to 140dp = Swift's 120 tail + 20 inset, so only the top drifts.)
 
 **Fix:** Closed in current Android. The current tree uses `Spacer(126.dp)` and horizontal-only `Spacing.md` padding, so the search field starts at Swift's 126pt effective top. Refreshed Swift source shows `contentStack.bottomAnchor` is `-20` and `contentInsetAdjustmentBehavior = .never`; the older proposed 140dp tail bump is not Swift-backed and was not applied. Figma Shop node `40001846:53519` also shows content at `top-[106px]` with 20px padding, producing the same 126px effective search top.
+
+## [CLOSED] Shop root — search/card/rail screen proof
+`app/src/main/java/com/ga/airdrop/feature/shop/ShopComponents.kt` and
+`ShopScreen.kt` — the Shop root looked close but the shared search field was not
+pixel-exact and the root Auction/Featured behavior split was not guarded by a
+screen-level light/dark proof.
+
+**Detail:** Figma MCP for Shop root `40001846:53519` reports the search control
+as `335x50` with 20px side gutters. Swift `FigmaShopViewController.swift`
+uses a 50pt search card at the same effective y=126 content position, a 2x2
+auction grid of 245pt cards, and a horizontal Feature Products row of 160x245pt
+cards. Swift runtime also differs by card rail: Shop-root auction cards expose a
+plus button that toggles `FigmaCartStore` without navigation, while featured
+root cards omit the plus and open featured Product Details. Android already
+reused the right card component and cart store, but `ShopSearchField` used
+`defaultMinSize(minHeight = 50.dp)` and measured 52.19dp in instrumentation.
+
+**Fix:** Closed. `ShopSearchField` now uses exact `height(50.dp)`, and
+`ShopScreen` exposes stable test tags for the root, search field, auction root
+cards, and featured root cards without duplicating UI. `ShopRootScreenParityTest`
+locks light/dark geometry and the Swift runtime split: auction plus creates one
+cart line without navigation, auction card tap opens auction Product Details,
+featured cards have no root plus buttons, and featured card tap opens featured
+Product Details. Verification on 2026-07-06:
+`git diff --check`, `:app:compileProdDebugKotlin`,
+`:app:compileProdDebugAndroidTestKotlin`, focused
+`:app:connectedProdDebugAndroidTest` for `ShopRootScreenParityTest` passed 4/4,
+and adjacent `ShopRootListParityTest` + `AuctionProductDetailsCartFlowParityTest`
+passed 7/7 on `airdrop_test2(AVD) - 15`.
 
 ---
 

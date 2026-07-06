@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -189,7 +188,7 @@ fun ShopSearchField(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 50.dp)
+            .height(50.dp)
             .background(colors.gray100, RoundedCornerShape(Radius.xs))
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
             .padding(horizontal = Spacing.md, vertical = 13.dp),
