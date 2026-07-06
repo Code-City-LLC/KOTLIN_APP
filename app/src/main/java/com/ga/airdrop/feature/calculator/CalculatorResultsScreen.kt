@@ -31,7 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +47,7 @@ import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
@@ -89,6 +93,7 @@ fun CalculatorResultsScreen(
     Column(
         Modifier
             .fillMaxSize()
+            .testTag("calculator-results-root")
             .background(colors.gray100)
     ) {
         InnerScreenHeader(title = title, onBack = onBack)
@@ -98,6 +103,7 @@ fun CalculatorResultsScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .testTag("calculator-results-scroll")
                 .padding(Spacing.md),
             // Swift contentStack — flat 10 (Spacing.sm) between every group.
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -144,6 +150,7 @@ fun CalculatorResultsScreen(
         Column(
             Modifier
                 .fillMaxWidth()
+                .testTag("calculator-results-footer")
                 .background(colors.gray150)
         ) {
             Box(
@@ -159,8 +166,20 @@ fun CalculatorResultsScreen(
                 // Swift footer row spacing 12 (:252).
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlineButton(text = "Drop Alert", onClick = onDropAlert, modifier = Modifier.weight(1f))
-                GradientButton(text = "Make Payment", onClick = onMakePayment, modifier = Modifier.weight(1f))
+                OutlineButton(
+                    text = "Drop Alert",
+                    onClick = onDropAlert,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("calculator-results-drop-alert-button"),
+                )
+                GradientButton(
+                    text = "Make Payment",
+                    onClick = onMakePayment,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("calculator-results-make-payment-button"),
+                )
             }
         }
     }
@@ -235,14 +254,20 @@ internal fun SummaryCard(
                 modifier = Modifier.weight(1f),
             )
             if (onInfoClick != null) {
-                Image(
-                    painter = painterResource(R.drawable.ic_calc_info_circle),
-                    contentDescription = "What is this?",
-                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(28.dp)
+                        .testTag("calculator-results-cif-info")
                         .clickable(onClick = onInfoClick),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_calc_info_circle),
+                        contentDescription = "What is this?",
+                        colorFilter = ColorFilter.tint(colors.iconSelected),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
         Text(text = value, style = AirdropType.h5, color = colors.textDarkTitle)
@@ -338,8 +363,8 @@ internal fun TotalPill(label: String, amount: Double) {
  */
 @Composable
 private fun DisclaimerCard(onLinkClick: () -> Unit) {
-    val colors = AirdropTheme.colors
     BlueInfoCard(
+        modifier = Modifier.testTag("calculator-results-disclaimer-card"),
         text = {
             val text = buildAnnotatedString {
                 append("The price indicated above is an estimate and does not include customs duties or taxes. ")
@@ -358,7 +383,15 @@ private fun DisclaimerCard(onLinkClick: () -> Unit) {
             }
             ClickableText(
                 text = text,
-                style = AirdropType.body2.copy(color = colors.textDarkTitle),
+                style = AirdropType.body2.copy(color = AlertPalette.NotStarted),
+                modifier = Modifier
+                    .testTag("calculator-results-disclaimer-link-text")
+                    .semantics {
+                        onClick(label = "Open Government Charges") {
+                            onLinkClick()
+                            true
+                        }
+                    },
                 onClick = { offset ->
                     text.getStringAnnotations("link", offset, offset).firstOrNull()?.let { onLinkClick() }
                 },

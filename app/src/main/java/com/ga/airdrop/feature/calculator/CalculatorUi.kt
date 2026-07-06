@@ -121,7 +121,6 @@ internal fun BlueInfoCard(
     modifier: Modifier = Modifier,
     title: String? = null,
 ) {
-    val colors = AirdropTheme.colors
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -133,12 +132,12 @@ internal fun BlueInfoCard(
         Image(
             painter = painterResource(R.drawable.ic_info),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(colors.textDarkTitle),
+            colorFilter = ColorFilter.tint(AlertPalette.NotStarted),
             modifier = Modifier.size(20.dp),
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (title != null) {
-                Text(text = title, style = AirdropType.title2, color = colors.textDarkTitle)
+                Text(text = title, style = AirdropType.title2, color = AlertPalette.NotStarted)
             }
             text()
         }
@@ -147,9 +146,8 @@ internal fun BlueInfoCard(
 
 @Composable
 internal fun BlueInfoCard(text: String, modifier: Modifier = Modifier, title: String? = null) {
-    val colors = AirdropTheme.colors
     BlueInfoCard(
-        text = { Text(text = text, style = AirdropType.body2, color = colors.textDarkTitle) },
+        text = { Text(text = text, style = AirdropType.body2, color = AlertPalette.NotStarted) },
         modifier = modifier,
         title = title,
     )

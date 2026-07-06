@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
@@ -133,7 +134,6 @@ fun GovernmentChargesScreen(
 
 @Composable
 private fun RestrictedShipmentsCard(onLinkClick: () -> Unit) {
-    val colors = AirdropTheme.colors
     BlueInfoCard(
         text = {
             val text = buildAnnotatedString {
@@ -156,7 +156,7 @@ private fun RestrictedShipmentsCard(onLinkClick: () -> Unit) {
             }
             ClickableText(
                 text = text,
-                style = AirdropType.body2.copy(color = colors.textDarkTitle),
+                style = AirdropType.body2.copy(color = AlertPalette.NotStarted),
                 onClick = { offset ->
                     text.getStringAnnotations("link", offset, offset).firstOrNull()?.let { onLinkClick() }
                 },
