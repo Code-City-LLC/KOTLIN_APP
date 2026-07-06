@@ -23,6 +23,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -91,6 +92,63 @@ class PreferencesParityScreenshotTest {
 
         assertEquals(1, pickupClicks.get())
         assertEquals(1, currencyClicks.get())
+    }
+
+    @Test
+    fun preferencesSaveMirrorsSwiftDefaultsAndSparsePayload() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.getSharedPreferences(PreferencesViewModel.PREFS, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
+        val repository = RecordingMoreProfileRepository(
+            user = MoreUser(
+                id = 91,
+                email = "swift-user@example.com",
+                pickupLocation = "",
+                paymentCurrency = "",
+            ),
+        )
+        val holder = AtomicReference<PreferencesViewModel>()
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            holder.set(PreferencesViewModel(repository).also { it.start(context) })
+        }
+        val viewModel = holder.get()
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.currentUserCalls.get() == 1 &&
+                viewModel.state.value.email == "swift-user@example.com"
+        }
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.applyPickup(context, "Kingston")
+            viewModel.applyCurrency(context, "USD")
+            viewModel.save()
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.updateProfileCalls.get() == 1 && !viewModel.state.value.saving
+        }
+
+        val prefs = context.getSharedPreferences(
+            PreferencesViewModel.PREFS,
+            android.content.Context.MODE_PRIVATE,
+        )
+        assertEquals("Kingston", prefs.getString(PreferencesViewModel.KEY_PICKUP, null))
+        assertEquals("USD", prefs.getString(PreferencesViewModel.KEY_CURRENCY, null))
+
+        val fields = repository.lastProfileUpdate.get().orEmpty()
+        assertEquals("91", fields["user_id"])
+        assertEquals("swift-user@example.com", fields["email"])
+        assertEquals("Kingston", fields["pickup_location"])
+        assertEquals("USD", fields["payment_currency"])
+        assertEquals(
+            "Preferences should keep Swift sparse ProfileUpdateRequest scope",
+            setOf("user_id", "email", "pickup_location", "payment_currency"),
+            fields.keys,
+        )
+        assertEquals("Success" to "Preferences updated successfully", viewModel.state.value.alert)
     }
 
     private fun setPreferencesRows(mode: ThemeController.Mode) {

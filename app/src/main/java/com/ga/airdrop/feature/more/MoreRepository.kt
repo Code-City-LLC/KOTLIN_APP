@@ -95,7 +95,24 @@ data class MoreDocumentFile(
 
 class MoreRepositoryException(message: String) : IOException(message)
 
-class MoreRepository : DocumentsRepository {
+interface MoreProfileRepository {
+    suspend fun currentUser(): Result<MoreUser>
+    suspend fun updateProfile(fields: Map<String, String?>): Result<String?>
+    suspend fun profileImage(): Result<ProfileAsset>
+    suspend fun uploadProfileImage(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): Result<ProfileAsset>
+    suspend fun deleteProfileImage(): Result<Unit>
+    suspend fun fetchImage(url: String): Result<ByteArray>
+}
+
+interface MoreSettingsRepository {
+    suspend fun logout(): Result<Unit>
+}
+
+class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsRepository {
 
     private val client = ApiClient.okHttp
     private val json = ApiClient.json
@@ -104,7 +121,7 @@ class MoreRepository : DocumentsRepository {
 
     // ─── User profile ───
 
-    suspend fun currentUser(): Result<MoreUser> = request("GET", "/user/profile") { root ->
+    override suspend fun currentUser(): Result<MoreUser> = request("GET", "/user/profile") { root ->
         val user = root.objectAt("data")?.objectAt("user")
             ?: root.objectAt("data")
             ?: root.objectAt("user")
@@ -116,7 +133,7 @@ class MoreRepository : DocumentsRepository {
      * PUT /user/profile — sparse update, snake_case keys matching the Swift
      * ProfileUpdateRequest. Null values are omitted (server keeps old value).
      */
-    suspend fun updateProfile(fields: Map<String, String?>): Result<String?> {
+    override suspend fun updateProfile(fields: Map<String, String?>): Result<String?> {
         val body = buildJsonObject {
             fields.forEach { (key, value) -> if (value != null) put(key, value) }
         }
@@ -127,13 +144,13 @@ class MoreRepository : DocumentsRepository {
 
     // ─── Profile image ───
 
-    suspend fun profileImage(): Result<ProfileAsset> =
+    override suspend fun profileImage(): Result<ProfileAsset> =
         request("GET", "/user/profile/image") { it.parseAsset() }
 
-    suspend fun uploadProfileImage(
+    override suspend fun uploadProfileImage(
         bytes: ByteArray,
-        fileName: String = "profile.jpg",
-        mimeType: String = "image/jpeg",
+        fileName: String,
+        mimeType: String,
     ): Result<ProfileAsset> {
         val multipart = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
@@ -142,11 +159,11 @@ class MoreRepository : DocumentsRepository {
         return request("POST", "/user/profile/image", multipart) { it.parseAsset() }
     }
 
-    suspend fun deleteProfileImage(): Result<Unit> =
+    override suspend fun deleteProfileImage(): Result<Unit> =
         request("DELETE", "/user/profile/image") { }
 
     /** Raw image download with the bearer token attached (avatar URLs are protected). */
-    suspend fun fetchImage(url: String): Result<ByteArray> = withContext(Dispatchers.IO) {
+    override suspend fun fetchImage(url: String): Result<ByteArray> = withContext(Dispatchers.IO) {
         runCatching {
             val response = client.newCall(Request.Builder().url(url).build()).execute()
             response.use {
@@ -199,8 +216,8 @@ class MoreRepository : DocumentsRepository {
 
     // ─── Session ───
 
-    suspend fun logout(): Result<Unit> =
-        request("POST", "/auth/logout", ByteArray(0).toRequestBody(jsonMedia)) { }
+    override suspend fun logout(): Result<Unit> =
+        request("POST", "/auth/logout", "{}".toRequestBody(jsonMedia)) { }
 
     /** GET /aircoins/status → available ?? balance, rendered as the header label. */
     suspend fun airCoinsBalance(): Result<Int> = request("GET", "/aircoins/status") { root ->

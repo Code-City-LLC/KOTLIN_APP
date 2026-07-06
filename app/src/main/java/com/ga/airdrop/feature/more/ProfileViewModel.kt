@@ -42,7 +42,7 @@ data class ProfileUiState(
  * snake_case field names the Laravel API expects.
  */
 class ProfileViewModel(
-    private val repository: MoreRepository = MoreRepository(),
+    private val repository: MoreProfileRepository = MoreRepository(),
 ) : ViewModel() {
 
     // RN canonical option lists (modules/Profile/ui/ProfileView/index.tsx).
@@ -124,7 +124,11 @@ class ProfileViewModel(
     fun uploadAvatar(bitmap: Bitmap) {
         _state.update { it.copy(avatar = bitmap, avatarLoading = true) }
         viewModelScope.launch {
-            repository.uploadProfileImage(bitmap.toUploadJpeg())
+            repository.uploadProfileImage(
+                bytes = bitmap.toUploadJpeg(),
+                fileName = "profile.jpg",
+                mimeType = "image/jpeg",
+            )
                 .onSuccess { refreshAvatar() }
                 .onFailure { e ->
                     _state.update {

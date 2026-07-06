@@ -24,7 +24,7 @@ data class PreferencesUiState(
  * with those feature groups).
  */
 class PreferencesViewModel(
-    private val repository: MoreRepository = MoreRepository(),
+    private val repository: MoreProfileRepository = MoreRepository(),
 ) : ViewModel() {
 
     // Verbatim RN option lists — order matters (JMD before USD).

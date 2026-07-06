@@ -80,7 +80,11 @@ class MoreViewModel(
     fun uploadAvatar(bitmap: Bitmap) {
         _state.update { it.copy(avatar = bitmap, avatarLoading = true, avatarError = null) }
         viewModelScope.launch {
-            repository.uploadProfileImage(bitmap.toUploadJpeg())
+            repository.uploadProfileImage(
+                bytes = bitmap.toUploadJpeg(),
+                fileName = "profile.jpg",
+                mimeType = "image/jpeg",
+            )
                 .onSuccess {
                     loadAvatar(fallbackUrl = null)
                     _state.update { it.copy(avatarLoading = false) }

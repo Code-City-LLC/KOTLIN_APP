@@ -21,11 +21,15 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.session.SessionStore
+import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -134,6 +138,52 @@ class SettingsParityTest {
             compose.onAllNodesWithText("Sign out of this AirDrop account?")
                 .fetchSemanticsNodes().size,
         )
+    }
+
+    @Test
+    fun logoutSuccessClearsSwiftLocalSessionStateAndNavigatesToLogin() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        AuthTokenStore.init(context)
+        AuthTokenStore.save("token-to-clear")
+        SessionStore.update {
+            it.copy(
+                greeting = "Welcome back",
+                firstName = "Ada",
+                tierName = "Gold",
+                airCoins = "42",
+                cartCount = 3,
+            )
+        }
+        CartStore.init(context)
+        CartStore.clear()
+        CartStore.add(CartStore.CartLine(id = 17, title = "Swift Cart", qty = 2, priceUsd = 12.0))
+        val cachePrefs = context.getSharedPreferences(
+            SettingsViewModel.CACHE_PREFS,
+            android.content.Context.MODE_PRIVATE,
+        )
+        cachePrefs.edit().apply {
+            SettingsViewModel.CACHE_KEYS.forEach { putString(it, "stale") }
+        }.commit()
+
+        val repository = RecordingSettingsRepository()
+        val viewModel = SettingsViewModel(repository)
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.logout(context)
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.logoutCalls.get() == 1 && viewModel.state.value.loggedOut
+        }
+
+        assertEquals(null, AuthTokenStore.token)
+        assertEquals(SessionStore.HeaderInfo(), SessionStore.header.value)
+        assertEquals(0, CartStore.count)
+        SettingsViewModel.CACHE_KEYS.forEach { key ->
+            assertFalse("Logout should remove cache key $key", cachePrefs.contains(key))
+        }
+        assertFalse(viewModel.state.value.loggingOut)
+        assertEquals(null, viewModel.state.value.logoutError)
     }
 
     private fun setSettings(mode: ThemeController.Mode) {
@@ -261,6 +311,15 @@ class SettingsParityTest {
 
     private fun verticalGap(first: androidx.compose.ui.unit.DpRect, second: androidx.compose.ui.unit.DpRect): Float =
         (second.top - first.bottom).value
+
+    private class RecordingSettingsRepository : MoreSettingsRepository {
+        val logoutCalls = AtomicInteger()
+
+        override suspend fun logout(): Result<Unit> {
+            logoutCalls.incrementAndGet()
+            return Result.success(Unit)
+        }
+    }
 
     private companion object {
         const val ORANGE = 0xFFF15114.toInt()

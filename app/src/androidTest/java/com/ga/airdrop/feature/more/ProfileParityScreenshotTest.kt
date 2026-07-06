@@ -19,6 +19,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.Calendar
 import java.util.TimeZone
+import java.util.concurrent.atomic.AtomicReference
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -63,6 +64,83 @@ class ProfileParityScreenshotTest {
         assertFalse(isSelectableDobDate(tomorrow, today))
         assertTrue(isSelectableDobYear(2026, today))
         assertFalse(isSelectableDobYear(2027, today))
+    }
+
+    @Test
+    fun profileSaveSubmitsSwiftSparsePayloadAndPreservesPreferenceFields() {
+        val repository = RecordingMoreProfileRepository(
+            user = MoreUser(
+                id = 77,
+                email = "loaded@example.com",
+                firstName = "Loaded",
+                lastName = "User",
+                pickupLocation = "Kingston",
+                paymentCurrency = "USD",
+            ),
+        )
+        val holder = AtomicReference<ProfileViewModel>()
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            holder.set(ProfileViewModel(repository))
+        }
+        val viewModel = holder.get()
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.currentUserCalls.get() == 1 &&
+                repository.profileImageCalls.get() == 1 &&
+                viewModel.state.value.email == "loaded@example.com"
+        }
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.set {
+                it.copy(
+                    firstName = "  Ada  ",
+                    lastName = " Lovelace ",
+                    taxId = " 123456789 ",
+                    idType = "Passport",
+                    idNumber = " P-4242 ",
+                    dob = "07/04/1990",
+                    email = " ada@example.com ",
+                    password = "",
+                    confirmPassword = "",
+                    language = "English",
+                    addressLine1 = " 1 Computing Way ",
+                    addressLine2 = "   ",
+                    country = "Jamaica",
+                    state = "Kingston",
+                    city = " Kingston ",
+                    phone = " +1876 5551212 ",
+                )
+            }
+            viewModel.save()
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.updateProfileCalls.get() == 1 && !viewModel.state.value.saving
+        }
+
+        val fields = repository.lastProfileUpdate.get().orEmpty()
+        assertEquals("77", fields["user_id"])
+        assertEquals("ada@example.com", fields["email"])
+        assertEquals("Ada", fields["first_name"])
+        assertEquals("Lovelace", fields["last_name"])
+        assertEquals("+1876 5551212", fields["user_phone"])
+        assertEquals("+1876", fields["user_country_code"])
+        assertEquals("5551212", fields["user_mobile"])
+        assertEquals("123456789", fields["user_trn_number"])
+        assertEquals("Passport", fields["user_identity_type"])
+        assertEquals("P-4242", fields["user_identity_number"])
+        assertEquals("04-07-1990", fields["user_dob"])
+        assertEquals("English", fields["user_language"])
+        assertEquals("1 Computing Way", fields["user_address_line_1"])
+        assertEquals(null, fields["user_address_line_2"])
+        assertEquals("Kingston", fields["user_address_city"])
+        assertEquals("Kingston", fields["user_address_state"])
+        assertEquals("Jamaica", fields["user_address_country"])
+        assertEquals("Kingston", fields["pickup_location"])
+        assertEquals("USD", fields["payment_currency"])
+        assertFalse("Swift ProfileUpdateRequest has no password field", fields.containsKey("password"))
+        assertEquals("Saved" to "Profile updated.", viewModel.state.value.alert)
     }
 
     private fun setProfileAvatar(mode: ThemeController.Mode) {

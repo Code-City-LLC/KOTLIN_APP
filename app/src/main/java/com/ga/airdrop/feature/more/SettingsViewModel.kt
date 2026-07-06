@@ -24,7 +24,7 @@ data class SettingsUiState(
  * comes back unauthenticated).
  */
 class SettingsViewModel(
-    private val repository: MoreRepository = MoreRepository(),
+    private val repository: MoreSettingsRepository = MoreRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
