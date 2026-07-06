@@ -90,9 +90,10 @@ class ReferAFriendParityTest {
         )
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.profileCalls.get() >= 1 && api.referredFriendsCalls.get() >= 1
+            api.profileCalls.get() == 1 && api.referredFriendsCalls.get() == 1
         }
         compose.waitForIdle()
+        assertSwiftInitialLoads(api)
 
         compose.onNodeWithTag("refer-hero-carousel").assertIsDisplayed()
         val heroBounds = compose.onNodeWithTag("refer-hero-carousel").getUnclippedBoundsInRoot()
@@ -135,9 +136,10 @@ class ReferAFriendParityTest {
         setReferContent(api = api, mode = ThemeController.Mode.DARK)
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.profileCalls.get() >= 1 && api.referredFriendsCalls.get() >= 1
+            api.profileCalls.get() == 1 && api.referredFriendsCalls.get() == 1
         }
         compose.waitForIdle()
+        assertSwiftInitialLoads(api)
 
         assertTextExists("Earn AirCoins for every friend you invite")
         scrollTo("refer-referrals-empty")
@@ -181,7 +183,10 @@ class ReferAFriendParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) { api.referredFriendsCalls.get() >= 1 }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            api.profileCalls.get() == 1 && api.referredFriendsCalls.get() == 1
+        }
+        assertSwiftInitialLoads(api)
         compose.runOnIdle {
             api.friends = listOf(
                 ReferredFriend(
@@ -195,9 +200,19 @@ class ReferAFriendParityTest {
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.referredFriendsCalls.get() >= 2 && consumed == 1
+            api.referredFriendsCalls.get() == 2 && consumed == 1
         }
         compose.waitForIdle()
+        assertEquals(
+            "Swift invite completion reloads referred friends without refetching the referral link",
+            1,
+            api.profileCalls.get(),
+        )
+        assertEquals(
+            "Swift invite completion should issue exactly one additional referred-friends call",
+            2,
+            api.referredFriendsCalls.get(),
+        )
 
         scrollTo("refer-referral-row-11")
         compose.onNodeWithText("Referred friend").assertIsDisplayed()
@@ -244,6 +259,19 @@ class ReferAFriendParityTest {
         assertTrue(
             "Expected Refer page text: $text",
             compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty(),
+        )
+    }
+
+    private fun assertSwiftInitialLoads(api: FakeMore2Api) {
+        assertEquals(
+            "Swift loadReferralData should fetch profile exactly once on first render",
+            1,
+            api.profileCalls.get(),
+        )
+        assertEquals(
+            "Swift viewWillAppear should fetch referred friends exactly once on first render",
+            1,
+            api.referredFriendsCalls.get(),
         )
     }
 

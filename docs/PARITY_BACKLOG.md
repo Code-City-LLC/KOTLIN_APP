@@ -704,6 +704,19 @@ status pills, dark empty state, and post-invite reload.
 opened through More -> Refer and visually inspected at
 `/tmp/refer_friend_actual_after_staging_install.png`.
 
+**Follow-up verification 2026-07-06:** Swift
+`FigmaReferAFriendViewController.swift` was rechecked for lifecycle ownership:
+`loadReferralData()` runs once in `viewDidLoad`, `loadReferredFriends()` runs
+from `viewWillAppear`, and Invite completion reloads only the referred-friends
+list. Android already matched that production behavior; `ReferAFriendParityTest`
+now fails any duplicate first-load regression by asserting exactly one profile
+call and one referred-friends call on first render, then exactly one additional
+referred-friends call after Invite completion without refetching the referral
+link. Focused `ReferAFriendParityTest` passed 4/4 on `airdrop_test2(AVD) - 15`;
+adjacent `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`, and
+`PushDeepLinkParityTest` passed 13/13, proving the full Refer page, Invite
+validation/payload/success rail, and Refer/Invite push deep-link routes.
+
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
 **✅ CLOSED — Home dark icon follow-up:** Services tile gear layer is no longer

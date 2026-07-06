@@ -1924,6 +1924,16 @@ Findings verified/fixed:
   and `MoreRootTapRailsParityTest` passed 14/14; patched `installStagingDebug`
   APK was opened through More -> Refer and visually inspected at
   `/tmp/refer_friend_actual_after_staging_install.png`.
+- Follow-up on 2026-07-06 rechecked Swift lifecycle ownership:
+  `loadReferralData()` runs once in `viewDidLoad`, `loadReferredFriends()` runs
+  from `viewWillAppear`, and Invite completion reloads only the referred-friends
+  list. Android already matched that behavior; `ReferAFriendParityTest` now
+  asserts exact first-render calls (one profile, one referred-friends) and exact
+  post-invite reload (one additional referred-friends call, no profile refetch).
+  Focused `ReferAFriendParityTest` passed 4/4 on `airdrop_test2(AVD) - 15`;
+  adjacent `ReferAFriendParityTest`, `InviteFriendParityScreenshotTest`, and
+  `PushDeepLinkParityTest` passed 13/13, covering Refer, Invite submit/contact
+  rails, and Refer/Invite push deep links.
 
 ### Dark Theme Icons
 
