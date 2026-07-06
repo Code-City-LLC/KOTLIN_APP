@@ -84,6 +84,11 @@ class AuthorizedUsersParityTest {
             ThemeController.set(ThemeController.Mode.LIGHT)
             viewModel = AuthorizedUsersViewModel(More2Repository(api))
         }
+        assertEquals(
+            "ViewModel construction must not eagerly load; screen focus owns Swift initial fetch",
+            0,
+            api.authorizedUsersCalls.get(),
+        )
 
         compose.setContent {
             AirdropTheme {
@@ -97,18 +102,28 @@ class AuthorizedUsersParityTest {
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.authorizedUsersCalls.get() >= 1 && !viewModel.state.value.loading
+            api.authorizedUsersCalls.get() == 1 && !viewModel.state.value.loading
         }
         val callsBeforeManualRefresh = api.authorizedUsersCalls.get()
+        assertEquals(
+            "Swift focus-load should issue exactly one initial authorized-users call",
+            1,
+            callsBeforeManualRefresh,
+        )
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.refresh()
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.authorizedUsersCalls.get() >= callsBeforeManualRefresh + 1 &&
+            api.authorizedUsersCalls.get() == callsBeforeManualRefresh + 1 &&
                 !viewModel.state.value.refreshing
         }
+        assertEquals(
+            "Manual refresh should issue one additional authorized-users call",
+            2,
+            api.authorizedUsersCalls.get(),
+        )
     }
 
     private fun setAuthorizedUsers(mode: ThemeController.Mode): AuthorizedUsersViewModel {
@@ -120,6 +135,11 @@ class AuthorizedUsersParityTest {
             ThemeController.set(mode)
             viewModel = AuthorizedUsersViewModel(More2Repository(api))
         }
+        assertEquals(
+            "AuthorizedUsersScreen focus effect owns initial load",
+            0,
+            api.authorizedUsersCalls.get(),
+        )
 
         compose.setContent {
             AirdropTheme {
@@ -132,8 +152,13 @@ class AuthorizedUsersParityTest {
             }
         }
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.authorizedUsersCalls.get() >= 1 && !viewModel.state.value.loading
+            api.authorizedUsersCalls.get() == 1 && !viewModel.state.value.loading
         }
+        assertEquals(
+            "Initial render should issue exactly one authorized-users call",
+            1,
+            api.authorizedUsersCalls.get(),
+        )
         return viewModel
     }
 

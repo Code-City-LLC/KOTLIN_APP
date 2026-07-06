@@ -28,10 +28,6 @@ class AuthorizedUsersViewModel(
 
     private var isLoading = false
 
-    init {
-        load(showLoadingState = true)
-    }
-
     fun refresh() {
         val hasLoadedOnce = _state.value.hasLoadedOnce
         load(
