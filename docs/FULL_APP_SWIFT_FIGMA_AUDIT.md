@@ -347,6 +347,12 @@ assets; only repair the parts that are visibly or functionally wrong.
     `OK (2 tests)`
   - adjacent manual regression:
     `ShipmentsSectionCardParityTest` + `PaymentsOrdersParityTest`: `OK (8 tests)`
+  - Follow-up 2026-07-06: Swift `FigmaShipmentsViewController.viewDidAppear`
+    reloads exchange rate, summary, packages, payments, orders, AirCoins, and
+    user header every time the hub appears. Android now refreshes the Shipments
+    hub on lifecycle `ON_RESUME` while preserving the existing initial
+    ViewModel load. `ShipmentsHubTapRailsParityTest` now proves all hub rails
+    are called again on resume and was rerun 6/6 on `airdrop_test2(AVD) - 15`.
 - Android checks run for the Shipments hub summary Swift/Figma pass:
   - Figma MCP screenshot refreshed for Shipments hub node `40000823:9633`:
     `/tmp/kotlin_ui_proof/shipments_hub_visual/figma/figma_shipments_hub_40000823_9633.png`.
@@ -951,6 +957,15 @@ assets; only repair the parts that are visibly or functionally wrong.
     uses Swift's ungrouped, positive-only payment-detail USD/JMD formatter.
     OrderDetails intentionally keeps the comma-grouped JMD total because Swift
     does.
+  - Follow-up 2026-07-06: product-payment detail navigation now matches Swift's
+    data key. Swift pushes
+    `FigmaProductPaymentDetailsViewController(orderID: payment.id, payment: p)`
+    from both the Payments list and Shipments hub; Android had fetched the
+    order with `payment.orderId ?: payment.packageId`, which can hydrate the
+    wrong/missing order. `ProductPaymentDetailsViewModel` now fetches
+    `/orders/{payment.id}`. `ProductOrderDetailsParityTest` deliberately sets
+    `payment.id = 42` while `orderId/packageId = 7` and asserts the Orders repo
+    is called with `42`.
   - `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`
   - targeted `ProductOrderDetailsParityTest` through
     `:app:connectedStagingDebugAndroidTest`: 4 tests passed

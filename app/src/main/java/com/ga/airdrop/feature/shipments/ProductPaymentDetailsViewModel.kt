@@ -55,15 +55,11 @@ class ProductPaymentDetailsViewModel(
             paymentsRepo.payment(paymentIdInt)
                 .onSuccess { payment ->
                     _state.update { it.copy(payment = payment) }
-                    // RECONCILE: Swift receives orderID alongside the payment;
-                    // resolve it from the payment (order_id) when the data layer lands.
-                    val orderId = payment.orderId ?: payment.packageId
-                    if (orderId != null) {
-                        ordersRepo.orderDetails(orderId)
-                            .onSuccess { order ->
-                                _state.update { it.copy(order = order) }
-                            }
-                    }
+                    // Swift pushes FigmaProductPaymentDetailsViewController(orderID: payment.id).
+                    ordersRepo.orderDetails(paymentIdInt)
+                        .onSuccess { order ->
+                            _state.update { it.copy(order = order) }
+                        }
                     _state.update { it.copy(loading = false) }
                 }
                 .onFailure { e ->

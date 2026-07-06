@@ -63,6 +63,8 @@ fun ShipmentsScreen(
     androidx.compose.runtime.LaunchedEffect(Unit) {
         com.ga.airdrop.feature.cart.CartStore.init(context)
     }
+    // Swift FigmaShipmentsViewController.viewDidAppear reloads every hub rail.
+    ShipmentsRefreshOnResume(viewModel) { viewModel.refresh() }
 
     fun openPayment(payment: ShipmentPayment) {
         if (payment.paymentType.equals("product", ignoreCase = true)) {

@@ -25,6 +25,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicReference
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -39,18 +40,28 @@ class ProductOrderDetailsParityTest {
 
     @Test
     fun productPaymentUsesSwiftHeroAndUngroupedAmountsLight() {
-        setProductPaymentContent(ThemeController.Mode.LIGHT)
+        val orderRepo = setProductPaymentContent(ThemeController.Mode.LIGHT)
 
         saveRootScreenshot("product_payment_details_swift_light.png")
         assertProductPaymentSwiftParity()
+        assertEquals(
+            "Swift product payment details fetches /orders/{payment.id}, not payment.order_id/package_id",
+            42,
+            orderRepo.lastOrderDetailId.get(),
+        )
     }
 
     @Test
     fun productPaymentUsesSwiftHeroAndUngroupedAmountsDark() {
-        setProductPaymentContent(ThemeController.Mode.DARK)
+        val orderRepo = setProductPaymentContent(ThemeController.Mode.DARK)
 
         saveRootScreenshot("product_payment_details_swift_dark.png")
         assertProductPaymentSwiftParity()
+        assertEquals(
+            "Swift product payment details fetches /orders/{payment.id}, not payment.order_id/package_id",
+            42,
+            orderRepo.lastOrderDetailId.get(),
+        )
     }
 
     @Test
@@ -69,16 +80,17 @@ class ProductOrderDetailsParityTest {
         assertOrderDetailsSwiftParity()
     }
 
-    private fun setProductPaymentContent(mode: ThemeController.Mode) {
+    private fun setProductPaymentContent(mode: ThemeController.Mode): FakeOrdersRepository {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
         }
         val payment = samplePayment()
         val order = sampleProductOrder()
+        val orderRepo = FakeOrdersRepository(order)
         val viewModel = ProductPaymentDetailsViewModel(
             paymentId = payment.id.toString(),
             paymentsRepo = FakePaymentsRepository(payment),
-            ordersRepo = FakeOrdersRepository(order),
+            ordersRepo = orderRepo,
         )
         compose.setContent {
             AirdropThemeProvider {
@@ -99,6 +111,7 @@ class ProductOrderDetailsParityTest {
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithText("Product Summary").fetchSemanticsNodes().isNotEmpty()
         }
+        return orderRepo
     }
 
     private fun setOrderDetailsContent(mode: ThemeController.Mode) {
@@ -180,14 +193,16 @@ class ProductOrderDetailsParityTest {
         paymentType = "product",
         method = "card",
         totalAmount = 100.0,
+        // Deliberately different from payment.id. Swift ignores both fields for
+        // this screen and fetches the order with the tapped payment id.
         orderId = 7,
         packageId = 7,
         exchangeRate = 161.0,
     )
 
     private fun sampleProductOrder() = ShipmentOrder(
-        id = 7,
-        orderNumber = "ORD-7",
+        id = 42,
+        orderNumber = "ORD-42",
         title = "Wireless Speaker",
         status = "pending",
         orderStatus = "processing",
@@ -232,10 +247,15 @@ class ProductOrderDetailsParityTest {
     private class FakeOrdersRepository(
         private val order: ShipmentOrder,
     ) : ShipmentsOrdersRepository {
+        val lastOrderDetailId = AtomicReference<Int>()
+
         override suspend fun orders(page: Int, perPage: Int, search: String?) =
             Result.success(listOf(order))
 
-        override suspend fun orderDetails(orderId: Int) = Result.success(order)
+        override suspend fun orderDetails(orderId: Int): Result<ShipmentOrder> {
+            lastOrderDetailId.set(orderId)
+            return Result.success(order)
+        }
 
         override suspend fun exchangeRate() = Result.success(161.0)
     }

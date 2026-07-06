@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.shipments
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -18,6 +19,10 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -27,6 +32,7 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -40,6 +46,62 @@ class ShipmentsHubTapRailsParityTest {
     val compose = createComposeRule()
 
     private val navigatedRoutes = mutableListOf<String>()
+
+    @Test
+    fun hubRefreshesLiveDataOnResumeLikeSwiftViewDidAppear() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val repo = FakeHubRepository()
+        val viewModel = ShipmentsViewModel(repo)
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repo.exchangeRateCalls.get() == 1 &&
+                repo.summaryCalls.get() == 1 &&
+                repo.packagesCalls.get() == 1 &&
+                repo.paymentsCalls.get() == 1 &&
+                repo.ordersCalls.get() == 1 &&
+                !viewModel.state.value.loading
+        }
+
+        val lifecycleOwner = TestLifecycleOwner()
+        instrumentation.runOnMainSync {
+            lifecycleOwner.handle(Lifecycle.Event.ON_CREATE)
+        }
+
+        navigatedRoutes.clear()
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                AirdropThemeProvider {
+                    Box(
+                        Modifier
+                            .width(375.dp)
+                            .height(812.dp)
+                            .background(AirdropTheme.colors.gray200)
+                    ) {
+                        ShipmentsScreen(
+                            onNavigate = navigatedRoutes::add,
+                            viewModel = viewModel,
+                        )
+                    }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText(repo.readyText).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        instrumentation.runOnMainSync {
+            lifecycleOwner.handle(Lifecycle.Event.ON_START)
+            lifecycleOwner.handle(Lifecycle.Event.ON_RESUME)
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repo.exchangeRateCalls.get() >= 2 &&
+                repo.summaryCalls.get() >= 2 &&
+                repo.packagesCalls.get() >= 2 &&
+                repo.paymentsCalls.get() >= 2 &&
+                repo.ordersCalls.get() >= 2
+        }
+    }
 
     @Test
     fun hubSummaryCardsViewMoreCardsAndCartToggleKeepSwiftRails() {
@@ -324,21 +386,31 @@ class ShipmentsHubTapRailsParityTest {
 
     private fun saveRootScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val relativePath = "Pictures/kotlin_ui_proof/shipments_hub_visual/"
+        runCatching {
+            context.contentResolver.delete(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
+                arrayOf(filename, relativePath),
+            )
+        }
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/kotlin_ui_proof/shipments_hub_visual")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
-        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: return
-        val outputStream = context.contentResolver.openOutputStream(uri) ?: return
-        outputStream.use { output ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        runCatching {
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return
+            val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+            outputStream.use { output ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(uri, values, null, null)
         }
-        values.clear()
-        values.put(MediaStore.Images.Media.IS_PENDING, 0)
-        context.contentResolver.update(uri, values, null, null)
     }
 
     private class FakeHubRepository(
@@ -347,22 +419,43 @@ class ShipmentsHubTapRailsParityTest {
         private val orders: List<ShipmentOrder> = listOf(sampleOrder()),
         val readyText: String = "Ready for Pick-Up",
     ) : ShipmentsHubRepository {
-        override suspend fun exchangeRate() = Result.success(161.0)
+        val exchangeRateCalls = AtomicInteger()
+        val summaryCalls = AtomicInteger()
+        val packagesCalls = AtomicInteger()
+        val paymentsCalls = AtomicInteger()
+        val ordersCalls = AtomicInteger()
 
-        override suspend fun summary() = Result.success(
-            ShipmentsSummary(
-                totalShipments = 7,
-                totalPackages = 34,
-                totalPayments = 234,
-                totalOrders = 3,
+        override suspend fun exchangeRate(): Result<Double> {
+            exchangeRateCalls.incrementAndGet()
+            return Result.success(161.0)
+        }
+
+        override suspend fun summary(): Result<ShipmentsSummary> {
+            summaryCalls.incrementAndGet()
+            return Result.success(
+                ShipmentsSummary(
+                    totalShipments = 7,
+                    totalPackages = 34,
+                    totalPayments = 234,
+                    totalOrders = 3,
+                )
             )
-        )
+        }
 
-        override suspend fun packagesShortlist() = Result.success(packages)
+        override suspend fun packagesShortlist(): Result<List<ShipmentPackage>> {
+            packagesCalls.incrementAndGet()
+            return Result.success(packages)
+        }
 
-        override suspend fun paymentsShortlist() = Result.success(payments)
+        override suspend fun paymentsShortlist(): Result<List<ShipmentPayment>> {
+            paymentsCalls.incrementAndGet()
+            return Result.success(payments)
+        }
 
-        override suspend fun ordersShortlist() = Result.success(orders)
+        override suspend fun ordersShortlist(): Result<List<ShipmentOrder>> {
+            ordersCalls.incrementAndGet()
+            return Result.success(orders)
+        }
 
         companion object {
             fun samplePackage() =
@@ -407,6 +500,17 @@ class ShipmentsHubTapRailsParityTest {
                     orderStatus = "order placed",
                     invoiceAmountUsd = 1550.0,
                 )
+        }
+    }
+
+    private class TestLifecycleOwner : LifecycleOwner {
+        private val registry = LifecycleRegistry(this)
+
+        override val lifecycle: Lifecycle
+            get() = registry
+
+        fun handle(event: Lifecycle.Event) {
+            registry.handleLifecycleEvent(event)
         }
     }
 }

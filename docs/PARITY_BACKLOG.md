@@ -36,11 +36,11 @@ light AND dark.
   `/tmp/kotlin_ui_proof/product_description_fallback/figma/auction_product_details_40002072_24025.png`,
   `/tmp/kotlin_ui_proof/product_description_fallback/android/auction_description_fallback_swift_light.png`.
 - **Live bug (not in the 54):** product-detail dead feature + HTML-entity decode → `a1768d2`
-- **Swift-precedence conflict:** Home header must use Swift's opaque `gray200`
-  semantic surface even though Figma node `40001464:28926` is translucent.
-  Verified light and app-dark proof:
-  `/tmp/kotlin_ui_proof/android_swift_precedence_home_header.png`,
-  `/tmp/kotlin_ui_proof/android_swift_precedence_home_header_app_dark.png`.
+- **Kemar-locked chrome override:** Home/header/footer chrome must stay
+  translucent and frosted, not opaque. Figma node `40001464:28926` and
+  `AirdropChromeTest`/`HomeChromeOpacityParityTest` are the guard rails. Swift
+  currently uses an opaque semantic surface here, but Kemar explicitly overrode
+  that deviation; do not restore opaque chrome without a new product ruling.
 - **Home activity dark icons:** Services, Ship Tax, Calculator, and Drop Alert
   activity icons now use explicit app-theme light/dark drawables matching Swift
   `FigmaIcons.swift` and Figma tile nodes. Verified proof:
@@ -112,6 +112,22 @@ light AND dark.
   `/aircoins/status`, and the Swift auction shortlist query
   `/products?page=1&per_page=4&order=created_at&direction=desc&in_stock=1`;
   focused Home instrumentation still passes 18/18.
+- **Shipments hub viewDidAppear refresh:** Shipments hub node `40000823:9633`
+  was refreshed through Figma MCP and compared against Swift
+  `FigmaShipmentsViewController.viewDidAppear`. Android now refreshes the hub
+  on lifecycle `ON_RESUME` while preserving the initial ViewModel load, so
+  exchange rate, summary, packages, payments, and orders are refetched when the
+  tab appears. `ShipmentsHubTapRailsParityTest` locks the resume reload plus
+  the existing tap/visual rails and passed 6/6 on `airdrop_test2(AVD) - 15`.
+- **Product Payment Details order-id resolution:** ProductPaymentDetails Figma
+  node `40004950:25064` was refreshed through Figma MCP and compared against
+  Swift `FigmaProductPaymentDetailsViewController.swift`,
+  `FigmaPaymentsViewController.swift`, and `FigmaShipmentsViewController.swift`.
+  Swift pushes product payments with `orderID: payment.id`; Android had fetched
+  `payment.orderId ?: payment.packageId`, which can hydrate the wrong order.
+  Android now fetches `/orders/{payment.id}` and `ProductOrderDetailsParityTest`
+  asserts the Orders repo receives the tapped payment id even when
+  `orderId/packageId` differ.
 - **AirCoins Swift data contract:** AirCoins balance/history was rechecked
   against Figma nodes `40001911:22972` / `40006461:26563` and Swift
   `FigmaAirCoinHistoryViewController.swift`. Visual geometry stayed aligned, but
@@ -524,6 +540,10 @@ light AND dark.
   Product Payment Details; order cards open Order Details. Android already used
   those route rails, so this pass exposes the existing production targets and
   locks them with `ShipmentsHubTapRailsParityTest`.
+- **Shipments hub live reload:** Swift also reloads the hub on every
+  `viewDidAppear`; Android now mirrors that via lifecycle `ON_RESUME`.
+  `ShipmentsHubTapRailsParityTest` proves exchange rate, summary, packages,
+  payments, and orders are all requested again after resume.
 - **Shipments search-field split:** Figma MCP screenshots were refreshed for
   Packages `40001666:42198`, Payments `40001753:18909`, and Orders
   `40001753:19595`. Swift takes precedence over the static Figma search copy and
@@ -917,7 +937,7 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 **Detail:** Swift OrderDetails: imageWrap height 209 with 20pt insets on all sides → image ~169pt tall spanning screen width minus 40 (FigmaOrderDetailsViewController.swift:103-109). Swift ProductPaymentDetails: wrap height 219 with 30pt insets → ~159pt tall, width minus 60 (FigmaProductPaymentDetailsViewController.swift:118-124). Kotlin uses Modifier.size(245.dp, 149.dp) inside a Spacing.lg(30dp)-padded Box on both screens (OrderDetailsScreen.kt:61-82, ProductPaymentDetailsScreen.kt:64-85) — narrower and shorter than iOS on typical devices, and the padding is wrong (20 vs 30) on OrderDetails.
 
-**Fix:** Done. OrderDetails now uses a 209dp wrap with 20dp insets and a fill-width 169dp image. ProductPaymentDetails now uses a 219dp wrap with 30dp insets and a fill-width 159dp image. `ProductOrderDetailsParityTest` verifies the Swift dimensions in light and dark, and screenshots are saved under `/tmp/kotlin_ui_proof/product_order_details/`. The Figma MCP nodes for this slice still show the old fixed 245x149 image geometry, so Swift is documented as the precedence source.
+**Fix:** Done. OrderDetails now uses a 209dp wrap with 20dp insets and a fill-width 169dp image. ProductPaymentDetails now uses a 219dp wrap with 30dp insets and a fill-width 159dp image. `ProductOrderDetailsParityTest` verifies the Swift dimensions in light and dark, and screenshots are saved under `/tmp/kotlin_ui_proof/product_order_details/`. The Figma MCP nodes for this slice still show the old fixed 245x149 image geometry, so Swift is documented as the precedence source. Follow-up 2026-07-06: ProductPaymentDetails now also fetches order details with the tapped payment id, matching Swift's `orderID: payment.id` navigation contract instead of Android's previous `payment.orderId ?: payment.packageId` fallback.
 
 ---
 

@@ -215,21 +215,31 @@ class AuthorizedUsersParityTest {
 
     private fun saveRootScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val relativePath = "Pictures/kotlin_ui_proof/authorized_users/"
+        runCatching {
+            context.contentResolver.delete(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
+                arrayOf(filename, relativePath),
+            )
+        }
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/kotlin_ui_proof/authorized_users")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
-        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: return
-        val outputStream = context.contentResolver.openOutputStream(uri) ?: return
-        outputStream.use { output ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        runCatching {
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return
+            val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+            outputStream.use { output ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(uri, values, null, null)
         }
-        values.clear()
-        values.put(MediaStore.Images.Media.IS_PENDING, 0)
-        context.contentResolver.update(uri, values, null, null)
     }
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
