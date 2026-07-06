@@ -521,7 +521,13 @@ light AND dark.
   2026-07-06: the Payments filter now opens a Swift `UIAlertController`
   action-sheet equivalent instead of a centered Android dialog: dimmed
   backdrop, bottom-anchored grouped options, selected orange row/check, and a
-  separate Cancel rail. Proof:
+  separate Cancel rail. Follow-up 2026-07-06: `PaymentsOrdersParityTest` now
+  also proves the success side of the invoice button: tapping the top-right
+  download glyph requests the tapped payment id, opens the shared
+  `invoiceViewer?url=...&title=...` route with encoded URL/title, and does not
+  surface the Swift `Download failed` alert. Focused prod connected proof:
+  `PaymentsOrdersParityTest` passed 7/7 on `airdrop_test2(AVD) - 15`.
+  Proof:
   `/tmp/kotlin_ui_proof/payments_orders_swift/figma/figma_payments_40001753_18909.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/figma/figma_orders_40001753_19595.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/payments_orders/payments_swift_light.png`,
@@ -990,7 +996,7 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 **Detail:** Swift (FigmaPaymentsViewController.swift:328-355): download button pinned top-right (trailing -16, top 14, 28pt hit area, 22pt DownloadFile glyph tinted textDescription), with the key/value rows inset 52pt on the right to clear it. Kotlin renders the icon in the Amount row at the card bottom (ShipmentsUi.kt:634-651), 24dp tinted iconSelected.
 
-**Fix:** Verified closed. `PaymentCard` now renders the invoice download as a top-right overlay with a 22dp glyph tinted `colors.textDescription`, matching Swift's runtime implementation even though the static Figma Payments node does not show the glyph. `PaymentsOrdersParityTest` asserts the control in light/dark and preserves the invoice viewer rail.
+**Fix:** Verified closed. `PaymentCard` now renders the invoice download as a top-right overlay with a 22dp glyph tinted `colors.textDescription`, matching Swift's runtime implementation even though the static Figma Payments node does not show the glyph. `PaymentsOrdersParityTest` asserts the control in light/dark, proves the successful encoded `Routes.invoiceViewer(...)` navigation, and preserves the failure alert rail.
 
 ---
 
@@ -1284,7 +1290,7 @@ passed 7/7 on `airdrop_test2(AVD) - 15`.
 
 **Detail:** Kotlin surfaces every repo error (including pagination/search failures) as a ShipmentsAlertDialog titled 'Payments' (PaymentsScreen.kt:142-150 wired to state.error set in PaymentsViewModel.load onFailure). Swift only prints list-fetch errors and shows 'No payments found' (FigmaPaymentsViewController.swift:563-571); the only alert is 'Download failed' for the invoice action (lines 393-400). A flaky connection on Android interrupts the user with modals iOS never shows.
 
-**Fix:** Verified closed. `PaymentsViewModel.load` no longer writes list-load failures into `state.error`; it clears loading flags and lets `No payments found` render. `downloadInvoice` remains the only path that raises the alert, now titled `Download failed` like Swift. `PaymentsOrdersParityTest` covers both failure paths.
+**Fix:** Verified closed. `PaymentsViewModel.load` no longer writes list-load failures into `state.error`; it clears loading flags and lets `No payments found` render. `downloadInvoice` remains the only path that raises the alert, now titled `Download failed` like Swift. `PaymentsOrdersParityTest` covers list-load failure, invoice-download failure, and the successful invoice-viewer navigation path.
 
 ---
 

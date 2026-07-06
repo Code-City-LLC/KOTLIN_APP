@@ -1261,13 +1261,20 @@ assets; only repair the parts that are visibly or functionally wrong.
   2026-07-06: the Payments filter action now matches Swift's
   `UIAlertController` action sheet instead of the previous centered Android
   dialog: dimmed backdrop, bottom-anchored grouped options, selected orange
-  row/check, and separate Cancel rail.
+  row/check, and separate Cancel rail. Follow-up 2026-07-06: the top-right
+  invoice button success rail is now covered too; `PaymentsOrdersParityTest`
+  clicks the glyph, verifies the repository receives the tapped payment id, and
+  asserts the encoded shared `Routes.invoiceViewer(url, title)` navigation
+  without surfacing `Download failed`.
   Checks run:
   `:app:compileStagingDebugKotlin :app:compileStagingDebugAndroidTestKotlin`,
   targeted `PaymentsOrdersParityTest` through
   `:app:connectedStagingDebugAndroidTest` (6 tests passed), and manual
   `adb shell am instrument -w -r -e class
   com.ga.airdrop.feature.shipments.PaymentsOrdersParityTest ...` (`OK (6 tests)`).
+  Current prod follow-up: `:app:compileProdDebugAndroidTestKotlin` and focused
+  `:app:connectedProdDebugAndroidTest` for `PaymentsOrdersParityTest` passed
+  7/7 on `airdrop_test2(AVD) - 15`.
   Proof PNGs:
   `/tmp/kotlin_ui_proof/payments_orders_swift/figma/figma_payments_40001753_18909.png`,
   `/tmp/kotlin_ui_proof/payments_orders_swift/figma/figma_orders_40001753_19595.png`,

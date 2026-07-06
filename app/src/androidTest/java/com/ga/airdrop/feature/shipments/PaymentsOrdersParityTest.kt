@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
@@ -94,6 +95,29 @@ class PaymentsOrdersParityTest {
         assertTrue("Invoice failure should stay on the Payments screen", navigatedRoutes.isEmpty())
 
         compose.onNodeWithText("OK").performClick()
+        assertTextMissing("Download failed")
+    }
+
+    @Test
+    fun invoiceDownloadSuccessOpensSharedInvoiceViewerRoute() {
+        val invoiceUrl = "https://example.test/invoices/INV 900.pdf?token=abc 123"
+        val repo = FakePaymentsRepository(invoiceResult = Result.success(invoiceUrl))
+        setPaymentsContent(mode = ThemeController.Mode.LIGHT, repo = repo)
+
+        compose.onNodeWithContentDescription("Download invoice").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) { navigatedRoutes.isNotEmpty() }
+        compose.waitForIdle()
+
+        assertEquals(
+            "Swift invoice download should request the tapped payment id",
+            listOf(900),
+            repo.invoiceUrlRequests,
+        )
+        assertEquals(
+            "Successful invoice download should open the shared invoice viewer route",
+            Routes.invoiceViewer(invoiceUrl, "INV-900"),
+            navigatedRoutes.single(),
+        )
         assertTextMissing("Download failed")
     }
 
@@ -229,12 +253,15 @@ class PaymentsOrdersParityTest {
         private val paymentsResult: Result<List<ShipmentPayment>> = Result.success(listOf(payment)),
         private val invoiceResult: Result<String> = Result.success("https://example.test/invoice.pdf"),
     ) : ShipmentsPaymentsRepository {
+        val invoiceUrlRequests = mutableListOf<Int>()
+
         override suspend fun payments(page: Int, perPage: Int, type: String?, search: String?) =
             paymentsResult
 
         override suspend fun payment(paymentId: Int) = Result.success(payment)
 
         override suspend fun paymentInvoiceUrl(paymentId: Int): Result<String> {
+            invoiceUrlRequests += paymentId
             assertEquals(payment.id, paymentId)
             return invoiceResult
         }
