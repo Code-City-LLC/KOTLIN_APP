@@ -112,7 +112,8 @@ fun DropAlertScreen(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            // Swift form stack spacing 16 (FigmaDropAlertViewController.swift:206).
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             BlueInfoCard(
                 title = "Create a DropAlert",
@@ -238,7 +239,8 @@ fun DropAlertScreen(
                 Modifier
                     .padding(Spacing.md)
                     .navigationBarsPadding(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                // Swift actionRow spacing 12 (FigmaDropAlertViewController.swift:223).
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlineButton(text = "Cancel", onClick = onBack, modifier = Modifier.weight(1f))
                 GradientButton(

@@ -329,9 +329,10 @@ private fun CartItemCard(line: CartStore.CartLine, onRemove: () -> Unit) {
         ) {
             Column(
                 Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                // Swift makeDropRow: 8 between groups, 2 within each pair (:487-492).
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "Drop Number", style = AirdropType.subtitle3, color = colors.textDescription)
                     Text(
                         // Swift :459 — "AIR" + %010d (Swift wins over Figma sample).
@@ -341,7 +342,7 @@ private fun CartItemCard(line: CartStore.CartLine, onRemove: () -> Unit) {
                         maxLines = 1,
                     )
                 }
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "Description", style = AirdropType.subtitle3, color = colors.textDescription)
                     Text(
                         text = line.title,
@@ -350,7 +351,7 @@ private fun CartItemCard(line: CartStore.CartLine, onRemove: () -> Unit) {
                         maxLines = 2,
                     )
                 }
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "Price", style = AirdropType.subtitle3, color = colors.textDescription)
                     Text(
                         text = formatUsdPlain(line.priceUsd),
