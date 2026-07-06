@@ -157,16 +157,32 @@ internal fun AccordionCard(
     title: String,
     expanded: Boolean,
     onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
     titleEndGap: Dp = Spacing.xs,
     testTagPrefix: String? = null,
     content: (@Composable () -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
-    More2OuterCard {
+    More2OuterCard(
+        modifier = modifier.then(
+            if (testTagPrefix != null) {
+                Modifier.testTag("$testTagPrefix-card")
+            } else {
+                Modifier
+            },
+        ),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onToggle)
+                .then(
+                    if (testTagPrefix != null) {
+                        Modifier.testTag("$testTagPrefix-header")
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {

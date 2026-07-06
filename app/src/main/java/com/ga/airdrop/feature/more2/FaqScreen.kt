@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -59,6 +60,7 @@ fun FaqScreen(
                             text = faq.answer,
                             style = AirdropType.body2,
                             color = colors.textDescription,
+                            modifier = Modifier.testTag("faq-${faq.id}-answer"),
                         )
                     }
                 }
