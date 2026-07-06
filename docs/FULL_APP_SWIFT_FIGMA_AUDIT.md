@@ -1845,9 +1845,10 @@ Findings verified/fixed:
   referred-friends calls for content it does not display.
 - `ReferAFriendParityTest` is the guard rail for the scoped override: it asserts
   the Figma-only structure in light/dark, rejects stale Swift referral-link/list
-  text, locks the 238dp hero-card width and 300dp carousel rail, consumes the
-  invite-completion flag without restoring the Swift list, and verifies the
-  bottom `Invite` tap route.
+  text, locks the 238x340dp hero-card frame, 122dp shadowed badge, Figma exact
+  hero copy, 15dp card gap, and the initial center-card carousel offset,
+  consumes the invite-completion flag without restoring the Swift list, and
+  verifies the bottom `Invite` tap route.
 
 ### Dark Theme Icons
 

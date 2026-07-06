@@ -68,8 +68,21 @@ class ReferAFriendParityTest {
         assertFigmaOnlyStructure()
         val inviteCardBounds = compose.onNodeWithTag("refer-hero-card-invite")
             .getUnclippedBoundsInRoot()
+        val rewardCardBounds = compose.onNodeWithTag("refer-hero-card-reward")
+            .getUnclippedBoundsInRoot()
+        val inviteBadgeBounds = compose.onNodeWithTag("refer-hero-badge-invite")
+            .getUnclippedBoundsInRoot()
+        val rootBounds = compose.onRoot().getUnclippedBoundsInRoot()
         assertEquals("Figma hero cards are 238dp wide", 238f, boundsWidth(inviteCardBounds), 1f)
-        assertEquals("Figma hero cards fill the 300dp carousel rail", 300f, boundsHeight(inviteCardBounds), 1f)
+        assertEquals("Figma hero cards are 340dp tall", 340f, boundsHeight(inviteCardBounds), 1f)
+        assertEquals(
+            "Figma initial carousel centers the reward card",
+            (boundsWidth(rootBounds) - 238f) / 2f,
+            boundsLeft(rewardCardBounds),
+            1f,
+        )
+        assertEquals("Figma hero badges are 122dp wide", 122f, boundsWidth(inviteBadgeBounds), 1f)
+        assertEquals("Figma hero badges are 122dp tall", 122f, boundsHeight(inviteBadgeBounds), 1f)
 
         compose.onNodeWithTag("refer-invite-button").performClick()
         compose.runOnIdle {
@@ -134,10 +147,19 @@ class ReferAFriendParityTest {
         compose.onNodeWithTag("refer-hero-card-invite").assertIsDisplayed()
         assertEquals(1, compose.onAllNodesWithTag("refer-hero-card-reward").fetchSemanticsNodes().size)
         assertEquals(1, compose.onAllNodesWithTag("refer-hero-card-earn").fetchSemanticsNodes().size)
+        assertTextExists("Invite your friends")
+        assertTextExists("Tap “INVITE,” enter your friend’s email — it’s that simple")
+        compose.onNodeWithText("Refer. Reward. Repeat.").assertIsDisplayed()
+        compose.onNodeWithText("The more you share, the more you save").assertIsDisplayed()
+        assertTextExists("Invite and Earn")
+        assertTextExists("Share the gift of World-Class Service & get rewarded for it")
         compose.onNodeWithText("Earn $2 USD Per Invite").assertIsDisplayed()
         compose.onNodeWithTag("refer-invite-button").assertIsDisplayed()
 
         assertAbsent("Earn AirCoins for every friend you invite")
+        assertAbsent("Tap “Invite”, enter your friend’s email — it’s that simple.")
+        assertAbsent("The more you share, the more you save.")
+        assertAbsent("Share the gift of world-class service and get rewarded for it.")
         assertAbsent("Your Referral Link")
         assertAbsent("Copy")
         assertAbsent("Your Referrals")
@@ -154,9 +176,19 @@ class ReferAFriendParityTest {
         )
     }
 
+    private fun assertTextExists(text: String) {
+        assertEquals(
+            "Figma-only Refer page must keep exact text: $text",
+            1,
+            compose.onAllNodesWithText(text).fetchSemanticsNodes().size,
+        )
+    }
+
     private fun boundsWidth(bounds: DpRect): Float = (bounds.right - bounds.left).value
 
     private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value
+
+    private fun boundsLeft(bounds: DpRect): Float = bounds.left.value
 
     private fun assertHeroAsset(
         resources: Resources,

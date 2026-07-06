@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -46,9 +48,9 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
  * Refer a Friend — scoped Figma override. Figma nodes 40001940:26885/26797 win
  * over FigmaReferAFriendViewController.swift for this page only.
  *
- * The page is only: inner header, three hero cards, "Earn $2 USD Per Invite"
- * copy, and a bottom-pinned Invite button. Do not add the Swift referral-link
- * card, inline "Invite Friends" button, or referred-friends list here.
+ * The page is only: inner header, three 238x340 hero cards, "Earn $2 USD Per
+ * Invite" copy, and a bottom-pinned Invite button. Do not add the Swift
+ * referral-link card, inline "Invite Friends" button, or referred-friends list.
  */
 @Composable
 fun ReferAFriendScreen(
@@ -157,7 +159,7 @@ private fun HeroCarousel() {
         HeroCard(
             imageRes = R.drawable.img_more2_refer_friends,
             title = "Invite your friends",
-            body = "Tap “Invite”, enter your friend’s email — it’s that simple.",
+            body = "Tap “INVITE,” enter your friend’s email — it’s that simple",
             tint = AlertPalette.Middle.OnHold,
             textColor = AlertPalette.OnHold,
             tag = "invite",
@@ -166,7 +168,7 @@ private fun HeroCarousel() {
         HeroCard(
             imageRes = R.drawable.img_more2_refer_cash,
             title = "Refer. Reward. Repeat.",
-            body = "The more you share, the more you save.",
+            body = "The more you share, the more you save",
             tint = AlertPalette.Middle.Completed,
             textColor = AlertPalette.Completed,
             tag = "reward",
@@ -175,64 +177,79 @@ private fun HeroCarousel() {
         HeroCard(
             imageRes = R.drawable.img_more2_refer_cap,
             title = "Invite and Earn",
-            body = "Share the gift of world-class service and get rewarded for it.",
+            body = "Share the gift of World-Class Service & get rewarded for it",
             tint = AlertPalette.Middle.Pending,
             textColor = AlertPalette.Pending,
             tag = "earn",
             circleWhite = false,
         ),
     )
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp)
-            .testTag("refer-hero-carousel")
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            .height(340.dp)
+            .testTag("refer-hero-carousel"),
     ) {
-        cards.forEach { card ->
-            Column(
-                modifier = Modifier
-                    .width(238.dp)
-                    .fillMaxHeight()
-                    .testTag("refer-hero-card-${card.tag}")
-                    .clip(RoundedCornerShape(Radius.s))
-                    .background(colors.gray100)
-                    .border(1.dp, card.tint, RoundedCornerShape(Radius.s))
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Box(
+        val density = LocalDensity.current
+        val centeredRewardOffset = CARD_WIDTH + CARD_GAP - ((maxWidth - CARD_WIDTH) / 2)
+        val scrollState = rememberScrollState(
+            initial = with(density) { centeredRewardOffset.roundToPx() },
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .horizontalScroll(scrollState),
+            horizontalArrangement = Arrangement.spacedBy(CARD_GAP),
+        ) {
+            cards.forEach { card ->
+                Column(
                     modifier = Modifier
-                        .size(122.dp)
-                        .shadow(6.dp, CircleShape)
-                        .clip(CircleShape)
-                        .background(if (card.circleWhite) colors.gray100 else colors.gray300),
-                    contentAlignment = Alignment.Center,
+                        .width(CARD_WIDTH)
+                        .fillMaxHeight()
+                        .testTag("refer-hero-card-${card.tag}")
+                        .clip(RoundedCornerShape(Radius.s))
+                        .background(colors.gray100)
+                        .border(1.dp, card.tint, RoundedCornerShape(Radius.s))
+                        .padding(horizontal = 20.dp, vertical = 60.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
-                    Image(
-                        painter = painterResource(card.imageRes),
-                        contentDescription = null,
-                        modifier = Modifier.size(80.dp),
+                    Box(
+                        modifier = Modifier
+                            .size(122.dp)
+                            .testTag("refer-hero-badge-${card.tag}")
+                            .shadow(6.dp, CircleShape)
+                            .clip(CircleShape)
+                            .background(if (card.circleWhite) colors.gray100 else colors.gray300),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            painter = painterResource(card.imageRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Text(
+                        text = card.title,
+                        style = AirdropType.title1,
+                        color = card.textColor,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        text = card.body,
+                        style = AirdropType.body2,
+                        color = colors.textDescription,
+                        textAlign = TextAlign.Center,
                     )
                 }
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    text = card.title,
-                    style = AirdropType.title1,
-                    color = card.textColor,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                )
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    text = card.body,
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                    textAlign = TextAlign.Center,
-                )
             }
         }
     }
 }
+
+private val CARD_WIDTH = 238.dp
+private val CARD_GAP = 15.dp

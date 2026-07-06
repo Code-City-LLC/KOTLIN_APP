@@ -615,8 +615,9 @@ post-invite flag without restoring Swift's referral list, and no longer wires a
 `ReferAFriendViewModel` into the page, avoiding hidden profile/referral calls for
 content the Figma page does not display. `ReferAFriendParityTest` locks the
 Figma-only structure in light and dark, rejects the stale Swift content, verifies
-the 238dp hero-card width and 300dp carousel rail, and verifies the bottom
-`Invite` route callback.
+the 238x340dp hero-card frame, 122dp shadowed badge, exact Figma hero copy,
+15dp card gap, initial center-card carousel offset, and bottom `Invite` route
+callback.
 
 **🔲 OPEN — unassigned (AmberOtter first-pass / TopazGlacier audit):** remaining LOW batch §279–§486.
 
