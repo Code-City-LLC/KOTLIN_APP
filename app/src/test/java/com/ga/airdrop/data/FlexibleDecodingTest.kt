@@ -3,6 +3,7 @@ package com.ga.airdrop.data
 import com.ga.airdrop.data.api.AirdropJson
 import com.ga.airdrop.data.model.AirCoinsStatus
 import com.ga.airdrop.data.model.AirdropUser
+import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.LoginResponse
 import com.ga.airdrop.data.model.Package
@@ -136,6 +137,29 @@ class FlexibleDecodingTest {
         assertEquals("Express", pkg.shippingMethod)
         assertEquals(12.5, pkg.weightLbs!!, 0.001)
         assertEquals("Ready for Pickup", pkg.statusName)
+    }
+
+    @Test
+    fun `money strings with currency prefixes decode not null (BUG_AUDIT H2)`() {
+        // "J$" / "US$" prefixes previously survived the trim { '$'/' ' } and
+        // null-ed the amount (prices rendered as $0.00). parseFlexDouble now
+        // keeps only digits/point/sign.
+        val payment = AirdropJson.decodeFromString(
+            Payment.serializer(),
+            """{"id":1,"total_amount":"J$1,550.00","exchange_rate":"US$156.50"}""",
+        )
+        assertEquals(1550.00, payment.totalAmount!!, 0.001)
+        assertEquals(156.50, payment.exchangeRate!!, 0.001)
+    }
+
+    @Test
+    fun `auction product price with currency prefix is not zeroed (BUG_AUDIT H2)`() {
+        // Pre-fix: currencyDouble("J$1,550.00") -> null -> displayPriceUsd 0.0.
+        val product = AirdropJson.decodeFromString(
+            AuctionProduct.serializer(),
+            """{"id":1,"current_price":"J$1,550.00"}""",
+        )
+        assertEquals(1550.00, product.displayPriceUsd, 0.001)
     }
 
     @Test

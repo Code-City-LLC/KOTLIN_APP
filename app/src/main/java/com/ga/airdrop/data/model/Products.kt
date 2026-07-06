@@ -73,9 +73,11 @@ data class AuctionProduct(
     val checkoutPackageId: Int?
         get() = packageId ?: productPackage?.packageId ?: productPackage?.id
 
+    // Delegates to the shared money parser so currency prefixes ("J$", "US$")
+    // are stripped consistently with parseFlexDouble (BUG_AUDIT H2).
     private fun currencyDouble(raw: String?): Double? {
         if (raw.isNullOrEmpty()) return null
-        return raw.replace(",", "").trim { it == '$' || it == ' ' }.toDoubleOrNull()
+        return parseMoneyString(raw)
     }
 }
 

@@ -39,12 +39,17 @@ internal fun parseFlexLong(p: JsonPrimitive): Long? {
     return p.longOrNull ?: p.doubleOrNull?.toLong()
 }
 
+// Laravel money strings carry assorted currency prefixes and grouping commas:
+// "$1,550.00", "J$1,550.00", "US$1,550.00", "JMD 1550", "1,550.50". Strip every
+// char except digits, the decimal point and a sign so a multi-char prefix (not
+// just a leading "$") no longer defeats the parse (BUG_AUDIT H2). Shared with
+// AuctionProduct.currencyDouble in Products.kt so the two can't drift.
+internal fun parseMoneyString(raw: String): Double? =
+    raw.replace(Regex("[^0-9.\\-]"), "").toDoubleOrNull()
+
 internal fun parseFlexDouble(p: JsonPrimitive): Double? {
     if (p is JsonNull) return null
-    if (p.isString) {
-        val cleaned = p.content.replace(",", "").trim { it == '$' || it == ' ' }
-        return cleaned.toDoubleOrNull()
-    }
+    if (p.isString) return parseMoneyString(p.content)
     return p.doubleOrNull ?: p.longOrNull?.toDouble()
 }
 
