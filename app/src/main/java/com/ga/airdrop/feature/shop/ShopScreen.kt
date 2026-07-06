@@ -185,7 +185,9 @@ fun ShopScreen(
             onBellClick = { onNavigate(Routes.NOTIFICATIONS) },
             onCartClick = { onNavigate(Routes.CART) },
             onAirCoinsClick = { onNavigate(Routes.AIRCOIN_HISTORY) },
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .testTag("shop-root-header"),
         )
     }
 

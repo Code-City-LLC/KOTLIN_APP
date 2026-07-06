@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.shop
 
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -28,6 +29,7 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.abs
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -122,12 +124,43 @@ class ShopRootScreenParityTest {
         assertClose(160f, boundsWidth(featuredCard), "Figma/Swift featured root card width")
         assertClose(245f, boundsHeight(featuredCard), "Figma/Swift featured root card height")
 
+        assertShopRootFrostedHeader(mode)
+
         val filename = if (mode == ThemeController.Mode.DARK) {
             "shop_root_swift_figma_dark.png"
         } else {
             "shop_root_swift_figma_light.png"
         }
         saveRootScreenshot(filename)
+    }
+
+    private fun assertShopRootFrostedHeader(mode: ThemeController.Mode) {
+        compose.onNodeWithTag("shop-root-header").assertIsDisplayed()
+
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val header = compose.onNodeWithTag("shop-root-header").getUnclippedBoundsInRoot()
+        val expectedSurface = if (mode == ThemeController.Mode.DARK) darkGray200Rgb else lightGray200Rgb
+        val expectedDivider = if (mode == ThemeController.Mode.DARK) darkIconShapeRgb else lightIconShapeRgb
+
+        listOf(
+            PixelSample(
+                point = samplePoint(header, xFraction = 0.04f, yInsetDp = 6f),
+                expectedRgb = expectedSurface,
+                label = "Swift Shop frosted header top surface",
+            ),
+            PixelSample(
+                point = samplePoint(header, xFraction = 0.04f, yInsetDp = header.heightDp() - 6f),
+                expectedRgb = expectedSurface,
+                label = "Swift Shop frosted header bottom surface",
+            ),
+            PixelSample(
+                point = samplePoint(header, xFraction = 0.5f, yInsetDp = header.heightDp() - 0.5f),
+                expectedRgb = expectedDivider,
+                label = "Swift Shop frosted header 1dp divider",
+            ),
+        ).forEach { sample ->
+            assertPixelNear(bitmap, sample.point, sample.expectedRgb, sample.label)
+        }
     }
 
     private fun setShopRootContent(
@@ -198,11 +231,59 @@ class ShopRootScreenParityTest {
 
     private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value
 
+    private fun samplePoint(bounds: DpRect, xFraction: Float, yInsetDp: Float): Pair<Int, Int> {
+        val density = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .resources
+            .displayMetrics
+            .density
+        val x = ((bounds.left.value + (bounds.widthDp() * xFraction)) * density).toInt()
+        val y = ((bounds.top.value + yInsetDp) * density).toInt()
+        return x to y
+    }
+
+    private fun assertPixelNear(
+        bitmap: Bitmap,
+        point: Pair<Int, Int>,
+        expectedRgb: IntArray,
+        label: String,
+    ) {
+        val color = bitmap.getPixel(
+            point.first.coerceIn(0, bitmap.width - 1),
+            point.second.coerceIn(0, bitmap.height - 1),
+        )
+        val actual = intArrayOf(
+            AndroidColor.red(color),
+            AndroidColor.green(color),
+            AndroidColor.blue(color),
+        )
+        val close = actual.indices.all { abs(actual[it] - expectedRgb[it]) <= 2 }
+        assertTrue(
+            "$label expected=${expectedRgb.joinToString()} actual=${actual.joinToString()}",
+            close,
+        )
+    }
+
+    private data class PixelSample(
+        val point: Pair<Int, Int>,
+        val expectedRgb: IntArray,
+        val label: String,
+    )
+
     private fun assertClose(expected: Float, actual: Float, label: String, tolerance: Float = 1.5f) {
         assertTrue("$label expected $expected but was $actual", kotlin.math.abs(expected - actual) <= tolerance)
     }
 
+    private fun DpRect.widthDp(): Float = (right - left).value
+
+    private fun DpRect.heightDp(): Float = (bottom - top).value
+
     private companion object {
+        val lightGray200Rgb = intArrayOf(245, 245, 245)
+        val darkGray200Rgb = intArrayOf(51, 51, 51)
+        val lightIconShapeRgb = intArrayOf(229, 229, 229)
+        val darkIconShapeRgb = intArrayOf(89, 89, 89)
+
         val AuctionProducts = listOf(
             sampleProduct(1001, "swift-root-auction-one", "Auction One"),
             sampleProduct(1002, "swift-root-auction-two", "Auction Two"),

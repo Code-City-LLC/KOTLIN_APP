@@ -57,9 +57,12 @@ light AND dark.
   `AuctionProductDetailsCartFlowParityTest`.
 - **Shop root screen-level Swift/Figma proof:** Shop root node
   `40001846:53519` was refreshed through Figma MCP and compared with Swift
-  `FigmaShopViewController.swift`. Swift keeps the shared frosted tab header
-  while the static Figma node still contains an inner `Auction Highlights`
-  header, so Android does not change header chrome without a product ruling.
+  `FigmaShopViewController.swift`. Swift keeps the shared frosted tab header:
+  `FigmaTabHeader(style: .frosted)` renders an opaque `gray200` overlay plus a
+  1dp `iconShape` divider, while the static Figma node still contains an inner
+  `Auction Highlights` header. Android now locks the Swift frosted behavior on
+  the Shop root with pixel samples for the opaque light/dark header surface and
+  divider.
   Android now locks the Swift/Figma content geometry: search field x=20,
   y=126, w=335, h=50; root auction cards 245dp high; featured root cards
   160x245dp; root auction cards have a cart toggle, while featured cards route
@@ -67,7 +70,8 @@ light AND dark.
   `ShopSearchField` used min-height and rendered 52.19dp high; it is now exact
   50dp. Proof: `ShopRootScreenParityTest` passed 4/4 on
   `airdrop_test2(AVD) - 15`; adjacent `ShopRootListParityTest` +
-  `AuctionProductDetailsCartFlowParityTest` passed 7/7.
+  `AuctionProductDetailsCartFlowParityTest` passed 11/11 after the header guard
+  was added.
 - **Auction/Feature ProductList bottom clearance:** Figma list nodes
   `40001846:54117` and `40001846:54396` were refreshed through Figma MCP, then
   compared with Swift `FigmaAuctionViewController.swift` and
