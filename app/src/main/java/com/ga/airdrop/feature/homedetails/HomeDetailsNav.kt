@@ -8,16 +8,6 @@ import androidx.navigation.navArgument
 import com.ga.airdrop.core.navigation.Routes
 
 /**
- * AirCoin transaction ledger pushed from the balance page's top-right icon
- * (Swift FigmaAirCoinTransactionsViewController / RN AirCoinHistoryView).
- *
- * ORCHESTRATOR NOTE: new route constant needed in Routes.kt —
- *   const val AIRCOIN_HISTORY_DETAIL = "airCoinHistoryDetail"
- * (route-string literal kept here so this graph is self-contained until then).
- */
-const val AIRCOIN_HISTORY_DETAIL_ROUTE = "airCoinHistoryDetail"
-
-/**
  * Home drill-down destinations. Registered from AppRoot's mainGraph:
  *   homeDetailsGraph(navController)
  *
@@ -25,6 +15,9 @@ const val AIRCOIN_HISTORY_DETAIL_ROUTE = "airCoinHistoryDetail"
  * ("standard" | "seadrop" | "express") so callers can preselect a tab, the
  * way Swift routes WarehouseView with a `detail` payload; plain
  * navigate(Routes.WAREHOUSES) still works (defaults to Standard).
+ *
+ * AirCoin transaction ledger is pushed from the balance page's top-right icon
+ * (Swift FigmaAirCoinTransactionsViewController / RN AirCoinHistoryView).
  */
 fun NavGraphBuilder.homeDetailsGraph(navController: NavHostController) {
     composable(
@@ -65,11 +58,11 @@ fun NavGraphBuilder.homeDetailsGraph(navController: NavHostController) {
     composable(Routes.AIRCOIN_HISTORY) {
         AirCoinBalanceScreen(
             onBack = { navController.popBackStack() },
-            onOpenHistory = { navController.navigate(AIRCOIN_HISTORY_DETAIL_ROUTE) },
+            onOpenHistory = { navController.navigate(Routes.AIRCOIN_HISTORY_DETAIL) },
         )
     }
 
-    composable(AIRCOIN_HISTORY_DETAIL_ROUTE) {
+    composable(Routes.AIRCOIN_HISTORY_DETAIL) {
         AirCoinHistoryDetailScreen(onBack = { navController.popBackStack() })
     }
 }

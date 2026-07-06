@@ -24,10 +24,35 @@ class PushDeepLinkParityTest {
 
     @Test
     fun shipmentDetailRoutesResolveToSwiftDestinations() {
+        assertRoute("ShipmentsView", Routes.SHIPMENTS)
         assertRoute("PackageDetailsView", Routes.packageDetails("101"), referenceId = "101")
         assertRoute("PaymentPackageDetailsView", Routes.paymentPackageDetails("201"), referenceId = "201")
         assertRoute("ProductPaymentDetailsView", Routes.productPaymentDetails("202"), referenceId = "202")
         assertRoute("OrderDetailsView", Routes.orderDetails("301"), referenceId = "301")
+    }
+
+    @Test
+    fun swiftToolAndCartRoutesResolveToLiveAndroidDestinations() {
+        assertRoute("CalculatorView", Routes.CALCULATOR)
+        assertRoute("CalculatorResultsView", Routes.CALCULATOR_RESULTS)
+        assertRoute("DropAlertView", Routes.DROP_ALERT)
+        assertRoute("MyCartView", Routes.CART)
+        assertRoute("CheckoutView", Routes.CART)
+        assertRoute("addToCart", Routes.CART)
+    }
+
+    @Test
+    fun swiftMoreSettingsRoutesResolveToLiveAndroidDestinations() {
+        assertRoute("PaymentMethodsView", Routes.PAYMENT_METHODS)
+        assertRoute("BackgroundImagesView", Routes.BACKGROUNDS)
+        assertRoute("AccountDeletionView", Routes.ACCOUNT_DELETION)
+        assertRoute("AccountDeletionReasonView", Routes.ACCOUNT_DELETION_REASON)
+        assertRoute("AddAuthorizedUserView", Routes.addAuthorizedUser())
+    }
+
+    @Test
+    fun unknownSwiftRouteDoesNotFallThroughToNotifications() {
+        assertRoute("DefinitelyUnknownView", null)
     }
 
     @Test
@@ -40,7 +65,7 @@ class PushDeepLinkParityTest {
         )
     }
 
-    private fun assertRoute(route: String, expected: String, referenceId: String? = null) {
+    private fun assertRoute(route: String, expected: String?, referenceId: String? = null) {
         PushDeepLink.capture(
             Intent().putExtra(AirdropMessagingService.EXTRA_ROUTE, route)
                 .apply {

@@ -2,7 +2,7 @@ package com.ga.airdrop.feature.homedetails
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.navigation.resolveAirdropRoute
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.data.repo.MiscRepository
@@ -107,62 +107,6 @@ class NotificationsViewModel(
                 miscRepository.markNotificationRead(notification.id)
             }
         }
-        return resolveNotificationRoute(notification.route, notification.referenceId)
-    }
-}
-
-/**
- * RN/Swift route-name → Android Routes resolution — mirrors
- * FigmaRouteResolver.destination(for:detail:) so push payloads
- * (`route` + `referenceID`) deep-link identically.
- */
-fun resolveNotificationRoute(route: String?, referenceId: String?): String? {
-    val name = route?.trim().orEmpty()
-    if (name.isEmpty()) return null
-    val ref = referenceId?.trim().orEmpty()
-    return when (name) {
-        "TabNavigator", "HomeView" -> Routes.HOME
-        "ShipmentsView" -> Routes.SHIPMENTS
-        "ShopView" -> Routes.SHOP
-        "ContactsView", "HelpView" -> Routes.CONTACTS
-        "MoreView" -> Routes.MORE
-        "PackagesView" -> Routes.PACKAGES
-        "PackageDetailsView" ->
-            if (ref.isNotEmpty()) Routes.packageDetails(ref) else Routes.PACKAGES
-        "PaymentsView" -> Routes.PAYMENTS
-        "OrdersView" -> Routes.ORDERS
-        "OrderDetailsView" ->
-            if (ref.isNotEmpty()) Routes.orderDetails(ref) else Routes.ORDERS
-        "AuctionView" -> Routes.AUCTION
-        "AuctionProductView", "AuctionProductDetailsView" ->
-            if (ref.isNotEmpty()) Routes.auctionProductDetails(ref) else Routes.AUCTION
-        "FeatureProductsView" -> Routes.FEATURED_PRODUCTS
-        "AuctionProductCheckoutView" -> Routes.AUCTION_CHECKOUT
-        "MyCartView", "CartView", "CheckoutView", "addToCart" -> Routes.CART
-        "NotificationsView" -> Routes.NOTIFICATIONS
-        "NotificationSettings", "NotificationSettingsView" -> Routes.NOTIFICATION_SETTINGS
-        "MembershipTierView", "GoldPriorityView" -> Routes.GOLD_PRIORITY
-        "AirCoinView", "AirCoinsView" -> Routes.AIRCOIN_HISTORY
-        "AirCoinHistoryView", "AirCoinHistoryDetailView" -> AIRCOIN_HISTORY_DETAIL_ROUTE
-        "WarehouseView" -> Routes.WAREHOUSES
-        "ServicesScreen", "ServicesView" -> Routes.SERVICES
-        "SalesTaxesView" -> Routes.SALES_TAXES
-        "CalculatorView" -> Routes.CALCULATOR
-        "DropAlertView" -> Routes.DROP_ALERT
-        "ReferView", "ReferredFriendsView" -> Routes.REFER_A_FRIEND
-        "InviteFriendView" -> Routes.INVITE_FRIEND
-        "PreferencesView" -> Routes.PREFERENCES
-        "PromotionsView" -> Routes.PROMOTIONS
-        "DocumentsView", "DocumentDownloadingView" -> Routes.DOCUMENTS
-        "AuthorizedUsersView" -> Routes.AUTHORIZED_USERS
-        "SettingsView" -> Routes.SETTINGS
-        "ShippingRatesView" -> Routes.SHIPPING_RATES
-        "RestrictedItemsView", "RestrictedItemsScreenView", "RestrictedItemsInfoView" ->
-            Routes.RESTRICTED_ITEMS
-        "FAQView" -> Routes.FAQ
-        "TermsConditionsView" -> Routes.TERMS
-        "PrivacyPolicyView" -> Routes.PRIVACY
-        "ProfileView", "EditProfileView" -> Routes.PROFILE
-        else -> null
+        return resolveAirdropRoute(notification.route, notification.referenceId)
     }
 }

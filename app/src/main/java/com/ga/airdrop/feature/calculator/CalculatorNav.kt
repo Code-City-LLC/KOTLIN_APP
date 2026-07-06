@@ -34,8 +34,13 @@ fun NavGraphBuilder.calculatorGraph(navController: NavHostController) {
     }
 
     composable(Routes.CALCULATOR_RESULTS) { entry ->
-        val parentEntry = remember(entry) { navController.getBackStackEntry(Routes.CALCULATOR) }
-        val viewModel: CalculatorViewModel = viewModel(parentEntry)
+        val parentEntry = remember(entry) {
+            runCatching { navController.getBackStackEntry(Routes.CALCULATOR) }.getOrNull()
+        }
+        val viewModel: CalculatorViewModel = viewModel(parentEntry ?: entry)
+        if (parentEntry == null) {
+            viewModel.seedSwiftDirectEntryResultIfEmpty()
+        }
         CalculatorResultsScreen(
             viewModel = viewModel,
             onBack = { navController.popBackStack() },
@@ -46,13 +51,22 @@ fun NavGraphBuilder.calculatorGraph(navController: NavHostController) {
     }
 
     composable(Routes.CALCULATOR_GOVERNMENT_CHARGES) { entry ->
-        val parentEntry = remember(entry) { navController.getBackStackEntry(Routes.CALCULATOR) }
-        val viewModel: CalculatorViewModel = viewModel(parentEntry)
+        val parentEntry = remember(entry) {
+            runCatching { navController.getBackStackEntry(Routes.CALCULATOR) }.getOrNull()
+        }
+        val viewModel: CalculatorViewModel = viewModel(parentEntry ?: entry)
+        if (parentEntry == null) {
+            viewModel.seedSwiftDirectEntryResultIfEmpty()
+        }
         GovernmentChargesScreen(
             viewModel = viewModel,
             onBack = { navController.popBackStack() },
             onBackToCalculator = {
-                navController.popBackStack(route = Routes.CALCULATOR, inclusive = false)
+                if (parentEntry != null) {
+                    navController.popBackStack(route = Routes.CALCULATOR, inclusive = false)
+                } else {
+                    navController.navigate(Routes.CALCULATOR) { launchSingleTop = true }
+                }
             },
             onRestrictedItems = { navController.navigate(Routes.RESTRICTED_ITEMS) },
         )

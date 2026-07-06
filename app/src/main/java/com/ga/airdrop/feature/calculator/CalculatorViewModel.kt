@@ -217,4 +217,20 @@ class CalculatorViewModel(
                 .getOrDefault(RemoteCalculatorRepository.USD_TO_JMD_FALLBACK)
         }
     }
+
+    /** Swift direct dev route feeds placeholder inputs so Results is browsable. */
+    fun seedSwiftDirectEntryResultIfEmpty() {
+        if (_result.value != null) return
+        _result.value = CalculationResult(
+            method = ShippingMethod.STANDARD,
+            productName = null,
+            weightLbs = 1.0,
+            weightUnit = WeightUnit.LBS,
+            invoiceUsd = 123.0,
+            lengthIn = null,
+            widthIn = null,
+            heightIn = null,
+            live = null,
+        )
+    }
 }
