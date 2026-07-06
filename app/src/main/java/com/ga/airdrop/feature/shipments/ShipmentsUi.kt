@@ -326,10 +326,20 @@ object ShipmentsFormat {
         else -> "—"
     }
 
-    /** Drop-number formatting: prefix + last 11 digits grouped 3-4-4. */
-    fun trackingCode(raw: String?): String {
+    /**
+     * Drop-number formatting: prefix + last 11 digits grouped 3-4-4.
+     * Swift FigmaPackagesViewController.formatTrackingCode(_:statusCode:) — the
+     * empty-tracking fallback is status-aware: status 1 (Drop Alerted) shows
+     * "Awaiting Package Creation", any other status shows an em dash. Callers
+     * without a status (Payments cards) omit [statusId] and keep the legacy "-".
+     */
+    fun trackingCode(raw: String?, statusId: Int? = null): String {
         val stripped = raw.orEmpty().replace(" ", "")
-        if (stripped.isEmpty()) return "-"
+        if (stripped.isEmpty()) return when (statusId) {
+            1 -> "Awaiting Package Creation"
+            null -> "-"
+            else -> "—"
+        }
         val prefix = stripped.takeWhile { it.isLetter() }.uppercase(Locale.US)
         val digits = stripped.filter { it.isDigit() }.takeLast(11)
         val grouped = when {
@@ -743,6 +753,13 @@ fun PackageCard(
                 .padding(start = Spacing.md, end = Spacing.md, top = 14.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
+            // Swift FigmaPackagesViewController (9d31872) leads the card body
+            // with a Drop Number row (formatted tracking code) above Description.
+            CardFieldColumn(
+                label = "Drop Number",
+                value = ShipmentsFormat.trackingCode(pkg.trackingCode, pkg.status?.trim()?.toIntOrNull()),
+                valueMaxLines = 1,
+            )
             CardFieldColumn(
                 label = "Description",
                 value = pkg.description?.replaceFirstChar { it.uppercase(Locale.US) } ?: "—",
