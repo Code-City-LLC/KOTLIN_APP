@@ -1180,6 +1180,24 @@ the package-detail `AirDrop Standard` label, and verifies the absence of stale
 
 ---
 
+## [CLOSED] Cart hosted checkout — direct Swift proof
+`app/src/main/java/com/ga/airdrop/feature/cart/CartViewModel.kt:137` — Cart checkout reused the hosted checkout endpoint but had no Cart-specific proof for payload, URL-open clearing, or Swift unauthenticated copy.
+
+**Detail:** Swift `FigmaCartViewController.onPay` sends `packageIDs`, `currency = "USD"`, and `isAuction = true`, maps `APIError.unauthenticated` to `Sign in required` / `Log in to your Airdropja account before checking out.`, opens `SFSafariViewController`, and clears `FigmaCartStore` only after the hosted URL presentation path begins. Android already had most of the runtime rail, but tests only covered Auction checkout and other screens' Cart badges. Figma MCP `get_design_context` for Cart node `40008284:26547` confirmed the visual node still contains stale static details (`Order Summary`, `Fax`, gradient button), so Swift is the behavioral source.
+
+**Fix:** Closed. Checkout unauth classification is now shared with Auction checkout, Cart surfaces Swift's sign-in-required copy, and `CartScreen` exposes a test-only hosted URL hook while production still uses `launchExternalUrl`. `CartHostedCheckoutParityTest` verifies sorted `package_ids`, `currency = "USD"`, `is_auction = true`, hosted URL open, cart clear after URL-open callback, missing-package blocking, and failed unauth checkout without clearing. Focused `CartHostedCheckoutParityTest`: 3 connected tests passed; adjacent `AuctionCheckoutParityTest`: 4 connected tests passed.
+
+---
+
+## [CLOSED] Drop Alert multipart — shared Swift wire contract
+`app/src/main/java/com/ga/airdrop/feature/dropalert/DropAlertRepository.kt:84` — Drop Alert had a feature-local raw OkHttp multipart builder while `PackagesRepository` already owned the Retrofit `/drop-alerts` multipart path.
+
+**Detail:** Swift `AirdropAPI.createDropAlert` is the backend source for the wire names, including the misspellings `package_couirer_number` and `pckaage_invoice`, and indexed files `preorder_invoice[n]`. Android had two implementations of that contract: `RemoteDropAlertRepository` hand-built a raw `MultipartBody`, while `PackagesRepository.createDropAlert` built the Retrofit `@PartMap`/file parts. That made it possible to fix one path while the active screen used another. Figma MCP `get_design_context` for `40001826:22497` was refreshed as visual context; the backend wire contract comes from Swift and the shared repository.
+
+**Fix:** Closed. `RemoteDropAlertRepository.createDropAlert` now delegates to `PackagesRepository.createDropAlert`, leaving the existing profile prefill path intact. `DropAlertMultipartRepositoryTest` proves the shared repository emits Swift's text fields, preserves always-empty `pckaage_invoice`, filters blank `package_description`, and sends `preorder_invoice[0]` / `[1]` with filename, MIME type, and bytes. Existing `DropAlertConsigneeParityTest`: 2 connected tests passed after delegation.
+
+---
+
 ## [CLOSED] Notification Settings
 `app/src/main/java/com/ga/airdrop/feature/more/NotificationSettingsViewModel.kt:104` — Enabling a Push toggle never re-registers the FCM device token with the backend, which Swift does on every sync when push is wanted.
 

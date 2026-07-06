@@ -2,8 +2,10 @@ package com.ga.airdrop.feature.cart
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.feature.shop.ShopCheckoutRepository
 import com.ga.airdrop.feature.shop.ShopRepoProvider
+import com.ga.airdrop.feature.shop.isUnauthenticatedCheckoutFailure
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -135,11 +137,20 @@ class CartViewModel(
                     _state.update { it.copy(paying = false, checkoutUrl = url) }
                 }
                 .onFailure { err ->
+                    val unauthenticated = err.isUnauthenticatedCheckoutFailure()
                     _state.update {
                         it.copy(
                             paying = false,
-                            errorTitle = "Checkout failed",
-                            errorMessage = err.message ?: "Stripe did not return a valid checkout URL.",
+                            errorTitle = if (unauthenticated) {
+                                "Sign in required"
+                            } else {
+                                "Checkout failed"
+                            },
+                            errorMessage = if (unauthenticated) {
+                                "Log in to your Airdropja account before checking out."
+                            } else {
+                                err.toUserMessage().ifBlank { "Stripe did not return a valid checkout URL." }
+                            },
                         )
                     }
                 }

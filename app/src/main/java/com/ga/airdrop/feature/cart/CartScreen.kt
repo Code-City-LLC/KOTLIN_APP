@@ -68,6 +68,7 @@ fun CartScreen(
     onBack: () -> Unit,
     onShopNow: () -> Unit,
     viewModel: CartViewModel = viewModel(),
+    openCheckoutUrl: ((String) -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
@@ -81,7 +82,11 @@ fun CartScreen(
     val checkoutUrl = state.checkoutUrl
     LaunchedEffect(checkoutUrl) {
         if (checkoutUrl != null) {
-            launchExternalUrl(context, checkoutUrl)
+            if (openCheckoutUrl != null) {
+                openCheckoutUrl(checkoutUrl)
+            } else {
+                launchExternalUrl(context, checkoutUrl)
+            }
             viewModel.onCheckoutOpened()
         }
     }

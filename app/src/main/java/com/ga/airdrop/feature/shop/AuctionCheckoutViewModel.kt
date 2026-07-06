@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 
 data class AuctionCheckoutUiState(
     val product: ShopProduct? = null,
@@ -119,12 +118,4 @@ class AuctionCheckoutViewModel(
     fun dismissError() {
         _state.update { it.copy(errorTitle = null, errorMessage = null) }
     }
-}
-
-private fun Throwable.isUnauthenticatedCheckoutFailure(): Boolean {
-    if (this is HttpException && code() == 401) return true
-    val text = listOfNotNull(message, cause?.message).joinToString(" ")
-    return text.contains("401") ||
-        text.contains("unauthenticated", ignoreCase = true) ||
-        text.contains("unauthorized", ignoreCase = true)
 }

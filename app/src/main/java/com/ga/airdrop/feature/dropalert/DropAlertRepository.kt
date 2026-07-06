@@ -2,23 +2,20 @@ package com.ga.airdrop.feature.dropalert
 
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.network.ApiClient
-import com.ga.airdrop.data.model.flexBool
+import com.ga.airdrop.data.api.UploadFile
 import com.ga.airdrop.data.model.flexString
 import com.ga.airdrop.data.model.objectAt
+import com.ga.airdrop.data.repo.PackagesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.IOException
 
-// RECONCILE: move these calls into data/api/AirdropApiService (+ data/repo)
-// when the shared data layer lands — POST /drop-alerts (multipart) and
-// GET /user/profile. The interface below is the seam; screens/VM only see it.
+// The create-drop-alert multipart path delegates to the shared data repository
+// so the backend wire names live in one place. Profile prefill stays here until
+// the data layer exposes the exact Swift `/user/profile` response shape.
 
 /**
  * Server contract for `shipping_method` — Swift
@@ -77,55 +74,34 @@ class RemoteDropAlertRepository(
     private val client: OkHttpClient = ApiClient.okHttp,
     private val json: Json = ApiClient.json,
     private val baseUrl: String = BuildConfig.API_BASE_URL,
+    private val packagesRepository: PackagesRepository = PackagesRepository(ApiClient.service),
 ) : DropAlertRepository {
 
     private fun url(path: String) = baseUrl.trimEnd('/') + path
 
     override suspend fun createDropAlert(submission: DropAlertSubmission): DropAlertResult =
-        withContext(Dispatchers.IO) {
-            // Part names verbatim from AirdropAPI.createDropAlert(...) —
-            // including the backend's misspelled `package_couirer_number` and
-            // `pckaage_invoice` keys. Empty fields are dropped except
-            // `pckaage_invoice`, which is always sent (Swift parity).
-            val fields = buildMap {
-                put("package_couirer_number", submission.courierNumber)
-                put("shipping_method", submission.shippingMethod.apiValue)
-                put("package_shipper", submission.shipper)
-                put("package_store", submission.store)
-                put("package_amount", submission.packageAmount)
-                put("package_consignee", submission.consignee)
-                put("package_description", submission.description.orEmpty())
-            }.filterValues { it.isNotBlank() }
-
-            val builder = MultipartBody.Builder().setType(MultipartBody.FORM)
-            fields.forEach { (name, value) -> builder.addFormDataPart(name, value) }
-            builder.addFormDataPart("pckaage_invoice", "")
-            submission.invoices.forEachIndexed { index, file ->
-                builder.addFormDataPart(
-                    name = "preorder_invoice[$index]",
-                    filename = file.fileName,
-                    body = file.bytes.toRequestBody(file.mimeType.toMediaType()),
+        packagesRepository.createDropAlert(
+            courierNumber = submission.courierNumber,
+            shipper = submission.shipper,
+            shippingMethod = submission.shippingMethod.toDataModel(),
+            store = submission.store,
+            packageAmount = submission.packageAmount,
+            consignee = submission.consignee,
+            description = submission.description,
+            invoiceFiles = submission.invoices.map { file ->
+                UploadFile(
+                    fileName = file.fileName,
+                    mimeType = file.mimeType,
+                    bytes = file.bytes,
                 )
-            }
-
-            val request = Request.Builder()
-                .url(url("/drop-alerts"))
-                .post(builder.build())
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                val text = response.body?.string().orEmpty()
-                val root = runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
-                val message = root?.flexString("message")
-                if (!response.isSuccessful) {
-                    throw IOException(message ?: "Drop alert failed (${response.code}).")
-                }
+            },
+        ).getOrElse { throw it }
+            .let { response ->
                 DropAlertResult(
-                    success = root?.flexBool("success") ?: true,
-                    message = message,
+                    success = response.success ?: true,
+                    message = response.message,
                 )
             }
-        }
 
     override suspend fun consigneeName(): String? = withContext(Dispatchers.IO) {
         // Swift currentUser(): GET /user/profile, user under {data{user}}, {data} or {user}.
@@ -146,3 +122,13 @@ class RemoteDropAlertRepository(
         }.getOrNull()
     }
 }
+
+private fun DropAlertShippingMethod.toDataModel(): com.ga.airdrop.data.model.DropAlertShippingMethod =
+    when (this) {
+        DropAlertShippingMethod.AIRDROP_STANDARD ->
+            com.ga.airdrop.data.model.DropAlertShippingMethod.AIRDROP_STANDARD
+        DropAlertShippingMethod.SEADROP_STANDARD ->
+            com.ga.airdrop.data.model.DropAlertShippingMethod.SEADROP_STANDARD
+        DropAlertShippingMethod.EXPRESS ->
+            com.ga.airdrop.data.model.DropAlertShippingMethod.EXPRESS
+    }
