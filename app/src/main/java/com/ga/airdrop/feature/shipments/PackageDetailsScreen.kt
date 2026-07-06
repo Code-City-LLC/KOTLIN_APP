@@ -412,7 +412,19 @@ private fun PackageDetailsContent(
         // the Breakdown card (header + Subtotal) in this state, then a plain
         // Exchange Rate row and a plain Total row (orange value) — no orange pill box.
         if (state.showChargesAndCart) {
-            ChargesCard(state = state, detail = detail)
+            // Customs Notice sheet — Swift figma.packageDetails.customsDutyInfo
+            // (Figma 40008798:29642) opens from the Customs Duty charge row.
+            val showCustomsNotice = androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(false)
+            }
+            ChargesCard(
+                state = state,
+                detail = detail,
+                onCustomsInfo = { showCustomsNotice.value = true },
+            )
+            if (showCustomsNotice.value) {
+                CustomsNoticeSheet(onDismiss = { showCustomsNotice.value = false })
+            }
             val rate = state.effectiveRate
             DetailKeyValueRow(
                 "Exchange Rate",
@@ -592,7 +604,11 @@ private fun InvoiceFileRow(
 // ─── Breakdown of Charges ───────────────────────────────────────────────────
 
 @Composable
-private fun ChargesCard(state: PackageDetailsUiState, detail: ShipmentPackageDetail) {
+private fun ChargesCard(
+    state: PackageDetailsUiState,
+    detail: ShipmentPackageDetail,
+    onCustomsInfo: () -> Unit,
+) {
     val colors = AirdropTheme.colors
     val rate = state.effectiveRate
     DetailSectionCard(
@@ -619,6 +635,9 @@ private fun ChargesCard(state: PackageDetailsUiState, detail: ShipmentPackageDet
                     jmd = "$" + ShipmentsFormat.money(amount * rate),
                     nameColor = colors.textDarkTitle,
                     valueColor = colors.textDarkTitle,
+                    // Swift makeChargesRow: Customs Duty rows carry an
+                    // orange info circle → Customs Notice sheet.
+                    onInfo = if (isCustomsDutyCharge(name)) onCustomsInfo else null,
                 )
             }
             val subtotal = state.chargesTotal ?: 0.0
@@ -652,9 +671,31 @@ private fun ChargeRow(
     jmd: String,
     nameColor: androidx.compose.ui.graphics.Color,
     valueColor: androidx.compose.ui.graphics.Color,
+    onInfo: (() -> Unit)? = null,
 ) {
-    Row(Modifier.fillMaxWidth()) {
-        Text(text = name, style = AirdropType.body2, color = nameColor, modifier = Modifier.weight(1f))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        if (onInfo != null) {
+            // Swift makeCustomsDutyChargesButton: body2 label + 18pt orange
+            // infoCircle, whole cell tappable → Customs Notice.
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onInfo)
+                    .testTag("package-details-customs-duty-info"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(text = name, style = AirdropType.body2, color = nameColor)
+                Image(
+                    painter = painterResource(R.drawable.ic_calc_info_circle),
+                    contentDescription = "$name info",
+                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        } else {
+            Text(text = name, style = AirdropType.body2, color = nameColor, modifier = Modifier.weight(1f))
+        }
         Text(text = usd, style = AirdropType.body2, color = valueColor)
         Spacer(Modifier.size(Spacing.md))
         Text(text = jmd, style = AirdropType.body2, color = valueColor)
