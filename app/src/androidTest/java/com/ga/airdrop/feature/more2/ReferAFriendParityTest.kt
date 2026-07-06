@@ -11,6 +11,8 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.DpRect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -61,6 +63,7 @@ class ReferAFriendParityTest {
     fun initialEntryMatchesSwiftOneProfileLoadAndOneReferralsLoad() {
         val api = FakeMore2Api()
         lateinit var viewModel: ReferAFriendViewModel
+        val inviteClicks = AtomicInteger()
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
@@ -71,7 +74,7 @@ class ReferAFriendParityTest {
             AirdropTheme {
                 ReferAFriendScreen(
                     onBack = {},
-                    onInviteFriend = {},
+                    onInviteFriend = { inviteClicks.incrementAndGet() },
                     viewModel = viewModel,
                 )
             }
@@ -118,6 +121,23 @@ class ReferAFriendParityTest {
             compose.onAllNodesWithText("https://airdropja.com/refer/GA-4242")
                 .fetchSemanticsNodes().isNotEmpty(),
         )
+        compose.onNodeWithText("Earn AirCoins for every friend you invite").assertIsDisplayed()
+        compose.onNodeWithText("Your Referral Link").assertIsDisplayed()
+        compose.onNodeWithText("Invite Friends").assertIsDisplayed()
+        compose.onNodeWithText("Your Referrals").assertIsDisplayed()
+        assertEquals(
+            "Stale Figma $2 copy must not replace Swift AirCoins copy",
+            0,
+            compose.onAllNodesWithText("Earn $2 USD Per Invite").fetchSemanticsNodes().size,
+        )
+
+        compose.onNodeWithTag("refer-copy-button").performClick()
+        compose.onNodeWithTag("refer-link-copied-toast").assertIsDisplayed()
+
+        compose.onNodeWithTag("refer-invite-button").performClick()
+        compose.runOnIdle {
+            assertEquals("Invite Friends button should open Swift Invite flow", 1, inviteClicks.get())
+        }
     }
 
     @Test

@@ -311,6 +311,7 @@ private fun ReferralLinkCard(link: String, onCopy: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .height(34.dp)
+                        .testTag("refer-copy-button")
                         .clip(RoundedCornerShape(Radius.xs))
                         .background(BrandPalette.OrangeMain)
                         .clickable(onClick = onCopy)
