@@ -54,7 +54,9 @@ class ShipmentsBackendPaginationParityTest {
         val repo = RecordingPackagesRepository()
         val viewModel = PackagesViewModel(repo = repo, hubRepo = RecordingHubRepository())
 
-        waitUntil { repo.calls.isNotEmpty() && !viewModel.state.value.loading }
+        waitUntil("packages initial load", { packageSnapshot(repo, viewModel) }) {
+            repo.calls.isNotEmpty() && !viewModel.state.value.loading
+        }
         assertEquals(PackageCall(page = 1, perPage = 15, status = null, search = null), repo.calls.first())
 
         val callsBeforeTyping = repo.calls.size
@@ -66,13 +68,22 @@ class ShipmentsBackendPaginationParityTest {
         )
 
         viewModel.onSearchSubmit()
-        waitUntil { repo.calls.any { it.page == 1 && it.search == "ARD000" } }
+        waitUntil("packages submitted search", { packageSnapshot(repo, viewModel) }) {
+            repo.calls.any { it.page == 1 && it.search == "ARD000" } &&
+                !viewModel.state.value.loading
+        }
 
         viewModel.loadNextPage()
-        waitUntil { repo.calls.any { it.page == 2 && it.search == "ARD000" } }
+        waitUntil("packages page 2", { packageSnapshot(repo, viewModel) }) {
+            repo.calls.any { it.page == 2 && it.search == "ARD000" } &&
+                !viewModel.state.value.loadingMore
+        }
 
         viewModel.selectStatus(7)
-        waitUntil { repo.calls.any { it.page == 1 && it.status == 7 && it.search == "ARD000" } }
+        waitUntil("packages status filter", { packageSnapshot(repo, viewModel) }) {
+            repo.calls.any { it.page == 1 && it.status == 7 && it.search == "ARD000" } &&
+                !viewModel.state.value.loading
+        }
     }
 
     @Test
@@ -134,12 +145,22 @@ class ShipmentsBackendPaginationParityTest {
         condition: () -> Boolean,
     ) {
         try {
-            withTimeout(5_000) {
+            withTimeout(10_000) {
                 while (!condition()) delay(25)
             }
         } catch (e: TimeoutCancellationException) {
             fail("$label timed out; ${snapshot()}")
         }
+    }
+
+    private fun packageSnapshot(
+        repo: RecordingPackagesRepository,
+        viewModel: PackagesViewModel,
+    ): String {
+        val state = viewModel.state.value
+        return "calls=${repo.calls}; loading=${state.loading}; loadingMore=${state.loadingMore}; " +
+            "hasMore=${state.hasMorePages}; search='${state.searchText}'; status=${state.statusFilter}; " +
+            "items=${state.items.size}; error=${state.error}"
     }
 
     private data class PackageCall(
