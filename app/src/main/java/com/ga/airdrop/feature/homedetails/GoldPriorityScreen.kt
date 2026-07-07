@@ -272,9 +272,8 @@ internal fun GoldPriorityContent(
         // Brief confirmation once a change applies (Swift success toast parity).
         tierState.justChangedToName?.let { name ->
             LaunchedEffect(name) {
-                pagerState.animateScrollToPage(
-                    tierPages.indexOfFirst { it.apiCode == tierState.currentTierCode }.coerceAtLeast(0),
-                )
+                // Reuse the single code→index resolver (was duplicated here).
+                pagerState.animateScrollToPage(indexForTierCode(tierState.currentTierCode) ?: 0)
             }
             TierChangeSuccessBanner(
                 name = name,
