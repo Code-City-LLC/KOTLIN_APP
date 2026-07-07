@@ -97,48 +97,6 @@ data class CheckoutSessionStatus(
     val currency: String? = null,
 )
 
-// POST /payments/create-payment-sheet — Stripe PaymentSheet bundle
-// (Laravel StripePaymentService::createPaymentSheet). `amount` is in cents.
-@Serializable
-data class PaymentSheetConfig(
-    @Serializable(with = FlexibleStringSerializer::class)
-    val customer: String? = null,
-    @SerialName("ephemeral_key")
-    @Serializable(with = FlexibleStringSerializer::class)
-    val ephemeralKey: String? = null,
-    @SerialName("payment_intent")
-    @Serializable(with = FlexibleStringSerializer::class)
-    val paymentIntent: String? = null,
-    @SerialName("payment_intent_id")
-    @Serializable(with = FlexibleStringSerializer::class)
-    val paymentIntentId: String? = null,
-    @SerialName("publishable_key")
-    @Serializable(with = FlexibleStringSerializer::class)
-    val publishableKey: String? = null,
-    @Serializable(with = FlexibleLongSerializer::class)
-    val amount: Long? = null,
-    @Serializable(with = FlexibleStringSerializer::class)
-    val currency: String? = null,
-)
-
-// GET /payments/payment-intent/{id}/status — server verification after
-// PaymentSheet completes; mirrors the hosted-checkout status field shape.
-@Serializable
-data class PaymentIntentStatus(
-    @Serializable(with = FlexibleStringSerializer::class)
-    val status: String? = null,
-    @SerialName("payment_status")
-    @Serializable(with = FlexibleStringSerializer::class)
-    val paymentStatus: String? = null,
-    @Serializable(with = FlexibleLongSerializer::class)
-    val amount: Long? = null,
-    @Serializable(with = FlexibleStringSerializer::class)
-    val currency: String? = null,
-    @SerialName("invoice_id")
-    @Serializable(with = FlexibleStringSerializer::class)
-    val invoiceId: String? = null,
-)
-
 // GET /payments/{id}/invoice JSON envelope: {data:{url|file_url}},
 // {data:"https://..."}, {url} or {file_url}. Raw binary bodies are handled
 // by the repository fallback.

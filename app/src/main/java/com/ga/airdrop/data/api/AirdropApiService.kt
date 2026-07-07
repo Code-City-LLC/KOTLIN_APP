@@ -38,8 +38,6 @@ import com.ga.airdrop.data.model.PackageInvoicesMutationResponse
 import com.ga.airdrop.data.model.PackageStatus
 import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.Payment
-import com.ga.airdrop.data.model.PaymentIntentStatus
-import com.ga.airdrop.data.model.PaymentSheetConfig
 import com.ga.airdrop.data.model.PlaceSearchResults
 import com.ga.airdrop.data.model.ProfileAssetResponse
 import com.ga.airdrop.data.model.ProfileMutationResponse
@@ -81,7 +79,7 @@ import retrofit2.http.Query
 import retrofit2.http.QueryMap
 
 // One suspend fun per Laravel /api/v1 endpoint the Swift app calls
-// (AirdropAPI.swift), plus the delivery/PaymentSheet family.
+// (AirdropAPI.swift), plus the delivery family.
 interface AirdropApiService {
 
     // ── Auth ──
@@ -313,16 +311,6 @@ interface AirdropApiService {
     suspend fun checkoutSessionStatus(
         @Path("sessionId") sessionId: String,
     ): DataEnvelope<CheckoutSessionStatus>
-
-    @POST("payments/create-payment-sheet")
-    suspend fun createPaymentSheet(
-        @Body body: CreateCheckoutRequest,
-    ): DataEnvelope<PaymentSheetConfig>
-
-    @GET("payments/payment-intent/{paymentIntentId}/status")
-    suspend fun paymentIntentStatus(
-        @Path("paymentIntentId") paymentIntentId: String,
-    ): DataEnvelope<PaymentIntentStatus>
 
     // ── Cart ──
 
