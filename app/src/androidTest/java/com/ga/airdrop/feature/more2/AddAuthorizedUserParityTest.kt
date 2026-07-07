@@ -78,6 +78,20 @@ class AddAuthorizedUserParityTest {
     }
 
     @Test
+    fun idTypeFieldUsesSwiftPickerSheet() {
+        val api = FakeMore2Api()
+        setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("add-authorized-user-id-type-card").performClick()
+
+        compose.onNodeWithText("Drivers License").assertIsDisplayed()
+        compose.onNodeWithText("Passport").assertIsDisplayed().performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Passport").assertIsDisplayed()
+    }
+
+    @Test
     fun addModePostsSwiftPayloadAndPops() {
         val api = FakeMore2Api()
         setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
