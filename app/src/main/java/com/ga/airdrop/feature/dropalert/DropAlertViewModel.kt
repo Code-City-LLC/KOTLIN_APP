@@ -49,6 +49,8 @@ class DropAlertViewModel(
     val state: StateFlow<DropAlertUiState> = _state
 
     init {
+        // Swift applySavedShipperPreset on load — pre-fill shipper/courier/method.
+        _state.update { applyPreset(it, DropAlertPreset.read(), COURIER_COMPANY_OPTIONS) }
         prefillConsignee()
     }
 
@@ -131,12 +133,18 @@ class DropAlertViewModel(
                     )
                 )
             }.onSuccess { result ->
+                // Swift §B.5: persist the shipper/courier/method BEFORE the form
+                // resets so the next alert can auto-fill them.
+                DropAlertPreset.save(form.shipper, form.courierCompany, form.shippingMethod)
                 val confirmation = result.message?.trim().takeUnless { it.isNullOrEmpty() }
                     ?: "Your drop alert was created."
-                // Swift resetFormAfterSubmit clears every field, including Consignee.
+                // Swift resetFormAfterSubmit clears every field (incl. Consignee),
+                // then re-applies the just-saved preset.
                 _state.update {
-                    DropAlertUiState(
-                        dialog = DropAlertDialog("Submitted", confirmation),
+                    applyPreset(
+                        DropAlertUiState(dialog = DropAlertDialog("Submitted", confirmation)),
+                        DropAlertPreset.read(),
+                        COURIER_COMPANY_OPTIONS,
                     )
                 }
             }.onFailure { e ->
