@@ -79,7 +79,7 @@ fun PaymentsScreen(
             info.totalItemsCount > 0 && lastVisible >= info.totalItemsCount - 3
         }
     }
-    LaunchedEffect(shouldLoadMore) {
+    LaunchedEffect(shouldLoadMore, state.items.size, state.hasMorePages) {
         if (shouldLoadMore) viewModel.loadNextPage()
     }
 
