@@ -8,6 +8,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.network.HttpsImageInterceptor
 import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
 import com.ga.airdrop.core.security.BiometricGate
+import com.ga.airdrop.feature.calculator.CalculatorHistory
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.shipments.ShipmentsRepoBinding
 import com.ga.airdrop.feature.shop.ShopRepoBinding
@@ -22,6 +23,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
         CartStore.init(this)
         DeliveryDefaultsStore.init(this)
         BiometricGate.init(this)
+        CalculatorHistory.init(this)
         ShopRepoBinding.install()
         ShipmentsRepoBinding.install(cacheDir)
     }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -20,8 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -38,12 +43,18 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Shipping Calculator — Figma nodes 40001464:29102 (Standard),
@@ -66,6 +77,20 @@ fun CalculatorScreen(
     var methodPicker by remember { mutableStateOf(false) }
     var lengthUnitPicker by remember { mutableStateOf(false) }
     var weightUnitPicker by remember { mutableStateOf(false) }
+    var showRecentSheet by remember { mutableStateOf(false) }
+
+    // Swift §B.6 refreshRecentCalculationsVisibility: re-read the history store
+    // on every resume so the row appears after the user's first calculation and
+    // returns from the results screen.
+    var recentEntries by remember { mutableStateOf(CalculatorHistory.entries()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) recentEntries = CalculatorHistory.entries()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(state.navigateToResults) {
         if (state.navigateToResults) {
@@ -215,7 +240,24 @@ fun CalculatorScreen(
                     .padding(top = 12.dp)
                     .testTag("calculator-calculate-button"),
             )
+
+            // Swift §B.6 "Recent calculations" — soft card under Calculate,
+            // shown only once the history store has entries.
+            if (recentEntries.isNotEmpty()) {
+                RecentCalculationsRow(onClick = { showRecentSheet = true })
+            }
         }
+    }
+
+    if (showRecentSheet) {
+        RecentCalculationsSheet(
+            entries = recentEntries,
+            onSelect = { entry ->
+                showRecentSheet = false
+                viewModel.repopulateFromHistory(entry)
+            },
+            onDismiss = { showRecentSheet = false },
+        )
     }
 
     if (methodPicker) {
@@ -473,3 +515,135 @@ private fun ProductResultRow(product: CalcProduct, onClick: () -> Unit) {
         }
     }
 }
+
+// ─── Recent calculations (Swift FigmaCalculatorViewController §B.6) ──────────
+
+/** Soft "Recent calculations" card under Calculate — clock + label + chevron. */
+@Composable
+private fun RecentCalculationsRow(onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(RoundedCornerShape(Radius.xs))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp)
+            .testTag("calculator-recent-row"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_clock),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = "Recent calculations",
+            style = AirdropType.subtitle2,
+            color = colors.textDarkTitle,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 10.dp),
+        )
+        Image(
+            painter = painterResource(R.drawable.ic_small_arrow_down),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.gray500),
+            modifier = Modifier
+                .size(14.dp)
+                .rotate(-90f),
+        )
+    }
+}
+
+/** Bottom sheet of up to 5 prior quotes — tap one to re-run it (Swift
+ *  FigmaCalculatorRecentSheet → repopulateForm). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecentCalculationsSheet(
+    entries: List<CalculatorHistory.Entry>,
+    onSelect: (CalculatorHistory.Entry) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = colors.gray150,
+        shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = Spacing.sm)
+                    .size(width = 100.dp, height = 6.dp)
+                    .background(colors.gray300, RoundedCornerShape(Radius.full))
+            )
+        },
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.md)
+                .padding(top = Spacing.sm, bottom = Spacing.lg)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Text(
+                text = "Recent calculations",
+                style = AirdropType.title1,
+                color = colors.textDarkTitle,
+                modifier = Modifier.padding(bottom = Spacing.xs),
+            )
+            entries.forEach { entry ->
+                RecentCalculationItem(entry = entry, onClick = { onSelect(entry) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentCalculationItem(entry: CalculatorHistory.Entry, onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    val method = ShippingMethod.entries.firstOrNull { it.name == entry.method }?.label ?: entry.method
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.xs))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+            .clickable(onClick = onClick)
+            .padding(Spacing.sm1),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = method, style = AirdropType.subtitle1, color = colors.textDarkTitle)
+            Text(
+                text = "${formatCalcNumber(entry.weightLbs)} lbs • \$${formatCalcMoney(entry.invoiceUsd)} invoice",
+                style = AirdropType.body3,
+                color = colors.textDescription,
+            )
+            entry.createdAt.takeIf { it > 0L }?.let { ms ->
+                Text(
+                    text = SimpleDateFormat("d MMM yyyy, h:mm a", Locale.US).format(Date(ms)),
+                    style = AirdropType.body3,
+                    color = colors.gray500,
+                )
+            }
+        }
+        entry.totalUsd?.let { total ->
+            Text(
+                text = "\$${formatCalcMoney(total)}",
+                style = AirdropType.title2,
+                color = BrandPalette.OrangeMain,
+            )
+        }
+    }
+}
+
+private fun formatCalcNumber(v: Double): String =
+    if (v == v.toLong().toDouble()) v.toLong().toString() else String.format(Locale.US, "%.1f", v)
+
+private fun formatCalcMoney(v: Double): String = String.format(Locale.US, "%.2f", v)

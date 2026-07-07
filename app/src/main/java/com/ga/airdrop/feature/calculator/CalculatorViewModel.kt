@@ -205,8 +205,41 @@ class CalculatorViewModel(
             heightIn = form.height.replace(',', '.').toDoubleOrNull()?.times(factor),
             live = live,
         )
+        // Swift §B.6: record this quote in the 5-item history ring. Total comes
+        // from resolveCharges (live totalWithDuty, else the offline grandTotal).
+        CalculatorHistory.record(
+            CalculatorHistory.Entry(
+                method = form.method.name,
+                weightLbs = weightLbs,
+                invoiceUsd = invoice,
+                totalUsd = resolveCharges(_result.value!!).totalWithDuty,
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
         _state.update { it.copy(navigateToResults = true) }
     }
+
+    /**
+     * Re-run a stored calculation — Swift repopulateForm(from:) + pushResults:
+     * restore method + weight (canonical lbs) + invoice, then recompute so the
+     * user lands back on the results screen. Dimensions aren't persisted.
+     */
+    fun repopulateFromHistory(entry: CalculatorHistory.Entry) {
+        val method = ShippingMethod.entries.firstOrNull { it.name == entry.method }
+            ?: ShippingMethod.STANDARD
+        _state.update {
+            it.copy(
+                method = method,
+                weightUnit = WeightUnit.LBS,
+                actualWeight = formatAmount(entry.weightLbs),
+                invoiceUsd = formatAmount(entry.invoiceUsd),
+            )
+        }
+        calculate()
+    }
+
+    private fun formatAmount(value: Double): String =
+        java.util.Locale.US.let { String.format(it, "%.2f", value) }
 
     /** Lazily fetch the USD→JMD rate for the CIF sheet (once per session). */
     fun loadExchangeRate() {
