@@ -3,6 +3,12 @@ package com.ga.airdrop.feature.shipments
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.BuildConfig
+import com.ga.airdrop.data.api.ApiErrorCodes
+import com.ga.airdrop.data.model.InsuranceOptions
+import com.ga.airdrop.data.model.InsuranceSelection
+import com.ga.airdrop.data.model.PackageTierInfo
+import com.ga.airdrop.data.repo.TierRepository
+import com.ga.airdrop.data.repo.serverErrorCode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -28,7 +34,25 @@ data class PackageDetailsUiState(
     val submittingDamageReport: Boolean = false,
     val damageReportError: String? = null,
     val showDamageReportSubmitted: Boolean = false,
+    // ── Package insurance (Tier API — joint Swift/Kotlin flow) ──
+    /** GET /packages/{id}/tier — tier snapshot + recorded insurance choice. */
+    val packageTierInfo: PackageTierInfo? = null,
+    val showInsuranceSheet: Boolean = false,
+    /** GET /insurance/options quote for this package's declared value. */
+    val insuranceQuote: InsuranceOptions? = null,
+    val insuranceQuoteError: String? = null,
+    /** A select/decline POST is in flight — gates re-entry + dismissal. */
+    val insuranceBusy: Boolean = false,
+    val insuranceError: String? = null,
+    /**
+     * Backend refused a decline with INSURANCE_MANDATORY — the sheet snaps
+     * back to the covered option and stops offering decline (error_code pact).
+     */
+    val insuranceDeclineRefused: Boolean = false,
 ) {
+    /** The recorded insurance choice for this package, if any. */
+    val insuranceSelection: InsuranceSelection? get() = packageTierInfo?.insurance
+
     val statusInt: Int get() = detail?.status?.toIntOrNull() ?: 0
 
     /**
@@ -101,6 +125,7 @@ class PackageDetailsViewModel(
     private val packageId: String,
     private val repo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
     private val hubRepo: ShipmentsHubRepository = ShipmentsRepoProvider.hub,
+    private val tierRepo: TierRepository = TierRepository(com.ga.airdrop.core.network.ApiClient.service),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -116,6 +141,84 @@ class PackageDetailsViewModel(
             }
         }
         refresh()
+        loadPackageTier()
+    }
+
+    /**
+     * Best-effort tier/insurance snapshot (GET /packages/{id}/tier). Failure
+     * simply hides the Insurance row — the rest of the page is unaffected.
+     */
+    private fun loadPackageTier() {
+        val id = packageId.toIntOrNull() ?: return
+        viewModelScope.launch {
+            tierRepo.packageTier(id).onSuccess { info ->
+                _state.update { it.copy(packageTierInfo = info) }
+            }
+        }
+    }
+
+    // ── Package insurance: explicit select/decline (Tier API pact) ──
+
+    fun openInsuranceSheet() {
+        _state.update {
+            it.copy(showInsuranceSheet = true, insuranceError = null, insuranceDeclineRefused = false)
+        }
+        loadInsuranceQuote()
+    }
+
+    fun dismissInsuranceSheet() {
+        if (_state.value.insuranceBusy) return
+        _state.update { it.copy(showInsuranceSheet = false, insuranceError = null) }
+    }
+
+    /** GET /insurance/options for the package's declared value — backend math only. */
+    private fun loadInsuranceQuote() {
+        val declared = _state.value.detail?.amount ?: 0.0
+        viewModelScope.launch {
+            _state.update { it.copy(insuranceQuote = null, insuranceQuoteError = null) }
+            tierRepo.insuranceOptions(
+                insuredValue = declared,
+                tierCode = _state.value.packageTierInfo?.tierCode,
+            )
+                .onSuccess { quote -> _state.update { it.copy(insuranceQuote = quote) } }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(insuranceQuoteError = e.message ?: "Couldn't load insurance options.")
+                    }
+                }
+        }
+    }
+
+    /** POST select — insure the declared value at the backend-quoted premium. */
+    fun confirmInsurance() {
+        val id = packageId.toIntOrNull() ?: return
+        val quote = _state.value.insuranceQuote ?: return
+        if (_state.value.insuranceBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(insuranceBusy = true, insuranceError = null) }
+            tierRepo.selectInsurance(id, quote.insuredValue)
+                .onSuccess { recorded -> _state.update { applyInsuranceRecorded(it, recorded) } }
+                .onFailure { e ->
+                    _state.update { applyInsuranceFailure(it, e.serverErrorCode(), e.message) }
+                }
+        }
+    }
+
+    /**
+     * POST decline — only SAVR may decline. A non-SAVR decline comes back
+     * INSURANCE_MANDATORY and the sheet snaps back to the covered option.
+     */
+    fun declineInsurance() {
+        val id = packageId.toIntOrNull() ?: return
+        if (_state.value.insuranceBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(insuranceBusy = true, insuranceError = null) }
+            tierRepo.declineInsurance(id)
+                .onSuccess { recorded -> _state.update { applyInsuranceRecorded(it, recorded) } }
+                .onFailure { e ->
+                    _state.update { applyInsuranceFailure(it, e.serverErrorCode(), e.message) }
+                }
+        }
     }
 
     /**
@@ -328,4 +431,47 @@ class PackageDetailsViewModel(
         const val MAX_DAMAGE_PHOTO_BYTES = 10 * 1024 * 1024
         val DAMAGE_PHOTO_MIME_TYPES = setOf("image/png", "image/jpeg")
     }
+}
+
+// ─── Insurance pure state transitions (unit-tested without coroutines) ──────
+
+/** Fold a recorded select/decline into the page: close the sheet, show the row state. */
+internal fun applyInsuranceRecorded(
+    prev: PackageDetailsUiState,
+    recorded: InsuranceSelection,
+): PackageDetailsUiState = prev.copy(
+    insuranceBusy = false,
+    insuranceError = null,
+    insuranceDeclineRefused = false,
+    showInsuranceSheet = false,
+    packageTierInfo = (prev.packageTierInfo ?: PackageTierInfo()).copy(insurance = recorded),
+)
+
+/**
+ * Fold a failed select/decline. INSURANCE_MANDATORY (a non-SAVR decline) snaps
+ * the sheet back to the covered option: decline disappears and the coded copy
+ * explains why — the joint Swift/Kotlin error_code behaviour.
+ */
+internal fun applyInsuranceFailure(
+    prev: PackageDetailsUiState,
+    errorCode: String?,
+    message: String?,
+): PackageDetailsUiState {
+    val copy = ApiErrorCodes.friendlyCopy(errorCode)
+        ?: message
+        ?: "Couldn't record your insurance choice. Please try again."
+    return prev.copy(
+        insuranceBusy = false,
+        insuranceError = copy,
+        insuranceDeclineRefused = prev.insuranceDeclineRefused ||
+            errorCode == ApiErrorCodes.INSURANCE_MANDATORY,
+    )
+}
+
+/** The Insurance row's trailing status — mirrors what the backend recorded. */
+internal fun insuranceStatusLabel(selection: InsuranceSelection?): String = when {
+    selection == null -> "Choose"
+    selection.declined -> "Declined"
+    selection.selected -> "Covered"
+    else -> "Choose"
 }

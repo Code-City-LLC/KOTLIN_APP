@@ -180,6 +180,7 @@ fun PackageDetailsScreen(
                             },
                             onDeleteInvoice = viewModel::requestDeleteInvoice,
                             onCifInfo = { viewModel.showCifInfo(true) },
+                            onInsurance = viewModel::openInsuranceSheet,
                             onAddToCart = viewModel::addToCart,
                             onReportDamage = { viewModel.showReportDamageSheet(true) },
                         )
@@ -303,6 +304,18 @@ fun PackageDetailsScreen(
                 onDismiss = { viewModel.showReportDamageSheet(false) },
             )
         }
+        if (state.showInsuranceSheet) {
+            PackageInsuranceSheet(
+                quote = state.insuranceQuote,
+                quoteError = state.insuranceQuoteError,
+                busy = state.insuranceBusy,
+                error = state.insuranceError,
+                declineRefused = state.insuranceDeclineRefused,
+                onConfirm = viewModel::confirmInsurance,
+                onDecline = viewModel::declineInsurance,
+                onDismiss = viewModel::dismissInsuranceSheet,
+            )
+        }
     }
 }
 
@@ -314,6 +327,7 @@ private fun PackageDetailsContent(
     onViewInvoice: (PackageInvoiceDoc) -> Unit,
     onDeleteInvoice: (Int) -> Unit,
     onCifInfo: () -> Unit,
+    onInsurance: () -> Unit,
     onAddToCart: () -> Unit,
     onReportDamage: () -> Unit,
 ) {
@@ -460,6 +474,15 @@ private fun PackageDetailsContent(
                 contentDescription = "CIF info",
                 colorFilter = ColorFilter.tint(colors.iconSelected),
                 modifier = Modifier.size(20.dp),
+            )
+        }
+
+        // Insurance — explicit select/decline per the Tier API. The row only
+        // appears when GET /packages/{id}/tier answered for this package.
+        if (state.packageTierInfo != null) {
+            PackageInsuranceRow(
+                selection = state.insuranceSelection,
+                onClick = onInsurance,
             )
         }
 

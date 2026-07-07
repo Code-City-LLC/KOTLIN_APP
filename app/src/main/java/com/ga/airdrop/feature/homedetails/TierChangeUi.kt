@@ -278,7 +278,7 @@ private fun TierChangeSheet(
             // Primary action. On an upgrade it is the confirm; on a downgrade
             // the safe "keep" choice is primary and the confirm is secondary.
             if (change.isUpgrade) {
-                TierPrimaryButton(
+                GlassPrimaryButton(
                     text = "Upgrade to ${target.name}",
                     loading = changing,
                     onClick = onConfirm,
@@ -286,9 +286,9 @@ private fun TierChangeSheet(
                     content = target.gradientBottom,
                 )
                 Spacer(Modifier.height(10.dp))
-                TierSecondaryButton(text = "Maybe later", onClick = onDismiss, enabled = !changing)
+                GlassSecondaryButton(text = "Maybe later", onClick = onDismiss, enabled = !changing)
             } else {
-                TierPrimaryButton(
+                GlassPrimaryButton(
                     text = "Keep ${change.current?.name ?: "my tier"}",
                     loading = false,
                     onClick = onDismiss,
@@ -297,7 +297,7 @@ private fun TierChangeSheet(
                     enabled = !changing,
                 )
                 Spacer(Modifier.height(10.dp))
-                TierSecondaryButton(
+                GlassSecondaryButton(
                     text = "Downgrade to ${target.name}",
                     onClick = onConfirm,
                     loading = changing,
@@ -334,8 +334,13 @@ private fun TierBenefitList(benefits: List<String>, tint: Color, lost: Boolean =
     }
 }
 
+/**
+ * Filled action button of the dark glass sheets (tier change, package
+ * insurance). Shared so both flows keep the identical Swift-aligned recipe:
+ * 14dp radius, 52dp min height, spinner-in-place while loading.
+ */
 @Composable
-private fun TierPrimaryButton(
+internal fun GlassPrimaryButton(
     text: String,
     loading: Boolean,
     onClick: () -> Unit,
@@ -350,7 +355,7 @@ private fun TierPrimaryButton(
             .clip(RoundedCornerShape(14.dp))
             .background(if (enabled) fill else fill.copy(alpha = 0.5f))
             .clickable(enabled = enabled && !loading, onClick = onClick)
-            .testTag("tier-primary-button"),
+            .testTag("glass-primary-button"),
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
@@ -361,8 +366,9 @@ private fun TierPrimaryButton(
     }
 }
 
+/** Outlined companion of [GlassPrimaryButton]; destructive = coral accent. */
 @Composable
-private fun TierSecondaryButton(
+internal fun GlassSecondaryButton(
     text: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
@@ -377,7 +383,7 @@ private fun TierSecondaryButton(
             .clip(RoundedCornerShape(14.dp))
             .border(1.dp, accent.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
             .clickable(enabled = enabled && !loading, onClick = onClick)
-            .testTag("tier-secondary-button"),
+            .testTag("glass-secondary-button"),
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
