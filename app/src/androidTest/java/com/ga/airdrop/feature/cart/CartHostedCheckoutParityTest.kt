@@ -80,16 +80,18 @@ class CartHostedCheckoutParityTest {
     @Test
     fun currencyChoiceRunsSwiftCheckoutPayloadAndKeepsCart() {
         // The Swift payload contract (sorted package ids, chosen currency,
-        // is_auction=true, cart kept until verified-paid return) now lives in
-        // DeliveryMethodViewModel.onCurrencyChosen — drive it directly.
+        // is_auction derived from cart contents, cart kept until verified-paid
+        // return) now lives in DeliveryMethodViewModel.onCurrencyChosen — drive
+        // it directly. These are shop/auction products (isAuction=true), so the
+        // derived flag is true, matching Swift's !auctionItems.isEmpty.
         val repo = FakeCartCheckoutRepository()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val vm = AtomicReference<DeliveryMethodViewModel>()
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             CartStore.init(context)
             CartStore.clear()
-            CartStore.add(CartStore.CartLine(id = 2002, packageId = 7002, title = "Beta Lamp", priceUsd = 7.0))
-            CartStore.add(CartStore.CartLine(id = 2001, packageId = 7001, title = "Alpha Radio", priceUsd = 5.0))
+            CartStore.add(CartStore.CartLine(id = 2002, packageId = 7002, title = "Beta Lamp", priceUsd = 7.0, isAuction = true))
+            CartStore.add(CartStore.CartLine(id = 2001, packageId = 7001, title = "Alpha Radio", priceUsd = 5.0, isAuction = true))
             vm.set(
                 DeliveryMethodViewModel(
                     repo = DeliveryRepository(ApiClient.service),
@@ -107,6 +109,38 @@ class CartHostedCheckoutParityTest {
         assertEquals("Chosen currency is forwarded", "USD", repo.lastCurrency)
         assertEquals("Swift checkout sends is_auction=true", true, repo.lastIsAuction)
         assertEquals("Cart clears only after verified-paid return, not on checkout create", 2, CartStore.count)
+    }
+
+    @Test
+    fun mixedAndRegularCartsDeclareIsAuctionHonestly() {
+        // Regular-package-only cart ⇒ is_auction false; any auction line ⇒ true
+        // (Swift !auctionItems.isEmpty). The old hardcoded true broke
+        // regular-only checkout server-side.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        val regularRepo = FakeCartCheckoutRepository()
+        val regularVm = AtomicReference<DeliveryMethodViewModel>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            CartStore.init(context)
+            CartStore.clear()
+            CartStore.add(CartStore.CartLine(id = 9001, packageId = 9001, title = "My Package", priceUsd = 6.0, isAuction = false))
+            regularVm.set(DeliveryMethodViewModel(repo = DeliveryRepository(ApiClient.service), checkout = regularRepo))
+            regularVm.get().onCurrencyChosen("USD")
+        }
+        compose.waitUntil(timeoutMillis = 5_000) { regularVm.get().state.value.checkoutUrl == CheckoutUrl }
+        assertEquals("Regular-only cart sends is_auction=false", false, regularRepo.lastIsAuction)
+
+        val mixedRepo = FakeCartCheckoutRepository()
+        val mixedVm = AtomicReference<DeliveryMethodViewModel>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            CartStore.clear()
+            CartStore.add(CartStore.CartLine(id = 9002, packageId = 9002, title = "My Package", priceUsd = 6.0, isAuction = false))
+            CartStore.add(CartStore.CartLine(id = 9003, packageId = 9003, title = "Auction Item", priceUsd = 15.0, isAuction = true))
+            mixedVm.set(DeliveryMethodViewModel(repo = DeliveryRepository(ApiClient.service), checkout = mixedRepo))
+            mixedVm.get().onCurrencyChosen("USD")
+        }
+        compose.waitUntil(timeoutMillis = 5_000) { mixedVm.get().state.value.checkoutUrl == CheckoutUrl }
+        assertEquals("Mixed cart sends is_auction=true", true, mixedRepo.lastIsAuction)
     }
 
     @Test
