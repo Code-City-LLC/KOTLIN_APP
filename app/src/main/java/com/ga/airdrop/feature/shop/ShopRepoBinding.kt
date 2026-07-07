@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.shop
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.data.repo.MiscRepository
+import com.ga.airdrop.data.repo.PackagesRepository
 import com.ga.airdrop.data.repo.PaymentsRepository
 import com.ga.airdrop.data.repo.ProductsRepository
 import com.ga.airdrop.data.repo.UserRepository
@@ -106,6 +107,7 @@ private class DataShopCheckoutRepository(
     private val payments: PaymentsRepository = PaymentsRepository(ApiClient.service),
     private val misc: MiscRepository = MiscRepository(ApiClient.service),
     private val user: UserRepository = UserRepository(ApiClient.service),
+    private val packages: PackagesRepository = PackagesRepository(ApiClient.service),
 ) : ShopCheckoutRepository {
 
     override suspend fun createCheckout(
@@ -115,6 +117,12 @@ private class DataShopCheckoutRepository(
     ): Result<String> =
         payments.createCheckout(packageIds, currency, isAuction)
             .mapCatching { it.checkoutUrl ?: error("Missing checkout URL") }
+
+    override suspend fun syncServerCartForCheckout(packageIds: List<Int>): Result<Unit> = runCatching {
+        packageIds.distinct().sorted().forEach { packageId ->
+            packages.addPackageToCart(packageId).getOrThrow()
+        }
+    }
 
     override suspend fun exchangeRate(): Result<Double> =
         misc.exchangeRate().mapCatching { it.usdToJmd ?: error("Missing exchange rate") }

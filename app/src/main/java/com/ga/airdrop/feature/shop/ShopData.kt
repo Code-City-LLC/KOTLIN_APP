@@ -45,6 +45,7 @@ data class ShopProduct(
 fun ShopProduct.toCartLine(qty: Int = 1): CartStore.CartLine = CartStore.CartLine(
     id = id,
     packageId = packageId,
+    source = CartStore.CartLineSource.Product,
     imageUrl = imageUrl,
     title = title,
     qty = qty,
@@ -104,6 +105,13 @@ interface ShopCheckoutRepository {
     suspend fun createCheckout(packageIds: List<Int>, currency: String, isAuction: Boolean = true): Result<String>
 
     /**
+     * Swift FigmaCartViewController.syncServerCartForCheckout: package-source
+     * cart lines are mirrored to Laravel's server cart before Hosted Checkout.
+     * Auction/product cart lines still go straight to createCheckout.
+     */
+    suspend fun syncServerCartForCheckout(packageIds: List<Int>): Result<Unit> = Result.success(Unit)
+
+    /**
      * RECONCILE: GET /exchange-rates (no auth) → { "usd_to_jmd": Double }.
      */
     suspend fun exchangeRate(): Result<Double>
@@ -146,6 +154,9 @@ private object UnboundShopProductsRepository : ShopProductsRepository {
 
 private object UnboundShopCheckoutRepository : ShopCheckoutRepository {
     override suspend fun createCheckout(packageIds: List<Int>, currency: String, isAuction: Boolean): Result<String> =
+        Result.failure(unbound)
+
+    override suspend fun syncServerCartForCheckout(packageIds: List<Int>): Result<Unit> =
         Result.failure(unbound)
 
     override suspend fun exchangeRate(): Result<Double> = Result.failure(unbound)

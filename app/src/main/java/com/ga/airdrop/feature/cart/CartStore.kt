@@ -27,11 +27,21 @@ import kotlinx.serialization.json.Json
  */
 object CartStore {
 
+    @Serializable
+    enum class CartLineSource {
+        Product,
+        Package,
+    }
+
     /** Mirror of Swift `FigmaCartLine`. [priceUsd] is the unit price. */
     @Serializable
     data class CartLine(
         val id: Int,
         val packageId: Int? = null,
+        // Single source-of-truth for product-vs-package cart lines. Existing
+        // persisted rows default to Product to preserve the old checkout
+        // behavior and avoid syncing unknown legacy rows as shipment packages.
+        val source: CartLineSource = CartLineSource.Product,
         val imageUrl: String? = null,
         val title: String = "",
         val qty: Int = 1,

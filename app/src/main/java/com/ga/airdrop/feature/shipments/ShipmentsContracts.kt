@@ -280,6 +280,7 @@ fun ShipmentPackage.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine
     com.ga.airdrop.feature.cart.CartStore.CartLine(
         id = id,
         packageId = id,
+        source = com.ga.airdrop.feature.cart.CartStore.CartLineSource.Package,
         title = description?.replaceFirstChar { it.uppercase(java.util.Locale.US) }
             ?: trackingCode ?: "Package #$id",
         qty = 1,
@@ -291,6 +292,7 @@ fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.Ca
     com.ga.airdrop.feature.cart.CartStore.CartLine(
         id = id,
         packageId = id,
+        source = com.ga.airdrop.feature.cart.CartStore.CartLineSource.Package,
         title = description?.replaceFirstChar { it.uppercase(java.util.Locale.US) }
             ?: trackingCode ?: "Package #$id",
         qty = 1,

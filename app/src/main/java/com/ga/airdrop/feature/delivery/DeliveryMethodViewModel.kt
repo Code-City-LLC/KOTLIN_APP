@@ -471,9 +471,38 @@ class DeliveryMethodViewModel(
         val cartIsAuction = lines.any { it.isAuction }
         viewModelScope.launch {
             _state.update { it.copy(ctaState = DeliveryCtaState.CheckingOut) }
+            val serverCartPackageIds = lines
+                .filter { it.source == CartStore.CartLineSource.Package }
+                .mapNotNull { it.packageId }
+                .distinct()
+                .sorted()
+            checkout.syncServerCartForCheckout(serverCartPackageIds)
+                .onFailure { err ->
+                    val unauthenticated = err.isUnauthenticatedCheckoutFailure()
+                    _state.update {
+                        it.copy(
+                            ctaState = DeliveryCtaState.Idle,
+                            errorTitle = if (unauthenticated) {
+                                "Sign in required"
+                            } else {
+                                "Checkout failed"
+                            },
+                            errorMessage = if (unauthenticated) {
+                                "Log in to your Airdropja account before checking out."
+                            } else {
+                                err.toUserMessage().ifBlank { "Stripe did not return a valid checkout URL." }
+                            },
+                        )
+                    }
+                    return@launch
+                }
             // RECONCILE: POST /payments/create-checkout
-            // { package_ids, currency: chosen, is_auction } → data.checkout_url.
-            checkout.createCheckout(packageIds, currency = currency.uppercase(Locale.US), isAuction = cartIsAuction)
+            // { package_ids, currency: chosen, is_auction } -> data.checkout_url.
+            checkout.createCheckout(
+                packageIds,
+                currency = currency.uppercase(Locale.US),
+                isAuction = cartIsAuction,
+            )
                 .onSuccess { url ->
                     _state.update { it.copy(ctaState = DeliveryCtaState.Idle, checkoutUrl = url) }
                 }

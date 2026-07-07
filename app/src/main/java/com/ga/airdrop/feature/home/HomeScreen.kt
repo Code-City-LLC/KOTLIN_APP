@@ -468,6 +468,7 @@ private fun AuctionHighlights(
 private fun AuctionProduct.toCartLine(): CartStore.CartLine = CartStore.CartLine(
     id = id ?: 0,
     packageId = checkoutPackageId,
+    source = CartStore.CartLineSource.Product,
     imageUrl = displayImageUrl,
     title = displayTitle,
     priceUsd = displayPriceUsd,

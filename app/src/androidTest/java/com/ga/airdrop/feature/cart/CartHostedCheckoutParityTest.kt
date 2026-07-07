@@ -144,6 +144,52 @@ class CartHostedCheckoutParityTest {
     }
 
     @Test
+    fun currencyChoiceSyncsOnlyPackageSourceLinesToServerCart() {
+        // Swift syncServerCartForCheckout mirrors only package-source lines to
+        // Laravel's server cart before creating Hosted Checkout; auction
+        // product package IDs still go directly in the checkout payload.
+        val repo = FakeCartCheckoutRepository()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val vm = AtomicReference<DeliveryMethodViewModel>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            CartStore.init(context)
+            CartStore.clear()
+            CartStore.add(
+                CartStore.CartLine(
+                    id = 2002,
+                    packageId = 7002,
+                    source = CartStore.CartLineSource.Package,
+                    title = "Shipment Package",
+                    priceUsd = 7.0,
+                ),
+            )
+            CartStore.add(
+                CartStore.CartLine(
+                    id = 2001,
+                    packageId = 7001,
+                    source = CartStore.CartLineSource.Product,
+                    title = "Auction Product",
+                    priceUsd = 5.0,
+                ),
+            )
+            vm.set(
+                DeliveryMethodViewModel(
+                    repo = DeliveryRepository(ApiClient.service),
+                    checkout = repo,
+                ),
+            )
+            vm.get().onCurrencyChosen("USD")
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            vm.get().state.value.checkoutUrl == CheckoutUrl
+        }
+
+        assertEquals("Only package-source lines sync to Laravel server cart", listOf(7002), repo.syncedPackageIds)
+        assertEquals("Hosted checkout still receives every package id", listOf(7001, 7002), repo.lastPackageIds)
+    }
+
+    @Test
     fun unauthenticatedCurrencyCheckoutUsesSwiftSignInRequiredAlert() {
         // The Swift sign-in-required branch moved behind the currency popup —
         // assert it on DeliveryMethodViewModel (same detection + copy).
@@ -246,9 +292,15 @@ class CartHostedCheckoutParityTest {
         private val checkoutFailure: Throwable? = null,
     ) : ShopCheckoutRepository {
         val checkoutCalls = AtomicInteger()
+        var syncedPackageIds: List<Int>? = null
         var lastPackageIds: List<Int>? = null
         var lastCurrency: String? = null
         var lastIsAuction: Boolean? = null
+
+        override suspend fun syncServerCartForCheckout(packageIds: List<Int>): Result<Unit> {
+            syncedPackageIds = packageIds
+            return Result.success(Unit)
+        }
 
         override suspend fun createCheckout(
             packageIds: List<Int>,
