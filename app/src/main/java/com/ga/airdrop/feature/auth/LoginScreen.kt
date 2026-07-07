@@ -90,10 +90,10 @@ fun LoginScreen(
                 ThemeToggle()
             }
             Spacer(Modifier.height(18.dp))
-            // Figma Login logo (node 40006240:26932): the wide color wordmark
-            // sized to 260 of the 375-wide frame (screen-relative, not a fixed
-            // dp box that renders tiny on real devices). Dark mode uses the
-            // round logo at a matching visual height.
+            // Figma Login logo: light uses the wide colour wordmark at 260 of
+            // the 375-wide frame (node 40006240:26932); DARK uses the neon
+            // plane hero at 321 of 375 (node 40006149:75728 / 40006153:75911) —
+            // large and glowing on the dark background, not a tiny centred mark.
             Image(
                 painter = painterResource(
                     if (colors.isDark) R.drawable.img_airdrop_logo_dark
@@ -101,7 +101,7 @@ fun LoginScreen(
                 ),
                 contentDescription = "AirDrop",
                 modifier = Modifier
-                    .fillMaxWidth(if (colors.isDark) 0.26f else 260f / 375f)
+                    .fillMaxWidth(if (colors.isDark) 321f / 375f else 260f / 375f)
                     .aspectRatio(if (colors.isDark) 1.049f else 649f / 180f)
                     .align(Alignment.CenterHorizontally),
                 contentScale = ContentScale.Fit,

@@ -324,14 +324,11 @@ private fun OnboardThemePage(onContinue: () -> Unit) {
     val colors = AirdropTheme.colors
     val labelStyle = AirdropType.subtitle1.copy(fontSize = 24.sp, lineHeight = 26.sp)
     Box(Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(R.drawable.img_auth_onboard_6),
-            contentDescription = null,
+        OnboardThemeIllustration(
+            isDark = colors.isDark,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = 150.dp)
-                .size(320.33.dp, 281.dp),
-            contentScale = ContentScale.Fit,
+                .offset(y = 150.dp),
         )
         Column(
             modifier = Modifier
@@ -387,6 +384,61 @@ private fun OnboardThemePage(onContinue: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+/**
+ * The theme-picker hero illustration — Figma 40006240:24027 (light) shows a
+ * 3D sun, 40006225:24047 (dark) shows the blue crescent moon plus a star,
+ * each floating between two 3D clouds. The illustration MUST follow the theme;
+ * the old build showed the sun in dark mode too, which was the reported
+ * "wrong icon". Assets are the actual Figma exports (img_auth_theme_*).
+ */
+@Composable
+private fun OnboardThemeIllustration(isDark: Boolean, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(300.dp, 260.dp)) {
+        Image(
+            painter = painterResource(
+                if (isDark) R.drawable.img_auth_theme_moon else R.drawable.img_auth_theme_sun
+            ),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(if (isDark) 188.dp else 226.dp),
+            contentScale = ContentScale.Fit,
+        )
+        // Star tucked into the crescent — moon (dark) scene only.
+        if (isDark) {
+            Image(
+                painter = painterResource(R.drawable.img_auth_theme_star),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(x = 40.dp, y = (-4).dp)
+                    .size(40.dp),
+                contentScale = ContentScale.Fit,
+            )
+        }
+        // Upper-right cloud.
+        Image(
+            painter = painterResource(R.drawable.img_auth_theme_cloud),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = (-4).dp, y = 20.dp)
+                .size(54.dp),
+            contentScale = ContentScale.Fit,
+        )
+        // Lower-left cloud.
+        Image(
+            painter = painterResource(R.drawable.img_auth_theme_cloud),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = 2.dp, y = (-24).dp)
+                .size(54.dp),
+            contentScale = ContentScale.Fit,
+        )
     }
 }
 
