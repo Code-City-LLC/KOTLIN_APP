@@ -17,7 +17,15 @@ object SessionStore {
         val tierName: String = "",
         val airCoins: String = "",
         val cartCount: Int = 0,
-    )
+        // Tier API eligibility (GET /customers/me/tier). RUBY and Sapphire
+        // Saver earn no AirCoins — the pill must not render for them (Kemar
+        // tier brief: render only backend eligibility). Defaults to true so
+        // a backend without the tier API keeps today's behavior.
+        val aircoinsEligible: Boolean = true,
+    ) {
+        /** What the header AirCoin pill shows — blank hides it entirely. */
+        val airCoinsDisplay: String get() = if (aircoinsEligible) airCoins else ""
+    }
 
     private val _header = MutableStateFlow(HeaderInfo())
     val header: StateFlow<HeaderInfo> = _header

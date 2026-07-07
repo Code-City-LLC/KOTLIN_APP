@@ -211,7 +211,7 @@ fun HomeScreen(
                 .joinToString(" "),
             tierName = state.tierName.ifBlank { " " },
             cartCount = header.cartCount,
-            airCoins = state.airCoins,
+            airCoins = if (state.aircoinsEligible) state.airCoins else "",
             onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },
             onBellClick = { onNavigate(Routes.NOTIFICATIONS) },
             onCartClick = { onNavigate(Routes.CART) },

@@ -13,6 +13,8 @@ import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
 import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.CustomDutyRate
+import com.ga.airdrop.data.model.CustomerTier
+import com.ga.airdrop.data.model.CustomsEstimate
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
 import com.ga.airdrop.data.model.DeliveryPreference
@@ -24,6 +26,9 @@ import com.ga.airdrop.data.model.EmptyRequest
 import com.ga.airdrop.data.model.ExchangeRate
 import com.ga.airdrop.data.model.FaqItem
 import com.ga.airdrop.data.model.ForgotPasswordRequest
+import com.ga.airdrop.data.model.InsuranceOptions
+import com.ga.airdrop.data.model.InsuranceSelection
+import com.ga.airdrop.data.model.InsuranceSelectionRequest
 import com.ga.airdrop.data.model.LoginRequest
 import com.ga.airdrop.data.model.LoginResponse
 import com.ga.airdrop.data.model.MarkNotificationReadRequest
@@ -36,6 +41,7 @@ import com.ga.airdrop.data.model.PackageCategory
 import com.ga.airdrop.data.model.PackageDetail
 import com.ga.airdrop.data.model.PackageInvoicesMutationResponse
 import com.ga.airdrop.data.model.PackageStatus
+import com.ga.airdrop.data.model.PackageTierInfo
 import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.Payment
 import com.ga.airdrop.data.model.PaymentIntentStatus
@@ -45,21 +51,30 @@ import com.ga.airdrop.data.model.ProfileAssetResponse
 import com.ga.airdrop.data.model.ProfileMutationResponse
 import com.ga.airdrop.data.model.ProfileUpdateRequest
 import com.ga.airdrop.data.model.PromotionalBanner
+import com.ga.airdrop.data.model.RatePreview
 import com.ga.airdrop.data.model.ReactivateAccountRequest
 import com.ga.airdrop.data.model.ReferFriendRequest
 import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.model.RegisterDeviceTokenRequest
 import com.ga.airdrop.data.model.ResetPasswordRequest
+import com.ga.airdrop.data.model.ReturnEligibility
+import com.ga.airdrop.data.model.ReturnQuote
+import com.ga.airdrop.data.model.ReturnQuoteRequest
 import com.ga.airdrop.data.model.ReverseGeocodeRequest
 import com.ga.airdrop.data.model.ReverseGeocodeResult
 import com.ga.airdrop.data.model.SaveDeliveryPreferenceRequest
 import com.ga.airdrop.data.model.SearchPlacesRequest
 import com.ga.airdrop.data.model.SendTestNotificationRequest
+import com.ga.airdrop.data.model.ServiceTier
 import com.ga.airdrop.data.model.ShipmentCalculation
 import com.ga.airdrop.data.model.ShipmentCalculationRequest
+import com.ga.airdrop.data.model.ShipmentQuote
+import com.ga.airdrop.data.model.ShipmentQuoteRequest
 import com.ga.airdrop.data.model.ShipmentSummary
 import com.ga.airdrop.data.model.ShippingRates
 import com.ga.airdrop.data.model.SignUpRequest
+import com.ga.airdrop.data.model.TierChangeRequest
+import com.ga.airdrop.data.model.TierChangeResult
 import com.ga.airdrop.data.model.UserDocuments
 import com.ga.airdrop.data.model.ValidateLocationRequest
 import com.ga.airdrop.data.model.Warehouse
@@ -417,4 +432,62 @@ interface AirdropApiService {
 
     @POST("delivery/search-places")
     suspend fun searchPlaces(@Body body: SearchPlacesRequest): DataEnvelope<PlaceSearchResults>
+
+    // ── Tier system (Laravel Tier API — the backend owns every number) ──
+
+    @GET("service-tiers")
+    suspend fun serviceTiers(): DataEnvelope<List<ServiceTier>>
+
+    @GET("customers/me/tier")
+    suspend fun customerTier(): DataEnvelope<CustomerTier>
+
+    @PATCH("customers/me/tier")
+    suspend fun changeTier(@Body body: TierChangeRequest): DataEnvelope<TierChangeResult>
+
+    @GET("rates")
+    suspend fun ratePreview(
+        @Query("method") method: String? = null,
+        @Query("tier_code") tierCode: String? = null,
+        @Query("destination") destination: String? = null,
+    ): DataEnvelope<RatePreview>
+
+    @POST("shipments/quote")
+    suspend fun createShipmentQuote(@Body body: ShipmentQuoteRequest): DataEnvelope<ShipmentQuote>
+
+    @GET("shipments/quotes/{reference}")
+    suspend fun shipmentQuote(@Path("reference") reference: String): DataEnvelope<ShipmentQuote>
+
+    @GET("insurance/options")
+    suspend fun insuranceOptions(
+        @Query("insured_value") insuredValue: Double,
+        @Query("tier_code") tierCode: String? = null,
+        @Query("method") method: String? = null,
+    ): DataEnvelope<InsuranceOptions>
+
+    @POST("packages/{packageId}/insurance-selection")
+    suspend fun saveInsuranceSelection(
+        @Path("packageId") packageId: Int,
+        @Body body: InsuranceSelectionRequest,
+    ): DataEnvelope<InsuranceSelection>
+
+    // CUSTOMS FREEZE (#16965): typed but never rendered until unblocked.
+    @GET("customs/estimate")
+    suspend fun customsEstimate(
+        @Query("declared_value") declaredValue: Double,
+        @Query("item_name") itemName: String? = null,
+        @Query("destination") destination: String? = null,
+        @Query("method") method: String? = null,
+    ): DataEnvelope<CustomsEstimate>
+
+    @GET("returns/eligibility")
+    suspend fun returnEligibility(
+        @Query("weight") weight: Double,
+        @Query("tier_code") tierCode: String? = null,
+    ): DataEnvelope<ReturnEligibility>
+
+    @POST("returns/quote")
+    suspend fun returnQuote(@Body body: ReturnQuoteRequest): DataEnvelope<ReturnQuote>
+
+    @GET("packages/{packageId}/tier")
+    suspend fun packageTier(@Path("packageId") packageId: Int): DataEnvelope<PackageTierInfo>
 }

@@ -305,7 +305,7 @@ internal fun MoreScreenContent(
             tierName = headerInfo.tierName,
             style = AirdropHeaderStyle.Solid,
             cartCount = headerInfo.cartCount,
-            airCoins = headerInfo.airCoins,
+            airCoins = headerInfo.airCoinsDisplay,
             onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },
             onBellClick = { onNavigate(Routes.NOTIFICATIONS) },
             onCartClick = { onNavigate(Routes.CART) },
