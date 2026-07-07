@@ -236,6 +236,7 @@ private val warehouseCards = listOf(
 @Composable
 private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
+    val cardShape = RoundedCornerShape(Spacing.sm1)
     LazyRow(
         // Swift: row top = scroll top + 20, leading/trailing 20, gap 10.
         modifier = modifier
@@ -252,9 +253,10 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     .width(238.dp)
                     .height(326.dp)
                     .testTag("home-warehouse-${card.type}")
-                    .clip(RoundedCornerShape(Spacing.sm1)) // radius 15 (Figma 2xs)
-                    .background(colors.gray150)
-                    .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+                    // Swift: clear card + blur stack tinted with glassOverlay62.
+                    .clip(cardShape)
+                    .background(colors.glassOverlay62)
+                    .border(1.dp, warehouseGlassBorderColor(colors.isDark), cardShape)
                     // Swift: the WHOLE card is a tap target → WarehouseView.
                     .clickable { onOpen(card.type) }
                     // Swift: px 20, top pinned 30, bottom ≤ (stack bottom is a
@@ -309,6 +311,9 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
         }
     }
 }
+
+private fun warehouseGlassBorderColor(isDark: Boolean): Color =
+    if (isDark) Color.White.copy(alpha = 0.13f) else Color.Black.copy(alpha = 0.18f)
 
 // ─── Activity grid — Swift makeActivitiesGrid (Figma 40000770:6493) ───────
 

@@ -111,6 +111,24 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
+    fun warehouseCardsUseSwiftGlassOverlay() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync { ThemeController.set(ThemeController.Mode.LIGHT) }
+        setHomeContent()
+
+        listOf("standard", "seadrop", "express").forEach { type ->
+            compose.onNodeWithTag("home-warehouse-carousel")
+                .performScrollToNode(hasTestTag("home-warehouse-$type"))
+            compose.waitForIdle()
+
+            val bitmap = compose.onNodeWithTag("home-warehouse-$type")
+                .captureToImage()
+                .asAndroidBitmap()
+            assertWarehouseCardHasGlassComposite(type, bitmap)
+        }
+    }
+
+    @Test
     fun homeActionCardsEmitSwiftRoutes() {
         val navigatedRoutes = mutableListOf<String>()
         setHomeContent { route -> navigatedRoutes += route }
@@ -471,6 +489,54 @@ class HomeActivityTilesScreenshotTest {
         return false
     }
 
+    private fun assertWarehouseCardHasGlassComposite(type: String, bitmap: Bitmap) {
+        val left = 20.coerceAtMost(bitmap.width - 1)
+        val right = (bitmap.width - 20).coerceAtLeast(left + 1)
+        val top = 20.coerceAtMost(bitmap.height - 1)
+        val bottom = (top + 22).coerceAtMost(bitmap.height)
+        var total = 0
+        var gray150 = 0
+        val colorBuckets = mutableSetOf<Int>()
+
+        for (x in left until right) {
+            for (y in top until bottom) {
+                val pixel = bitmap.getPixel(x, y)
+                if (pixel.isNearColor(SWIFT_GRAY150_LIGHT)) gray150 += 1
+                colorBuckets += pixel.colorBucket()
+                total += 1
+            }
+        }
+
+        val gray150Percent = gray150 * 100 / total
+        assertTrue(
+            "home-warehouse-$type is still visually opaque gray150; gray150Percent=$gray150Percent",
+            gray150Percent < OPAQUE_GRAY150_MAX_PERCENT,
+        )
+        assertTrue(
+            "home-warehouse-$type should reveal background variation through the glass fill; buckets=${colorBuckets.size}",
+            colorBuckets.size >= MIN_GLASS_COLOR_BUCKETS,
+        )
+    }
+
+    private fun Int.isNearColor(target: Int): Boolean {
+        val red = (this shr 16) and 0xFF
+        val green = (this shr 8) and 0xFF
+        val blue = this and 0xFF
+        val targetRed = (target shr 16) and 0xFF
+        val targetGreen = (target shr 8) and 0xFF
+        val targetBlue = target and 0xFF
+        return kotlin.math.abs(red - targetRed) <= COLOR_TOLERANCE &&
+            kotlin.math.abs(green - targetGreen) <= COLOR_TOLERANCE &&
+            kotlin.math.abs(blue - targetBlue) <= COLOR_TOLERANCE
+    }
+
+    private fun Int.colorBucket(): Int {
+        val red = ((this shr 16) and 0xFF) / 12
+        val green = ((this shr 8) and 0xFF) / 12
+        val blue = (this and 0xFF) / 12
+        return (red shl 16) or (green shl 8) or blue
+    }
+
     private data class WarehouseAppRootCase(
         val type: String,
         val expectedTitle: String,
@@ -486,7 +552,10 @@ class HomeActivityTilesScreenshotTest {
         private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
         private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
+        private const val SWIFT_GRAY150_LIGHT = 0xFFFBFBFB.toInt()
         private const val COLOR_TOLERANCE = 8
+        private const val OPAQUE_GRAY150_MAX_PERCENT = 80
+        private const val MIN_GLASS_COLOR_BUCKETS = 4
         private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/home_refer_icon"
     }
 }
