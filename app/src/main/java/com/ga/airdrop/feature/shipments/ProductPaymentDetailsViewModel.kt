@@ -52,26 +52,39 @@ class ProductPaymentDetailsViewModel(
 
     fun refresh() {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            val showFullLoader = _state.value.payment == null && _state.value.order == null
+            _state.update { it.copy(loading = showFullLoader, error = null) }
             val paymentIdInt = paymentId.toIntOrNull()
             if (paymentIdInt == null) {
                 _state.update { it.copy(loading = false, error = "Invalid payment id") }
                 return@launch
             }
-            paymentsRepo.payment(paymentIdInt)
+            paymentsRepo.payment(paymentIdInt, refresh = true)
                 .onSuccess { payment ->
                     _state.update { it.copy(payment = payment) }
                     // Swift pushes FigmaProductPaymentDetailsViewController(orderID: payment.id).
                     ordersRepo.orderDetails(paymentIdInt)
                         .onSuccess { order ->
-                            _state.update { it.copy(order = order, orderUnavailable = false) }
+                            _state.update {
+                                it.copy(
+                                    order = order,
+                                    loading = false,
+                                    orderUnavailable = false,
+                                    error = null,
+                                )
+                            }
                         }
-                        .onFailure {
+                        .onFailure { e ->
                             // Payment Summary still renders; flag the missing
                             // product half instead of silent dashes (Audit#7 C1).
-                            _state.update { it.copy(orderUnavailable = true) }
+                            _state.update {
+                                it.copy(
+                                    loading = false,
+                                    orderUnavailable = true,
+                                    error = e.message ?: "Order details not found",
+                                )
+                            }
                         }
-                    _state.update { it.copy(loading = false) }
                 }
                 .onFailure { e ->
                     _state.update { it.copy(loading = false, error = e.message) }

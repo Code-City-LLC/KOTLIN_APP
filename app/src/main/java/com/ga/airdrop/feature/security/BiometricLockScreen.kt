@@ -153,6 +153,9 @@ fun BiometricLockScreen(
                         DeliveryDefaultsStore.clearAll()
                         QuietHoursStore.clear(activity.applicationContext)
                         BiometricGate.reset()
+                        com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
+                        com.ga.airdrop.feature.shop.ShopCheckoutStore.product = null
+                        com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
                         onUnlocked()
                     }
                     .padding(8.dp)

@@ -143,6 +143,10 @@ private fun resolveNotificationRoute(
         "PackagesView" -> Routes.PACKAGES
         "PackageDetailsView" ->
             if (ref.isNotEmpty()) Routes.packageDetails(ref) else Routes.PACKAGES
+        "PaymentPackageDetailsView" ->
+            if (ref.isNotEmpty()) Routes.paymentPackageDetails(ref) else Routes.PAYMENTS
+        "ProductPaymentDetailsView" ->
+            if (ref.isNotEmpty()) Routes.productPaymentDetails(ref) else Routes.PAYMENTS
         "InvoiceViewerScreen" -> {
             val url = notification?.payload?.firstValue(
                 "invoice_url",
@@ -197,10 +201,6 @@ private fun resolveNotificationRoute(
         "DeliveryMethodView", "DeliveryMethod" -> Routes.DELIVERY_METHOD
         "LiveAgentChatView" -> Routes.LIVE_CHAT
         "PaymentMethodsView", "PaymentMethods" -> Routes.PAYMENT_METHODS
-        "PaymentPackageDetailsView" ->
-            if (ref.isNotEmpty()) Routes.paymentPackageDetails(ref) else Routes.PAYMENTS
-        "ProductPaymentDetailsView" ->
-            if (ref.isNotEmpty()) Routes.productPaymentDetails(ref) else Routes.PAYMENTS
         // Swift's timeline screen lives inside the payment package details on
         // Android — nearest equivalent destination.
         "PaymentShipmentTimelineScreen", "PackageHistoryView" ->
@@ -250,6 +250,12 @@ private fun Map<String, String>.firstValue(vararg keys: String): String? {
 private val SCREEN_ROUTE_ALIASES = mapOf(
     "PackageDetailScreen" to "PackageDetailsView",
     "packageDetails" to "PackageDetailsView",
+    "PaymentPackageDetailsScreen" to "PaymentPackageDetailsView",
+    "paymentPackageDetails" to "PaymentPackageDetailsView",
+    "ProductPaymentDetailsScreen" to "ProductPaymentDetailsView",
+    "productPaymentDetails" to "ProductPaymentDetailsView",
+    "OrderDetailsScreen" to "OrderDetailsView",
+    "orderDetails" to "OrderDetailsView",
     "PackagesScreen" to "PackagesView",
     "UploadInvoiceScreen" to "InvoiceViewerScreen",
     "UpdateAddressScreen" to "ProfileView",
