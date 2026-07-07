@@ -96,6 +96,7 @@ fun ShipmentsScreen(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .testTag("shipments-content-scroll")
         ) {
             // Swift: first content at y=126 (header 106 + 20).
             Spacer(Modifier.height(126.dp))
@@ -126,6 +127,7 @@ fun ShipmentsScreen(
                         else ShipmentsEmptyLabel("No packages found")
                     } else {
                         LazyRow(
+                            modifier = Modifier.testTag("shipments-packages-row"),
                             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                             contentPadding = PaddingValues(horizontal = Spacing.md),
                         ) {
@@ -146,28 +148,33 @@ fun ShipmentsScreen(
                     }
                 }
 
-                // Payments preview — Swift stack spacing 12, inset 20.
-                Column(
-                    Modifier.padding(horizontal = Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    SectionHeaderRow(
-                        title = "Payments",
-                        actionText = "View More",
-                        onAction = { onNavigate(Routes.PAYMENTS) },
-                        actionTestTag = "shipments-payments-view-more",
-                    )
+                // Payments preview — horizontal cards, full-bleed scroll.
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.padding(horizontal = Spacing.md)) {
+                        SectionHeaderRow(
+                            title = "Payments",
+                            actionText = "View More",
+                            onAction = { onNavigate(Routes.PAYMENTS) },
+                            actionTestTag = "shipments-payments-view-more",
+                        )
+                    }
                     if (state.payments.isEmpty()) {
-                        if (state.loading) ShipmentsLoadingIndicator()
-                        else ShipmentsEmptyLabel("No payments found")
+                        Box(Modifier.padding(horizontal = Spacing.md)) {
+                            if (state.loading) ShipmentsLoadingIndicator()
+                            else ShipmentsEmptyLabel("No payments found")
+                        }
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            state.payments.forEach { payment ->
+                        LazyRow(
+                            modifier = Modifier.testTag("shipments-payments-row"),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            contentPadding = PaddingValues(horizontal = Spacing.md),
+                        ) {
+                            items(state.payments, key = { it.id }) { payment ->
                                 PaymentCard(
                                     payment = payment,
                                     onClick = { openPayment(payment) },
                                     testTag = "shipments-payment-card-${payment.id}",
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.width(280.dp),
                                 )
                             }
                         }
@@ -189,6 +196,7 @@ fun ShipmentsScreen(
                         else Box(Modifier.padding(horizontal = Spacing.md)) { NoOrdersCard() }
                     } else {
                         LazyRow(
+                            modifier = Modifier.testTag("shipments-orders-row"),
                             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                             contentPadding = PaddingValues(horizontal = Spacing.md),
                         ) {

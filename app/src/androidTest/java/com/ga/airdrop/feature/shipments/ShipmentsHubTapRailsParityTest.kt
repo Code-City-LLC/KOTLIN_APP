@@ -22,6 +22,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -38,6 +40,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -297,6 +300,62 @@ class ShipmentsHubTapRailsParityTest {
     }
 
     @Test
+    fun hubPackagePaymentAndOrderPreviewsStayHorizontalRails() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+
+        setShipmentsContent(
+            FakeHubRepository(
+                packages = listOf(
+                    FakeHubRepository.samplePackage(),
+                    FakeHubRepository.samplePackage().copy(
+                        id = 102,
+                        description = "Headphones",
+                        trackingCode = "ARD000000102",
+                        courierNumber = "COUR102",
+                    ),
+                ),
+                orders = listOf(
+                    FakeHubRepository.sampleOrder(),
+                    FakeHubRepository.sampleOrder().copy(
+                        id = 302,
+                        orderNumber = "ORD-302",
+                        title = "Sony WH-1000XM5 Wireless Headphones",
+                    ),
+                ),
+            )
+        )
+
+        compose.onNodeWithTag("shipments-packages-view-more").performScrollTo()
+        assertHorizontalPreviewRail(
+            label = "Packages preview",
+            firstTag = "shipments-package-card-101",
+            secondTag = "shipments-package-card-102",
+        )
+        saveRootScreenshot("shipments_hub_packages_horizontal_light.png")
+
+        compose.onNodeWithTag("shipments-payments-view-more").performScrollTo()
+        nudgeSectionCardsIntoView()
+        assertHorizontalPreviewRail(
+            label = "Payments preview",
+            firstTag = "shipments-payment-card-201",
+            secondTag = "shipments-payment-card-202",
+        )
+        saveRootScreenshot("shipments_hub_payments_horizontal_light.png")
+
+        compose.onNodeWithTag("shipments-orders-view-more").performScrollTo()
+        nudgeSectionCardsIntoView()
+        assertHorizontalPreviewRail(
+            label = "Orders preview",
+            firstTag = "shipments-order-card-301",
+            secondTag = "shipments-order-card-302",
+        )
+        saveRootScreenshot("shipments_hub_orders_horizontal_light.png")
+    }
+
+    @Test
     fun packagePreviewCardKeepsSwiftFigmaVisibleGeometry() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
@@ -452,6 +511,28 @@ class ShipmentsHubTapRailsParityTest {
         tag,
         useUnmergedTree = true,
     ).getUnclippedBoundsInRoot()
+
+    private fun assertHorizontalPreviewRail(label: String, firstTag: String, secondTag: String) {
+        compose.waitForIdle()
+        val first = bounds(firstTag)
+        val second = bounds(secondTag)
+
+        assertTrue(
+            "$label should keep the second card to the right of the first card",
+            second.left.value > first.left.value + 40f,
+        )
+        assertTrue(
+            "$label should keep cards on the same horizontal row",
+            abs(second.top.value - first.top.value) <= 1.5f,
+        )
+    }
+
+    private fun nudgeSectionCardsIntoView() {
+        compose.onNodeWithTag("shipments-content-scroll").performTouchInput {
+            swipeUp(startY = 1_600f, endY = 850f, durationMillis = 250)
+        }
+        compose.waitForIdle()
+    }
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
         assertEquals(label, expected, actual, 0.75f)
