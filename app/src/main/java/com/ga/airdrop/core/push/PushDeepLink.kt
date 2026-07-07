@@ -1,13 +1,16 @@
 package com.ga.airdrop.core.push
 
 import android.content.Intent
+import android.net.Uri
 import com.ga.airdrop.core.navigation.Routes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Pending push navigation, consumed by AppRoot once the nav graph is up.
- * Android counterpart of FigmaRouteResolver.push(route:referenceID:).
+ * Android counterpart of FigmaRouteResolver.push(route:referenceID:) plus
+ * SceneDelegate's payment-return URL handling (Stripe hosted-checkout
+ * redirects back via `airdrop://payment-success?session_id=…`).
  */
 object PushDeepLink {
 
@@ -20,7 +23,29 @@ object PushDeepLink {
         _pending.value = resolve(route, referenceId)
     }
 
+    /**
+     * Stripe payment-return deeplinks (VIEW intents carry a data Uri, never
+     * the FCM extras, so this cannot clash with [capture]). Swift parity:
+     * SceneDelegate.swift:432 handles the same airdrop:// return URLs.
+     */
+    fun captureUri(intent: Intent?) {
+        val uri = intent?.data ?: return
+        resolveUri(uri)?.let { _pending.value = it }
+    }
+
     fun consume(): String? = _pending.value.also { _pending.value = null }
+
+    /** airdrop://payment-success?session_id=… → nav route, else null. */
+    internal fun resolveUri(uri: Uri): String? {
+        if (uri.scheme?.lowercase() !in setOf("airdrop", "airdropexpress")) return null
+        return when (uri.host?.lowercase()) {
+            "payment-success", "payment_success", "payment-complete", "payment_complete" ->
+                Routes.paymentReturn(uri.getQueryParameter("session_id"))
+            "payment-cancelled", "payment_cancelled", "payment-cancel", "payment_cancel" ->
+                Routes.paymentCancelled()
+            else -> null
+        }
+    }
 
     /** Maps the RN/Swift route names carried by pushes to nav destinations. */
     private fun resolve(route: String, referenceId: String?): String = when (route) {

@@ -26,6 +26,17 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Stripe hosted-checkout return deeplinks
+                 (airdrop://payment-success?session_id=…) — Swift SceneDelegate
+                 handles the same custom-scheme URLs. singleTask ⇒ warm returns
+                 arrive via onNewIntent, cold via onCreate. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="airdrop" />
+                <data android:scheme="airdropexpress" />
+            </intent-filter>
         </activity>
 
         <service

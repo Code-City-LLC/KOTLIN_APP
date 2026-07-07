@@ -178,8 +178,10 @@ class CartViewModel(
      * checkoutSessionStatus confirms the payment (SceneDelegate.swift:604 —
      * Kemar 2026-05-27 stuck-cart ruling: verify-then-clear). Clearing here
      * destroyed the cart whenever the user cancelled or abandoned Stripe
-     * (WORK ORDER R3); the clear moves to a verified-paid path when the
-     * checkout-return flow lands.
+     * (WORK ORDER R3). The verified-paid clear now lives in the payment-return
+     * flow: the Stripe redirect (airdrop://payment-success?session_id=…) lands
+     * on Routes.PAYMENT_RETURN, which verifies the session and clears the cart
+     * ONLY on paid (AppRoot.mainGraph + PaymentReturnViewModel).
      */
     fun onCheckoutOpened() {
         _state.update { it.copy(checkoutUrl = null) }

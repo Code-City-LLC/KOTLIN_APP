@@ -95,4 +95,23 @@ object Routes {
         val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8").replace("+", "%20")
         return "invoiceViewer?url=$encoded&title=$encodedTitle"
     }
+
+    // Stripe hosted-checkout return (Swift SceneDelegate:432 payment-return
+    // pipeline): PAYMENT_RETURN verifies the session server-side, then routes
+    // to PAYMENT_SUCCESS (verified paid), the cart (not paid / cancelled), or
+    // Shipments (unconfirmed).
+    const val PAYMENT_RETURN = "paymentReturn/{sessionId}"
+    const val PAYMENT_SUCCESS = "paymentSuccess?ref={ref}&amount={amount}"
+
+    fun paymentReturn(sessionId: String?) = "paymentReturn/${sessionId.orEmpty()}"
+
+    fun paymentSuccess(ref: String?, amount: String?): String {
+        val encodedRef = java.net.URLEncoder.encode(ref.orEmpty(), "UTF-8").replace("+", "%20")
+        val encodedAmount =
+            java.net.URLEncoder.encode(amount.orEmpty(), "UTF-8").replace("+", "%20")
+        return "paymentSuccess?ref=$encodedRef&amount=$encodedAmount"
+    }
+
+    /** v1: a cancelled checkout returns to the cart (contents intact). */
+    fun paymentCancelled() = CART
 }

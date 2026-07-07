@@ -177,6 +177,68 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     moreGraph(navController)
     more2Graph(navController)
     homeDetailsGraph(navController)
+
+    // Stripe hosted-checkout return (Swift SceneDelegate:432 parity): verify
+    // the session, then celebrate / bounce back. Cart is cleared ONLY on
+    // verified paid (+ defensively on Done) — never on cancel/not-paid/
+    // unconfirmed.
+    composable(
+        Routes.PAYMENT_RETURN,
+        arguments = listOf(
+            androidx.navigation.navArgument("sessionId") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
+        ),
+    ) { entry ->
+        com.ga.airdrop.feature.cart.PaymentReturnHost(
+            sessionId = entry.arguments?.getString("sessionId").orEmpty(),
+            onPaid = { ref, amount ->
+                com.ga.airdrop.feature.cart.CartStore.clear()
+                navController.navigate(Routes.paymentSuccess(ref, amount)) {
+                    popUpTo(Routes.PAYMENT_RETURN) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
+            onNotPaid = {
+                navController.navigate(Routes.CART) {
+                    popUpTo(Routes.PAYMENT_RETURN) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
+            onUnconfirmed = {
+                navController.navigate(Routes.SHIPMENTS) {
+                    popUpTo(Routes.PAYMENT_RETURN) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
+        )
+    }
+    composable(
+        Routes.PAYMENT_SUCCESS,
+        arguments = listOf(
+            androidx.navigation.navArgument("ref") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
+            androidx.navigation.navArgument("amount") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
+        ),
+    ) { entry ->
+        com.ga.airdrop.feature.cart.PaymentSuccessScreen(
+            orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
+            formattedAmount = entry.arguments?.getString("amount")?.takeIf { it.isNotBlank() },
+            onDone = {
+                com.ga.airdrop.feature.cart.CartStore.clear()
+                navController.navigate(Routes.HOME) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
+        )
+    }
 }
 
 /** Tab switch = Swift FigmaRouteResolver.switchToTabRoute root replacement. */

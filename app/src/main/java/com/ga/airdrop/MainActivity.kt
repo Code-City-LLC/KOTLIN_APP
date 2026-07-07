@@ -63,6 +63,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         PushDeepLink.capture(intent)
+        PushDeepLink.captureUri(intent)
         maybeSeedSession()
         // Cold-launch biometric gate (Swift SceneDelegate.presentBiometricLockIfNeeded).
         // Opt-in + default OFF + falls back to no-gate when biometry is
@@ -119,6 +120,7 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         PushDeepLink.capture(intent)
+        PushDeepLink.captureUri(intent)
     }
 
     /**
