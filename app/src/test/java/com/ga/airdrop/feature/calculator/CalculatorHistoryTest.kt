@@ -39,4 +39,14 @@ class CalculatorHistoryTest {
         assertEquals(99.0, next.first().weightLbs, 0.0)
         assertEquals(4.0, next.last().weightLbs, 0.0)
     }
+
+    // ─── §D.4 last-method resolution (Swift loadLastMethod fallback) ───
+
+    @Test
+    fun `methodFor resolves a saved name and falls back to STANDARD`() {
+        assertEquals(ShippingMethod.SEADROP, CalculatorHistory.methodFor("SEADROP"))
+        assertEquals(ShippingMethod.EXPRESS, CalculatorHistory.methodFor("EXPRESS"))
+        assertEquals(ShippingMethod.STANDARD, CalculatorHistory.methodFor(null))
+        assertEquals(ShippingMethod.STANDARD, CalculatorHistory.methodFor("bogus"))
+    }
 }

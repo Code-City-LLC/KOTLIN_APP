@@ -46,7 +46,9 @@ class CalculatorViewModel(
     private val repository: CalculatorRepository = RemoteCalculatorRepository(),
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(CalculatorUiState())
+    // Swift §D.4: the form pre-selects the method of the last successful
+    // calculation (loadLastMethod, .standard until a first save).
+    private val _state = MutableStateFlow(CalculatorUiState(method = CalculatorHistory.lastMethod()))
     val state: StateFlow<CalculatorUiState> = _state
 
     private val _result = MutableStateFlow<CalculationResult?>(null)
@@ -205,6 +207,9 @@ class CalculatorViewModel(
             heightIn = form.height.replace(',', '.').toDoubleOrNull()?.times(factor),
             live = live,
         )
+        // Swift §D.4: remember the method that just calculated successfully so
+        // the next Calculator open pre-selects it.
+        CalculatorHistory.saveLastMethod(form.method)
         // Swift §B.6: record this quote in the 5-item history ring. Total comes
         // from resolveCharges (live totalWithDuty, else the offline grandTotal).
         CalculatorHistory.record(

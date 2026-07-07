@@ -62,4 +62,21 @@ object CalculatorHistory {
 
     /** Pure ring-buffer cap — a newest-first list truncated to [MAX]. */
     internal fun capped(list: List<Entry>): List<Entry> = list.take(MAX)
+
+    // ─── Last shipping method (Swift §D.4 "airdrop.calculator.lastMethod") ───
+
+    private const val KEY_LAST_METHOD = "lastMethod"
+
+    /** The method the user last calculated with; STANDARD until a first save. */
+    fun lastMethod(): ShippingMethod =
+        methodFor(prefs?.getString(KEY_LAST_METHOD, null))
+
+    /** Persist the method of a successful calculation (Swift saveLastMethod). */
+    fun saveLastMethod(method: ShippingMethod) {
+        prefs?.edit()?.putString(KEY_LAST_METHOD, method.name)?.apply()
+    }
+
+    /** Pure name→method resolution with the Swift .standard fallback. */
+    internal fun methodFor(name: String?): ShippingMethod =
+        ShippingMethod.entries.firstOrNull { it.name == name } ?: ShippingMethod.STANDARD
 }
