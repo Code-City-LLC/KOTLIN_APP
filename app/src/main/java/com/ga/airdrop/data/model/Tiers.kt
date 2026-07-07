@@ -34,7 +34,14 @@ data class ServiceTier(
     @SerialName("aircoins_eligible") val aircoinsEligible: Boolean = false,
     @SerialName("free_return_lb_cap") val freeReturnLbCap: Double = 0.0,
     @SerialName("processing_copy") val processingCopy: String? = null,
-    @SerialName("benefits_summary") val benefitsSummary: String? = null,
+    /**
+     * Backend-authored benefit bullets (service_tiers.benefits_summary, cast
+     * `array` server-side). Populated live on pre-staging, so this MUST be a
+     * string list — an earlier `String?` here threw on the JSON array and broke
+     * the whole /service-tiers parse. `coerceInputValues` maps a null/missing
+     * value to the empty list; the UI falls back to its own copy when empty.
+     */
+    @SerialName("benefits_summary") val benefitsSummary: List<String> = emptyList(),
 )
 
 /** One entry of `available_changes` on GET /customers/me/tier. */

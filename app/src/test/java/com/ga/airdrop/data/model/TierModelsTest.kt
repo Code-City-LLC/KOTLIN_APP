@@ -20,11 +20,15 @@ class TierModelsTest {
 
     @Test
     fun `service tiers catalogue decodes with eligibility flags`() {
+        // benefits_summary is a STRING ARRAY (service_tiers cast `array`), now
+        // populated live. An earlier String? here threw on the array and broke
+        // the whole catalogue parse — this pins the correct shape.
         val json = """
             {"success":true,"message":"Service tiers retrieved","data":[
               {"code":"DIAM","display_name":"Diamond Elite","badge":"diamond","lane_rank":5,
                "is_priority":true,"aircoins_eligible":true,"free_return_lb_cap":30,
-               "processing_copy":"Fastest lane","benefits_summary":"Everything"},
+               "processing_copy":"Fastest lane",
+               "benefits_summary":["VIP priority — next possible ship-out","Free returns up to 30 lb"]},
               {"code":"RUBY","display_name":"Ruby Starter","badge":"ruby","lane_rank":2,
                "is_priority":false,"aircoins_eligible":false,"free_return_lb_cap":0,
                "processing_copy":null,"benefits_summary":null}
@@ -35,9 +39,28 @@ class TierModelsTest {
         assertEquals("Diamond Elite", tiers[0].displayName)
         assertTrue(tiers[0].aircoinsEligible)
         assertEquals(30.0, tiers[0].freeReturnLbCap, 0.0)
+        // Backend benefit bullets decode as a list...
+        assertEquals(2, tiers[0].benefitsSummary.size)
+        assertEquals("VIP priority — next possible ship-out", tiers[0].benefitsSummary[0])
+        // ...and a null benefits_summary coerces to an empty list (fallback copy).
+        assertTrue(tiers[1].benefitsSummary.isEmpty())
         // Ruby Starter earns no AirCoins and no free returns — from the API.
         assertFalse(tiers[1].aircoinsEligible)
         assertEquals(0.0, tiers[1].freeReturnLbCap, 0.0)
+    }
+
+    @Test
+    fun `error envelope decodes the machine-readable error_code`() {
+        // Live shape: {"success":false,"message":"…","error_code":"NO_RATE_CARD"}.
+        val json = """{"success":false,"message":"No rate card","error_code":"NO_RATE_CARD"}"""
+        val envelope = decode<com.ga.airdrop.data.api.ApiErrorEnvelope>(json)
+        assertEquals("NO_RATE_CARD", envelope.errorCode)
+        assertEquals("No rate card", envelope.message)
+        // Absent error_code stays null (non-tier failures).
+        val plain = decode<com.ga.airdrop.data.api.ApiErrorEnvelope>(
+            """{"message":"Something went wrong"}""",
+        )
+        assertNull(plain.errorCode)
     }
 
     @Test

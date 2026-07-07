@@ -24,6 +24,7 @@ import com.ga.airdrop.data.model.TierChangeResult
  * [TierRepository] implements it).
  */
 interface CustomerTierGateway {
+    suspend fun serviceTiers(): Result<List<ServiceTier>>
     suspend fun customerTier(): Result<CustomerTier>
     suspend fun changeTier(requestedTierCode: String): Result<TierChangeResult>
 }
@@ -42,7 +43,7 @@ interface CustomerTierGateway {
 class TierRepository(private val service: AirdropApiService) : CustomerTierGateway {
 
     /** GET /service-tiers — the tier catalogue (badges, lanes, eligibility). */
-    suspend fun serviceTiers(): Result<List<ServiceTier>> =
+    override suspend fun serviceTiers(): Result<List<ServiceTier>> =
         apiResult { service.serviceTiers().requireData("service tiers") }
 
     /** GET /customers/me/tier — the signed-in customer's tier + benefits. */

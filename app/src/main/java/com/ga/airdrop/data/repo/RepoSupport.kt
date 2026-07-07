@@ -21,7 +21,8 @@ internal suspend fun <T> apiResult(block: suspend () -> T): Result<T> =
     } catch (e: CancellationException) {
         throw e
     } catch (e: HttpException) {
-        Result.failure(ApiException(friendlyHttpMessage(e), e))
+        val parsed = parseHttpError(e)
+        Result.failure(ApiException(parsed.message, e, parsed.code))
     } catch (e: IOException) {
         Result.failure(
             ApiException("Can't reach AirDrop. Check your connection and try again.", e),
@@ -30,29 +31,45 @@ internal suspend fun <T> apiResult(block: suspend () -> T): Result<T> =
         Result.failure(e)
     }
 
-/** Carries a user-facing message; ViewModels display `message` directly. */
-internal class ApiException(message: String, cause: Throwable? = null) :
-    Exception(message, cause)
+/**
+ * Carries a user-facing [message] (ViewModels display it directly) and the
+ * Laravel machine-readable [errorCode] when present, so tier flows can branch
+ * on it (e.g. NO_RATE_CARD, INSURANCE_MANDATORY) — the joint Swift/Kotlin pact.
+ */
+internal class ApiException(
+    message: String,
+    cause: Throwable? = null,
+    val errorCode: String? = null,
+) : Exception(message, cause)
+
+/** The Tier API `error_code` on a failed call, or null (non-HTTP/absent). */
+fun Throwable.serverErrorCode(): String? = (this as? ApiException)?.errorCode
+
+private data class ParsedHttpError(val message: String, val code: String?)
 
 /**
  * Prefer the backend's own `message` (Laravel returns it on 4xx/5xx); fall back
- * to a friendly, status-appropriate line — never the raw "HTTP <code>".
+ * to a friendly, status-appropriate line — never the raw "HTTP <code>". Also
+ * lifts the machine-readable `error_code` so the caller can branch on it.
  */
-private fun friendlyHttpMessage(e: HttpException): String {
+private fun parseHttpError(e: HttpException): ParsedHttpError {
+    var code: String? = null
     runCatching {
         val body = e.response()?.errorBody()?.string().orEmpty()
         if (body.isNotBlank()) {
             val json = JSONObject(body)
+            code = json.optString("error_code").ifBlank { null }
             val msg = json.optString("message").ifBlank { json.optString("error") }
-            if (msg.isNotBlank()) return msg
+            if (msg.isNotBlank()) return ParsedHttpError(msg, code)
         }
     }
-    return when (e.code()) {
+    val fallback = when (e.code()) {
         401, 403 -> "Invalid credentials"
         404 -> "We couldn't find what you were looking for."
         in 500..599 -> "Something went wrong on our end. Please try again."
         else -> "Something went wrong. Please try again."
     }
+    return ParsedHttpError(fallback, code)
 }
 
 // Swift's normalizedSearch: searches shorter than 3 chars are dropped.

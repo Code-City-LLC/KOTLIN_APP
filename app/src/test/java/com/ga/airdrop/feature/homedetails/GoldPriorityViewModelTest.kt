@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.homedetails
 
+import com.ga.airdrop.data.api.ApiErrorCodes
 import com.ga.airdrop.data.model.CustomerTier
+import com.ga.airdrop.data.model.ServiceTier
 import com.ga.airdrop.data.model.TierChangeOption
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,5 +81,35 @@ class GoldPriorityViewModelTest {
         assertNull(indexForTierCode(null))
         // The presentational-only pages have no API code, so are never resolved.
         assertNull(indexForTierCode("CORPORATE"))
+    }
+
+    @Test
+    fun `benefitsByCodeFrom keys by upper-case code and drops empty tiers`() {
+        val tiers = listOf(
+            ServiceTier(code = "diam", benefitsSummary = listOf("VIP priority", "Free returns")),
+            ServiceTier(code = "RUBY", benefitsSummary = emptyList()), // no bullets → dropped
+            ServiceTier(code = "", benefitsSummary = listOf("orphan")), // blank code → dropped
+        )
+        val map = benefitsByCodeFrom(tiers)
+
+        assertEquals(1, map.size)
+        assertEquals(listOf("VIP priority", "Free returns"), map["DIAM"])
+        assertFalse(map.containsKey("RUBY")) // page keeps its own fallback copy
+        assertFalse(map.containsKey(""))
+    }
+
+    @Test
+    fun `coded tier errors get bespoke copy, others fall through to the server message`() {
+        assertEquals(
+            "Insurance is required for your tier and can't be declined.",
+            ApiErrorCodes.friendlyCopy(ApiErrorCodes.INSURANCE_MANDATORY),
+        )
+        assertEquals(
+            "That shipping option isn't available for this destination right now.",
+            ApiErrorCodes.friendlyCopy(ApiErrorCodes.NO_RATE_CARD),
+        )
+        // FORBIDDEN / null have no bespoke copy → caller uses the backend message.
+        assertNull(ApiErrorCodes.friendlyCopy(ApiErrorCodes.FORBIDDEN))
+        assertNull(ApiErrorCodes.friendlyCopy(null))
     }
 }

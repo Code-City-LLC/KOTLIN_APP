@@ -254,7 +254,14 @@ internal fun GoldPriorityContent(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
             ) { page ->
-                TierPageContent(tierPages[page])
+                val tierPage = tierPages[page]
+                // Backend benefits_summary when the API supplied it for this
+                // tier, else the page's own fallback copy.
+                val apiBenefits = tierPage.apiCode?.let { tierState.benefitsByCode[it] }
+                TierPageContent(
+                    tier = tierPage,
+                    benefits = apiBenefits?.takeIf { it.isNotEmpty() } ?: tierPage.benefits,
+                )
             }
         }
 
@@ -386,7 +393,7 @@ private fun SwipeIndicator(activeIndex: Int, activeTier: TierPage) {
 // ─── Tier page ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun TierPageContent(tier: TierPage) {
+private fun TierPageContent(tier: TierPage, benefits: List<String> = tier.benefits) {
     Column(
         Modifier
             .fillMaxSize()
@@ -422,7 +429,7 @@ private fun TierPageContent(tier: TierPage) {
             color = Color.White,
         )
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            tier.benefits.forEach { benefit ->
+            benefits.forEach { benefit ->
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     BenefitCheck(
                         modifier = Modifier.padding(top = 2.dp)

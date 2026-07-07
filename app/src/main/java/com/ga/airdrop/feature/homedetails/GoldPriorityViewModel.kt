@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.session.SessionStore
+import com.ga.airdrop.data.api.ApiErrorCodes
+import com.ga.airdrop.data.model.ServiceTier
 import com.ga.airdrop.data.repo.CustomerTierGateway
 import com.ga.airdrop.data.repo.TierRepository
 import com.ga.airdrop.data.repo.UserRepository
+import com.ga.airdrop.data.repo.serverErrorCode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -27,6 +30,12 @@ data class GoldPriorityUiState(
     val changeError: String? = null,
     /** One-shot success name (e.g. "Gold Standard") for the confirmation banner. */
     val justChangedToName: String? = null,
+    /**
+     * API tier code → backend-authored benefit bullets
+     * (service_tiers.benefits_summary). The page renders these when present and
+     * falls back to its own copy when the catalogue is empty/unavailable.
+     */
+    val benefitsByCode: Map<String, List<String>> = emptyMap(),
 )
 
 /** Legacy tier-name fallback source (the user payload's customer_tier name). */
@@ -63,6 +72,15 @@ class GoldPriorityViewModel(
                     _state.update { if (it.currentTierCode == null) it.copy(resolvedTierIndex = idx) else it }
                 }
             }
+            // Backend-authored benefit bullets (benefits_summary), so the page
+            // shows the live copy instead of hardcoded strings. Best-effort:
+            // on failure the page keeps its own fallback copy.
+            tierRepository.serviceTiers().onSuccess { tiers ->
+                val benefits = benefitsByCodeFrom(tiers)
+                if (benefits.isNotEmpty()) {
+                    _state.update { it.copy(benefitsByCode = benefits) }
+                }
+            }
             // Authoritative: the tier API drives the current code + change options.
             tierRepository.customerTier().onSuccess { tier ->
                 _state.update { applyCustomerTier(it, tier) }
@@ -93,9 +111,12 @@ class GoldPriorityViewModel(
                     }
                 }
                 .onFailure { e ->
-                    _state.update {
-                        it.copy(changingToCode = null, changeError = e.message ?: "Couldn't change your tier. Please try again.")
-                    }
+                    // Prefer the coded copy for tier errors (error_code pact),
+                    // else the backend message, else a clean fallback.
+                    val message = ApiErrorCodes.friendlyCopy(e.serverErrorCode())
+                        ?: e.message
+                        ?: "Couldn't change your tier. Please try again."
+                    _state.update { it.copy(changingToCode = null, changeError = message) }
                 }
         }
     }
@@ -133,6 +154,15 @@ internal fun indexForTierCode(code: String?): Int? {
 /** code → direction from the customer tier's available_changes (blank codes dropped). */
 internal fun directionsFrom(tier: com.ga.airdrop.data.model.CustomerTier): Map<String, String> =
     tier.availableChanges.filter { it.code.isNotBlank() }.associate { it.code to it.direction }
+
+/**
+ * Map the tier catalogue to code → benefit bullets, dropping tiers with a blank
+ * code or no bullets so the page only overrides its fallback copy when the
+ * backend actually supplied benefits_summary for that tier.
+ */
+internal fun benefitsByCodeFrom(tiers: List<ServiceTier>): Map<String, List<String>> =
+    tiers.filter { it.code.isNotBlank() && it.benefitsSummary.isNotEmpty() }
+        .associate { it.code.uppercase() to it.benefitsSummary }
 
 /** Fold GET /customers/me/tier into the page state (the authoritative source). */
 internal fun applyCustomerTier(
