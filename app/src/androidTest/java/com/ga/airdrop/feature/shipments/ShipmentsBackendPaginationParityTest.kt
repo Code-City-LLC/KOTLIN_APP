@@ -181,10 +181,12 @@ class ShipmentsBackendPaginationParityTest {
             perPage: Int,
             status: Int?,
             search: String?,
-        ): Result<List<ShipmentPackage>> {
+        ): Result<Paged<ShipmentPackage>> {
             recordedCalls += PackageCall(page, perPage, status, search)
             val count = if (page == 1) perPage else 2
-            return Result.success((1..count).map { samplePackage(page * 100 + it) })
+            // Metadata-less page (isLastPage = null) so the batch-size
+            // heuristic these rails assert stays exercised.
+            return Result.success(Paged((1..count).map { samplePackage(page * 100 + it) }))
         }
 
         override suspend fun packageDetails(packageId: String) =
@@ -217,10 +219,10 @@ class ShipmentsBackendPaginationParityTest {
             perPage: Int,
             type: String?,
             search: String?,
-        ): Result<List<ShipmentPayment>> {
+        ): Result<Paged<ShipmentPayment>> {
             recordedCalls += PaymentCall(page, perPage, type, search)
             val count = if (page == 1) perPage else 2
-            return Result.success((1..count).map { samplePayment(page * 100 + it, type ?: "package") })
+            return Result.success(Paged((1..count).map { samplePayment(page * 100 + it, type ?: "package") }))
         }
 
         override suspend fun payment(paymentId: Int) = Result.success(samplePayment(paymentId))
@@ -240,10 +242,10 @@ class ShipmentsBackendPaginationParityTest {
         val calls: List<OrderCall>
             get() = synchronized(recordedCalls) { recordedCalls.toList() }
 
-        override suspend fun orders(page: Int, perPage: Int, search: String?): Result<List<ShipmentOrder>> {
+        override suspend fun orders(page: Int, perPage: Int, search: String?): Result<Paged<ShipmentOrder>> {
             recordedCalls += OrderCall(page, perPage, search)
             val count = if (page == 1) perPage else 2
-            return Result.success((1..count).map { sampleOrder(page * 100 + it) })
+            return Result.success(Paged((1..count).map { sampleOrder(page * 100 + it) }))
         }
 
         override suspend fun orderDetails(orderId: Int) = Result.success(sampleOrder(orderId))

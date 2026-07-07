@@ -210,9 +210,9 @@ class PackagesFilterFlowParityTest {
             perPage: Int,
             status: Int?,
             search: String?,
-        ): Result<List<ShipmentPackage>> {
+        ): Result<Paged<ShipmentPackage>> {
             recordedCalls += PackageCall(page, perPage, status, search)
-            return Result.success(samplePackages)
+            return Result.success(Paged(samplePackages))
         }
 
         override suspend fun packageDetails(packageId: String) =

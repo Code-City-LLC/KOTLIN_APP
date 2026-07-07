@@ -79,6 +79,11 @@ class SettingsViewModel(
         com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
         com.ga.airdrop.core.push.QuietHoursStore.clear(context)
         com.ga.airdrop.core.security.BiometricGate.reset()
+        // Process-global shipment caches + the shop checkout hand-off must not
+        // leak into the next account's session (FuchsiaTower P3b-C3 / P4-U2).
+        com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
+        com.ga.airdrop.feature.shop.ShopCheckoutStore.product = null
+        com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
         sweepCachePrefs(context)
         _state.update { it.copy(loggingOut = false, loggedOut = true) }
     }

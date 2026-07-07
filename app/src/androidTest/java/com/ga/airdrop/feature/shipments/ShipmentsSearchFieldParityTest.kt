@@ -86,6 +86,7 @@ class ShipmentsSearchFieldParityTest {
     private class FakePackagesRepository : ShipmentsPackagesRepository {
         override suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?) =
             Result.success(
+                Paged(
                 listOf(
                     ShipmentPackage(
                         id = 401,
@@ -95,6 +96,7 @@ class ShipmentsSearchFieldParityTest {
                         shippingMethod = "Standard",
                         additionalChargesTotal = 403.35,
                     )
+                )
                 )
             )
 

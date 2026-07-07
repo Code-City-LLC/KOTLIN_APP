@@ -159,9 +159,21 @@ interface ShipmentsHubRepository {
     suspend fun ordersShortlist(): Result<List<ShipmentOrder>>
 }
 
+/**
+ * One page of rows plus the server's page verdict when the envelope carried
+ * pagination metadata. `isLastPage == null` means the endpoint answered with a
+ * bare array (no metadata) and callers should fall back to the batch-size
+ * heuristic. Threading this through kills the wasted empty-page probe when the
+ * total is an exact multiple of perPage (FuchsiaTower Pass-3 C2).
+ */
+data class Paged<T>(
+    val items: List<T>,
+    val isLastPage: Boolean? = null,
+)
+
 interface ShipmentsPackagesRepository {
     // RECONCILE: GET /packages?page=&perPage=15&status=&search= → [Package] (perPage 15; status omitted when 0; search omitted when blank)
-    suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?): Result<List<ShipmentPackage>>
+    suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?): Result<Paged<ShipmentPackage>>
 
     // RECONCILE: GET /packages/{id} → PackageDetail (incl. history[], invoices[], additional_charges{})
     suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail>
@@ -185,7 +197,7 @@ interface ShipmentsPackagesRepository {
 
 interface ShipmentsPaymentsRepository {
     // RECONCILE: GET /payments?page=&perPage=15&type=&search= → [Payment] (type: package|product, omitted for all; search only when >= 3 chars)
-    suspend fun payments(page: Int, perPage: Int, type: String?, search: String?): Result<List<ShipmentPayment>>
+    suspend fun payments(page: Int, perPage: Int, type: String?, search: String?): Result<Paged<ShipmentPayment>>
 
     // RECONCILE: single payment lookup for the detail routes. Swift passes the tapped Payment
     // object through the navigation push; Android routes carry only the id, so the repo must
@@ -199,7 +211,7 @@ interface ShipmentsPaymentsRepository {
 
 interface ShipmentsOrdersRepository {
     // RECONCILE: GET /orders?page=&perPage=10&search= → [Order]
-    suspend fun orders(page: Int, perPage: Int, search: String?): Result<List<ShipmentOrder>>
+    suspend fun orders(page: Int, perPage: Int, search: String?): Result<Paged<ShipmentOrder>>
 
     // RECONCILE: GET /orders/{id} → Order
     suspend fun orderDetails(orderId: Int): Result<ShipmentOrder>
@@ -228,7 +240,7 @@ object ShipmentsRepoProvider {
     }
     var packages: ShipmentsPackagesRepository = object : ShipmentsPackagesRepository {
         override suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?) =
-            Result.failure<List<ShipmentPackage>>(PendingDataLayerException())
+            Result.failure<Paged<ShipmentPackage>>(PendingDataLayerException())
         override suspend fun packageDetails(packageId: String) =
             Result.failure<ShipmentPackageDetail>(PendingDataLayerException())
         override suspend fun packageStatuses() =
@@ -240,7 +252,7 @@ object ShipmentsRepoProvider {
     }
     var payments: ShipmentsPaymentsRepository = object : ShipmentsPaymentsRepository {
         override suspend fun payments(page: Int, perPage: Int, type: String?, search: String?) =
-            Result.failure<List<ShipmentPayment>>(PendingDataLayerException())
+            Result.failure<Paged<ShipmentPayment>>(PendingDataLayerException())
         override suspend fun payment(paymentId: Int) =
             Result.failure<ShipmentPayment>(PendingDataLayerException())
         override suspend fun paymentInvoiceUrl(paymentId: Int) =
@@ -248,7 +260,7 @@ object ShipmentsRepoProvider {
     }
     var orders: ShipmentsOrdersRepository = object : ShipmentsOrdersRepository {
         override suspend fun orders(page: Int, perPage: Int, search: String?) =
-            Result.failure<List<ShipmentOrder>>(PendingDataLayerException())
+            Result.failure<Paged<ShipmentOrder>>(PendingDataLayerException())
         override suspend fun orderDetails(orderId: Int) =
             Result.failure<ShipmentOrder>(PendingDataLayerException())
         override suspend fun exchangeRate() = Result.failure<Double>(PendingDataLayerException())

@@ -700,7 +700,7 @@ class ShipmentsHubTapRailsParityTest {
             perPage: Int,
             status: Int?,
             search: String?,
-        ): Result<List<ShipmentPackage>> {
+        ): Result<Paged<ShipmentPackage>> {
             val query = search.orEmpty().trim().uppercase(Locale.US)
             val filtered = if (query.isEmpty()) {
                 packages
@@ -711,7 +711,7 @@ class ShipmentsHubTapRailsParityTest {
                         it.id.toString() == query
                 }
             }
-            return Result.success(filtered)
+            return Result.success(Paged(filtered))
         }
 
         override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> =

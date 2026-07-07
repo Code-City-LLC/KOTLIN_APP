@@ -15,7 +15,6 @@ data class OrdersUiState(
     val loadingMore: Boolean = false,
     val hasMorePages: Boolean = true,
     val searchText: String = "",
-    val error: String? = null,
 )
 
 /**
@@ -64,10 +63,19 @@ class OrdersViewModel(
         if (reset) { currentPage = 1; loadJob?.cancel() }
         val requestedPage = currentPage
         loadJob = viewModelScope.launch {
-            _state.update { it.copy(loading = reset, loadingMore = !reset, error = null) }
+            _state.update {
+                it.copy(
+                    loading = reset,
+                    loadingMore = !reset,
+                    // A failed reset load must not leave a stale end-of-list
+                    // gate (FuchsiaTower Pass-3b C1; matches PackagesViewModel).
+                    hasMorePages = if (reset) true else it.hasMorePages,
+                )
+            }
             val search = _state.value.searchText.trim().takeIf { it.length >= SEARCH_MIN_CHARS }
             repo.orders(page = requestedPage, perPage = PER_PAGE, search = search)
-                .onSuccess { batch ->
+                .onSuccess { paged ->
+                    val batch = paged.items
                     _state.update { current ->
                         val merged = if (reset) batch else {
                             val known = current.items.map { it.id }.toHashSet()
@@ -77,15 +85,19 @@ class OrdersViewModel(
                             items = merged,
                             loading = false,
                             loadingMore = false,
-                            hasMorePages = batch.size >= PER_PAGE,
+                            // Prefer the server's page verdict; fall back to the
+                            // batch-size heuristic on metadata-less envelopes.
+                            hasMorePages = paged.isLastPage?.let { last -> !last }
+                                ?: (batch.size >= PER_PAGE),
                         )
                     }
                     currentPage = requestedPage + 1
                 }
-                .onFailure { e ->
-                    _state.update {
-                        it.copy(loading = false, loadingMore = false, error = e.message)
-                    }
+                .onFailure {
+                    // Swift parity: list-load failures fall through to the
+                    // empty/list state (the old `error` write was never read
+                    // by OrdersScreen — FuchsiaTower Pass-3 C1).
+                    _state.update { it.copy(loading = false, loadingMore = false) }
                 }
         }
     }

@@ -119,12 +119,15 @@ fun CartScreen(
     val checkoutUrl = state.checkoutUrl
     LaunchedEffect(checkoutUrl) {
         if (checkoutUrl != null) {
-            if (openCheckoutUrl != null) {
+            val opened = if (openCheckoutUrl != null) {
                 openCheckoutUrl(checkoutUrl)
+                true
             } else {
                 launchExternalUrl(context, checkoutUrl)
             }
-            viewModel.onCheckoutOpened()
+            // Only clear the cart once the browser actually opened — a failed
+            // launch must keep the cart intact (FuchsiaTower Pass-4 C5).
+            if (opened) viewModel.onCheckoutOpened()
         }
     }
 

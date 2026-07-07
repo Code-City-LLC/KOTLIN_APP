@@ -395,7 +395,7 @@ class PackageDetailsParityTest {
         val damageReports = mutableListOf<DamageReportCall>()
 
         override suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?) =
-            Result.success(emptyList<ShipmentPackage>())
+            Result.success(Paged(emptyList<ShipmentPackage>()))
 
         override suspend fun packageDetails(packageId: String) = Result.success(detail)
 

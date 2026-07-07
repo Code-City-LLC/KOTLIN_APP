@@ -35,20 +35,13 @@ object ShipmentsRepoBinding {
 // ─── Model mapping ─────────────────────────────────────────────────────────
 
 /**
- * Rows seen by any list/detail load, kept so cart toggles (which only carry
- * an id) can build a full CartLine — Swift passes the object itself.
+ * Server page verdict from the decoded envelope metadata; null when the
+ * endpoint answered a bare array (callers fall back to the size heuristic).
  */
-internal object ShipmentPackageRegistry {
-    private val byId = LinkedHashMap<Int, ShipmentPackage>()
-
-    @Synchronized
-    fun remember(pkg: ShipmentPackage) {
-        if (pkg.id != 0) byId[pkg.id] = pkg
-        while (byId.size > 300) byId.remove(byId.keys.first())
-    }
-
-    @Synchronized
-    fun get(id: Int): ShipmentPackage? = byId[id]
+private fun com.ga.airdrop.data.model.Paginated<*>.isLastPage(): Boolean? {
+    val current = pagination?.currentPage ?: return null
+    val last = pagination?.lastPage ?: return null
+    return current >= last
 }
 
 private fun Package.toShipment() = ShipmentPackage(
@@ -66,7 +59,7 @@ private fun Package.toShipment() = ShipmentPackage(
     additionalChargesTotal = additionalChargesTotal,
     exchangeRate = exchangeRate,
     createdAt = createdAt,
-).also(ShipmentPackageRegistry::remember)
+)
 
 private fun PackageDetail.toShipmentDetail() = ShipmentPackageDetail(
     id = id,
@@ -179,9 +172,9 @@ private class DataShipmentsPackagesRepository(
         perPage: Int,
         status: Int?,
         search: String?,
-    ): Result<List<ShipmentPackage>> =
+    ): Result<Paged<ShipmentPackage>> =
         repo.packages(page = page, perPage = perPage, status = status, search = search)
-            .map { list -> list.map { it.toShipment() } }
+            .map { page -> Paged(page.items.map { it.toShipment() }, page.isLastPage()) }
 
     override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> =
         repo.packageDetails(packageId).map { it.toShipmentDetail() }
@@ -234,6 +227,18 @@ private object PaymentPageCache {
 
     @Synchronized
     fun get(id: Int): ShipmentPayment? = byId[id]
+
+    @Synchronized
+    fun clear() = byId.clear()
+}
+
+/**
+ * Logout hygiene — drops the process-global shipment caches so a following
+ * account's session can't see the prior user's payment rows (FuchsiaTower
+ * Pass-3b C3).
+ */
+internal fun clearShipmentsSessionCaches() {
+    PaymentPageCache.clear()
 }
 
 internal class DataShipmentsPaymentsRepository(
@@ -246,9 +251,11 @@ internal class DataShipmentsPaymentsRepository(
         perPage: Int,
         type: String?,
         search: String?,
-    ): Result<List<ShipmentPayment>> =
+    ): Result<Paged<ShipmentPayment>> =
         repo.payments(page = page, perPage = perPage, type = type, search = search)
-            .map { list -> list.map { it.toShipment().also(PaymentPageCache::remember) } }
+            .map { page ->
+                Paged(page.items.map { it.toShipment().also(PaymentPageCache::remember) }, page.isLastPage())
+            }
 
     override suspend fun payment(paymentId: Int): Result<ShipmentPayment> {
         PaymentPageCache.get(paymentId)?.let { return Result.success(it) }
@@ -257,7 +264,7 @@ internal class DataShipmentsPaymentsRepository(
         var page = 1
         while (true) {
             val result = repo.payments(page = page, perPage = PAYMENT_LOOKUP_PER_PAGE, type = null, search = null)
-            val rows = result.getOrNull() ?: return Result.failure(
+            val rows = result.getOrNull()?.items ?: return Result.failure(
                 result.exceptionOrNull() ?: IllegalStateException("Payment not found"),
             )
             if (rows.isEmpty()) break
@@ -285,9 +292,9 @@ private class DataShipmentsOrdersRepository(
     private val misc: MiscRepository,
 ) : ShipmentsOrdersRepository {
 
-    override suspend fun orders(page: Int, perPage: Int, search: String?): Result<List<ShipmentOrder>> =
+    override suspend fun orders(page: Int, perPage: Int, search: String?): Result<Paged<ShipmentOrder>> =
         repo.orders(page = page, perPage = perPage, search = search)
-            .map { list -> list.map { it.toShipment() } }
+            .map { page -> Paged(page.items.map { it.toShipment() }, page.isLastPage()) }
 
     override suspend fun orderDetails(orderId: Int): Result<ShipmentOrder> =
         repo.orderDetail(orderId).map { it.toShipment() }

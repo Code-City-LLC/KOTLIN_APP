@@ -6,6 +6,7 @@ import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
 import com.ga.airdrop.data.model.InvoiceUrlEnvelope
+import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.Payment
 import com.ga.airdrop.data.model.PaymentIntentStatus
 import com.ga.airdrop.data.model.PaymentSheetConfig
@@ -23,7 +24,7 @@ class PaymentsRepository(private val service: AirdropApiService) {
         perPage: Int = 15,
         type: String? = null,
         search: String? = null,
-    ): Result<List<Payment>> = apiResult {
+    ): Result<Paginated<Payment>> = apiResult {
         service.payments(
             page = page,
             perPage = perPage,
@@ -31,10 +32,11 @@ class PaymentsRepository(private val service: AirdropApiService) {
             sortOrder = "desc",
             type = type?.takeIf { it.isNotEmpty() && it != "all" },
             search = normalizedSearch(search),
-        ).items
+        )
     }
 
-    suspend fun paymentsShortlist(): Result<List<Payment>> = payments(page = 1, perPage = 6)
+    suspend fun paymentsShortlist(): Result<List<Payment>> =
+        payments(page = 1, perPage = 6).map { it.items }
 
     // GET /payments/{id}/invoice answers with a JSON envelope containing a
     // URL, or with raw PDF/image bytes (legacy route) which are spooled to

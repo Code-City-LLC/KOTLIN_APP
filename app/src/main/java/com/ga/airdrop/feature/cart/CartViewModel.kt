@@ -24,7 +24,9 @@ data class CartBillingForm(
 )
 
 data class CartUiState(
-    val exchangeUsdToJmd: Double = 161.00,
+    // Swift moved off the hardcoded 161.00 to the shared last-known rate;
+    // seed with the same shipments default (FuchsiaTower Pass-4 C6).
+    val exchangeUsdToJmd: Double = com.ga.airdrop.feature.shipments.DEFAULT_USD_TO_JMD,
     val loadedFirstName: String = "",
     val form: CartBillingForm = CartBillingForm(),
     val note: String = "",

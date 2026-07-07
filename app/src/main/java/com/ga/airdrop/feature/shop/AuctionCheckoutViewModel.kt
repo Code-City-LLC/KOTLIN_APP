@@ -11,7 +11,8 @@ import kotlinx.coroutines.launch
 data class AuctionCheckoutUiState(
     val product: ShopProduct? = null,
     val currency: String = "USD",
-    val exchangeUsdToJmd: Double = 161.00,
+    // Shared fallback rate (FuchsiaTower Pass-4 C6).
+    val exchangeUsdToJmd: Double = com.ga.airdrop.feature.shipments.DEFAULT_USD_TO_JMD,
     val paying: Boolean = false,
     val errorTitle: String? = null,
     val errorMessage: String? = null,

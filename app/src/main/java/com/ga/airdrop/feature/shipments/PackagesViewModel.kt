@@ -161,7 +161,8 @@ class PackagesViewModel(
                 perPage = PER_PAGE,
                 status = s.statusFilter.takeIf { it != 0 },
                 search = s.searchText.trim().takeIf { it.isNotEmpty() },
-            ).onSuccess { batch ->
+            ).onSuccess { paged ->
+                val batch = paged.items
                 _state.update { current ->
                     val merged = if (reset) batch else {
                         val known = current.items.map { it.id }.toHashSet()
@@ -171,7 +172,8 @@ class PackagesViewModel(
                         items = merged,
                         loading = false,
                         loadingMore = false,
-                        hasMorePages = batch.size >= PER_PAGE,
+                        hasMorePages = paged.isLastPage?.let { last -> !last }
+                            ?: (batch.size >= PER_PAGE),
                     )
                 }
                 currentPage = requestedPage + 1

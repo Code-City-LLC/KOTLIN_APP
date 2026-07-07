@@ -250,7 +250,7 @@ class PaymentsOrdersParityTest {
 
     private class FakePaymentsRepository(
         private val payment: ShipmentPayment = samplePayment(),
-        private val paymentsResult: Result<List<ShipmentPayment>> = Result.success(listOf(payment)),
+        private val paymentsResult: Result<Paged<ShipmentPayment>> = Result.success(Paged(listOf(payment))),
         private val invoiceResult: Result<String> = Result.success("https://example.test/invoice.pdf"),
     ) : ShipmentsPaymentsRepository {
         val invoiceUrlRequests = mutableListOf<Int>()
@@ -271,7 +271,7 @@ class PaymentsOrdersParityTest {
         private val order: ShipmentOrder = sampleOrder(),
     ) : ShipmentsOrdersRepository {
         override suspend fun orders(page: Int, perPage: Int, search: String?) =
-            Result.success(listOf(order))
+            Result.success(Paged(listOf(order)))
 
         override suspend fun orderDetails(orderId: Int) = Result.success(order)
 

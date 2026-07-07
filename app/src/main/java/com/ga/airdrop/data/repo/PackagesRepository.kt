@@ -10,6 +10,7 @@ import com.ga.airdrop.data.model.DropAlertShippingMethod
 import com.ga.airdrop.data.model.EmptyRequest
 import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.Package
+import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.PackageCartMutation
 import com.ga.airdrop.data.model.PackageCategory
 import com.ga.airdrop.data.model.PackageDetail
@@ -28,7 +29,7 @@ class PackagesRepository(private val service: AirdropApiService) {
         perPage: Int = 15,
         status: Int? = null,
         search: String? = null,
-    ): Result<List<Package>> = apiResult {
+    ): Result<Paginated<Package>> = apiResult {
         service.packages(
             page = page,
             perPage = perPage,
@@ -36,10 +37,11 @@ class PackagesRepository(private val service: AirdropApiService) {
             sortOrder = "desc",
             status = status?.takeIf { it > 0 },
             search = normalizedSearch(search),
-        ).items
+        )
     }
 
-    suspend fun packagesShortlist(): Result<List<Package>> = packages(page = 1, perPage = 6)
+    suspend fun packagesShortlist(): Result<List<Package>> =
+        packages(page = 1, perPage = 6).map { it.items }
 
     suspend fun packageDetails(packageId: String): Result<PackageDetail> = apiResult {
         service.packageDetails(packageId).data ?: error("Package not found")

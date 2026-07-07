@@ -236,7 +236,7 @@ class ProductOrderDetailsParityTest {
         private val payment: ShipmentPayment,
     ) : ShipmentsPaymentsRepository {
         override suspend fun payments(page: Int, perPage: Int, type: String?, search: String?) =
-            Result.success(listOf(payment))
+            Result.success(Paged(listOf(payment)))
 
         override suspend fun payment(paymentId: Int) = Result.success(payment)
 
@@ -250,7 +250,7 @@ class ProductOrderDetailsParityTest {
         val lastOrderDetailId = AtomicReference<Int>()
 
         override suspend fun orders(page: Int, perPage: Int, search: String?) =
-            Result.success(listOf(order))
+            Result.success(Paged(listOf(order)))
 
         override suspend fun orderDetails(orderId: Int): Result<ShipmentOrder> {
             lastOrderDetailId.set(orderId)

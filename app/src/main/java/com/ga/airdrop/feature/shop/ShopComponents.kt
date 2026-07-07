@@ -70,10 +70,15 @@ fun formatJmd(value: Double): String = "JA$" + String.format(Locale.US, "%,.2f",
 
 /* ─── Stripe hosted checkout / external links (androidx.browser) ───────── */
 
-/** Opens [url] in a Chrome Custom Tab (Swift SFSafariViewController parity). */
-fun launchExternalUrl(context: Context, url: String) {
+/**
+ * Opens [url] in a Chrome Custom Tab (Swift SFSafariViewController parity).
+ * Returns true only when a browser actually launched — callers with
+ * destructive follow-ups (the cart clears after checkout opens) must not
+ * proceed on failure (FuchsiaTower Pass-4 C5).
+ */
+fun launchExternalUrl(context: Context, url: String): Boolean {
     val uri = Uri.parse(url)
-    runCatching {
+    val customTab = runCatching {
         CustomTabsIntent.Builder()
             .setDefaultColorSchemeParams(
                 CustomTabColorSchemeParams.Builder()
@@ -82,9 +87,9 @@ fun launchExternalUrl(context: Context, url: String) {
             )
             .build()
             .launchUrl(context, uri)
-    }.onFailure {
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
     }
+    if (customTab.isSuccess) return true
+    return runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }.isSuccess
 }
 
 /* ─── InnerHeader — Figma "Header Type" (back + title + trailing) ──────── */

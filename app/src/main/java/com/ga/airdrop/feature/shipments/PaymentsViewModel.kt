@@ -115,7 +115,15 @@ class PaymentsViewModel(
         if (reset) { currentPage = 1; loadJob?.cancel() }
         val requestedPage = currentPage
         loadJob = viewModelScope.launch {
-            _state.update { it.copy(loading = reset, loadingMore = !reset) }
+            _state.update {
+                it.copy(
+                    loading = reset,
+                    loadingMore = !reset,
+                    // Failed reset must not leave a stale end-of-list gate
+                    // (FuchsiaTower Pass-3b C1; matches PackagesViewModel).
+                    hasMorePages = if (reset) true else it.hasMorePages,
+                )
+            }
             val s = _state.value
             val search = s.searchText.trim().takeIf { it.length >= SEARCH_MIN_CHARS }
             repo.payments(
@@ -123,7 +131,8 @@ class PaymentsViewModel(
                 perPage = PER_PAGE,
                 type = s.typeFilter.queryValue,
                 search = search,
-            ).onSuccess { batch ->
+            ).onSuccess { paged ->
+                val batch = paged.items
                 _state.update { current ->
                     val merged = if (reset) batch else {
                         val known = current.items.map { it.id }.toHashSet()
@@ -133,7 +142,8 @@ class PaymentsViewModel(
                         items = merged,
                         loading = false,
                         loadingMore = false,
-                        hasMorePages = batch.size >= PER_PAGE,
+                        hasMorePages = paged.isLastPage?.let { last -> !last }
+                            ?: (batch.size >= PER_PAGE),
                     )
                 }
                 currentPage = requestedPage + 1

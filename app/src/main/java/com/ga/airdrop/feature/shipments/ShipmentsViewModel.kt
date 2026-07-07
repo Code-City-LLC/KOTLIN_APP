@@ -120,6 +120,7 @@ class ShipmentsViewModel(
                 val searchResults = packagesRepo
                     .packages(page = 1, perPage = 20, status = null, search = code)
                     .getOrThrow()
+                    .items
                 exactQuickTrackMatch(searchResults, code)
                     ?: exactQuickTrackMatch(repo.packagesShortlist().getOrDefault(emptyList()), code)
             }.onSuccess { match ->
