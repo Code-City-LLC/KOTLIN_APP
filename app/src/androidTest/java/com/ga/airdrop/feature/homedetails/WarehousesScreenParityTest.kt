@@ -69,26 +69,67 @@ class WarehousesScreenParityTest {
     }
 
     @Test
-    fun activeWarehouseTabKeepsKemarCorrectedTintVisible() {
-        setWarehouseContent(ThemeController.Mode.LIGHT, initialType = "standard")
+    fun activeWarehouseTabsKeepKemarCorrectedTintVisibleDark() {
+        setWarehouseContent(ThemeController.Mode.DARK, initialType = "standard")
 
-        val tab = compose.onNodeWithTag("warehouse-tab-standard")
-            .captureToImage()
-            .asAndroidBitmap()
-        val fillPixel = tab.getPixel(8, tab.height / 2)
-
+        val standardFill = fillPixel("warehouse-tab-standard")
         assertTrue(
-            "active Standard tab fill should not be too transparent",
-            android.graphics.Color.red(fillPixel) <= 230,
+            "active Standard tab fill should be visibly purple in dark mode",
+            android.graphics.Color.blue(standardFill) >= 88,
         )
         assertTrue(
-            "active Standard tab fill should carry visible purple tint",
-            android.graphics.Color.green(fillPixel) <= 224,
+            "active Standard tab fill should no longer read as nearly transparent",
+            android.graphics.Color.red(standardFill) >= 60,
         )
         assertTrue(
             "active Standard tab fill should stay softly translucent",
-            android.graphics.Color.blue(fillPixel) >= 238,
+            android.graphics.Color.blue(standardFill) <= 120,
         )
+
+        compose.onNodeWithTag("warehouse-tab-seadrop").performClick()
+        compose.onNodeWithText("SeaDrop (Sea Freight)").assertIsDisplayed()
+        saveRootScreenshot("warehouse_seadrop_swift_dark.png")
+
+        val seaDropFill = fillPixel("warehouse-tab-seadrop")
+        assertTrue(
+            "active SeaDrop tab fill should be visibly cyan in dark mode",
+            android.graphics.Color.blue(seaDropFill) >= 92,
+        )
+        assertTrue(
+            "active SeaDrop tab fill should carry enough green/cyan tint",
+            android.graphics.Color.green(seaDropFill) >= 72,
+        )
+        assertTrue(
+            "active SeaDrop tab fill should stay softly translucent",
+            android.graphics.Color.blue(seaDropFill) <= 130,
+        )
+    }
+
+    @Test
+    fun activeWarehouseTabKeepsKemarCorrectedTintVisibleLight() {
+        setWarehouseContent(ThemeController.Mode.LIGHT, initialType = "standard")
+
+        val lightStandardFill = fillPixel("warehouse-tab-standard")
+
+        assertTrue(
+            "active Standard tab fill should not be too transparent",
+            android.graphics.Color.red(lightStandardFill) <= 218,
+        )
+        assertTrue(
+            "active Standard tab fill should carry visible purple tint",
+            android.graphics.Color.green(lightStandardFill) <= 206,
+        )
+        assertTrue(
+            "active Standard tab fill should stay softly translucent",
+            android.graphics.Color.red(lightStandardFill) >= 190,
+        )
+    }
+
+    private fun fillPixel(tag: String): Int {
+        val tab = compose.onNodeWithTag(tag)
+            .captureToImage()
+            .asAndroidBitmap()
+        return tab.getPixel(8, tab.height / 2)
     }
 
     private fun setWarehouseContent(

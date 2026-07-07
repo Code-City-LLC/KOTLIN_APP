@@ -111,7 +111,7 @@ private const val FALLBACK_ADDRESS_LINE1 = "6175 NW 167th Street, Unit G36"
 private const val FALLBACK_CITY = "Hialeah"
 private const val FALLBACK_STATE = "Florida"
 private const val FALLBACK_PHONE = "1(954)508-1797"
-private const val ACTIVE_TYPE_TAB_FILL_ALPHA = 0.18f
+private const val ACTIVE_TYPE_TAB_FILL_ALPHA = 0.32f
 
 @Composable
 fun WarehousesScreen(
