@@ -33,12 +33,17 @@ android {
             applicationIdSuffix = ".staging"
             buildConfigField("String", "API_BASE_URL", "\"https://pre-staging.airdropja.com/api/v1\"")
             buildConfigField("String", "WEB_BASE_URL", "\"https://pre-staging.airdropja.com\"")
+            // Swift Staging.xcconfig LEGACY_BASE_URL — legacy PHP endpoints
+            // (Documents server-generated form downloads).
+            buildConfigField("String", "LEGACY_BASE_URL", "\"https://pre-staging.airdropja.com/airdrop/inc\"")
             buildConfigField("String", "ENV_NAME", "\"Staging\"")
         }
         create("prod") {
             dimension = "env"
             buildConfigField("String", "API_BASE_URL", "\"https://app.airdropja.com/api/v1\"")
             buildConfigField("String", "WEB_BASE_URL", "\"https://airdropja.com\"")
+            // Swift Production.xcconfig LEGACY_BASE_URL.
+            buildConfigField("String", "LEGACY_BASE_URL", "\"https://airdropja.com/airdrop/inc\"")
             buildConfigField("String", "ENV_NAME", "\"Production\"")
         }
     }

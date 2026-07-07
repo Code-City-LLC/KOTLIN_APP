@@ -2,6 +2,8 @@ package com.ga.airdrop.feature.more
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.data.repo.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -54,6 +56,8 @@ val DOCUMENT_SLOTS = listOf(
 
 data class DocumentsUiState(
     val files: Map<String, MoreDocumentFile> = emptyMap(),
+    /** Session user id for the legacy server-generated form downloads. */
+    val legacyUserId: Int? = null,
     val pendingUploads: Map<String, PendingDocumentUpload> = emptyMap(),
     val loading: Boolean = false,
     val refreshing: Boolean = false,
@@ -87,10 +91,22 @@ interface DocumentsRepository {
  */
 class DocumentsViewModel(
     private val repository: DocumentsRepository = MoreRepository(),
+    private val userRepository: UserRepository = UserRepository(ApiClient.service),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DocumentsUiState())
     val state: StateFlow<DocumentsUiState> = _state
+
+    init {
+        // Swift refreshLegacyDownloadUserID: the legacy Contract/1583/Custom
+        // form downloads need the session user id. Non-fatal — on failure the
+        // legacy fallback simply stays unavailable (uploaded files still open).
+        viewModelScope.launch {
+            userRepository.currentUser().onSuccess { user ->
+                _state.update { it.copy(legacyUserId = user.id) }
+            }
+        }
+    }
 
     fun load() {
         if (_state.value.loading || _state.value.refreshing) return
@@ -208,4 +224,21 @@ class DocumentsViewModel(
         _state.update { it.copy(alert = title to message) }
 
     fun dismissAlert() = _state.update { it.copy(alert = null) }
+}
+
+/**
+ * Legacy server-generated form download URL — Swift
+ * FigmaDocumentsViewController.legacyDownloadURL(for:) (:770). Only the first
+ * three slots have server-generated legacy forms; ID Card and TRN return null.
+ * A blank/absent user id returns null (download stays disabled).
+ */
+internal fun legacyDownloadUrl(docType: String, userId: String?, legacyBase: String): String? {
+    val id = userId?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
+    val base = legacyBase.trimEnd('/')
+    return when (docType) {
+        "airdrop_contract" -> "$base/api_download-contract-form.php?user_documenttype=$id"
+        "file_1583" -> "$base/api_download_file_1583.php?user_id=$id"
+        "authorization_form" -> "$base/api_form_authorization.php?user_id=$id"
+        else -> null
+    }
 }

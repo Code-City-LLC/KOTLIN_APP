@@ -96,8 +96,16 @@ fun DocumentsScreen(
     }
 
     fun openFile(slot: DocumentSlot) {
-        val url = state.files[slot.docType]?.fileUrl
-            ?.replaceFirst("http://", "https://")
+        // Uploaded file wins; else the legacy server-generated form (Swift
+        // onDownloadTapped :756 — file?.fileURL ?? legacyDownloadURL(slot)).
+        val url = (
+            state.files[slot.docType]?.fileUrl
+                ?: legacyDownloadUrl(
+                    docType = slot.docType,
+                    userId = state.legacyUserId?.toString(),
+                    legacyBase = com.ga.airdrop.BuildConfig.LEGACY_BASE_URL,
+                )
+            )?.replaceFirst("http://", "https://")
         if (url.isNullOrBlank()) {
             viewModel.showAlert(
                 "Not available",
@@ -146,6 +154,11 @@ fun DocumentsScreen(
                         DocumentCard(
                             slot = slot,
                             file = state.files[slot.docType],
+                            legacyDownloadAvailable = legacyDownloadUrl(
+                                docType = slot.docType,
+                                userId = state.legacyUserId?.toString(),
+                                legacyBase = com.ga.airdrop.BuildConfig.LEGACY_BASE_URL,
+                            ) != null,
                             pendingUpload = state.pendingUploads[slot.docType],
                             uploading = state.uploadingType == slot.docType,
                             onInfo = { infoSlot = slot },
@@ -212,6 +225,7 @@ fun DocumentsScreen(
 internal fun DocumentCard(
     slot: DocumentSlot,
     file: MoreDocumentFile?,
+    legacyDownloadAvailable: Boolean = false,
     pendingUpload: PendingDocumentUpload? = null,
     uploading: Boolean,
     onInfo: () -> Unit,
@@ -298,7 +312,8 @@ internal fun DocumentCard(
                 SplitAction(
                     iconRes = R.drawable.ic_download_file,
                     label = "Download",
-                    enabled = !file?.fileUrl.isNullOrBlank(),
+                    // Swift :497 — uploaded file OR a legacy server form.
+                    enabled = !file?.fileUrl.isNullOrBlank() || legacyDownloadAvailable,
                     onClick = onDownload,
                     modifier = Modifier.weight(1f),
                 )
