@@ -235,7 +235,7 @@ fun ShopSearchField(
     }
 }
 
-/* ─── Product card — Figma "Item Static" (ProductHighlightCard pattern) ── */
+/* ─── Product card — Swift Home auction-highlight card pattern ─────────── */
 
 @Composable
 fun ShopProductCard(
@@ -246,101 +246,87 @@ fun ShopProductCard(
     // to hide the affordance entirely.
     onToggleCart: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    // Swift Shop-root cards use a 1-line title + 15pt/10 insets; grid/list
-    // cells use a 2-line title + 12x10/6 insets. All cards are fixed 245pt.
+    // Kept for call-site compatibility; the requested card treatment is the
+    // Swift Home auction-highlight box across Shop root/list/related products.
     titleLines: Int = 2,
     rootInsets: Boolean = false,
 ) {
     val colors = AirdropTheme.colors
-    Column(
+    Box(
         modifier = modifier
             .height(245.dp)
-            .clip(RoundedCornerShape(Radius.s))
-            .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.gray150)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(135.dp)
-                .clip(RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
-                .background(colors.gray150)
-                .border(1.dp, colors.iconShape, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s))
-                // Swift: 11pt vertical inset → 113pt-tall image in the 135
-                // frame (the old 30dp inset shrank photos to ~75dp).
-                .padding(horizontal = Spacing.md, vertical = 11.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            var failed by remember(product.imageUrl) {
-                mutableStateOf(product.imageUrl.isNullOrBlank())
-            }
-            if (failed) {
-                // Swift: gray400-tinted airplane glyph placeholder.
-                Image(
-                    painter = painterResource(R.drawable.ic_standard_shipping),
-                    contentDescription = product.title,
-                    colorFilter = ColorFilter.tint(colors.gray400),
-                    modifier = Modifier.size(64.dp),
-                    contentScale = ContentScale.Fit,
-                )
-            } else {
-                AsyncImage(
-                    model = product.imageUrl,
-                    contentDescription = product.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit,
-                    onError = { failed = true },
-                )
-            }
-        }
-        val textHPad = if (rootInsets) 15.dp else 12.dp
-        val textTopPad = if (rootInsets) 15.dp else 10.dp
-        val textSpacing = if (rootInsets) 10.dp else 6.dp
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = textHPad, end = textHPad, top = textTopPad, bottom = textHPad),
-            verticalArrangement = Arrangement.spacedBy(textSpacing),
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(124.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colors.gray200)
+                    .testTag("shop-product-card-image"),
+                contentAlignment = Alignment.Center,
+            ) {
+                var failed by remember(product.imageUrl) {
+                    mutableStateOf(product.imageUrl.isNullOrBlank())
+                }
+                if (failed) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_standard_shipping),
+                        contentDescription = product.title,
+                        colorFilter = ColorFilter.tint(colors.gray400),
+                        modifier = Modifier.size(64.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                } else {
+                    AsyncImage(
+                        model = product.imageUrl,
+                        contentDescription = product.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        onError = { failed = true },
+                    )
+                }
+            }
             Text(
                 text = product.title,
-                style = AirdropType.body2,
+                style = AirdropType.body3,
                 color = colors.textDarkTitle,
-                minLines = titleLines,
-                maxLines = titleLines,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            Text(
+                text = formatUsd(product.priceUsd),
+                style = AirdropType.title2,
+                color = colors.buttonStatic,
+            )
+        }
+        if (onToggleCart != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 10.dp, bottom = 16.dp)
+                    .size(34.dp)
+                    .testTag("shop-product-card-cart-toggle")
+                    .clickable(onClick = onToggleCart),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = formatUsd(product.priceUsd),
-                    style = AirdropType.title2,
-                    color = BrandPalette.OrangeMain,
+                Image(
+                    painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
+                    contentDescription = if (inCart) "Remove from cart" else "Add to cart",
+                    colorFilter = ColorFilter.tint(
+                        if (inCart) colors.orangeMain else colors.textDarkTitle
+                    ),
+                    modifier = Modifier.size(24.dp),
                 )
-                if (onToggleCart != null) {
-                    if (inCart) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_check_box),
-                            contentDescription = "Remove from cart",
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clickable(onClick = onToggleCart),
-                        )
-                    } else {
-                        Image(
-                            painter = painterResource(R.drawable.ic_add),
-                            contentDescription = "Add to cart",
-                            colorFilter = ColorFilter.tint(colors.iconSelected),
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clickable(onClick = onToggleCart),
-                        )
-                    }
-                }
             }
         }
     }

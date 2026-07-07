@@ -1,7 +1,9 @@
 package com.ga.airdrop.feature.shop
 
+import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -205,6 +207,7 @@ class ShopRootScreenParityTest {
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        saveScreenshotToMediaStore(bitmap, filename)
     }
 
     private fun screenshotDir(): File {
@@ -214,6 +217,35 @@ class ShopRootScreenParityTest {
         )
         dir.mkdirs()
         return dir
+    }
+
+    private fun saveScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val relativePath = "Pictures/kotlin_ui_proof/shop_root_swift_figma/"
+        runCatching {
+            context.contentResolver.delete(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
+                arrayOf(filename, relativePath),
+            )
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        runCatching {
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return
+            val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+            outputStream.use { output ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(uri, values, null, null)
+        }
     }
 
     private class FakeShopProductsRepository : ShopProductsRepository {

@@ -499,7 +499,9 @@ private fun DetailsContent(
                             inCart = cartIds.contains(item.id),
                             onClick = { onRelatedClick(item) },
                             onToggleCart = { onRelatedToggleCart(item) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("auction-related-card-${item.id}"),
                         )
                     }
                     if (related.size == 1) {
@@ -510,7 +512,11 @@ private fun DetailsContent(
         }
 
         // Tail spacer — Swift :242-245.
-        Spacer(Modifier.height(80.dp))
+        Spacer(
+            Modifier
+                .height(80.dp)
+                .testTag("auction-details-bottom-spacer")
+        )
     }
 }
 

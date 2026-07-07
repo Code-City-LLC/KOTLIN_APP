@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.shop
 
+import android.content.ContentValues
 import android.graphics.Bitmap
+import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -61,6 +63,32 @@ class AuctionProductDetailsRelatedParityTest {
         compose.onNodeWithText("View More").performScrollTo().performClick()
 
         assertEquals(listOf(Routes.AUCTION), navigations)
+    }
+
+    @Test
+    fun auctionModeRelatedProductsUseSharedShopCardBox() {
+        val related = listOf(
+            SampleProduct.copy(id = 7101, slug = "swift-related-card-one", title = "Related Card One"),
+            SampleProduct.copy(id = 7102, slug = "swift-related-card-two", title = "Related Card Two"),
+        )
+
+        setDetailsContent(featured = false, related = related, navigations = mutableListOf())
+
+        waitForDetails()
+        compose.onNodeWithText("Related Products").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("auction-related-card-7101").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("auction-related-card-7102").assertIsDisplayed()
+
+        val first = compose.onNodeWithTag("auction-related-card-7101").getUnclippedBoundsInRoot()
+        val second = compose.onNodeWithTag("auction-related-card-7102").getUnclippedBoundsInRoot()
+        assertClose(245f, boundsHeight(first), "Related product shared card height")
+        assertTrue(
+            "Related product cards should render side-by-side",
+            second.left.value > first.left.value + 40f &&
+                kotlin.math.abs(second.top.value - first.top.value) <= 1.5f,
+        )
+        compose.onNodeWithTag("auction-details-bottom-spacer").performScrollTo()
+        saveRootScreenshot("auction_related_products_shared_card_light.png")
     }
 
     @Test
@@ -237,6 +265,7 @@ class AuctionProductDetailsRelatedParityTest {
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        saveScreenshotToMediaStore(bitmap, filename)
     }
 
     private fun screenshotDir(): File {
@@ -246,6 +275,35 @@ class AuctionProductDetailsRelatedParityTest {
         )
         dir.mkdirs()
         return dir
+    }
+
+    private fun saveScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val relativePath = "Pictures/kotlin_ui_proof/auction_related_empty/"
+        runCatching {
+            context.contentResolver.delete(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
+                arrayOf(filename, relativePath),
+            )
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        runCatching {
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return
+            val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+            outputStream.use { output ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(uri, values, null, null)
+        }
     }
 
     private fun boundsHeight(bounds: DpRect): Float = (bounds.bottom - bounds.top).value

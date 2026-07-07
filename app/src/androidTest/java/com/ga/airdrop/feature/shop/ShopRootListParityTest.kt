@@ -56,7 +56,7 @@ class ShopRootListParityTest {
     }
 
     @Test
-    fun productListCardUsesSwiftTwoLineTitleAndFixedHeight() {
+    fun productListCardUsesSharedHomeAuctionBoxGeometry() {
         setCardContent(
             tag = "product-list-card",
             titleLines = 2,
@@ -64,17 +64,24 @@ class ShopRootListParityTest {
         )
 
         compose.onNodeWithTag("product-list-card").assertIsDisplayed()
-        assertClose(
-            expected = 245f,
-            actual = boundsHeight(compose.onNodeWithTag("product-list-card").getUnclippedBoundsInRoot()),
-            label = "Swift product-list card height",
-        )
+        val card = compose.onNodeWithTag("product-list-card").getUnclippedBoundsInRoot()
+        val image = compose.onNodeWithTag("shop-product-card-image", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        val cart = compose.onNodeWithTag("shop-product-card-cart-toggle", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+
+        assertClose(160f, boundsWidth(card), "shared Shop product card width")
+        assertClose(245f, boundsHeight(card), "shared Shop product card height")
+        assertClose(124f, boundsHeight(image), "shared Shop product image height")
+        assertClose(34f, boundsWidth(cart), "shared Shop cart toggle width")
+        assertClose(34f, boundsHeight(cart), "shared Shop cart toggle height")
+
         val titleHeight = boundsHeight(
             compose.onNodeWithText(LongTitle, useUnmergedTree = true).getUnclippedBoundsInRoot(),
         )
         assertTrue(
-            "Swift product-list card should reserve two visible title lines",
-            titleHeight in 44f..56f,
+            "Shop product cards should now use the Home auction-highlight one-line title",
+            titleHeight < 32f,
         )
     }
 
