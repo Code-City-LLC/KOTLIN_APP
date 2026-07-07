@@ -39,6 +39,7 @@ class SettingsViewModel(
         com.ga.airdrop.feature.cart.SavedForLaterStore.clearAll()
         // Swift FigmaCalculatorHistory.removeAll() is wired to Settings → Clear Cache.
         com.ga.airdrop.feature.calculator.CalculatorHistory.clear()
+        com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
         sweepCachePrefs(context)
         _state.update { it.copy(cacheCleared = true) }
     }

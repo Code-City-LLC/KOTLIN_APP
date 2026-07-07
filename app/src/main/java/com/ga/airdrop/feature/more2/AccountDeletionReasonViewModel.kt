@@ -83,6 +83,7 @@ class AccountDeletionReasonViewModel(
                     com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
                     com.ga.airdrop.core.push.QuietHoursStore.clear(appContext)
                     com.ga.airdrop.core.security.BiometricGate.reset()
+                    com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
                     BackgroundStore.clear(appContext)
                     AccountDeletionFlow.clear()
                     _state.update { it.copy(deleting = false, deleted = true) }
