@@ -23,6 +23,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +35,9 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -42,7 +49,17 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.feature.homedetails.components.CopiedToastPill
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
+import kotlinx.coroutines.delay
+
+/** Swift FigmaServicesViewController.onCopy (:174-178) — the fixed 3-line
+ *  service-info block copied by the header copy button, verbatim. */
+private val SERVICE_COPY_TEXT = listOf(
+    "Fast, secure, and reliable delivery services across Jamaica and beyond.",
+    "Order online anytime with AirDrop and skip the long drives to the store.",
+    "Shop Tax Free in Thousands of Stores.",
+).joinToString("\n")
 
 /**
  * Services — behavior/copy from FigmaServicesViewController (RN ServicesView
@@ -87,13 +104,36 @@ private val customerPhotos = listOf(
 @Composable
 fun ServicesScreen(onBack: () -> Unit) {
     val colors = AirdropTheme.colors
+    val clipboard = LocalClipboardManager.current
+    var toast by remember { mutableStateOf<String?>(null) }
 
+    if (toast != null) {
+        LaunchedEffect(toast) {
+            delay(2000)
+            toast = null
+        }
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(colors.gray150),
+    ) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(colors.gray150)
     ) {
-        HomeDetailsHeader(title = "Services", onBack = onBack)
+        HomeDetailsHeader(
+            title = "Services",
+            onBack = onBack,
+            // Swift figma.services.copy — copies the 3-line service info block.
+            trailingIconRes = R.drawable.ic_copy,
+            trailingContentDescription = "Copy service information",
+            onTrailingClick = {
+                clipboard.setText(AnnotatedString(SERVICE_COPY_TEXT))
+                toast = "Content Copied"
+            },
+        )
 
         Column(
             Modifier
@@ -124,6 +164,16 @@ fun ServicesScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(Spacing.md)) // lg gap before the benefits card
             BenefitsCard()
             Spacer(Modifier.height(Spacing.xxxl))
+        }
+    }
+
+        toast?.let {
+            CopiedToastPill(
+                text = it,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 120.dp),
+            )
         }
     }
 }
