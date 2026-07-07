@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -38,7 +39,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -397,4 +401,129 @@ internal fun More2Alert(
             }
         },
     )
+}
+
+/** Swift FigmaDropdownPicker counterpart for More2 read-only selector fields. */
+@Composable
+internal fun More2PickerSheet(
+    title: String,
+    options: List<String>,
+    selected: String?,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AirdropTheme.colors
+    val cardShape = RoundedCornerShape(24.dp)
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier
+                .fillMaxSize()
+                .testTag("more2-picker-sheet"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color.Black.copy(alpha = if (colors.isDark) 0.12f else 0.20f)
+                    )
+                    .clickable(onClick = onDismiss)
+            )
+
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .widthIn(max = 343.dp)
+                    .clip(cardShape)
+                    .background(
+                        if (colors.isDark) {
+                            colors.gray100.copy(alpha = 0.92f)
+                        } else {
+                            Color.White.copy(alpha = 0.92f)
+                        }
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (colors.isDark) {
+                            Color.White.copy(alpha = 0.18f)
+                        } else {
+                            Color.White.copy(alpha = 0.70f)
+                        },
+                        shape = cardShape,
+                    )
+                    .padding(top = 20.dp, start = 10.dp, end = 10.dp, bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = title,
+                    style = AirdropType.subtitle1,
+                    color = colors.textDarkTitle,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .testTag("more2-picker-title"),
+                )
+
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                ) {
+                    options.forEach { option ->
+                        val selectedOption = option == selected
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (selectedOption) {
+                                        BrandPalette.OrangeMain.copy(alpha = 0.09f)
+                                    } else {
+                                        Color.Transparent
+                                    }
+                                )
+                                .clickable {
+                                    onSelect(option)
+                                    onDismiss()
+                                }
+                                .padding(horizontal = 20.dp)
+                                .testTag(
+                                    "more2-picker-option-${
+                                        option.filter { it.isLetterOrDigit() }.lowercase()
+                                    }"
+                                ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = option,
+                                style = AirdropType.subtitle1,
+                                color = if (selectedOption) {
+                                    BrandPalette.OrangeMain
+                                } else {
+                                    colors.textDarkTitle
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (selectedOption) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_check),
+                                    contentDescription = null,
+                                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

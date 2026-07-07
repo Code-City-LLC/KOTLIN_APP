@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,7 +32,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
-import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
@@ -109,46 +105,24 @@ fun AddAuthorizedUserScreen(
                     )
                 }
 
-                Box {
-                    More2Field(
-                        label = "Identity Type",
-                        value = state.idType,
-                        onValueChange = {},
-                        fieldTag = "add-authorized-user-id-type-input",
-                        cardTag = "add-authorized-user-id-type-card",
-                        placeholder = "Select identity type",
-                        required = true,
-                        onClick = { idTypeMenuOpen = true },
-                        trailing = {
-                            Image(
-                                painter = painterResource(R.drawable.ic_chevron),
-                                contentDescription = null,
-                                colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                                modifier = Modifier.size(20.dp),
-                            )
-                        },
-                    )
-                    DropdownMenu(
-                        expanded = idTypeMenuOpen,
-                        onDismissRequest = { idTypeMenuOpen = false },
-                    ) {
-                        ID_TYPE_OPTIONS.forEach { option ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = option,
-                                        style = AirdropType.body1,
-                                        color = colors.textDarkTitle,
-                                    )
-                                },
-                                onClick = {
-                                    viewModel.onIdType(option)
-                                    idTypeMenuOpen = false
-                                },
-                            )
-                        }
-                    }
-                }
+                More2Field(
+                    label = "Identity Type",
+                    value = state.idType,
+                    onValueChange = {},
+                    fieldTag = "add-authorized-user-id-type-input",
+                    cardTag = "add-authorized-user-id-type-card",
+                    placeholder = "Select identity type",
+                    required = true,
+                    onClick = { idTypeMenuOpen = true },
+                    trailing = {
+                        Image(
+                            painter = painterResource(R.drawable.ic_chevron),
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                )
 
                 More2Field(
                     label = "Identification Number",
@@ -212,6 +186,18 @@ fun AddAuthorizedUserScreen(
     }
     state.error?.let { message ->
         More2Alert(title = "Error", message = message, onDismiss = viewModel::dismissError)
+    }
+    if (idTypeMenuOpen) {
+        More2PickerSheet(
+            title = "Identity Type",
+            options = ID_TYPE_OPTIONS,
+            selected = state.idType,
+            onSelect = { option ->
+                viewModel.onIdType(option)
+                idTypeMenuOpen = false
+            },
+            onDismiss = { idTypeMenuOpen = false },
+        )
     }
 }
 

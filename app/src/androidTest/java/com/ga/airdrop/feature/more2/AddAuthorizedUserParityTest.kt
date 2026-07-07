@@ -78,6 +78,21 @@ class AddAuthorizedUserParityTest {
     }
 
     @Test
+    fun idTypeFieldUsesSwiftPickerSheet() {
+        val api = FakeMore2Api()
+        setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("add-authorized-user-id-type-card").performClick()
+        compose.onNodeWithTag("more2-picker-sheet").assertIsDisplayed()
+        compose.onNodeWithTag("more2-picker-title").assertIsDisplayed()
+        saveDeviceScreenshot("add_authorized_user_id_picker_sheet_light.png")
+        compose.onNodeWithTag("more2-picker-option-passport").performClick()
+
+        compose.waitForIdle()
+        compose.onNodeWithText("Passport").assertIsDisplayed()
+    }
+
+    @Test
     fun addModePostsSwiftPayloadAndPops() {
         val api = FakeMore2Api()
         setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
@@ -232,11 +247,20 @@ class AddAuthorizedUserParityTest {
 
     private fun saveRootScreenshot(filename: String) {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        saveScreenshotBitmap(bitmap, filename)
+    }
+
+    private fun saveScreenshotBitmap(bitmap: Bitmap, filename: String) {
         val output = File(screenshotDir(), filename)
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
         saveRootScreenshotToMediaStore(bitmap, filename)
+    }
+
+    private fun saveDeviceScreenshot(filename: String) {
+        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        saveScreenshotBitmap(bitmap, filename)
     }
 
     private fun screenshotDir(): File =
