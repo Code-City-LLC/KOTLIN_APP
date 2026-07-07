@@ -28,6 +28,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
         BiometricGate.init(this)
         CalculatorHistory.init(this)
         com.ga.airdrop.core.prefs.ExchangeRateStore.init(this)
+        com.ga.airdrop.core.push.PushDeepLink.init(this)
         DropAlertPreset.init(this)
         ShopRecentSearches.init(this)
         PackagesSortStore.init(this)

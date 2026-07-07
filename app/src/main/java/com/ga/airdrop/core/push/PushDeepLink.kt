@@ -1,26 +1,55 @@
 package com.ga.airdrop.core.push
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import com.ga.airdrop.core.navigation.Routes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Pending push navigation, consumed by AppRoot once the nav graph is up.
- * Android counterpart of FigmaRouteResolver.push(route:referenceID:) plus
- * SceneDelegate's payment-return URL handling (Stripe hosted-checkout
- * redirects back via `airdrop://payment-success?session_id=…`).
+ * Pending push navigation, consumed by AppRoot once the nav graph is up (and
+ * only once a bearer exists — pushes tapped while logged out replay after
+ * login). Android counterpart of FigmaRouteResolver.push(route:referenceID:)
+ * plus SceneDelegate's payment-return URL handling.
+ *
+ * The pending route is ALSO persisted (Swift AirdropPushNotificationRouter
+ * parity): a push tapped on a logged-out device must survive the process
+ * being killed during the login flow. Swift keeps such routes for 30 minutes;
+ * the same staleness window applies here.
  */
 object PushDeepLink {
+
+    private const val PREFS = "push_deeplink"
+    private const val KEY_ROUTE = "pendingRoute"
+    private const val KEY_AT = "pendingAt"
+
+    /** Swift AppDelegate staleness window — 30 minutes. */
+    private const val STALE_MS = 30L * 60 * 1000
+
+    private var prefs: SharedPreferences? = null
 
     private val _pending = MutableStateFlow<String?>(null)
     val pending: StateFlow<String?> = _pending
 
+    /** Restore a persisted (non-stale) pending route on cold start. */
+    fun init(context: Context) {
+        prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val store = prefs ?: return
+        val route = store.getString(KEY_ROUTE, null) ?: return
+        val at = store.getLong(KEY_AT, 0L)
+        if (System.currentTimeMillis() - at <= STALE_MS) {
+            _pending.value = route
+        } else {
+            store.edit().remove(KEY_ROUTE).remove(KEY_AT).apply()
+        }
+    }
+
     fun capture(intent: Intent?) {
         val route = intent?.getStringExtra(AirdropMessagingService.EXTRA_ROUTE) ?: return
         val referenceId = intent.getStringExtra(AirdropMessagingService.EXTRA_REFERENCE_ID)
-        _pending.value = resolve(route, referenceId)
+        setPending(resolve(route, referenceId))
     }
 
     /**
@@ -30,10 +59,21 @@ object PushDeepLink {
      */
     fun captureUri(intent: Intent?) {
         val uri = intent?.data ?: return
-        resolveUri(uri)?.let { _pending.value = it }
+        resolveUri(uri)?.let(::setPending)
     }
 
-    fun consume(): String? = _pending.value.also { _pending.value = null }
+    fun consume(): String? = _pending.value.also {
+        _pending.value = null
+        prefs?.edit()?.remove(KEY_ROUTE)?.remove(KEY_AT)?.apply()
+    }
+
+    private fun setPending(route: String) {
+        _pending.value = route
+        prefs?.edit()
+            ?.putString(KEY_ROUTE, route)
+            ?.putLong(KEY_AT, System.currentTimeMillis())
+            ?.apply()
+    }
 
     /** airdrop://payment-success?session_id=… → nav route, else null. */
     internal fun resolveUri(uri: Uri): String? {
@@ -47,22 +87,12 @@ object PushDeepLink {
         }
     }
 
-    /** Maps the RN/Swift route names carried by pushes to nav destinations. */
-    private fun resolve(route: String, referenceId: String?): String = when (route) {
-        "PackageDetailsView", "packageDetails" ->
-            referenceId?.let { Routes.packageDetails(it) } ?: Routes.PACKAGES
-        "PackagesView", "packages" -> Routes.PACKAGES
-        "PaymentsView", "payments" -> Routes.PAYMENTS
-        "OrdersView", "orders" -> Routes.ORDERS
-        "NotificationsView", "notifications" -> Routes.NOTIFICATIONS
-        "ShopView", "shop" -> Routes.SHOP
-        "CartView", "cart" -> Routes.CART
-        "AirCoinView", "airCoins" -> Routes.AIRCOIN_HISTORY
-        "ReferView", "Refer", "refer", "referAFriend" ->
-            Routes.REFER_A_FRIEND
-        "ReferredFriendsView", "ReferredFriends", "referredFriends" -> Routes.REFERRED_FRIENDS
-        "InviteFriendView", "InviteFriend", "inviteFriend" -> Routes.INVITE_FRIEND
-        "PromotionsView", "promotions" -> Routes.PROMOTIONS
-        else -> Routes.NOTIFICATIONS
-    }
+    /**
+     * Delegates to the app's single route resolver (the same map notification
+     * taps use) — the old private 13-route copy silently dead-ended every
+     * other Swift route on Notifications (round-3 sweep).
+     */
+    private fun resolve(route: String, referenceId: String?): String =
+        com.ga.airdrop.feature.homedetails.resolveNotificationRoute(route, referenceId)
+            ?: Routes.NOTIFICATIONS
 }

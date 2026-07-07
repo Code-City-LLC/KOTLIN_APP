@@ -84,6 +84,12 @@ class SettingsViewModel(
         com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
         com.ga.airdrop.feature.shop.ShopCheckoutStore.product = null
         com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
+        // Swift wipeDeviceSessionArtifacts parity: delete the FCM token so this
+        // device stops receiving the logged-out account's pushes. Fire-and-forget
+        // — Firebase may be uninitialised in test builds.
+        runCatching {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().deleteToken()
+        }
         // User-scoped persisted stores (Swift AirdropSessionTeardown parity —
         // the next account must not inherit the prior user's data).
         com.ga.airdrop.feature.calculator.CalculatorHistory.clear()

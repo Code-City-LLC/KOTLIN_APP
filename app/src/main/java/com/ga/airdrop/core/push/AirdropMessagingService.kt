@@ -43,12 +43,23 @@ class AirdropMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // Swift AirdropPushNotificationRouter parses deep fallback chains for
+        // every field — a payload keyed "message"/"screen"/"package_id" must
+        // not lose its title/body/route/reference on Android (round-3 sweep).
+        fun data(vararg keys: String): String? =
+            keys.firstNotNullOfOrNull { key -> message.data[key]?.takeIf { it.isNotBlank() } }
         val title = message.notification?.title
-            ?: message.data["title"]
+            ?: data("title", "notification_title", "message_title")
             ?: getString(R.string.app_name)
-        val body = message.notification?.body ?: message.data["body"] ?: return
-        val route = message.data["route"]
-        val referenceId = message.data["referenceID"] ?: message.data["reference_id"]
+        val body = message.notification?.body
+            ?: data("body", "message", "description", "message_description")
+            ?: return
+        val route = data("route", "screen", "navigate_to", "deep_link")
+        val referenceId = data(
+            "referenceID", "reference_id", "referenceId",
+            "package_id", "packageId", "packageID",
+            "tracking_code", "courier_number",
+        )
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP

@@ -188,6 +188,23 @@ private fun resolveNotificationRoute(
         "PromotionsView" -> Routes.PROMOTIONS
         "DocumentsView", "DocumentDownloadingView" -> Routes.DOCUMENTS
         "AuthorizedUsersView" -> Routes.AUTHORIZED_USERS
+        // Swift FigmaRouteViewController routes previously missing here — a
+        // push tap to any of these dead-ended on Android (round-3 sweep).
+        "AddAuthorizedUserView" -> Routes.addAuthorizedUser()
+        "AuthorizedUserDetailView" ->
+            if (ref.isNotEmpty()) Routes.authorizedUserDetail(ref) else Routes.AUTHORIZED_USERS
+        "BackgroundImagesView", "Backgrounds" -> Routes.BACKGROUNDS
+        "DeliveryMethodView", "DeliveryMethod" -> Routes.DELIVERY_METHOD
+        "LiveAgentChatView" -> Routes.LIVE_CHAT
+        "PaymentMethodsView", "PaymentMethods" -> Routes.PAYMENT_METHODS
+        "PaymentPackageDetailsView" ->
+            if (ref.isNotEmpty()) Routes.paymentPackageDetails(ref) else Routes.PAYMENTS
+        "ProductPaymentDetailsView" ->
+            if (ref.isNotEmpty()) Routes.productPaymentDetails(ref) else Routes.PAYMENTS
+        // Swift's timeline screen lives inside the payment package details on
+        // Android — nearest equivalent destination.
+        "PaymentShipmentTimelineScreen", "PackageHistoryView" ->
+            if (ref.isNotEmpty()) Routes.paymentPackageDetails(ref) else Routes.PAYMENTS
         "SettingsView" -> Routes.SETTINGS
         "ShippingRatesView" -> Routes.SHIPPING_RATES
         "RestrictedItemsView", "RestrictedItemsScreenView", "RestrictedItemsInfoView" ->
