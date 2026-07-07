@@ -183,6 +183,9 @@ class PackageDetailsViewModel(
 
     fun showCifInfo(show: Boolean) = _state.update { it.copy(showCifInfo = show) }
 
+    fun showTransientMessage(message: String) =
+        _state.update { it.copy(transientMessage = message) }
+
     fun showReportDamageSheet(show: Boolean) =
         _state.update { it.copy(showReportDamageSheet = show, damageReportError = null) }
 

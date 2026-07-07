@@ -87,6 +87,32 @@ class PackageDetailsParityTest {
     }
 
     @Test
+    fun invoiceUploadUsesSwiftSourceSheetAndCorrectFormatCopy() {
+        setPackageDetailsContent(ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithText("PDF and image files (JPG, PNG, GIF, BMP, WEBP) are allowed")
+            .performScrollTo()
+            .assertIsDisplayed()
+        assertEquals(
+            "Swift origin/main removed the stale doc/docx/html promise from the upload helper copy",
+            0,
+            compose.onAllNodesWithText(
+                "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
+                    "Only the following formats are allowed: pdf, jpg, bmp, png, doc, docx html.",
+            ).fetchSemanticsNodes().size,
+        )
+
+        compose.onNodeWithTag("package-details-upload-invoice-zone")
+            .performScrollTo()
+            .performClick()
+        compose.onNodeWithTag("upload-source-sheet").assertIsDisplayed()
+        compose.onNodeWithTag("upload-source-file").assertIsDisplayed()
+        compose.onNodeWithTag("upload-source-photo").assertIsDisplayed()
+        compose.onNodeWithTag("upload-source-camera").assertIsDisplayed()
+        compose.onNodeWithTag("upload-source-cancel").assertIsDisplayed()
+    }
+
+    @Test
     fun invoiceDeleteRemainsAvailableBeforeReadyForPickup() {
         setPackageDetailsContent(
             mode = ThemeController.Mode.LIGHT,

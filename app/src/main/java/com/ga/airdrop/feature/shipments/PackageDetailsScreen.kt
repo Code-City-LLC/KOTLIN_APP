@@ -37,6 +37,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +65,8 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.feature.common.AirdropUploadSourceConfig
+import com.ga.airdrop.feature.common.AirdropUploadSourceSheet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -87,22 +92,7 @@ fun PackageDetailsScreen(
     val detail = state.detail
     val method = ShipmentMethodUi.from(detail?.shippingMethod)
     val detailBrandTitle = packageDetailsBrandTitle(method)
-
-    val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        // Read each selected file off the main thread to avoid an ANR; the
-        // resolver + Uris are safe to touch from IO. uploadInvoices does its
-        // own viewModelScope.launch + thread-safe StateFlow.update.
-        viewModel.viewModelScope.launch(Dispatchers.IO) {
-            val files = uris.mapNotNull { uri ->
-                readPickedPackageFile(context, uri, fallbackName = "invoice")?.let {
-                    InvoiceUploadFile(fileName = it.fileName, mimeType = it.mimeType, bytes = it.bytes)
-                }
-            }
-            viewModel.uploadInvoices(files)
-        }
-    }
+    var showInvoiceSourcePicker by remember { mutableStateOf(false) }
 
     val damagePhotoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -182,9 +172,7 @@ fun PackageDetailsScreen(
                         else -> PackageDetailsContent(
                             state = state,
                             detail = detail,
-                            onPickFiles = {
-                                filePicker.launch(arrayOf("application/pdf", "image/*"))
-                            },
+                            onPickFiles = { showInvoiceSourcePicker = true },
                             onViewInvoice = { doc ->
                                 doc.fullUrl?.let { url ->
                                     onNavigate(Routes.invoiceViewer(url, doc.fileName ?: "Invoice"))
@@ -225,6 +213,32 @@ fun PackageDetailsScreen(
             onBack = onBack,
             modifier = Modifier.align(Alignment.TopCenter),
         )
+
+        if (showInvoiceSourcePicker) {
+            val existingCount = detail?.invoices?.size ?: 0
+            AirdropUploadSourceSheet(
+                config = AirdropUploadSourceConfig(
+                    sheetTitle = "Upload Invoice",
+                    allowedFileExtensions = AirdropUploadSourceConfig.invoiceFileExtensions,
+                    allowsMultipleFileSelection = true,
+                    maxSelectionCount = (3 - existingCount).coerceAtLeast(1),
+                    maxFileBytes = 10 * 1024 * 1024,
+                ),
+                onPicked = { files ->
+                    viewModel.uploadInvoices(
+                        files.map {
+                            InvoiceUploadFile(
+                                fileName = it.fileName,
+                                mimeType = it.mimeType,
+                                bytes = it.bytes,
+                            )
+                        },
+                    )
+                },
+                onFailure = viewModel::showTransientMessage,
+                onDismiss = { showInvoiceSourcePicker = false },
+            )
+        }
 
         if (state.showCifInfo) {
             ShipmentsAlertDialog(
@@ -411,8 +425,8 @@ private fun PackageDetailsContent(
             UploadInvoiceZone(uploading = state.uploading, onClick = onPickFiles)
             Text(
                 text = "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
-                    "Only the following formats are allowed: pdf, jpg, bmp, png, doc, docx html.",
-                // Swift FigmaPackageDetailsViewController.swift:612-613 — Body3.
+                    "Only the following formats are allowed: pdf, jpg, jpeg, png, gif, bmp, webp.",
+                // Swift origin/main corrects the stale Figma/RN doc/docx/html copy.
                 style = AirdropType.body3,
                 color = colors.textDescription,
             )
@@ -707,6 +721,7 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
             .clickable(enabled = !uploading, onClick = onClick)
+            .testTag("package-details-upload-invoice-zone")
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -721,8 +736,8 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                text = "PNG, JPG and PDF files are allowed",
-                // Swift FigmaPackageDetailsViewController.swift:533-537 — Body3.
+                text = "PDF and image files (JPG, PNG, GIF, BMP, WEBP) are allowed",
+                // Swift origin/main states the actual picker-enforced file family.
                 style = AirdropType.body3,
                 color = colors.textDescription,
                 textAlign = TextAlign.Center,

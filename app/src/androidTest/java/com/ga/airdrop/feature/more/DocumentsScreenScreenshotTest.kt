@@ -67,6 +67,25 @@ class DocumentsScreenScreenshotTest {
     }
 
     @Test
+    fun documentCardShowsSwiftPendingUploadBeforeCommit() {
+        setDocumentCard(
+            mode = ThemeController.Mode.LIGHT,
+            file = sampleFile,
+            pendingUpload = PendingDocumentUpload(
+                fileName = "new-trn.jpg",
+                mimeType = "image/jpeg",
+                bytes = ByteArray(2048),
+            ),
+        )
+
+        compose.onNodeWithTag("documents-pending-upload-airdrop_contract").assertIsDisplayed()
+        compose.onNodeWithTag("documents-commit-upload-airdrop_contract").assertIsDisplayed()
+        compose.onNodeWithText("Upload Document").assertIsDisplayed()
+        compose.onNodeWithText("JPG files, 2KB").assertIsDisplayed()
+        saveRootScreenshot("documents_pending_upload_swift_stage.png")
+    }
+
+    @Test
     fun documentsInfoDialogUsesSwiftConfirmLabel() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
@@ -129,12 +148,14 @@ class DocumentsScreenScreenshotTest {
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel = DocumentsViewModel(repository)
-            viewModel.upload(slot, "form-1583.pdf", "application/pdf", bytes)
+            viewModel.stageUpload(slot, "form-1583.pdf", "application/pdf", bytes)
+            viewModel.commitPendingUpload(slot)
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
             repository.uploadCount.get() == 1 &&
                 repository.loadCount.get() == 1 &&
+                viewModel.state.value.pendingUploads["file_1583"] == null &&
                 viewModel.state.value.uploadingType == null &&
                 !viewModel.state.value.loading
         }
@@ -145,6 +166,38 @@ class DocumentsScreenScreenshotTest {
         assertEquals("application/pdf", upload?.mimeType)
         assertArrayEquals(bytes, upload?.bytes)
         assertEquals("Uploaded" to "1583 Form was uploaded.", viewModel.state.value.alert)
+    }
+
+    @Test
+    fun stagedUploadWaitsForExplicitCommitLikeSwift() {
+        val repository = CountingDocumentsRepository()
+        lateinit var viewModel: DocumentsViewModel
+        val slot = DOCUMENT_SLOTS.first { it.docType == "trn" }
+        val bytes = byteArrayOf(7, 7, 7)
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel = DocumentsViewModel(repository)
+            viewModel.stageUpload(slot, "trn-photo.jpg", "image/jpeg", bytes)
+        }
+
+        assertEquals(0, repository.uploadCount.get())
+        assertEquals("trn-photo.jpg", viewModel.state.value.pendingUploads["trn"]?.fileName)
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.commitPendingUpload(slot)
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.uploadCount.get() == 1 &&
+                repository.loadCount.get() == 1 &&
+                viewModel.state.value.pendingUploads["trn"] == null &&
+                viewModel.state.value.uploadingType == null
+        }
+
+        val upload = repository.lastUpload.get()
+        assertEquals("trn", upload?.docType)
+        assertEquals("trn-photo.jpg", upload?.fileName)
+        assertEquals("image/jpeg", upload?.mimeType)
+        assertArrayEquals(bytes, upload?.bytes)
     }
 
     @Test
@@ -212,6 +265,7 @@ class DocumentsScreenScreenshotTest {
     private fun setDocumentCard(
         mode: ThemeController.Mode,
         file: MoreDocumentFile?,
+        pendingUpload: PendingDocumentUpload? = null,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -222,6 +276,7 @@ class DocumentsScreenScreenshotTest {
                     DocumentCard(
                         slot = DOCUMENT_SLOTS.first(),
                         file = file,
+                        pendingUpload = pendingUpload,
                         uploading = false,
                         onInfo = {},
                         onDownload = {},

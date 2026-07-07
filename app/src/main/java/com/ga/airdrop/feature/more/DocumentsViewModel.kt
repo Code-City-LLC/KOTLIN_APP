@@ -1,16 +1,11 @@
 package com.ga.airdrop.feature.more
 
-import android.content.ContentResolver
-import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Document slot descriptor — RN DocumentsView DOCUMENTS const, verbatim.
@@ -59,10 +54,17 @@ val DOCUMENT_SLOTS = listOf(
 
 data class DocumentsUiState(
     val files: Map<String, MoreDocumentFile> = emptyMap(),
+    val pendingUploads: Map<String, PendingDocumentUpload> = emptyMap(),
     val loading: Boolean = false,
     val refreshing: Boolean = false,
     val uploadingType: String? = null,
     val alert: Pair<String, String>? = null,
+)
+
+data class PendingDocumentUpload(
+    val fileName: String,
+    val mimeType: String,
+    val bytes: ByteArray,
 )
 
 interface DocumentsRepository {
@@ -121,65 +123,53 @@ class DocumentsViewModel(
         }
     }
 
-    /**
-     * SAF-backed upload — reads the selected file's bytes and display name off
-     * the main thread (avoids ANR), then delegates to the byte-based upload.
-     */
-    fun upload(slot: DocumentSlot, uri: Uri, resolver: ContentResolver) {
-        _state.update { it.copy(uploadingType = slot.docType) }
-        viewModelScope.launch {
-            val read = withContext(Dispatchers.IO) {
-                val bytes = runCatching {
-                    resolver.openInputStream(uri)?.use { it.readBytes() }
-                }.getOrNull() ?: return@withContext null
-                var fileName = "document"
-                runCatching {
-                    resolver.query(uri, null, null, null, null)?.use { cursor ->
-                        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (index >= 0 && cursor.moveToFirst()) fileName = cursor.getString(index)
-                    }
-                }
-                val mime = resolver.getType(uri) ?: "application/octet-stream"
-                Triple(fileName, mime, bytes)
-            }
-            if (read == null) {
-                _state.update {
-                    it.copy(
-                        uploadingType = null,
-                        alert = "Upload failed" to "Could not read the selected file.",
+    fun stageUpload(slot: DocumentSlot, fileName: String, mimeType: String, bytes: ByteArray) {
+        _state.update {
+            it.copy(
+                pendingUploads = it.pendingUploads + (
+                    slot.docType to PendingDocumentUpload(
+                        fileName = fileName,
+                        mimeType = mimeType,
+                        bytes = bytes,
                     )
-                }
-                return@launch
-            }
-            val (fileName, mime, bytes) = read
-            repository.uploadUserDocument(slot.docType, fileName, mime, bytes)
-                .onSuccess {
-                    _state.update {
-                        it.copy(
-                            uploadingType = null,
-                            alert = "Uploaded" to "${slot.title} was uploaded.",
-                        )
-                    }
-                    load()
-                }
-                .onFailure { e ->
-                    _state.update {
-                        it.copy(
-                            uploadingType = null,
-                            alert = "Upload failed" to (e.message ?: "Please try again."),
-                        )
-                    }
-                }
+                    ),
+            )
         }
     }
 
-    fun upload(slot: DocumentSlot, fileName: String, mimeType: String, bytes: ByteArray) {
+    fun clearPendingUpload(slot: DocumentSlot) {
+        _state.update { it.copy(pendingUploads = it.pendingUploads - slot.docType) }
+    }
+
+    fun commitPendingUpload(slot: DocumentSlot) {
+        val upload = _state.value.pendingUploads[slot.docType] ?: return
+        uploadBytes(
+            slot = slot,
+            fileName = upload.fileName,
+            mimeType = upload.mimeType,
+            bytes = upload.bytes,
+            clearPending = true,
+        )
+    }
+
+    private fun uploadBytes(
+        slot: DocumentSlot,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray,
+        clearPending: Boolean,
+    ) {
         _state.update { it.copy(uploadingType = slot.docType) }
         viewModelScope.launch {
             repository.uploadUserDocument(slot.docType, fileName, mimeType, bytes)
                 .onSuccess {
                     _state.update {
                         it.copy(
+                            pendingUploads = if (clearPending) {
+                                it.pendingUploads - slot.docType
+                            } else {
+                                it.pendingUploads
+                            },
                             uploadingType = null,
                             alert = "Uploaded" to "${slot.title} was uploaded.",
                         )

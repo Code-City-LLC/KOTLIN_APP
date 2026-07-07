@@ -1,7 +1,5 @@
 package com.ga.airdrop.feature.more
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,8 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,13 +56,17 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.feature.common.AirdropUploadSourceConfig
+import com.ga.airdrop.feature.common.AirdropUploadSourceSheet
+import java.util.Locale
 
 /**
  * Documents — Figma node 40000975:7748, behavior from
  * FigmaDocumentsViewController: five document slots (title + info circle,
  * description, peach uploaded-file row with trash/eye, Download|Upload
- * split action bar). Upload uses the system document picker (pdf/images);
- * view/download routes through the shared invoice viewer.
+ * split action bar). Upload uses the shared file/photo/camera source sheet
+ * and stages a pending file before explicit commit; view/download routes
+ * through the shared invoice viewer.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +77,6 @@ fun DocumentsScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
-    val context = LocalContext.current
     var uploadSlot by remember { mutableStateOf<DocumentSlot?>(null) }
     var infoSlot by remember { mutableStateOf<DocumentSlot?>(null) }
     var deleteSlot by remember { mutableStateOf<DocumentSlot?>(null) }
@@ -91,16 +93,6 @@ fun DocumentsScreen(
             viewModel.load()
         }
         onDispose { lifecycle.removeObserver(observer) }
-    }
-
-    val documentPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        val slot = uploadSlot
-        uploadSlot = null
-        if (uri == null || slot == null) return@rememberLauncherForActivityResult
-        // Read bytes + display name off the main thread (see ViewModel.upload).
-        viewModel.upload(slot, uri, context.contentResolver)
     }
 
     fun openFile(slot: DocumentSlot) {
@@ -154,17 +146,15 @@ fun DocumentsScreen(
                         DocumentCard(
                             slot = slot,
                             file = state.files[slot.docType],
+                            pendingUpload = state.pendingUploads[slot.docType],
                             uploading = state.uploadingType == slot.docType,
                             onInfo = { infoSlot = slot },
                             onDownload = { openFile(slot) },
                             onView = { openFile(slot) },
                             onDelete = { deleteSlot = slot },
-                            onUpload = {
-                                uploadSlot = slot
-                                documentPicker.launch(
-                                    arrayOf("application/pdf", "image/png", "image/jpeg"),
-                                )
-                            },
+                            onUpload = { uploadSlot = slot },
+                            onClearPendingUpload = { viewModel.clearPendingUpload(slot) },
+                            onCommitPendingUpload = { viewModel.commitPendingUpload(slot) },
                         )
                     }
                     Spacer(Modifier.height(Spacing.md))
@@ -173,6 +163,28 @@ fun DocumentsScreen(
         }
     }
 
+    uploadSlot?.let { slot ->
+        AirdropUploadSourceSheet(
+            config = AirdropUploadSourceConfig(
+                sheetTitle = "Upload ${slot.title}",
+                allowedFileExtensions = AirdropUploadSourceConfig.userDocumentFileExtensions,
+                allowsMultipleFileSelection = false,
+                maxSelectionCount = 1,
+            ),
+            onPicked = { files ->
+                files.firstOrNull()?.let { file ->
+                    viewModel.stageUpload(
+                        slot = slot,
+                        fileName = file.fileName,
+                        mimeType = file.mimeType,
+                        bytes = file.bytes,
+                    )
+                }
+            },
+            onFailure = { message -> viewModel.showAlert("Upload failed", message) },
+            onDismiss = { uploadSlot = null },
+        )
+    }
     infoSlot?.let { slot ->
         MoreAlertDialog(
             title = slot.title,
@@ -200,12 +212,15 @@ fun DocumentsScreen(
 internal fun DocumentCard(
     slot: DocumentSlot,
     file: MoreDocumentFile?,
+    pendingUpload: PendingDocumentUpload? = null,
     uploading: Boolean,
     onInfo: () -> Unit,
     onDownload: () -> Unit,
     onView: () -> Unit,
     onDelete: () -> Unit,
     onUpload: () -> Unit,
+    onClearPendingUpload: () -> Unit = {},
+    onCommitPendingUpload: () -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
     val hasFile = file?.hasFile == true
@@ -302,6 +317,15 @@ internal fun DocumentCard(
                     modifier = Modifier.weight(1f),
                 )
             }
+            pendingUpload?.let { pending ->
+                PendingUploadSection(
+                    file = pending,
+                    uploading = uploading,
+                    onClear = onClearPendingUpload,
+                    onCommit = onCommitPendingUpload,
+                    tagSuffix = slot.docType,
+                )
+            }
         }
     }
 }
@@ -385,6 +409,128 @@ private fun UploadedFileRow(
             }
         }
     }
+}
+
+@Composable
+private fun PendingUploadSection(
+    file: PendingDocumentUpload,
+    uploading: Boolean,
+    onClear: () -> Unit,
+    onCommit: () -> Unit,
+    tagSuffix: String,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("documents-pending-upload-$tagSuffix"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .clip(RoundedCornerShape(Radius.xs))
+                .background(colors.peachLight)
+                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Image(
+                painter = painterResource(
+                    if (file.mimeType == "application/pdf") R.drawable.ic_pdf else R.drawable.ic_document_list,
+                ),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                modifier = Modifier.size(28.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = file.fileName,
+                    style = AirdropType.body2,
+                    color = colors.textDarkTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = uploadSummary(file.mimeType, file.bytes.size),
+                    style = AirdropType.body3,
+                    color = colors.textDescription,
+                    maxLines = 1,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(colors.iconShape)
+                    .clickable(enabled = !uploading, onClick = onClear)
+                    .testTag("documents-clear-pending-$tagSuffix"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_cross),
+                    contentDescription = "Remove selected file",
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(Radius.xs))
+                .background(if (uploading) colors.textPlaceholder else BrandPalette.OrangeMain)
+                .clickable(enabled = !uploading, onClick = onCommit)
+                .testTag("documents-commit-upload-$tagSuffix"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (uploading) "Uploading" else "Upload Document",
+                style = AirdropType.button,
+                color = Color.White,
+            )
+        }
+        if (uploading) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = BrandPalette.OrangeMain,
+                    strokeWidth = 2.dp,
+                )
+                Text(
+                    text = "Uploading, please wait",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                )
+            }
+        }
+    }
+}
+
+private fun uploadSummary(mimeType: String, byteCount: Int): String {
+    val type = when {
+        mimeType.contains("pdf") -> "PDF"
+        mimeType.contains("png") -> "PNG"
+        mimeType.contains("jpeg") || mimeType.contains("jpg") -> "JPG"
+        mimeType.contains("gif") -> "GIF"
+        mimeType.contains("bmp") -> "BMP"
+        mimeType.contains("webp") -> "WEBP"
+        else -> "File"
+    }
+    val bytes = byteCount.toDouble()
+    val size = when {
+        bytes >= 1024 * 1024 -> String.format(Locale.US, "%.1fMB", bytes / (1024 * 1024))
+        bytes >= 1024 -> String.format(Locale.US, "%.0fKB", bytes / 1024)
+        else -> "${byteCount}B"
+    }
+    return "$type files, $size"
 }
 
 @Composable
