@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.shipments
 
 import android.graphics.Bitmap
+import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -29,7 +30,9 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
+import kotlinx.coroutines.delay
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -42,6 +45,7 @@ class PackageDetailsParityTest {
     val compose = createComposeRule()
 
     private lateinit var packagesRepo: FakePackagesRepository
+    private lateinit var packageDetailsViewModel: PackageDetailsViewModel
     private val navigatedRoutes = mutableListOf<String>()
 
     @Test
@@ -125,6 +129,78 @@ class PackageDetailsParityTest {
         compose.onNodeWithText("Delete invoice").assertIsDisplayed()
         compose.onNodeWithText("Delete").performClick()
         compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
+    }
+
+    @Test
+    fun invoiceUploadSilentlyRefreshesAndIgnoresReentry() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
+        )
+        packagesRepo.uploadDelayMs = 350
+
+        val upload = InvoiceUploadFile(
+            fileName = "new-invoice.pdf",
+            mimeType = "application/pdf",
+            bytes = byteArrayOf(1, 2, 3),
+        )
+        compose.runOnUiThread {
+            packageDetailsViewModel.uploadInvoices(listOf(upload))
+            packageDetailsViewModel.uploadInvoices(listOf(upload))
+        }
+
+        SystemClock.sleep(500)
+        assertEquals("Upload re-entry should be ignored while the first upload is in flight", 1, packagesRepo.uploadCalls)
+        assertFalse(packageDetailsViewModel.state.value.uploading)
+        assertFalse(
+            "Invoice mutation refresh should keep existing package content visible instead of full-page loading",
+            packageDetailsViewModel.state.value.loading,
+        )
+        assertTrue(packageDetailsViewModel.state.value.detail?.invoices?.any { it.id == 202 } == true)
+    }
+
+    @Test
+    fun invoiceDeleteShowsRowSpinnerAndRefreshesSilently() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
+        )
+        packagesRepo.deleteDelayMs = 650
+
+        compose.onNodeWithTag("package-details-invoice-delete-101")
+            .performScrollTo()
+            .performClick()
+        compose.onNodeWithText("Delete").performClick()
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            packageDetailsViewModel.state.value.deletingInvoiceId == 101
+        }
+        compose.onNodeWithTag("package-details-invoice-deleting-101")
+            .performScrollTo()
+            .assertIsDisplayed()
+        assertFalse(
+            "Delete mutation should not replace visible package details with a full-page loading state",
+            packageDetailsViewModel.state.value.loading,
+        )
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            packagesRepo.deletedInvoiceIds == listOf(101) &&
+                packageDetailsViewModel.state.value.deletingInvoiceId == null
+        }
+        assertFalse(packageDetailsViewModel.state.value.loading)
+    }
+
+    @Test
+    fun invoiceDeleteGuardUsesDeleteTitle() {
+        setPackageDetailsContent(ThemeController.Mode.LIGHT)
+
+        compose.runOnUiThread {
+            packageDetailsViewModel.requestDeleteInvoice(101)
+        }
+
+        compose.onNodeWithText("Delete invoice").assertIsDisplayed()
+        compose.onNodeWithText("Invoices can still be uploaded, but they cannot be deleted once a package is ready for pickup.")
+            .assertIsDisplayed()
     }
 
     @Test
@@ -253,7 +329,7 @@ class PackageDetailsParityTest {
         }
         navigatedRoutes.clear()
         packagesRepo = FakePackagesRepository(detail)
-        val viewModel = PackageDetailsViewModel(
+        packageDetailsViewModel = PackageDetailsViewModel(
             packageId = "7",
             repo = packagesRepo,
             hubRepo = FakeHubRepository(),
@@ -270,7 +346,7 @@ class PackageDetailsParityTest {
                         packageId = "7",
                         onBack = {},
                         onNavigate = navigatedRoutes::add,
-                        viewModel = viewModel,
+                        viewModel = packageDetailsViewModel,
                     )
                 }
             }
@@ -393,6 +469,10 @@ class PackageDetailsParityTest {
     ) : ShipmentsPackagesRepository {
         val deletedInvoiceIds = mutableListOf<Int>()
         val damageReports = mutableListOf<DamageReportCall>()
+        var uploadCalls = 0
+        var uploadDelayMs = 0L
+        var deleteDelayMs = 0L
+        var packageDetailsDelayMs = 0L
 
         override suspend fun packages(
             page: Int,
@@ -402,14 +482,28 @@ class PackageDetailsParityTest {
             shippingMethod: String?,
         ) = Result.success(Paged(emptyList<ShipmentPackage>()))
 
-        override suspend fun packageDetails(packageId: String) = Result.success(detail)
+        override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> {
+            if (packageDetailsDelayMs > 0) delay(packageDetailsDelayMs)
+            return Result.success(detail)
+        }
 
         override suspend fun packageStatuses() = Result.success(ShipmentStatusCatalog.defaults)
 
-        override suspend fun uploadInvoices(packageId: String, files: List<InvoiceUploadFile>) =
-            Result.success(Unit)
+        override suspend fun uploadInvoices(packageId: String, files: List<InvoiceUploadFile>): Result<Unit> {
+            uploadCalls += 1
+            if (uploadDelayMs > 0) delay(uploadDelayMs)
+            detail = detail.copy(
+                invoices = detail.invoices + PackageInvoiceDoc(
+                    id = 202,
+                    fileName = files.firstOrNull()?.fileName ?: "new-invoice.pdf",
+                    fullUrl = "https://example.test/new-invoice.pdf",
+                ),
+            )
+            return Result.success(Unit)
+        }
 
         override suspend fun deleteInvoice(packageId: String, invoiceId: Int): Result<Unit> {
+            if (deleteDelayMs > 0) delay(deleteDelayMs)
             deletedInvoiceIds += invoiceId
             detail = detail.copy(invoices = detail.invoices.filterNot { it.id == invoiceId })
             return Result.success(Unit)

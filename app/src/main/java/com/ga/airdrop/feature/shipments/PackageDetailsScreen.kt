@@ -283,7 +283,7 @@ fun PackageDetailsScreen(
         }
         state.transientMessage?.let { message ->
             ShipmentsAlertDialog(
-                title = state.transientTitle ?: "Upload Invoice",
+                title = state.transientTitle ?: "Invoice",
                 message = message,
                 confirmText = "OK",
                 onConfirm = viewModel::consumeTransientMessage,
@@ -434,6 +434,7 @@ private fun PackageDetailsContent(
                 InvoiceFileRow(
                     doc = doc,
                     canDelete = canDeleteInvoices,
+                    deleting = state.deletingInvoiceId == doc.id,
                     onView = { onViewInvoice(doc) },
                     onDelete = { onDeleteInvoice(doc.id) },
                 )
@@ -805,6 +806,7 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
 private fun InvoiceFileRow(
     doc: PackageInvoiceDoc,
     canDelete: Boolean,
+    deleting: Boolean,
     onView: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -838,15 +840,25 @@ private fun InvoiceFileRow(
             Text(text = "PDF File", style = AirdropType.body3, color = colors.textPlaceholder)
         }
         if (canDelete) {
-            Image(
-                painter = painterResource(R.drawable.ic_trash),
-                contentDescription = "Delete invoice",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier
-                    .testTag("package-details-invoice-delete-${doc.id}")
-                    .size(24.dp)
-                    .clickable(onClick = onDelete),
-            )
+            if (deleting) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .testTag("package-details-invoice-deleting-${doc.id}")
+                        .size(24.dp),
+                    color = BrandPalette.OrangeMain,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Image(
+                    painter = painterResource(R.drawable.ic_trash),
+                    contentDescription = "Delete invoice",
+                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                    modifier = Modifier
+                        .testTag("package-details-invoice-delete-${doc.id}")
+                        .size(24.dp)
+                        .clickable(onClick = onDelete),
+                )
+            }
         }
         Image(
             painter = painterResource(R.drawable.ic_eye),
