@@ -46,13 +46,13 @@ data class PackageDetailsUiState(
 
     /**
      * Invoice trash gating — parity with Swift FigmaPackageDetailsViewController
-     * .canDeleteInvoices(for:) (L1473-1485): the delete/trash action is hidden
-     * once a package is Ready for Pickup (numeric status >= 7) or later, with a
-     * statusName fallback for when the numeric `status` is missing/non-numeric.
-     * Upload stays allowed at every status. UI/action-gating parity only (QC #14710).
+     * .canDeleteInvoices(for:) after the status-6 lock correction: the delete/trash
+     * action is hidden once the backend reaches status 6/Ready for Pickup lock
+     * semantics, with a statusName fallback for missing/non-numeric `status`.
+     * Upload stays allowed at every status. UI/action-gating parity only.
      *
      * Deliberately independent of [showChargesAndCart] (which uses `== 7 || == 18`);
-     * delete keeps Swift's numeric `>= 7`. Do not fold these together.
+     * delete follows Swift's stricter status-6 lock. Do not fold these together.
      */
     val canDeleteInvoices: Boolean
         get() {
@@ -75,14 +75,15 @@ data class PackageDetailsUiState(
 }
 
 /**
- * Swift FigmaPackageDetailsViewController.statusLocksInvoiceDeletion
- * (5496ed0): a status value locks invoice deletion when it parses to a
- * number >= 7 — integer or floating, comma decimals normalized.
+ * Swift FigmaPackageDetailsViewController.statusLocksInvoiceDeletion:
+ * a status value locks invoice deletion when it parses to numeric status >= 6
+ * after the current Ready-for-Pickup backend/product correction. Integer,
+ * floating, and comma decimals are normalized.
  */
 internal fun statusLocksInvoiceDeletion(value: String): Boolean {
     val normalized = value.replace(",", ".")
-    normalized.toIntOrNull()?.let { return it >= 7 }
-    normalized.toDoubleOrNull()?.let { return it >= 7.0 }
+    normalized.toIntOrNull()?.let { return it >= 6 }
+    normalized.toDoubleOrNull()?.let { return it >= 6.0 }
     return false
 }
 

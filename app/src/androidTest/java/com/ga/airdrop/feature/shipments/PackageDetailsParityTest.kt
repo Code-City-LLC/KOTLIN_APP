@@ -113,10 +113,10 @@ class PackageDetailsParityTest {
     }
 
     @Test
-    fun invoiceDeleteRemainsAvailableBeforeReadyForPickup() {
+    fun invoiceDeleteRemainsAvailableBeforeInvoiceLockStatus() {
         setPackageDetailsContent(
             mode = ThemeController.Mode.LIGHT,
-            detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
+            detail = sampleDetail(status = "5", statusName = "Released From Customs"),
         )
 
         compose.onNodeWithTag("package-details-invoice-delete-101")
@@ -125,6 +125,30 @@ class PackageDetailsParityTest {
         compose.onNodeWithText("Delete invoice").assertIsDisplayed()
         compose.onNodeWithText("Delete").performClick()
         compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
+    }
+
+    @Test
+    fun invoiceDeleteLocksAtStatus6ButUploadAndViewRemainAvailable() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
+        )
+
+        compose.onNodeWithTag("package-details-upload-invoice-zone")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag("package-details-invoice-view-101")
+            .performScrollTo()
+            .performClick()
+        assertTrue(
+            "Invoice view should remain available when delete is locked",
+            navigatedRoutes.lastOrNull().orEmpty().startsWith("invoiceViewer?url="),
+        )
+        assertEquals(
+            "Swift status-6 correction locks invoice delete while leaving upload/view available",
+            0,
+            compose.onAllNodesWithTag("package-details-invoice-delete-101").fetchSemanticsNodes().size,
+        )
     }
 
     @Test

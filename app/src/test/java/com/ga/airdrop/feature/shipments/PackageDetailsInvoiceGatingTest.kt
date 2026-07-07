@@ -8,8 +8,8 @@ import org.junit.Test
  * Parity coverage for Package Details invoice **delete/trash** gating (QC correction #14710).
  *
  * Source of truth: Swift `FigmaPackageDetailsViewController.canDeleteInvoices(for:)`
- * (FigmaPackageDetailsViewController.swift L1473-1485):
- *   - false if `Int(status) >= 7`
+ * after the current Ready-for-Pickup lock correction:
+ *   - false if numeric status >= 6
  *   - else false if `statusName` contains ready / pickup / pick up
  *   - else false if `statusName` contains delivered / complete
  *   - else true
@@ -17,10 +17,10 @@ import org.junit.Test
  * The single `PackageDetailsUiState.canDeleteInvoices` predicate drives BOTH surfaces:
  * the Screen hides the trash icon (`canDelete = state.canDeleteInvoices`) AND the
  * ViewModel guard makes `requestDeleteInvoice` inert — so exercising the predicate
- * proves "delete/trash is gone OR inert at status 7+" for both.
+ * proves "delete/trash is gone OR inert at status 6+" for both.
  *
  * Upload is intentionally NOT gated (the Swift upload zone and Kotlin `UploadInvoiceZone`
- * are ungated), so upload stays reachable at every status including status 7.
+ * are ungated), so upload stays reachable at every status including status 6.
  */
 class PackageDetailsInvoiceGatingTest {
 
@@ -29,24 +29,24 @@ class PackageDetailsInvoiceGatingTest {
             detail = ShipmentPackageDetail(id = 1, status = status, statusName = statusName),
         ).canDeleteInvoices
 
-    // ── Numeric status < 7 (pre-pickup): delete allowed ──────────────────────
-    @Test fun deleteAllowed_whenNumericStatusBelow7() {
+    // ── Numeric status < 6 (pre-lock): delete allowed ────────────────────────
+    @Test fun deleteAllowed_whenNumericStatusBelow6() {
         assertTrue(canDelete("1", "Drop Alerted"))
         assertTrue(canDelete("5", "Released From Customs"))
-        assertTrue(canDelete("6", "Processing at our Warehouse"))
     }
 
-    // ── Numeric status >= 7 (Ready for Pickup and later): delete blocked ──────
-    @Test fun deleteBlocked_whenNumericStatus7OrLater() {
+    // ── Numeric status >= 6 (Ready-for-Pickup lock and later): delete blocked ─
+    @Test fun deleteBlocked_whenNumericStatus6OrLater() {
+        assertFalse(canDelete("6", "Processing at our Warehouse"))
         assertFalse(canDelete("7", "Ready for Pickup"))
         assertFalse(canDelete("8", "Delivered"))
         assertFalse(canDelete("18", "Paid and Ready for Pick Up"))
     }
 
     /**
-     * Swift keeps the numeric `>= 7` predicate for DELETE on purpose (charges use a
-     * different `== 7 || == 18`), so codes 9/10/12 — although workflow-earlier — are
-     * blocked by `>= 7` in BOTH apps. We match Swift exactly rather than "correct" it.
+     * Swift keeps DELETE independent from charges (charges use a different
+     * `== 7 || == 18` gate), so codes 9/10/12 are still blocked here. We match
+     * Swift exactly rather than "correct" it.
      */
     @Test fun deleteBlocked_matchesSwiftNumericPredicate_forHighCodes() {
         assertFalse(canDelete("9"))
@@ -77,7 +77,7 @@ class PackageDetailsInvoiceGatingTest {
         assertTrue(canDelete(status = "n/a", statusName = "Processing at Customs"))
     }
 
-    // ── Swift 5496ed0 tolerance (Kemar invoice ruling, cross-platform) ──
+    // ── Swift numeric tolerance (Kemar invoice ruling, cross-platform) ──
     // The numeric lock is evaluated on BOTH fields, and accepts floating /
     // comma-decimal codes.
     @Test fun deleteBlocked_whenStatusNameCarriesTheNumericCode() {
@@ -86,11 +86,13 @@ class PackageDetailsInvoiceGatingTest {
     }
 
     @Test fun deleteBlocked_whenNumericStatusIsDecimalOrCommaDecimal() {
+        assertFalse(canDelete("6.0"))
+        assertFalse(canDelete("6,0"))
         assertFalse(canDelete("7.0"))
         assertFalse(canDelete("7,0"))
     }
 
-    @Test fun deleteAllowed_whenDecimalStatusBelow7() {
-        assertTrue(canDelete("6.5"))
+    @Test fun deleteAllowed_whenDecimalStatusBelow6() {
+        assertTrue(canDelete("5.5"))
     }
 }
