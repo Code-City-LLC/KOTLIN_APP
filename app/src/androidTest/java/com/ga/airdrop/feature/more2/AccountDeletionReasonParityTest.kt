@@ -16,11 +16,9 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.core.session.SessionStore
-import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuthorizedUserEnvelope
 import com.ga.airdrop.data.model.AuthorizedUserRequest
 import com.ga.airdrop.data.model.AuthorizedUsersEnvelope
-import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
 import com.ga.airdrop.data.model.EmptyRequest
@@ -30,8 +28,6 @@ import com.ga.airdrop.data.model.LoginResponse
 import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.PromotionalBanner
-import com.ga.airdrop.data.model.ReferFriendRequest
-import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.model.ShippingRates
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.more.BackgroundStore
@@ -309,16 +305,6 @@ class AccountDeletionReasonParityTest {
 
         override suspend fun deactivateAuthorizedUser(id: Int, body: EmptyRequest): MutationResponse =
             throw AssertionError("Unused in AccountDeletionReasonParityTest")
-
-        override suspend fun referredFriends(limit: Int): Paginated<ReferredFriend> =
-            throw AssertionError("Unused in AccountDeletionReasonParityTest")
-
-        override suspend fun referFriend(body: ReferFriendRequest): MutationResponse =
-            throw AssertionError("Unused in AccountDeletionReasonParityTest")
-
-        override suspend fun profile(): CurrentUserResponse =
-            throw AssertionError("Unused in AccountDeletionReasonParityTest")
-
         override suspend fun promotionalBanners(): Paginated<PromotionalBanner> =
             throw AssertionError("Unused in AccountDeletionReasonParityTest")
 
