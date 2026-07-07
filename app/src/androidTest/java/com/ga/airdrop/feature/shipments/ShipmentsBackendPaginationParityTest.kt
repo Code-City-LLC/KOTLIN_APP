@@ -216,7 +216,7 @@ class ShipmentsBackendPaginationParityTest {
         val state = viewModel.state.value
         return "calls=${repo.calls}; loading=${state.loading}; loadingMore=${state.loadingMore}; " +
             "hasMore=${state.hasMorePages}; search='${state.searchText}'; status=${state.statusFilter}; " +
-            "items=${state.items.size}; error=${state.error}"
+            "items=${state.items.size}"
     }
 
     private data class PackageCall(

@@ -15,7 +15,6 @@ data class OrdersUiState(
     val loadingMore: Boolean = false,
     val hasMorePages: Boolean = true,
     val searchText: String = "",
-    val error: String? = null,
 )
 
 /**
@@ -69,7 +68,6 @@ class OrdersViewModel(
                     loading = reset,
                     loadingMore = !reset,
                     hasMorePages = if (reset) true else it.hasMorePages,
-                    error = null,
                 )
             }
             val search = _state.value.searchText.trim().takeIf { it.length >= SEARCH_MIN_CHARS }
@@ -89,9 +87,11 @@ class OrdersViewModel(
                     }
                     currentPage = requestedPage + 1
                 }
-                .onFailure { e ->
+                .onFailure {
                     _state.update {
-                        it.copy(loading = false, loadingMore = false, error = e.message)
+                        // Swift FigmaOrdersViewController prints list-load
+                        // failures and lets the empty/list state render.
+                        it.copy(loading = false, loadingMore = false)
                     }
                 }
         }
