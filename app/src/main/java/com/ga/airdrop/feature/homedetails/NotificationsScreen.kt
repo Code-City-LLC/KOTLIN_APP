@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
@@ -43,6 +44,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -261,6 +263,27 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
                     style = AirdropType.body3,
                     color = colors.gray500,
                     modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            // Per-type CTA + right chevron — Swift actionLabel (underlined orange
+            // SemiBold-16) + chevronDown rotated -90° (orange), at the card foot.
+            Row(
+                modifier = Modifier.padding(top = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = NotificationIconCatalog.actionTitle(notification),
+                    style = AirdropType.subtitle1.copy(textDecoration = TextDecoration.Underline),
+                    color = BrandPalette.OrangeMain,
+                )
+                Image(
+                    painter = painterResource(R.drawable.ic_small_arrow_down),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(-90f),
                 )
             }
         }

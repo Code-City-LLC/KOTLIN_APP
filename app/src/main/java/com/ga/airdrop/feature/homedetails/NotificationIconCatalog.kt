@@ -48,6 +48,23 @@ object NotificationIconCatalog {
         }
     }
 
+    /**
+     * Per-type row CTA label — Swift FigmaNotificationsListViewController
+     * notificationActionTitle(for:) (:521-527), first-match over the same
+     * normalized text as [iconRes]. Rendered as the underlined orange action
+     * label + right chevron at the foot of every notification card.
+     */
+    fun actionTitle(notification: AirdropNotification): String {
+        val text = normalizedText(notification)
+        return when {
+            "invoice" in text -> "Check Mail"
+            "payment" in text || "storage_fee" in text -> "View Payment"
+            "document" in text -> "View Document"
+            "address" in text -> "Update Address"
+            else -> "View Details"
+        }
+    }
+
     /** Swift normalizedNotificationText: join fields, "-"→"_", "/"→" ", lowercase. */
     internal fun normalizedText(n: AirdropNotification): String =
         listOfNotNull(n.type, n.title, n.body, n.route, n.referenceId)
