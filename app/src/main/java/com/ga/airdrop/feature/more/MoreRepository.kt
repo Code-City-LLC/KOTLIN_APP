@@ -78,6 +78,32 @@ data class MoreUser(
         }
 }
 
+/** The fields Laravel `UpdateUserRequest` marks `required` on PUT /user/profile. */
+private val PROFILE_REQUIRED_KEYS = listOf("user_id", "email", "first_name", "last_name")
+
+/** True if any Laravel-required profile field is absent/blank in a sparse payload. */
+internal fun profileRequiredFieldsMissing(fields: Map<String, String?>): Boolean =
+    PROFILE_REQUIRED_KEYS.any { fields[it].isNullOrBlank() }
+
+/**
+ * Swift `AirdropAPI.completedProfileUpdateRequest` parity: given a (possibly
+ * sparse) profile payload and the cached [user], fill any missing required field
+ * (user_id/email/first_name/last_name) from the cache so PUT /user/profile passes
+ * Laravel validation. Present values win; a null [user] leaves the payload as-is.
+ */
+internal fun completeProfileFields(fields: Map<String, String?>, user: MoreUser?): Map<String, String?> {
+    if (user == null) return fields
+    val out = fields.toMutableMap()
+    fun fill(key: String, value: String?) {
+        if (out[key].isNullOrBlank()) value?.trim()?.takeIf { it.isNotEmpty() }?.let { out[key] = it }
+    }
+    fill("user_id", user.id?.toString())
+    fill("email", user.email)
+    fill("first_name", user.firstName)
+    fill("last_name", user.lastName)
+    return out
+}
+
 data class ProfileAsset(val url: String?, val path: String?) {
     val resolvedUrl: String?
         get() = (url ?: path)?.trim()?.takeIf { it.isNotEmpty() }
@@ -134,8 +160,20 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
      * ProfileUpdateRequest. Null values are omitted (server keeps old value).
      */
     override suspend fun updateProfile(fields: Map<String, String?>): Result<String?> {
+        // Swift AirdropAPI.completedProfileUpdateRequest (AirdropAPI.swift:1699):
+        // PUT /user/profile validates user_id + email + first_name + last_name as
+        // REQUIRED (Laravel UpdateUserRequest), so a sparse caller (Preferences
+        // sends only user_id/email/pickup_location/payment_currency) must be
+        // COMPLETED with the cached profile's required fields before the request,
+        // or every Save 422s. Mirror Swift: back-fill from currentUser() only when
+        // a required field is missing.
+        val completed = if (profileRequiredFieldsMissing(fields)) {
+            completeProfileFields(fields, currentUser().getOrNull())
+        } else {
+            fields
+        }
         val body = buildJsonObject {
-            fields.forEach { (key, value) -> if (value != null) put(key, value) }
+            completed.forEach { (key, value) -> if (value != null) put(key, value) }
         }
         return request("PUT", "/user/profile", body.toString().toRequestBody(jsonMedia)) { root ->
             root.flexString("message")
