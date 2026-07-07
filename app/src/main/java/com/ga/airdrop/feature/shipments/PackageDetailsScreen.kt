@@ -283,7 +283,7 @@ fun PackageDetailsScreen(
         }
         state.transientMessage?.let { message ->
             ShipmentsAlertDialog(
-                title = "Upload Invoice",
+                title = state.transientTitle ?: "Upload Invoice",
                 message = message,
                 confirmText = "OK",
                 onConfirm = viewModel::consumeTransientMessage,

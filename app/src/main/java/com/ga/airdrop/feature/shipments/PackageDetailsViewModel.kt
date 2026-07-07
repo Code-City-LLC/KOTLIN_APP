@@ -15,6 +15,10 @@ data class PackageDetailsUiState(
     val uploading: Boolean = false,
     val error: String? = null,
     val transientMessage: String? = null,
+    /** Contextual alert title for [transientMessage] (Audit#5 C4). */
+    val transientTitle: String? = null,
+    /** Invoice DELETE in flight — gates re-entry (Audit#5 C3). */
+    val deletingInvoiceId: Int? = null,
     val showCifInfo: Boolean = false,
     val showAddedToCart: Boolean = false,
     val confirmDeleteInvoiceId: Int? = null,
@@ -111,9 +115,13 @@ class PackageDetailsViewModel(
         refresh()
     }
 
-    fun refresh() {
+    /**
+     * @param silent post-mutation reloads keep the current detail on screen
+     * instead of flashing the full-page spinner (Audit#5 C1).
+     */
+    fun refresh(silent: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            _state.update { it.copy(loading = if (silent) it.loading else true, error = null) }
             repo.packageDetails(packageId)
                 .onSuccess { detail ->
                     _state.update { it.copy(loading = false, detail = detail) }
@@ -127,15 +135,28 @@ class PackageDetailsViewModel(
     /** Multipart POST /packages/{id}/invoices — field "invoices[]", max 3 x 10MB. */
     fun uploadInvoices(files: List<InvoiceUploadFile>) {
         if (files.isEmpty()) return
+        // In-flight guard: overlapping picks must not issue parallel POSTs
+        // (Audit#5 C2 — mirrors the submitDamageReport guard).
+        if (_state.value.uploading) return
         val existing = _state.value.detail?.invoices?.size ?: 0
         val allowed = (3 - existing).coerceAtLeast(0)
         if (allowed == 0) {
-            _state.update { it.copy(transientMessage = "You're allowed to upload a maximum of 3 files.") }
+            _state.update {
+                it.copy(
+                    transientTitle = "Upload Invoice",
+                    transientMessage = "You're allowed to upload a maximum of 3 files.",
+                )
+            }
             return
         }
         val oversize = files.firstOrNull { it.bytes.size > 10 * 1024 * 1024 }
         if (oversize != null) {
-            _state.update { it.copy(transientMessage = "Each file must be below 10 MB.") }
+            _state.update {
+                it.copy(
+                    transientTitle = "Upload Invoice",
+                    transientMessage = "Each file must be below 10 MB.",
+                )
+            }
             return
         }
         viewModelScope.launch {
@@ -143,10 +164,16 @@ class PackageDetailsViewModel(
             repo.uploadInvoices(packageId, files.take(allowed))
                 .onSuccess {
                     _state.update { it.copy(uploading = false) }
-                    refresh()
+                    refresh(silent = true)
                 }
                 .onFailure { e ->
-                    _state.update { it.copy(uploading = false, transientMessage = e.message) }
+                    _state.update {
+                        it.copy(
+                            uploading = false,
+                            transientTitle = "Upload Invoice",
+                            transientMessage = e.message,
+                        )
+                    }
                 }
         }
     }
@@ -159,6 +186,7 @@ class PackageDetailsViewModel(
         if (!_state.value.canDeleteInvoices) {
             _state.update {
                 it.copy(
+                    transientTitle = "Delete Invoice",
                     transientMessage =
                         "Invoices can still be uploaded, but they cannot be deleted " +
                             "once a package is ready for pickup.",
@@ -173,11 +201,24 @@ class PackageDetailsViewModel(
 
     fun confirmDeleteInvoice() {
         val invoiceId = _state.value.confirmDeleteInvoiceId ?: return
+        // In-flight guard (Audit#5 C3): one DELETE at a time.
+        if (_state.value.deletingInvoiceId != null) return
         viewModelScope.launch {
-            _state.update { it.copy(confirmDeleteInvoiceId = null) }
+            _state.update { it.copy(confirmDeleteInvoiceId = null, deletingInvoiceId = invoiceId) }
             repo.deleteInvoice(packageId, invoiceId)
-                .onSuccess { refresh() }
-                .onFailure { e -> _state.update { it.copy(transientMessage = e.message) } }
+                .onSuccess {
+                    _state.update { it.copy(deletingInvoiceId = null) }
+                    refresh(silent = true)
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            deletingInvoiceId = null,
+                            transientTitle = "Delete Invoice",
+                            transientMessage = e.message,
+                        )
+                    }
+                }
         }
     }
 
@@ -275,7 +316,8 @@ class PackageDetailsViewModel(
 
     fun dismissAddedToCart() = _state.update { it.copy(showAddedToCart = false) }
 
-    fun consumeTransientMessage() = _state.update { it.copy(transientMessage = null) }
+    fun consumeTransientMessage() =
+        _state.update { it.copy(transientMessage = null, transientTitle = null) }
 
     private companion object {
         const val MAX_DAMAGE_DESCRIPTION_LENGTH = 5_000
