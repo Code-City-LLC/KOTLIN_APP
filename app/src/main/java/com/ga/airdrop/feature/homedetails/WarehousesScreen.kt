@@ -121,6 +121,7 @@ fun WarehousesScreen(
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val clipboard = LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var current by rememberSaveable { mutableStateOf(WarehouseType.from(initialType).key) }
     val type = WarehouseType.from(current)
@@ -140,6 +141,21 @@ fun WarehousesScreen(
 
     val warehouse = viewModel.warehouseFor(type.key)
     val fields = warehouseFields(type, state, warehouse)
+    // Swift warehouseAddressText() (:342) — the exact multi-line block shared
+    // and copied, "Label: value" per line.
+    val addressText = fields.joinToString("\n") { "${it.label}: ${it.value}" }
+
+    // Swift onShareAddress (:322) — system activity sheet for the full address.
+    fun shareAddress() {
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+        send.type = "text/plain"
+        send.putExtra(android.content.Intent.EXTRA_TEXT, addressText)
+        runCatching {
+            context.startActivity(
+                android.content.Intent.createChooser(send, "Share my Airdrop address"),
+            )
+        }
+    }
 
     Box(
         Modifier
@@ -151,11 +167,15 @@ fun WarehousesScreen(
             HomeDetailsHeader(
                 title = type.prettyName,
                 onBack = onBack,
+                // Swift: Share sits to the LEFT of Copy in the header.
+                secondaryTrailingIconRes = R.drawable.ic_share,
+                secondaryTrailingContentDescription = "Share my Airdrop address",
+                onSecondaryTrailingClick = { shareAddress() },
                 trailingIconRes = R.drawable.ic_copy,
                 trailingContentDescription = "Copy all warehouse info",
                 onTrailingClick = {
                     copy(
-                        value = fields.joinToString("\n") { "${it.label}: ${it.value}" },
+                        value = addressText,
                         message = "All the information is copied",
                     )
                 },

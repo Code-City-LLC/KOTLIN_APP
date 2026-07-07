@@ -64,6 +64,11 @@ fun HomeDetailsHeader(
     trailingIconRes: Int? = null,
     trailingContentDescription: String? = null,
     onTrailingClick: () -> Unit = {},
+    // Optional second trailing action, rendered to the LEFT of the primary one
+    // (Swift Warehouses shows Share left of Copy). Null = single action.
+    secondaryTrailingIconRes: Int? = null,
+    secondaryTrailingContentDescription: String? = null,
+    onSecondaryTrailingClick: () -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
     val background = containerColor ?: colors.gray100
@@ -101,16 +106,30 @@ fun HomeDetailsHeader(
                     .padding(horizontal = 52.dp)
                     .testTag(HomeDetailsHeaderTags.TITLE),
             )
-            if (trailingIconRes != null) {
-                HeaderIconButton(
-                    iconRes = trailingIconRes,
-                    contentDescription = trailingContentDescription,
-                    tint = tint,
-                    onClick = onTrailingClick,
+            if (trailingIconRes != null || secondaryTrailingIconRes != null) {
+                androidx.compose.foundation.layout.Row(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .padding(end = 12.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (secondaryTrailingIconRes != null) {
+                        HeaderIconButton(
+                            iconRes = secondaryTrailingIconRes,
+                            contentDescription = secondaryTrailingContentDescription,
+                            tint = tint,
+                            onClick = onSecondaryTrailingClick,
+                        )
+                    }
+                    if (trailingIconRes != null) {
+                        HeaderIconButton(
+                            iconRes = trailingIconRes,
+                            contentDescription = trailingContentDescription,
+                            tint = tint,
+                            onClick = onTrailingClick,
+                        )
+                    }
+                }
             }
         }
         if (showDivider) {
