@@ -108,23 +108,19 @@ private val introPages = listOf(
     ),
 )
 
-/** Index of the trailing "Choose Your Look" page (Figma 40006240:24027). */
-private const val THEME_PAGE = 5
-private const val PAGE_COUNT = 6
-
 /**
  * First-run onboarding — Figma "Onboarding - Design Done" nodes
  * 40006240:23774/23798/23823/23848/23872 (intro pager with Skip/Next and
- * the 5-dash indicator, 40006240:23781) + 40006240:24027 ("Choose Your
- * Look" theme picker with Continue). Completing (or skipping through) marks
- * [OnboardingStore] seen and routes to the auth landing.
+ * the 5-dash indicator, 40006240:23781). Completing or skipping marks
+ * [OnboardingStore] seen and routes to the auth landing. The preceding
+ * "Choose Your Look" screen is a separate Swift-precedence route.
  */
 @Composable
 fun OnboardingScreen(onFinished: () -> Unit) {
     val colors = AirdropTheme.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { PAGE_COUNT }
+    val pagerState = rememberPagerState { introPages.size }
 
     val finish = {
         OnboardingStore.markSeen(context)
@@ -144,52 +140,48 @@ fun OnboardingScreen(onFinished: () -> Unit) {
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
         ) { page ->
-            if (page < THEME_PAGE) {
-                OnboardIntroPageContent(introPages[page])
-            } else {
-                OnboardThemePage(onContinue = finish)
-            }
+            OnboardIntroPageContent(introPages[page])
         }
-        if (pagerState.currentPage < THEME_PAGE) {
-            // Header row with the small light/dark pill (Figma Header Type).
+        // Header row with the small light/dark pill (Figma Header Type).
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .height(62.dp)
+                .padding(horizontal = Spacing.md, vertical = 4.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ThemeToggle()
+        }
+        // Static indicator + Skip/Next chrome (identical across slides).
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            OnboardPageIndicator(current = pagerState.currentPage)
+            Spacer(Modifier.height(61.dp))
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .height(62.dp)
-                    .padding(horizontal = Spacing.md, vertical = 4.dp),
-                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ThemeToggle()
-            }
-            // Static indicator + Skip/Next chrome (identical across slides).
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(horizontal = Spacing.lg)
-                    .padding(bottom = Spacing.lg),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                OnboardPageIndicator(current = pagerState.currentPage)
-                Spacer(Modifier.height(61.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OnboardSkipButton(
-                        onClick = { scope.launch { pagerState.animateScrollToPage(THEME_PAGE) } },
-                    )
-                    OnboardNextButton(
-                        onClick = {
-                            scope.launch {
+                OnboardSkipButton(onClick = finish)
+                OnboardNextButton(
+                    onClick = {
+                        scope.launch {
+                            if (pagerState.currentPage < introPages.lastIndex) {
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            } else {
+                                finish()
                             }
-                        },
-                    )
-                }
+                        }
+                    },
+                )
             }
         }
     }
@@ -315,12 +307,13 @@ private fun OnboardNextButton(onClick: () -> Unit) {
 }
 
 /**
- * "Choose Your Look" page — Figma 40006240:24027: sun illustration, two-tone
- * H4 title, Dark/Light labels around the large 78x45 toggle, gradient
- * Continue and the settings note.
+ * "Choose Your Look" page — Figma 40006240:24027 and Swift
+ * FigmaChooseYourLookViewController: sun illustration, two-tone H4 title,
+ * Dark/Light labels around the large 78x45 toggle, gradient Continue and the
+ * settings note.
  */
 @Composable
-private fun OnboardThemePage(onContinue: () -> Unit) {
+fun ChooseYourLookScreen(onContinue: () -> Unit) {
     val colors = AirdropTheme.colors
     val labelStyle = AirdropType.subtitle1.copy(fontSize = 24.sp, lineHeight = 26.sp)
     Box(Modifier.fillMaxSize()) {

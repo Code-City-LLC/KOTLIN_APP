@@ -8,6 +8,7 @@ package com.ga.airdrop.core.navigation
 object Routes {
     // Auth
     const val SPLASH = "splash"
+    const val CHOOSE_LOOK = "chooseLook"
     const val ONBOARDING = "onboarding"
     const val AUTH_LANDING = "authLanding"
     const val LOGIN = "login"

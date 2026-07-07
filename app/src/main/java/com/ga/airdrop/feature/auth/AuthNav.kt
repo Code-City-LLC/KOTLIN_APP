@@ -12,18 +12,15 @@ import com.ga.airdrop.core.navigation.Routes
  *
  *     authExtraGraph(navController)
  *
- * Registers SPLASH, ONBOARDING, SIGN_UP, FORGOT_PASSWORD and
+ * Registers SPLASH, CHOOSE_LOOK, ONBOARDING, SIGN_UP, FORGOT_PASSWORD and
  * REGISTRATION_SUCCESS (AUTH_LANDING and LOGIN stay in AppRoot's authGraph).
  * No new route constants needed — all exist in Routes.kt already.
  *
- * Launch flow (RN LaunchAppView; Figma "Onboarding - Design Done"
- * 40006240:*): token → HOME; first run (onboarding not seen) → ONBOARDING
- * carousel + "Choose Your Look" → AUTH_LANDING; returning-but-signed-out →
- * AUTH_LANDING. Swift's SceneDelegate collapsed this straight to login, but the
- * Onboarding + Choose-Your-Look + AuthLanding are shipped Figma designs, so
- * Figma wins where Swift dropped them (per Kemar's Government-Charges ruling).
- * NOTE: AppRoot's reactive-logout effect must EXCLUDE SPLASH + ONBOARDING or it
- * yanks the first-run flow to AUTH_LANDING the moment it sees token == null.
+ * Launch flow (Swift FigmaOnboardingViewController): token → HOME; first run
+ * (onboarding not seen) → CHOOSE_LOOK → ONBOARDING carousel → AUTH_LANDING;
+ * returning-but-signed-out → AUTH_LANDING. Swift takes precedence for flow.
+ * NOTE: AppRoot's reactive-logout effect must EXCLUDE these auth routes or it
+ * yanks the first-run flow to AUTH_LANDING when token == null.
  */
 fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
 
@@ -33,11 +30,21 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
             onFinished = {
                 val target = when {
                     AuthTokenStore.tokenFlow.value != null -> Routes.HOME
-                    !OnboardingStore.hasSeen(context) -> Routes.ONBOARDING
+                    !OnboardingStore.hasSeen(context) -> Routes.CHOOSE_LOOK
                     else -> Routes.AUTH_LANDING
                 }
                 navController.navigate(target) {
                     popUpTo(Routes.SPLASH) { inclusive = true }
+                }
+            },
+        )
+    }
+
+    composable(Routes.CHOOSE_LOOK) {
+        ChooseYourLookScreen(
+            onContinue = {
+                navController.navigate(Routes.ONBOARDING) {
+                    popUpTo(Routes.CHOOSE_LOOK) { inclusive = true }
                 }
             },
         )

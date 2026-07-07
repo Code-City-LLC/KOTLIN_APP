@@ -35,6 +35,7 @@ import com.ga.airdrop.feature.shop.shopGraph
 /** Routes where a null bearer is expected — exempt from reactive logout. */
 private val AUTH_GRAPH_ROUTES = setOf(
     Routes.SPLASH,
+    Routes.CHOOSE_LOOK,
     Routes.ONBOARDING,
     Routes.AUTH_LANDING,
     Routes.LOGIN,
