@@ -16,18 +16,18 @@ enum class PackagesSort(val title: String) {
 }
 
 /**
- * Pure comparator port of Swift applySortedOrder: creation date with an id
- * tiebreak for Newest/Oldest; case-insensitive status / tracking A-Z with a
- * newest-id tiebreak.
+ * Client-side sort port of Swift applySortedOrder.
+ *
+ * The server already returns packages in creation_date DESC order (see
+ * PackagesRepository), so NEWEST_FIRST *is* the server order — we trust it
+ * rather than re-sorting stringly-typed timestamps (which is redundant and can
+ * only diverge from the real chronological order). OLDEST_FIRST is exactly that
+ * order reversed. Only the Status/Tracking views need a genuine client sort.
  */
 fun sortPackages(packages: List<ShipmentPackage>, sort: PackagesSort): List<ShipmentPackage> =
     when (sort) {
-        PackagesSort.NEWEST_FIRST -> packages.sortedWith(
-            compareByDescending<ShipmentPackage> { it.createdAt ?: "" }.thenByDescending { it.id },
-        )
-        PackagesSort.OLDEST_FIRST -> packages.sortedWith(
-            compareBy<ShipmentPackage> { it.createdAt ?: "" }.thenBy { it.id },
-        )
+        PackagesSort.NEWEST_FIRST -> packages
+        PackagesSort.OLDEST_FIRST -> packages.reversed()
         PackagesSort.STATUS_AZ -> packages.sortedWith(
             compareBy<ShipmentPackage> { (it.statusName ?: it.status ?: "").lowercase() }
                 .thenByDescending { it.id },

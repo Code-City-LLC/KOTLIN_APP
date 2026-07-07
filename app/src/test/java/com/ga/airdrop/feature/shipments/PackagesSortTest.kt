@@ -5,9 +5,9 @@ import org.junit.Test
 
 /**
  * [sortPackages] parity with Swift FigmaPackagesViewController.applySortedOrder
- * (§B.4): createdAt with id tiebreak for Newest/Oldest, case-insensitive
- * status/tracking A-Z with a newest-id tiebreak; [PackagesSortStore.sortFor]
- * falls back to NEWEST_FIRST.
+ * (§B.4): the server already returns creation_date DESC so Newest = server order
+ * and Oldest = that reversed; case-insensitive status/tracking A-Z with a
+ * newest-id tiebreak; [PackagesSortStore.sortFor] falls back to NEWEST_FIRST.
  */
 class PackagesSortTest {
 
@@ -23,21 +23,15 @@ class PackagesSortTest {
     private val c = pkg(3, createdAt = "2026-02-01", statusName = "Customs", trackingCode = "ARD3")
 
     @Test
-    fun `newest first sorts by createdAt descending`() {
-        assertEquals(listOf(2, 3, 1), sortPackages(listOf(a, b, c), PackagesSort.NEWEST_FIRST).map { it.id })
+    fun `newest first preserves the server's creation-date-desc order`() {
+        // The server already returns newest-first; the client must not reorder
+        // (re-sorting stringly-typed timestamps can only diverge).
+        assertEquals(listOf(1, 2, 3), sortPackages(listOf(a, b, c), PackagesSort.NEWEST_FIRST).map { it.id })
     }
 
     @Test
-    fun `oldest first sorts by createdAt ascending`() {
-        assertEquals(listOf(1, 3, 2), sortPackages(listOf(a, b, c), PackagesSort.OLDEST_FIRST).map { it.id })
-    }
-
-    @Test
-    fun `missing createdAt falls back to id ordering`() {
-        val x = pkg(10)
-        val y = pkg(20)
-        assertEquals(listOf(20, 10), sortPackages(listOf(x, y), PackagesSort.NEWEST_FIRST).map { it.id })
-        assertEquals(listOf(10, 20), sortPackages(listOf(x, y), PackagesSort.OLDEST_FIRST).map { it.id })
+    fun `oldest first is the server order reversed`() {
+        assertEquals(listOf(3, 2, 1), sortPackages(listOf(a, b, c), PackagesSort.OLDEST_FIRST).map { it.id })
     }
 
     @Test

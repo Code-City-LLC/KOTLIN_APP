@@ -269,6 +269,15 @@ private val SCREEN_ROUTE_ALIASES = mapOf(
     "SupportScreen" to "ContactsView",
     "ReferView" to "ReferView",
     "ContactsView" to "ContactsView",
+    // Bare RN/push aliases the old PushDeepLink map resolved directly — kept so
+    // the shared resolver is a superset, not a subset (round-4 regression).
+    "Refer" to "ReferView",
+    "refer" to "ReferView",
+    "referAFriend" to "ReferView",
+    "ReferredFriends" to "ReferredFriendsView",
+    "referredFriends" to "ReferredFriendsView",
+    "InviteFriend" to "InviteFriendView",
+    "inviteFriend" to "InviteFriendView",
 )
 
 private val NOTIFICATION_TYPE_ROUTES = mapOf(
