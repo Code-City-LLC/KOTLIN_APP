@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -172,10 +173,7 @@ private fun ProductListScreen(
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     if (state.loading && state.products.isEmpty()) {
-                        // Initial skeleton grid (Swift seedGrid parity).
-                        itemsIndexed(List(6) { it }, key = { _, i -> "skeleton-$i" }) { _, _ ->
-                            ShopSkeletonCard()
-                        }
+                        productListInitialSkeletonItems(featured = featured)
                     }
                     itemsIndexed(state.products, key = { _, p -> p.id }) { _, product ->
                         ShopProductCard(
@@ -222,3 +220,15 @@ private fun ProductListScreen(
 }
 
 private val ProductListBottomClearance = 124.dp
+
+fun productListInitialSkeletonCount(featured: Boolean): Int = if (featured) 4 else 0
+
+fun LazyGridScope.productListInitialSkeletonItems(featured: Boolean) {
+    val initialSkeletonCount = productListInitialSkeletonCount(featured)
+    if (initialSkeletonCount > 0) {
+        // Swift FigmaFeatureProductsViewController renders two rows of placeholders.
+        itemsIndexed(List(initialSkeletonCount) { it }, key = { _, i -> "skeleton-$i" }) { _, _ ->
+            ShopSkeletonCard(Modifier.testTag("product-list-skeleton-card"))
+        }
+    }
+}

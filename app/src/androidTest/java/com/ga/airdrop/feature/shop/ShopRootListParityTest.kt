@@ -2,6 +2,8 @@ package com.ga.airdrop.feature.shop
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -10,6 +12,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.DpRect
@@ -105,6 +108,28 @@ class ShopRootListParityTest {
     }
 
     @Test
+    fun featureProductsSkeletonGridRendersSwiftColdLoadCount() {
+        setSkeletonGridContent(featured = true)
+
+        assertEquals(
+            "Swift FeatureProducts renders exactly four cold-load skeleton cells",
+            4,
+            productListSkeletonCount(),
+        )
+    }
+
+    @Test
+    fun auctionSkeletonGridRendersNoPlaceholdersLikeSwift() {
+        setSkeletonGridContent(featured = false)
+
+        assertEquals(
+            "Swift Auction renders no cold-load skeleton cells; the empty grid stays blank until fetch settles",
+            0,
+            productListSkeletonCount(),
+        )
+    }
+
+    @Test
     fun fullListSearchBackspaceReloadsUnfilteredLikeSwift() {
         val repo = RecordingShopProductsRepository()
         lateinit var viewModel: ProductListViewModel
@@ -169,6 +194,31 @@ class ShopRootListParityTest {
             }
         }
     }
+
+    private fun setSkeletonGridContent(featured: Boolean) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .height(812.dp)
+                        .background(AirdropTheme.colors.gray200),
+                ) {
+                    LazyVerticalGrid(columns = GridCells.Fixed(2)) {
+                        productListInitialSkeletonItems(featured = featured)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun productListSkeletonCount(): Int =
+        compose.onAllNodesWithTag("product-list-skeleton-card")
+            .fetchSemanticsNodes()
+            .size
 
     private class RecordingShopProductsRepository : ShopProductsRepository {
         val auctionSearches = Collections.synchronizedList(mutableListOf<String?>())
