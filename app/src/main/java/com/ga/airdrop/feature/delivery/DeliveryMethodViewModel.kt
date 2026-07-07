@@ -466,11 +466,14 @@ class DeliveryMethodViewModel(
             }
             return
         }
+        // Honest auction flag from the cart contents (Swift parity); the
+        // server also derives it authoritatively.
+        val cartIsAuction = lines.any { it.isAuction }
         viewModelScope.launch {
             _state.update { it.copy(ctaState = DeliveryCtaState.CheckingOut) }
             // RECONCILE: POST /payments/create-checkout
-            // { package_ids, currency: chosen, is_auction: true } → data.checkout_url.
-            checkout.createCheckout(packageIds, currency = currency.uppercase(Locale.US), isAuction = true)
+            // { package_ids, currency: chosen, is_auction } → data.checkout_url.
+            checkout.createCheckout(packageIds, currency = currency.uppercase(Locale.US), isAuction = cartIsAuction)
                 .onSuccess { url ->
                     _state.update { it.copy(ctaState = DeliveryCtaState.Idle, checkoutUrl = url) }
                 }

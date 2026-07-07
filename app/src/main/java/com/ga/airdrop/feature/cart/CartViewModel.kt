@@ -193,11 +193,16 @@ class CartViewModel(
     fun payWithCurrency(currency: String = "USD") {
         if (_state.value.paying) return
         val packageIds = guardedPackageIds() ?: return
+        // Declare the cart honestly: auction/e-commerce items present ⇒
+        // is_auction true; a regular-package-only cart ⇒ false. The server
+        // derives this itself too, but sending the truth keeps the contract
+        // correct (Swift parity).
+        val cartIsAuction = items.value.any { it.isAuction }
         viewModelScope.launch {
             _state.update { it.copy(paying = true) }
             // RECONCILE: POST /payments/create-checkout
-            // { package_ids, currency, is_auction: true } → data.checkout_url.
-            checkout.createCheckout(packageIds, currency = currency, isAuction = true)
+            // { package_ids, currency, is_auction } → data.checkout_url.
+            checkout.createCheckout(packageIds, currency = currency, isAuction = cartIsAuction)
                 .onSuccess { url ->
                     _state.update { it.copy(paying = false, checkoutUrl = url) }
                 }

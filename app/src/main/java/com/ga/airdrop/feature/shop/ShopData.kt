@@ -49,6 +49,7 @@ fun ShopProduct.toCartLine(qty: Int = 1): CartStore.CartLine = CartStore.CartLin
     title = title,
     qty = qty,
     priceUsd = priceUsd,
+    isAuction = true,
 )
 
 /** Route argument for details: slug when present, else the numeric id. */

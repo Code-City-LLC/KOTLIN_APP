@@ -36,6 +36,13 @@ object CartStore {
         val title: String = "",
         val qty: Int = 1,
         val priceUsd: Double = 0.0,
+        /**
+         * Swift FigmaCartLineKind — true for auction / e-commerce products
+         * (owned server-side by the auction holding account), false for the
+         * buyer's own shipment packages. Drives the checkout `is_auction`
+         * flag so a mixed cart is declared honestly.
+         */
+        val isAuction: Boolean = false,
     )
 
     private const val PREFS = "airdrop_cart"

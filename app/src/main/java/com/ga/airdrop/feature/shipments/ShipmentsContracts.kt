@@ -284,6 +284,7 @@ fun ShipmentPackage.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine
             ?: trackingCode ?: "Package #$id",
         qty = 1,
         priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
+        isAuction = false,
     )
 
 fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine =
@@ -294,4 +295,5 @@ fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.Ca
             ?: trackingCode ?: "Package #$id",
         qty = 1,
         priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
+        isAuction = false,
     )
