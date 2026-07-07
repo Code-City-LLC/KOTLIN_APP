@@ -21,7 +21,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -72,6 +76,7 @@ import java.util.Locale
  *  - stack spacing 8; custom 20 after the activities grid and after the
  *    auction highlights; 120pt tail clears the tab bar.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigate: (String) -> Unit,
@@ -97,7 +102,26 @@ fun HomeScreen(
         onDispose { lifecycle.removeObserver(observer) }
     }
 
+    val pullRefreshState = rememberPullToRefreshState()
     Box(Modifier.fillMaxSize().background(colors.gray200)) {
+        // Swift homeRefreshControl (:233/:127): pull the Home scroll to reload
+        // user + AirCoins + auction shortlist; orange spinner (:253 orangeMain).
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = { viewModel.refresh(isPull = true) },
+            state = pullRefreshState,
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("home-pull-refresh"),
+            indicator = {
+                PullToRefreshDefaults.Indicator(
+                    state = pullRefreshState,
+                    isRefreshing = state.refreshing,
+                    color = BrandPalette.OrangeMain,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            },
+        ) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -178,6 +202,7 @@ fun HomeScreen(
                     Spacer(Modifier.height(120.dp))
                 }
             }
+        }
         }
 
         AirdropHeader(

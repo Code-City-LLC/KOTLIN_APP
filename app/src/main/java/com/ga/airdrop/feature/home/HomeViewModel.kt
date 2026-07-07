@@ -25,6 +25,12 @@ data class HomeUiState(
     val cartCount: Int = 0,
     val auctionHighlights: List<AuctionProduct> = emptyList(),
     val loading: Boolean = false,
+    /**
+     * User-initiated pull-to-refresh (Swift homeRefreshControl). Kept distinct
+     * from the initial/resume [loading] so the pull spinner shows without the
+     * screen dropping into its full cold-load state.
+     */
+    val refreshing: Boolean = false,
 )
 
 interface HomeRepository {
@@ -58,10 +64,15 @@ class HomeViewModel(
         refresh()
     }
 
-    fun refresh() {
+    /**
+     * @param isPull true when triggered by the Home pull-to-refresh gesture —
+     * drives [HomeUiState.refreshing] instead of [HomeUiState.loading] so the
+     * pull spinner shows without the cold-load state (Swift onPullToRefresh).
+     */
+    fun refresh(isPull: Boolean = false) {
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
-            _state.update { it.copy(loading = true) }
+            _state.update { if (isPull) it.copy(refreshing = true) else it.copy(loading = true) }
             repository.currentUser().onSuccess { user ->
                 _state.update {
                     it.copy(
@@ -89,7 +100,7 @@ class HomeViewModel(
                 .onFailure {
                     _state.update { it.copy(auctionHighlights = emptyList()) }
                 }
-            _state.update { it.copy(loading = false) }
+            _state.update { it.copy(loading = false, refreshing = false) }
         }
     }
 
