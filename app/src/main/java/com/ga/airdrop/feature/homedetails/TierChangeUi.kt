@@ -86,10 +86,7 @@ internal fun TierChangeOverlay(
     }
 
     TierChangeCtaBar(
-        visibleTier = visibleTier,
-        isCurrent = visibleCode != null && visibleCode.equals(state.currentTierCode, ignoreCase = true),
         canOfferChange = canOfferChange,
-        isUpgrade = isUpgrade,
         onClick = { pending = PendingTierChange(visibleTier, currentPage, isUpgrade) },
         modifier = modifier,
     )
@@ -117,75 +114,41 @@ internal fun TierChangeOverlay(
 
 @Composable
 private fun TierChangeCtaBar(
-    visibleTier: TierPage,
-    isCurrent: Boolean,
     canOfferChange: Boolean,
-    isUpgrade: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Nothing to offer on the current tier / presentational-only pages / when
-    // the API disallows changes: the core page simply stands on its own.
-    if (!isCurrent && !canOfferChange) return
+    // The current tier and the presentational-only pages carry NO indicator
+    // (Kemar 2026-07-07: the "your current tier" reminder duplicated the header
+    // on almost every page). Only a switchable tier shows an action, and it's a
+    // restrained translucent pill — Swift "Set as My Tier" parity — not a heavy
+    // solid button, so the tier art stays the hero.
+    if (!canOfferChange) return
 
     Box(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(bottom = 20.dp)
+            .padding(bottom = 22.dp)
             .navigationBarsPadding(),
+        contentAlignment = Alignment.Center,
     ) {
-        if (isCurrent) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.16f))
-                    .padding(vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_check),
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(Color.White),
-                        modifier = Modifier.size(10.dp),
-                    )
-                }
-                Spacer(Modifier.size(8.dp))
-                Text(
-                    text = "Your current tier",
-                    style = AirdropType.button,
-                    color = Color.White,
-                )
-            }
-        } else {
-            val label = if (isUpgrade) "Upgrade to ${visibleTier.name}" else "Switch to ${visibleTier.name}"
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White)
-                    .clickable(onClick = onClick)
-                    .testTag("tier-change-cta")
-                    .padding(vertical = 16.dp, horizontal = 20.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = label,
-                    style = AirdropType.button,
-                    color = visibleTier.gradientBottom,
-                    textAlign = TextAlign.Center,
-                )
-            }
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White.copy(alpha = 0.18f))
+                .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                .clickable(onClick = onClick)
+                .testTag("tier-change-cta")
+                .padding(vertical = 13.dp, horizontal = 28.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Set as My Tier",
+                style = AirdropType.button.copy(fontWeight = FontWeight.SemiBold),
+                color = Color.White,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -217,8 +180,20 @@ private fun TierChangeSheet(
                 .padding(top = 8.dp, bottom = 28.dp)
                 .navigationBarsPadding(),
         ) {
-            // Gradient hero band in the target tier's colours.
+            // Grab handle (dragHandle is null so we draw our own, subtly).
             Box(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 4.dp, bottom = 16.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.25f)),
+            )
+
+            // Gradient hero in the target tier's colours. No badge — the generic
+            // crystal repeats on every tier and adds nothing (Kemar 2026-07-07);
+            // the tier's own gradient + name carry the identity.
+            Column(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
@@ -229,31 +204,22 @@ private fun TierChangeSheet(
                             end = Offset(0f, Float.POSITIVE_INFINITY),
                         ),
                     )
-                    .padding(20.dp),
+                    .padding(horizontal = 22.dp, vertical = 24.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_homedet_tier_badge),
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                    )
-                    Spacer(Modifier.size(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = if (change.isUpgrade) "Upgrade to" else "Switch to",
-                            style = AirdropType.body2,
-                            color = Color.White.copy(alpha = 0.85f),
-                        )
-                        Text(
-                            text = target.name,
-                            style = AirdropType.h5.copy(fontSize = 24.sp, lineHeight = 30.sp),
-                            color = Color.White,
-                        )
-                    }
-                }
+                Text(
+                    text = (if (change.isUpgrade) "UPGRADE TO" else "SWITCH TO"),
+                    style = AirdropType.button.copy(fontSize = 12.sp, letterSpacing = 1.5.sp),
+                    color = Color.White.copy(alpha = 0.8f),
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = target.name,
+                    style = AirdropType.h5.copy(fontSize = 28.sp, lineHeight = 34.sp),
+                    color = Color.White,
+                )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(22.dp))
 
             if (change.isUpgrade) {
                 Text(
@@ -284,8 +250,9 @@ private fun TierChangeSheet(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "Switching to ${target.name} means giving up your " +
-                        "${change.current?.name ?: "current"} benefits:",
+                    // Swift TierChangeSheet copy parity.
+                    text = "Here's what you'd be giving up from your " +
+                        "${change.current?.name ?: "current tier"}:",
                     style = AirdropType.body2,
                     color = Color.White.copy(alpha = 0.7f),
                 )
