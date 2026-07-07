@@ -4,14 +4,18 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -29,6 +33,7 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -63,6 +68,8 @@ fun FaqScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.md),
         ) {
+            Spacer(Modifier.height(Spacing.md))
+            FaqHeroCard()
             Spacer(Modifier.height(Spacing.md))
             ShipmentsSearchField(
                 value = state.searchQuery,
@@ -101,7 +108,53 @@ fun FaqScreen(
     }
 }
 
-/** Swift makeEmptyState — question glyph + "No matches for “query”". */
+/**
+ * Swift makeHeroBlock — intro card above the search pill: orange accent circle
+ * bleeding off the top-right corner, "?" monogram, H5 title + Body2 subtitle.
+ */
+@Composable
+private fun FaqHeroCard() {
+    val colors = AirdropTheme.colors
+    More2OuterCard {
+        Box(Modifier.fillMaxWidth()) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 50.dp, y = (-50).dp)
+                    .size(140.dp)
+                    .background(BrandPalette.ButtonStatic.copy(alpha = 0.12f), CircleShape),
+            )
+            Text(
+                text = "?",
+                style = AirdropType.h2,
+                color = BrandPalette.OrangeMain,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 12.dp, end = 18.dp)
+                    .width(64.dp),
+            )
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 22.dp)) {
+                Text(
+                    text = "Frequently Asked",
+                    style = AirdropType.h5,
+                    color = colors.textDarkTitle,
+                    // Keep clear of the 64dp monogram + its 18dp end inset + 12dp gap.
+                    modifier = Modifier.padding(end = 74.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Quick answers to the questions our customers ask most. " +
+                        "Tap any card to see the full answer.",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                )
+            }
+        }
+    }
+}
+
+/** Swift makeEmptyState — question glyph + "No matches for “query”" + hint. */
 @Composable
 private fun FaqEmptyState(query: String) {
     val colors = AirdropTheme.colors
@@ -123,6 +176,14 @@ private fun FaqEmptyState(query: String) {
             style = AirdropType.title2,
             color = colors.textDarkTitle,
             textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Try different keywords, or tap Contact Support below.",
+            style = AirdropType.body2,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = Spacing.lg),
         )
     }
 }
