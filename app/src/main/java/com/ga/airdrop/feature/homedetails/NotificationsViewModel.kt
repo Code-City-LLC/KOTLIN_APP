@@ -22,9 +22,10 @@ data class NotificationsUiState(
 )
 
 /**
- * Live notifications inbox — closes the known Swift gap (the Swift VC is a
- * static empty-state): GET /user/notifications paginated, optimistic
- * POST /user/notifications/mark-read on tap, deep-link route resolution.
+ * Live notifications inbox — matches Swift origin/main's populated-list path:
+ * GET /user/notifications paginated, optimistic POST /user/notifications/mark-read
+ * on tap, deep-link route resolution. Swift staging currently carries an older
+ * static empty-state variant, so behavior changes here need a product decision.
  */
 class NotificationsViewModel(
     private val miscRepository: MiscRepository = MiscRepository(ApiClient.service),

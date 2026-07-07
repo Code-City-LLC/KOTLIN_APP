@@ -147,8 +147,8 @@ fun HomeScreen(
                         contentScale = ContentScale.Crop,
                     )
                     // (0) Swift FigmaHomeViewController.swift:193-197 — flat black-10%
-                    //     scrim uniformly darkening the whole hero (in addition to the
-                    //     Figma gradients below); missing here, regressed away.
+                    //     scrim uniformly darkening the whole hero in addition to the
+                    //     Figma gradients below.
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.10f)))
                     // Hero overlays — EXACT Figma spec (Home 40001464:28899):
                     // (A) node 40001464:28902 — full-height gradient darkening
