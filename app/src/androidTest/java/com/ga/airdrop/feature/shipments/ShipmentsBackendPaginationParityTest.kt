@@ -108,6 +108,34 @@ class ShipmentsBackendPaginationParityTest {
     }
 
     @Test
+    fun paymentsResetFailureReopensPaginationGate() = runBlocking {
+        val repo = RecordingPaymentsRepository()
+        val viewModel = PaymentsViewModel(repo)
+
+        waitUntil("payments initial load") {
+            repo.calls.isNotEmpty() && !viewModel.state.value.loading
+        }
+        viewModel.loadNextPage()
+        waitUntil("payments reached tail") {
+            repo.calls.any { it.page == 2 } &&
+                !viewModel.state.value.loadingMore &&
+                !viewModel.state.value.hasMorePages
+        }
+
+        repo.failNextPageOne = true
+        viewModel.refresh()
+        waitUntil("payments failed reset") {
+            repo.calls.count { it.page == 1 } >= 2 && !viewModel.state.value.loading
+        }
+
+        assertEquals(
+            "A failed reset must not leave Payments permanently gated at the old tail",
+            true,
+            viewModel.state.value.hasMorePages,
+        )
+    }
+
+    @Test
     fun ordersListKeepsSwiftDebouncedSearchPaginationAndRefresh() = runBlocking {
         val repo = RecordingOrdersRepository()
         val viewModel = OrdersViewModel(repo)
@@ -137,6 +165,34 @@ class ShipmentsBackendPaginationParityTest {
         waitUntil("orders debounced search", { repo.calls.toString() }) {
             repo.calls.last().page == 1 && repo.calls.last().search == "xyz"
         }
+    }
+
+    @Test
+    fun ordersResetFailureReopensPaginationGate() = runBlocking {
+        val repo = RecordingOrdersRepository()
+        val viewModel = OrdersViewModel(repo)
+
+        waitUntil("orders initial load") {
+            repo.calls.isNotEmpty() && !viewModel.state.value.loading
+        }
+        viewModel.loadNextPage()
+        waitUntil("orders reached tail") {
+            repo.calls.any { it.page == 2 } &&
+                !viewModel.state.value.loadingMore &&
+                !viewModel.state.value.hasMorePages
+        }
+
+        repo.failNextPageOne = true
+        viewModel.refresh()
+        waitUntil("orders failed reset") {
+            repo.calls.count { it.page == 1 } >= 2 && !viewModel.state.value.loading
+        }
+
+        assertEquals(
+            "A failed reset must not leave Orders permanently gated at the old tail",
+            true,
+            viewModel.state.value.hasMorePages,
+        )
     }
 
     private suspend fun waitUntil(
@@ -208,6 +264,8 @@ class ShipmentsBackendPaginationParityTest {
 
     private class RecordingPaymentsRepository : ShipmentsPaymentsRepository {
         private val recordedCalls = Collections.synchronizedList(mutableListOf<PaymentCall>())
+        @Volatile
+        var failNextPageOne = false
 
         val calls: List<PaymentCall>
             get() = synchronized(recordedCalls) { recordedCalls.toList() }
@@ -219,6 +277,10 @@ class ShipmentsBackendPaginationParityTest {
             search: String?,
         ): Result<List<ShipmentPayment>> {
             recordedCalls += PaymentCall(page, perPage, type, search)
+            if (page == 1 && failNextPageOne) {
+                failNextPageOne = false
+                return Result.failure(IllegalStateException("reset failed"))
+            }
             val count = if (page == 1) perPage else 2
             return Result.success((1..count).map { samplePayment(page * 100 + it, type ?: "package") })
         }
@@ -236,12 +298,18 @@ class ShipmentsBackendPaginationParityTest {
 
     private class RecordingOrdersRepository : ShipmentsOrdersRepository {
         private val recordedCalls = Collections.synchronizedList(mutableListOf<OrderCall>())
+        @Volatile
+        var failNextPageOne = false
 
         val calls: List<OrderCall>
             get() = synchronized(recordedCalls) { recordedCalls.toList() }
 
         override suspend fun orders(page: Int, perPage: Int, search: String?): Result<List<ShipmentOrder>> {
             recordedCalls += OrderCall(page, perPage, search)
+            if (page == 1 && failNextPageOne) {
+                failNextPageOne = false
+                return Result.failure(IllegalStateException("reset failed"))
+            }
             val count = if (page == 1) perPage else 2
             return Result.success((1..count).map { sampleOrder(page * 100 + it) })
         }

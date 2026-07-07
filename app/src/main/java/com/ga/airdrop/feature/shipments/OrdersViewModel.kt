@@ -64,7 +64,14 @@ class OrdersViewModel(
         if (reset) { currentPage = 1; loadJob?.cancel() }
         val requestedPage = currentPage
         loadJob = viewModelScope.launch {
-            _state.update { it.copy(loading = reset, loadingMore = !reset, error = null) }
+            _state.update {
+                it.copy(
+                    loading = reset,
+                    loadingMore = !reset,
+                    hasMorePages = if (reset) true else it.hasMorePages,
+                    error = null,
+                )
+            }
             val search = _state.value.searchText.trim().takeIf { it.length >= SEARCH_MIN_CHARS }
             repo.orders(page = requestedPage, perPage = PER_PAGE, search = search)
                 .onSuccess { batch ->

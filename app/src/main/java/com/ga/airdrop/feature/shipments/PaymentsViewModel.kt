@@ -115,7 +115,13 @@ class PaymentsViewModel(
         if (reset) { currentPage = 1; loadJob?.cancel() }
         val requestedPage = currentPage
         loadJob = viewModelScope.launch {
-            _state.update { it.copy(loading = reset, loadingMore = !reset) }
+            _state.update {
+                it.copy(
+                    loading = reset,
+                    loadingMore = !reset,
+                    hasMorePages = if (reset) true else it.hasMorePages,
+                )
+            }
             val s = _state.value
             val search = s.searchText.trim().takeIf { it.length >= SEARCH_MIN_CHARS }
             repo.payments(
