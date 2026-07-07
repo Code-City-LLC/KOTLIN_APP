@@ -12,7 +12,9 @@ data class DropAlertDialog(val title: String, val message: String)
 
 data class DropAlertUiState(
     val courierNumber: String = "",
-    val shippingMethod: String = "",
+    // Swift 9519615: the picker starts on "Airdrop standard" instead of empty;
+    // a saved preset from the last submit still wins over this default.
+    val shippingMethod: String = DropAlertViewModel.DEFAULT_SHIPPING_METHOD,
     val shipper: String = "",
     val consignee: String = "",
     val packageValue: String = "",
@@ -30,6 +32,9 @@ class DropAlertViewModel(
     companion object {
         const val MAX_INVOICES = 3
         const val MAX_INVOICE_BYTES = 10L * 1024 * 1024 // "size below 10 MB"
+
+        // Swift FigmaDropAlertViewController.defaultShippingMethod (9519615).
+        const val DEFAULT_SHIPPING_METHOD = "Airdrop standard"
 
         // RN DropAlertView picker `values` — Express is intentionally omitted
         // from the create-alert flow even though the API supports it.
