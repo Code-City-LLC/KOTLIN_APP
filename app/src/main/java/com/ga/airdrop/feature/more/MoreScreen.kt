@@ -11,13 +11,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,6 +65,8 @@ import com.ga.airdrop.core.session.SessionStore
  */
 internal object MoreRootTags {
     const val ROOT = "more-root"
+    const val TOP_CLEARANCE = "more-root-top-clearance"
+    const val BOTTOM_CLEARANCE = "more-root-bottom-clearance"
     const val PROFILE_CARD = "more-profile-card"
     const val PROFILE_AVATAR = "more-profile-avatar"
     const val PREFERENCES = "more-menu-preferences"
@@ -79,6 +83,8 @@ internal object MoreRootTags {
     const val PRIVACY = "more-menu-privacy-policy"
     const val ABOUT = "more-menu-about"
 }
+
+private val MoreRootChromeClearance = 76.dp
 
 private data class MoreMenuItem(
     val title: String,
@@ -245,11 +251,15 @@ internal fun MoreScreenContent(
                 .verticalScroll(rememberScrollState()),
         ) {
             Spacer(
-                Modifier.height(
-                    androidx.compose.foundation.layout.WindowInsets.statusBars
-                        .asPaddingValues().calculateTopPadding() + 76.dp
-                )
-            ) // clearance under the solid header
+                Modifier
+                    .fillMaxWidth()
+                    .height(
+                        WindowInsets.statusBars
+                            .asPaddingValues()
+                            .calculateTopPadding() + MoreRootChromeClearance
+                    )
+                    .testTag(MoreRootTags.TOP_CLEARANCE)
+            )
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -275,7 +285,16 @@ internal fun MoreScreenContent(
                         iconTestTag = "${item.testTag}-icon",
                     )
                 }
-                Spacer(Modifier.height(90.dp)) // glass bottom-bar clearance
+                Spacer(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(
+                            WindowInsets.navigationBars
+                                .asPaddingValues()
+                                .calculateBottomPadding() + MoreRootChromeClearance
+                        )
+                        .testTag(MoreRootTags.BOTTOM_CLEARANCE)
+                )
             }
         }
 

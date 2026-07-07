@@ -64,6 +64,31 @@ class MoreRootTapRailsParityTest {
     }
 
     @Test
+    fun aboutAirDropKeepsHeaderMatchedBottomClearance() {
+        setMoreRoot(mode = ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag(MoreRootTags.BOTTOM_CLEARANCE).performScrollTo()
+        compose.waitForIdle()
+
+        val root = bounds(MoreRootTags.ROOT)
+        val about = bounds(MoreRootTags.ABOUT)
+        val bottomClearance = bounds(MoreRootTags.BOTTOM_CLEARANCE)
+        val visibleGapBelowAbout = (root.bottom - about.bottom).value
+
+        assertClose(335f, boundsWidth(about), "About AirDrop row width")
+        assertClose(59f, boundsHeight(about), "About AirDrop row height")
+        assertClose(10f, verticalGap(about, bottomClearance), "About-to-bottom-clearance gap")
+        assertTrue(
+            "Bottom clearance should match the header clearance; visible gap was $visibleGapBelowAbout",
+            visibleGapBelowAbout >= MORE_ROOT_HEADER_CLEARANCE_DP,
+        )
+        assertTrue(
+            "Bottom spacer should preserve at least the fixed header clearance",
+            boundsHeight(bottomClearance) >= MORE_ROOT_HEADER_CLEARANCE_DP,
+        )
+    }
+
+    @Test
     fun menuRowsEmitSwiftRoutesInFigmaOrder() {
         setMoreRoot()
 
@@ -80,6 +105,7 @@ class MoreRootTapRailsParityTest {
             MoreRootTags.FAQS to Routes.FAQ,
             MoreRootTags.TERMS to Routes.TERMS,
             MoreRootTags.PRIVACY to Routes.PRIVACY,
+            MoreRootTags.ABOUT to Routes.ABOUT,
         ).forEach { (tag, route) ->
             compose.onNodeWithTag(tag).performScrollTo().performClick()
             compose.runOnIdle {
@@ -278,6 +304,7 @@ class MoreRootTapRailsParityTest {
         private const val DARK_ICON = 0xFF292929.toInt()
         private const val WHITE_ICON = 0xFFFFFFFF.toInt()
         private const val COLOR_TOLERANCE = 12
+        private const val MORE_ROOT_HEADER_CLEARANCE_DP = 76f
 
         private val moreIconRowTags = listOf(
             MoreRootTags.PREFERENCES,

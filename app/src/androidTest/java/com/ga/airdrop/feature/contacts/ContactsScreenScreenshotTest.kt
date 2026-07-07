@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.navigation.Routes
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -51,13 +52,21 @@ class ContactsScreenScreenshotTest {
     }
 
     @Test
-    fun helpUsesSwiftSeparateCardsAndNoLiveChat() {
-        setHelpContent(ThemeController.Mode.LIGHT)
+    fun helpUsesSwiftSeparateCardsAndRoutesLiveChatFirst() {
+        val navigated = mutableListOf<String>()
+        setHelpContent(
+            mode = ThemeController.Mode.LIGHT,
+            onNavigate = { navigated += it },
+        )
 
+        compose.onNodeWithTag("contacts-card-live-chat").assertIsDisplayed().performClick()
         compose.onNodeWithTag("contacts-card-contact-number").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-whatsapp").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-email").assertIsDisplayed()
-        assertEquals(0, compose.onAllNodesWithText("Live Chat").fetchSemanticsNodes().size)
+        assertEquals(1, compose.onAllNodesWithText("Live Chat").fetchSemanticsNodes().size)
+        compose.runOnIdle {
+            assertEquals(listOf(Routes.LIVE_CHAT), navigated)
+        }
         assertEquals(11, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
         compose.onNodeWithText("Monday-Friday: 9am-6pm\nSaturday: 10am-4pm\nSunday: Closed")
             .performScrollTo()
@@ -69,12 +78,15 @@ class ContactsScreenScreenshotTest {
                 .size,
         )
 
+        val liveChat = compose.onNodeWithTag("contacts-card-live-chat").getUnclippedBoundsInRoot()
         val contact = compose.onNodeWithTag("contacts-card-contact-number").getUnclippedBoundsInRoot()
         val whatsapp = compose.onNodeWithTag("contacts-card-whatsapp").getUnclippedBoundsInRoot()
         val email = compose.onNodeWithTag("contacts-card-email").getUnclippedBoundsInRoot()
+        assertClose(20f, boundsTop(contact) - boundsBottom(liveChat), "Swift card gap live-chat/contact")
         assertClose(20f, boundsTop(whatsapp) - boundsBottom(contact), "Swift card gap contact/whatsapp")
         assertClose(20f, boundsTop(email) - boundsBottom(whatsapp), "Swift card gap whatsapp/email")
         assertTrue(boundsWidth(contact) > 300f)
+        assertClose(boundsWidth(liveChat), boundsWidth(contact), "Swift card widths match")
         assertClose(boundsWidth(contact), boundsWidth(whatsapp), "Swift card widths match")
     }
 

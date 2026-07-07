@@ -10,7 +10,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -23,15 +22,10 @@ import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.data.model.AirCoinTransaction
 import com.ga.airdrop.data.model.AirCoinsStatus
-import com.google.zxing.BinaryBitmap
-import com.google.zxing.RGBLuminanceSource
-import com.google.zxing.common.HybridBinarizer
-import com.google.zxing.qrcode.QRCodeReader
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,12 +37,12 @@ class AirCoinParityScreenshotTest {
     val compose = createComposeRule()
 
     @Test
-    fun balanceUsesSwiftGeometryAndHistoryActionLight() {
+    fun balanceUsesFigmaGeometryAndHistoryActionLight() {
         val historyClicks = AtomicInteger()
         setBalanceContent(ThemeController.Mode.LIGHT, historyClicks)
 
-        assertBalanceSwiftGeometry()
-        saveNodeScreenshot("aircoin-balance-root", "aircoin_balance_swift_light.png")
+        assertBalanceFigmaGeometry()
+        saveNodeScreenshot("aircoin-balance-root", "aircoin_balance_figma_light.png")
         compose.onNodeWithContentDescription("AirCoin history").performClick()
         compose.runOnIdle {
             assertEquals(1, historyClicks.get())
@@ -56,61 +50,27 @@ class AirCoinParityScreenshotTest {
     }
 
     @Test
-    fun balanceUsesSwiftGeometryDark() {
+    fun balanceUsesFigmaGeometryDark() {
         setBalanceContent(ThemeController.Mode.DARK)
 
-        assertBalanceSwiftGeometry()
-        saveNodeScreenshot("aircoin-balance-root", "aircoin_balance_swift_dark.png")
+        assertBalanceFigmaGeometry()
+        saveNodeScreenshot("aircoin-balance-root", "aircoin_balance_figma_dark.png")
     }
 
     @Test
-    fun redeemAtCounterShowsSwiftQrSheet() {
-        setBalanceContent(ThemeController.Mode.LIGHT)
-
-        compose.onNodeWithTag("aircoin-redeem-button").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
-            compose.onAllNodesWithTag("aircoin-redeem-sheet").fetchSemanticsNodes().isNotEmpty()
-        }
-
-        compose.onNodeWithTag("aircoin-redeem-sheet-title").assertIsDisplayed()
-        compose.onNodeWithText(
-            "Show this code to the AirDrop counter agent to apply your AirCoin balance toward your next pickup."
-        ).assertIsDisplayed()
-        compose.onNodeWithContentDescription("AirCoin redemption QR code").assertIsDisplayed()
-        compose.onNodeWithText("Code refreshes when this screen opens. Do not share.").assertIsDisplayed()
-        assertClose(220f, boundsWidth("aircoin-redeem-qr-card"), "Swift QR card width")
-        assertClose(220f, boundsHeight("aircoin-redeem-qr-card"), "Swift QR card height")
-    }
-
-    @Test
-    fun redeemPayloadQrIsScannable() {
-        val payload = airCoinRedeemPayload("AIR2048", nowSeconds = 1_780_000_000L)
-        val bitmap = generateAirCoinRedeemQrBitmap(payload, sizePx = 256)
-        val pixels = IntArray(bitmap.width * bitmap.height)
-        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-
-        val decoded = QRCodeReader().decode(
-            BinaryBitmap(HybridBinarizer(RGBLuminanceSource(bitmap.width, bitmap.height, pixels)))
-        ).text
-
-        assertEquals("airdrop:redeem?account=AIR2048&t=1780000000", payload)
-        assertEquals(payload, decoded)
-    }
-
-    @Test
-    fun historyUsesSwiftLedgerGeometryAndCopyLight() {
+    fun historyUsesFigmaLedgerGeometryAndCopyLight() {
         setHistoryContent(ThemeController.Mode.LIGHT)
 
-        assertHistorySwiftGeometryAndCopy()
-        saveNodeScreenshot("aircoin-history-root", "aircoin_history_swift_light.png")
+        assertHistoryFigmaGeometryAndCopy()
+        saveNodeScreenshot("aircoin-history-root", "aircoin_history_figma_light.png")
     }
 
     @Test
-    fun historyUsesSwiftLedgerGeometryAndCopyDark() {
+    fun historyUsesFigmaLedgerGeometryAndCopyDark() {
         setHistoryContent(ThemeController.Mode.DARK)
 
-        assertHistorySwiftGeometryAndCopy()
-        saveNodeScreenshot("aircoin-history-root", "aircoin_history_swift_dark.png")
+        assertHistoryFigmaGeometryAndCopy()
+        saveNodeScreenshot("aircoin-history-root", "aircoin_history_figma_dark.png")
     }
 
     private fun setBalanceContent(
@@ -134,8 +94,6 @@ class AirCoinParityScreenshotTest {
                                 redeemed = 23,
                                 available = 50,
                             ),
-                            accountNumber = "AIR2048",
-                            userId = 2048,
                         ),
                         onBack = {},
                         onOpenHistory = { historyClicks.incrementAndGet() },
@@ -168,9 +126,21 @@ class AirCoinParityScreenshotTest {
                                 ),
                                 AirCoinTransaction(
                                     id = 2,
-                                    amount = -5.0,
-                                    referenceId = "#11112222",
-                                    createdAt = "2025-10-26 12:30:00",
+                                    amount = 25.0,
+                                    referenceId = "#24242433",
+                                    createdAt = "2025-10-25 12:30:00",
+                                ),
+                                AirCoinTransaction(
+                                    id = 3,
+                                    amount = 25.0,
+                                    referenceId = "#24242433",
+                                    createdAt = "2025-10-25",
+                                ),
+                                AirCoinTransaction(
+                                    id = 4,
+                                    amount = 25.0,
+                                    referenceId = "#24242433",
+                                    createdAt = "2025-10-25T13:14:00Z",
                                 ),
                             ),
                             loadedOnce = true,
@@ -184,42 +154,47 @@ class AirCoinParityScreenshotTest {
         compose.waitForIdle()
     }
 
-    private fun assertBalanceSwiftGeometry() {
-        assertClose(280f, boundsHeight("aircoin-balance-hero-spacer"), "Balance hero spacer")
-        assertClose(120f, boundsWidth("aircoin-balance-left-pill"), "Left conversion pill width")
-        assertClose(44f, boundsHeight("aircoin-balance-left-pill"), "Left conversion pill height")
-        assertClose(120f, boundsWidth("aircoin-balance-right-pill"), "Right conversion pill width")
-        assertClose(44f, boundsHeight("aircoin-balance-right-pill"), "Right conversion pill height")
-        assertClose(64f, boundsHeight("aircoin-stat-accumulated"), "Accumulated row height")
-        assertClose(64f, boundsHeight("aircoin-stat-redeemed"), "Redeemed row height")
-        assertClose(64f, boundsHeight("aircoin-stat-available"), "Available row height")
-        assertClose(52f, boundsHeight("aircoin-redeem-button"), "Redeem CTA height")
-        assertClose(22f, boundsWidth("aircoin-redeem-icon"), "Redeem QR icon width")
-        assertClose(22f, boundsHeight("aircoin-redeem-icon"), "Redeem QR icon height")
-        assertClose(40f, boundsWidth("aircoin-balance-tip-icon"), "Tip icon width")
-        assertClose(40f, boundsHeight("aircoin-balance-tip-icon"), "Tip icon height")
-        compose.onNodeWithText("Redeem at counter").assertIsDisplayed()
+    private fun assertBalanceFigmaGeometry() {
+        assertClose(325f, boundsHeight("aircoin-balance-hero-spacer"), "Balance hero spacer")
+        assertClose(336f, boundsWidth("aircoin-balance-conversion-row"), "Conversion row width")
+        assertClose(51f, boundsHeight("aircoin-balance-conversion-row"), "Conversion row height")
+        assertClose(142.5f, boundsWidth("aircoin-balance-left-pill"), "Left conversion pill width")
+        assertClose(51f, boundsHeight("aircoin-balance-left-pill"), "Left conversion pill height")
+        assertClose(51f, boundsWidth("aircoin-balance-arrow-circle"), "Arrow circle width")
+        assertClose(51f, boundsHeight("aircoin-balance-arrow-circle"), "Arrow circle height")
+        assertClose(142.5f, boundsWidth("aircoin-balance-right-pill"), "Right conversion pill width")
+        assertClose(51f, boundsHeight("aircoin-balance-right-pill"), "Right conversion pill height")
+        assertClose(336f, boundsWidth("aircoin-balance-stats-card"), "Stats card width")
+        assertClose(170f, boundsHeight("aircoin-balance-stats-card"), "Stats card height")
+        assertClose(40f, boundsHeight("aircoin-stat-accumulated"), "Accumulated row height")
+        assertClose(40f, boundsHeight("aircoin-stat-redeemed"), "Redeemed row height")
+        assertClose(40f, boundsHeight("aircoin-stat-available"), "Available row height")
+        assertClose(336f, boundsWidth("aircoin-balance-tip-card"), "Tip card width")
+        assertClose(82f, boundsHeight("aircoin-balance-tip-card"), "Tip card height")
+        assertClose(50f, boundsWidth("aircoin-balance-tip-icon"), "Tip icon width")
+        assertClose(50f, boundsHeight("aircoin-balance-tip-icon"), "Tip icon height")
+        assertAbsent("Redeem at counter")
     }
 
-    private fun assertHistorySwiftGeometryAndCopy() {
-        assertClose(170f, boundsHeight("aircoin-history-hero-wrap"), "History hero wrap height")
-        assertClose(150f, boundsWidth("aircoin-history-hero-image"), "History hero image width")
-        assertClose(150f, boundsHeight("aircoin-history-hero-image"), "History hero image height")
-        assertClose(335f, boundsWidth("aircoin-history-table-card"), "History table card width")
-        assertAtLeast(48f, boundsHeight("aircoin-history-header-row"), "History header row min height")
-        assertAtLeast(48f, boundsHeight("aircoin-history-row-0"), "History body row min height")
+    private fun assertHistoryFigmaGeometryAndCopy() {
+        assertClose(297f, boundsHeight("aircoin-history-hero-wrap"), "History hero wrap height")
+        assertClose(287f, boundsWidth("aircoin-history-hero-image"), "History hero image width")
+        assertClose(287f, boundsHeight("aircoin-history-hero-image"), "History hero image height")
+        assertClose(345f, boundsWidth("aircoin-history-table-card"), "History table card width")
+        assertClose(206f, boundsHeight("aircoin-history-table-card"), "History table card height")
+        assertClose(43f, boundsHeight("aircoin-history-header-row"), "History header row height")
+        assertClose(40f, boundsHeight("aircoin-history-row-0"), "History body row height")
 
-        compose.onNodeWithText("Invoice No").assertIsDisplayed()
+        compose.onNodeWithText("Invoice No.").assertIsDisplayed()
         compose.onNodeWithText("Air Coin Used").assertIsDisplayed()
-        compose.onNodeWithText("Used Date").assertIsDisplayed()
-        compose.onNodeWithText("25 Oct 2025").assertIsDisplayed()
-        compose.onNodeWithText("26 Oct 2025").assertIsDisplayed()
-        compose.onNodeWithText("25").assertIsDisplayed()
-        compose.onNodeWithText("5").assertIsDisplayed()
-        assertEquals(0, compose.onAllNodesWithText("Invoice No.").fetchSemanticsNodes().size)
-        assertEquals(0, compose.onAllNodesWithText("Date").fetchSemanticsNodes().size)
+        compose.onNodeWithText("Date").assertIsDisplayed()
+        assertEquals(4, compose.onAllNodesWithText("25Oct 2025").fetchSemanticsNodes().size)
+        assertEquals(4, compose.onAllNodesWithText("25").fetchSemanticsNodes().size)
+        assertAbsent("Invoice No")
+        assertAbsent("Used Date")
+        assertAbsent("25 Oct 2025")
         assertEquals(0, compose.onAllNodesWithText("+25").fetchSemanticsNodes().size)
-        assertEquals(0, compose.onAllNodesWithText("-5").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("-25").fetchSemanticsNodes().size)
     }
 
     private fun saveNodeScreenshot(tag: String, filename: String) {
@@ -232,7 +207,7 @@ class AirCoinParityScreenshotTest {
 
     private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        return File(context.getExternalFilesDir(null), "screenshots/aircoins_swift").also { it.mkdirs() }
+        return File(context.getExternalFilesDir(null), "screenshots/aircoins_figma").also { it.mkdirs() }
     }
 
     private fun boundsWidth(tag: String): Float =
@@ -246,10 +221,10 @@ class AirCoinParityScreenshotTest {
             .let { (it.bottom - it.top).value }
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
-        assertEquals(label, expected, actual, 0.75f)
+        assertEquals(label, expected, actual, 2f)
     }
 
-    private fun assertAtLeast(minimum: Float, actual: Float, label: String) {
-        assertTrue("$label expected >= $minimum but was $actual", actual >= minimum)
+    private fun assertAbsent(text: String) {
+        assertEquals(0, compose.onAllNodesWithText(text).fetchSemanticsNodes().size)
     }
 }

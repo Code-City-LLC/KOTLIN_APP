@@ -25,7 +25,6 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -38,7 +37,7 @@ class AirdropBottomBarIconParityTest {
     val compose = createComposeRule()
 
     @Test
-    fun bottomTabIconsUseSwiftRolesInAppLight() {
+    fun bottomTabIconsUseSwiftFilledActiveStateInAppLight() {
         assertBottomBarIconRoles(
             mode = ThemeController.Mode.LIGHT,
             inactiveColor = DARK_ICON,
@@ -47,7 +46,7 @@ class AirdropBottomBarIconParityTest {
     }
 
     @Test
-    fun bottomTabIconsUseSwiftRolesInAppDark() {
+    fun bottomTabIconsUseSwiftFilledActiveStateInAppDark() {
         assertBottomBarIconRoles(
             mode = ThemeController.Mode.DARK,
             inactiveColor = WHITE_ICON,
@@ -103,18 +102,18 @@ class AirdropBottomBarIconParityTest {
                 target = ORANGE,
                 label = "${mode.name} ${selectedTab.label} selected label",
             )
+            if (selectedTab == AirdropTab.Home) {
+                assertNodeContainsColor(
+                    contentDescription = selectedTab.label,
+                    target = WHITE_ICON,
+                    label = "${mode.name} Home selected icon keeps Swift white secondary detail",
+                )
+            }
 
             val selectedIcon = captureIcon(selectedTab.label)
-            val inactivePeer = AirdropTab.entries.first { it != selectedTab }
-            compose.runOnIdle {
-                selectedState.value = inactivePeer
-            }
-            compose.waitForIdle()
-            val inactiveIcon = captureIcon(selectedTab.label)
-            assertSameOpaqueMask(
-                expected = inactiveIcon,
-                actual = selectedIcon,
-                label = "${mode.name} ${selectedTab.label} selected icon should keep Swift outline shape",
+            assertSelectedFilledColorArea(
+                bitmap = selectedIcon,
+                label = "${mode.name} ${selectedTab.label} selected icon should use Swift filled shape",
             )
 
             if (selectedTab == AirdropTab.Home) {
@@ -153,36 +152,43 @@ class AirdropBottomBarIconParityTest {
         assertTrue(label, bitmap.hasPixelNear(target))
     }
 
-    private fun assertSameOpaqueMask(
-        expected: Bitmap,
-        actual: Bitmap,
+    private fun assertSelectedFilledColorArea(
+        bitmap: Bitmap,
         label: String,
     ) {
-        assertEquals("$label width", expected.width, actual.width)
-        assertEquals("$label height", expected.height, actual.height)
-
-        var expectedOpaque = 0
-        var actualOpaque = 0
-        var mismatches = 0
-        for (x in 0 until expected.width) {
-            for (y in 0 until expected.height) {
-                val expectedPixelOpaque = expected.alphaAt(x, y) >= MASK_ALPHA_THRESHOLD
-                val actualPixelOpaque = actual.alphaAt(x, y) >= MASK_ALPHA_THRESHOLD
-                if (expectedPixelOpaque) expectedOpaque += 1
-                if (actualPixelOpaque) actualOpaque += 1
-                if (expectedPixelOpaque != actualPixelOpaque) mismatches += 1
-            }
-        }
-
-        val tolerance = maxOf(4, expectedOpaque / 30)
+        val orangePixels = bitmap.pixelCountNear(ORANGE)
+        val minimumOrangePixels = maxOf(96, bitmap.width * bitmap.height / 8)
         assertTrue(
-            "$label: expected active/inactive masks to match; " +
-                "expectedOpaque=$expectedOpaque actualOpaque=$actualOpaque mismatches=$mismatches tolerance=$tolerance",
-            abs(expectedOpaque - actualOpaque) <= tolerance && mismatches <= tolerance,
+            "$label: expected filled active icon to paint a substantial orange area; " +
+                "orangePixels=$orangePixels minimumOrangePixels=$minimumOrangePixels size=${bitmap.width}x${bitmap.height}",
+            orangePixels >= minimumOrangePixels,
         )
     }
 
-    private fun Bitmap.alphaAt(x: Int, y: Int): Int = (getPixel(x, y) ushr 24) and 0xFF
+    private fun Bitmap.pixelCountNear(target: Int): Int {
+        val targetRed = (target shr 16) and 0xFF
+        val targetGreen = (target shr 8) and 0xFF
+        val targetBlue = target and 0xFF
+        var count = 0
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                val pixel = getPixel(x, y)
+                val alpha = (pixel ushr 24) and 0xFF
+                if (alpha < 160) continue
+                val red = (pixel shr 16) and 0xFF
+                val green = (pixel shr 8) and 0xFF
+                val blue = pixel and 0xFF
+                if (
+                    abs(red - targetRed) <= COLOR_TOLERANCE &&
+                    abs(green - targetGreen) <= COLOR_TOLERANCE &&
+                    abs(blue - targetBlue) <= COLOR_TOLERANCE
+                ) {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
 
     private fun saveRootScreenshot(filename: String) {
         val bitmap = compose.onNodeWithTag(ROOT_TAG)
@@ -250,6 +256,5 @@ class AirdropBottomBarIconParityTest {
         private const val DARK_ICON = 0xFF292929.toInt()
         private const val WHITE_ICON = 0xFFFFFFFF.toInt()
         private const val COLOR_TOLERANCE = 12
-        private const val MASK_ALPHA_THRESHOLD = 80
     }
 }

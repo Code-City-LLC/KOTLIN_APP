@@ -38,9 +38,9 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
  *
  * Kemar locked this shared tab chrome to the translucent Figma surface even
  * though Swift currently uses an opaque gray200 overlay. Items: 28pt icons;
- * active = orangeMain icon + Cairo SemiBold 14 label; inactive = icon only,
- * tinted iconSelected, vertically centered (Swift pushes inactive icons down
- * 14pt inside the 67pt row so both states read centered).
+ * active = filled orangeMain icon + Cairo SemiBold 14 label; inactive = outline
+ * icon only, tinted iconSelected, vertically centered (Swift keeps every icon in
+ * the same slot and only changes focused fill/label).
  */
 enum class AirdropTab(val label: String) {
     Home("Home"),
@@ -113,11 +113,11 @@ private fun TabItem(
     ) {
         val tint: Color = if (isSelected) BrandPalette.OrangeMain else colors.iconSelected
         Image(
-            painter = painterResource(tab.iconRes()),
+            painter = painterResource(tab.iconRes(isSelected)),
             contentDescription = tab.label,
             // Swift: 28pt in both states.
             modifier = Modifier.size(28.dp),
-            colorFilter = ColorFilter.tint(tint),
+            colorFilter = tab.iconTint(isSelected, tint),
         )
         if (isSelected) {
             Text(
@@ -136,10 +136,13 @@ private fun TabItem(
     }
 }
 
-private fun AirdropTab.iconRes(): Int = when (this) {
-    AirdropTab.Home -> R.drawable.ic_home
-    AirdropTab.Shipments -> R.drawable.ic_nav_shipment
-    AirdropTab.Shop -> R.drawable.ic_nav_shop
-    AirdropTab.Help -> R.drawable.ic_nav_help
-    AirdropTab.More -> R.drawable.ic_nav_more
+private fun AirdropTab.iconRes(selected: Boolean): Int = when (this) {
+    AirdropTab.Home -> if (selected) R.drawable.ic_nav_home_filled else R.drawable.ic_home
+    AirdropTab.Shipments -> if (selected) R.drawable.ic_shipment_filled else R.drawable.ic_nav_shipment
+    AirdropTab.Shop -> if (selected) R.drawable.ic_shop_filled else R.drawable.ic_nav_shop
+    AirdropTab.Help -> if (selected) R.drawable.ic_help_filled else R.drawable.ic_nav_help
+    AirdropTab.More -> if (selected) R.drawable.ic_more_filled else R.drawable.ic_nav_more
 }
+
+private fun AirdropTab.iconTint(selected: Boolean, tint: Color): ColorFilter? =
+    if (this == AirdropTab.Home && selected) null else ColorFilter.tint(tint)

@@ -180,10 +180,10 @@ light AND dark.
   Android now fetches `/orders/{payment.id}` and `ProductOrderDetailsParityTest`
   asserts the Orders repo receives the tapped payment id even when
   `orderId/packageId` differ.
-- **AirCoins Swift data contract:** AirCoins balance/history was rechecked
-  against Figma nodes `40001911:22972` / `40006461:26563` and Swift
-  `FigmaAirCoinHistoryViewController.swift`. Visual geometry stayed aligned, but
-  Android history used the stale 20-row page size while Swift requests
+- **AirCoins data contract:** AirCoins balance/history keeps the existing
+  `/aircoins/status` and `/aircoins/history` rails while the visual surface now
+  follows the explicit Figma balance/history nodes. Android history used the
+  stale 20-row page size while Swift requests
   `airCoinHistory(page: 1, limit: 50)`. Android now uses
   `AIRCOIN_HISTORY_PER_PAGE = 50`, and `MiscRepositoryAirCoinsTest` locks
   `/aircoins/status` plus `/aircoins/history?page=1&per_page=50`.
@@ -441,18 +441,18 @@ light AND dark.
   `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_search_results_swift_light.png`,
   `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_restricted_detail_from_search_swift_light.png`,
   `/tmp/kotlin_ui_proof/restricted_items/android/restricted_items/restricted_items_permitted_detail_swift_dark.png`.
-- **AirCoins balance/history Swift parity:** AirCoins was compared against
-  Swift `FigmaAirCoinHistoryViewController.swift`, Figma balance node
-  `40001911:22972`, and Figma history node `40006461:26563`. Swift takes
-  precedence where Figma differs: balance keeps Swift's 120x44 conversion pills,
-  standalone 24dp arrow, 40dp tip icon, and `subtitle1` header title; history
-  keeps Swift's 170dp hero wrap / 150dp image, `Invoice No` / `Used Date`
-  ledger labels, unsigned text-colored amounts, and one clipped 15dp card.
-  The history button is covered by instrumentation. Proof:
-  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_light.png`,
-  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
-  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
-  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`.
+- **AirCoins balance/history Figma correction:** Kemar rejected the older
+  Swift-precedence interpretation for AirCoins. The source of truth is Figma
+  balance `40001911:22972` / `40001911:23111` and history `40006461:26563` /
+  `40006461:26461`. Balance uses the 336dp conversion strip with 51dp arrow
+  circle, 170dp stats card, 50dp earn-card icon, and no fabricated redeem/QR
+  CTA. History uses the receipt/lightning hero, ray background, 345x206 ledger
+  card, exact labels `Invoice No.`, `Air Coin Used`, `Date`, and four compact
+  body rows. The history button is covered by instrumentation. Proof:
+  `/tmp/kotlin_ui_proof/aircoins_figma/aircoin_balance_figma_light.png`,
+  `/tmp/kotlin_ui_proof/aircoins_figma/aircoin_balance_figma_dark.png`,
+  `/tmp/kotlin_ui_proof/aircoins_figma/aircoin_history_figma_light.png`,
+  `/tmp/kotlin_ui_proof/aircoins_figma/aircoin_history_figma_dark.png`.
 - **PaymentPackageDetails Swift/Figma slice:** Payment Package Details was
   compared against Swift `FigmaPaymentPackageDetailsViewController.swift` and
   Figma node `40001761:29389` for the View History timeline. Swift takes
@@ -591,16 +591,15 @@ light AND dark.
   samples plus Swift theme-tinted Home header icons. Proof filenames:
   `home_chrome_swift_opaque_light.png` and `home_chrome_swift_opaque_dark.png`.
 - **Bottom-tab active icon shape:** Shared tab chrome was compared against
-  Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma Help nav
-  icon node `40000770:4747`. Swift takes precedence: active icon + label are
-  `orangeMain`, inactive icons are `iconSelected` (black in app light, white in
-  app dark), and active/inactive states reuse the same outline icon shape.
-  Android was still swapping selected tabs to filled assets. `AirdropBottomBar`
-  now always uses the outline nav assets and `AirdropBottomBarIconParityTest`
-  pixel-checks every tab color plus the selected/inactive alpha mask in app
-  light and app dark. Proof:
-  `/tmp/kotlin_ui_proof/bottom_tab_outline/bottom_tab_outline_swift_light.png`,
-  `/tmp/kotlin_ui_proof/bottom_tab_outline/bottom_tab_outline_swift_dark.png`.
+  current Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma
+  Home nav node `40001464:28927`. Swift/Figma agree on the current rule: active
+  icon + label are `orangeMain`, inactive icons are `iconSelected` (black in app
+  light, white in app dark), active icons use filled variants, and inactive
+  icons use outline variants. `AirdropBottomBar` now reuses the existing filled
+  drawable variants for selected tabs and outline drawable variants for inactive
+  tabs. `AirdropBottomBarIconParityTest` pixel-checks every tab color plus the
+  selected filled-mask contract in app light and app dark. Proof filenames:
+  `bottom_tab_icons_swift_light.png` and `bottom_tab_icons_swift_dark.png`.
 - **Home primary route callbacks:** Swift `FigmaHomeViewController` maps
   Services, Ship Tax, Calculator, Drop Alert, See More, Refer a friend, bell,
   and cart to their corresponding route destinations. Android already emitted
