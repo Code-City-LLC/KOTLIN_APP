@@ -114,7 +114,7 @@ class LegalContentParityTest {
         }
         compose.setContent {
             AirdropTheme {
-                FaqScreen(onBack = {})
+                FaqScreen(onBack = {}, onNavigate = {})
             }
         }
         compose.waitUntil(timeoutMillis = 5_000) {

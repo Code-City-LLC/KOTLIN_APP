@@ -112,7 +112,22 @@ data class FaqUiState(
     val faqs: List<FaqItem> = FALLBACK_FAQS,
     // None expanded on cold open, mirroring RN.
     val expandedIds: Set<String> = emptySet(),
+    /** Swift figma.faq.search: instant filter over question + answer. */
+    val searchQuery: String = "",
 )
+
+/**
+ * Swift FigmaFAQViewController.filteredList(for:): a blank query returns the
+ * full list; otherwise keep entries whose question OR answer contains the
+ * trimmed, lowercased query.
+ */
+fun filterFaqs(faqs: List<FaqItem>, query: String): List<FaqItem> {
+    val q = query.trim().lowercase()
+    if (q.isEmpty()) return faqs
+    return faqs.filter {
+        it.question.lowercase().contains(q) || it.answer.lowercase().contains(q)
+    }
+}
 
 /** FigmaFAQViewController: fallback list + GET /faqs swap-in accordion. */
 class FaqViewModel(
@@ -140,4 +155,6 @@ class FaqViewModel(
             expandedIds = if (id in it.expandedIds) it.expandedIds - id else it.expandedIds + id,
         )
     }
+
+    fun onSearchChange(query: String) = _state.update { it.copy(searchQuery = query) }
 }

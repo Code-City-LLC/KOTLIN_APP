@@ -107,7 +107,10 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
     }
 
     composable(Routes.FAQ) {
-        FaqScreen(onBack = { navController.popBackStack() })
+        FaqScreen(
+            onBack = { navController.popBackStack() },
+            onNavigate = { navController.navigate(it) },
+        )
     }
 
     composable(Routes.RESTRICTED_ITEMS) {
