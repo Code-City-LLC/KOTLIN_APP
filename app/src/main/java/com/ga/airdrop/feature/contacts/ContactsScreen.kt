@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -57,11 +58,9 @@ import kotlinx.coroutines.delay
  * FigmaContactsViewController + RN ContactsView.
  *
  * Swift is the implementation-precedence guide where it conflicts with Figma:
- * the Figma node still includes a Live Chat row, groups Contact/WhatsApp/Email
- * in one card, and shows a Business Hours copy affordance. The Swift app ships
- * separate section cards, 20pt card gaps, 15pt card padding, no Live Chat row,
- * and no Business Hours copy button, so Android follows Swift for those
- * conflicts.
+ * current Swift and Figma both include a top Live Chat card, then separate
+ * Contact/WhatsApp/Email cards, 20pt card gaps, 15pt card padding, and no
+ * Business Hours copy button.
  */
 @Composable
 fun ContactsScreen(
@@ -108,6 +107,8 @@ fun ContactsScreen(
                 // Swift contentStack.spacing = 20.
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
+                LiveChatCard(onClick = { onNavigate(Routes.LIVE_CHAT) })
+
                 SectionCard(
                     modifier = Modifier.testTag("contacts-card-contact-number"),
                     iconRes = R.drawable.ic_contact_number,
@@ -268,6 +269,46 @@ private data class SocialEntry(
     val handle: String,
     val url: String,
 )
+
+@Composable
+private fun LiveChatCard(onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(59.dp)
+            .testTag("contacts-card-live-chat")
+            .clip(RoundedCornerShape(Spacing.sm1))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+            .clickable(onClick = onClick)
+            .padding(horizontal = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val chatIcon =
+                if (colors.isDark) R.drawable.ic_contacts_chat_dark else R.drawable.ic_contacts_chat_light
+            Image(
+                painter = painterResource(chatIcon),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
+            Text("Live Chat", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+        }
+        Image(
+            painter = painterResource(R.drawable.ic_chevron),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier
+                .size(24.dp)
+                .rotate(-90f),
+        )
+    }
+}
 
 private fun openPhone(phone: String, open: (String) -> Boolean) {
     val digits = phone

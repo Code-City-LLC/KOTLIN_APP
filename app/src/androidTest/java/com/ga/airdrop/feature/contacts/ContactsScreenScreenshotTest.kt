@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.contacts
 
+import android.content.ContentValues
 import android.graphics.Bitmap
+import android.provider.MediaStore
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
@@ -16,10 +18,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.DpRect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
-import java.io.File
-import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -51,13 +52,18 @@ class ContactsScreenScreenshotTest {
     }
 
     @Test
-    fun helpUsesSwiftSeparateCardsAndNoLiveChat() {
-        setHelpContent(ThemeController.Mode.LIGHT)
+    fun helpUsesSwiftLiveChatAndSeparateCards() {
+        val routes = mutableListOf<String>()
+        setHelpContent(ThemeController.Mode.LIGHT, onNavigate = { routes += it })
 
+        compose.onNodeWithTag("contacts-card-live-chat").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-contact-number").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-whatsapp").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-email").assertIsDisplayed()
-        assertEquals(0, compose.onAllNodesWithText("Live Chat").fetchSemanticsNodes().size)
+        compose.onNodeWithText("Live Chat").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(Routes.LIVE_CHAT), routes)
+        }
         assertEquals(11, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
         compose.onNodeWithText("Monday-Friday: 9am-6pm\nSaturday: 10am-4pm\nSunday: Closed")
             .performScrollTo()
@@ -69,9 +75,12 @@ class ContactsScreenScreenshotTest {
                 .size,
         )
 
+        val liveChat = compose.onNodeWithTag("contacts-card-live-chat").getUnclippedBoundsInRoot()
         val contact = compose.onNodeWithTag("contacts-card-contact-number").getUnclippedBoundsInRoot()
         val whatsapp = compose.onNodeWithTag("contacts-card-whatsapp").getUnclippedBoundsInRoot()
         val email = compose.onNodeWithTag("contacts-card-email").getUnclippedBoundsInRoot()
+        assertClose(59f, boundsHeight(liveChat), "Swift live chat card height")
+        assertClose(20f, boundsTop(contact) - boundsBottom(liveChat), "Swift card gap live chat/contact")
         assertClose(20f, boundsTop(whatsapp) - boundsBottom(contact), "Swift card gap contact/whatsapp")
         assertClose(20f, boundsTop(email) - boundsBottom(whatsapp), "Swift card gap whatsapp/email")
         assertTrue(boundsWidth(contact) > 300f)
@@ -202,15 +211,28 @@ class ContactsScreenScreenshotTest {
 
     private fun saveRootScreenshot(filename: String) {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
-        val output = File(screenshotDir(), filename)
-        FileOutputStream(output).use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-        }
-    }
-
-    private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        return File(context.getExternalFilesDir(null), "screenshots/help_contacts_swift").also { it.mkdirs() }
+        val relativePath = "Pictures/kotlin_ui_proof/help_contacts/"
+        context.contentResolver.delete(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?",
+            arrayOf(filename, "%kotlin_ui_proof/help_contacts%"),
+        )
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return
+        val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+        outputStream.use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        context.contentResolver.update(uri, values, null, null)
     }
 
     private fun boundsTop(rect: DpRect): Float = rect.top.value
@@ -218,6 +240,8 @@ class ContactsScreenScreenshotTest {
     private fun boundsBottom(rect: DpRect): Float = rect.bottom.value
 
     private fun boundsWidth(rect: DpRect): Float = (rect.right - rect.left).value
+
+    private fun boundsHeight(rect: DpRect): Float = (rect.bottom - rect.top).value
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
         assertEquals(label, expected, actual, 0.75f)
