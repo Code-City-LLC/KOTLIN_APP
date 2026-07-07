@@ -11,6 +11,7 @@ import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.feature.calculator.CalculatorHistory
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.dropalert.DropAlertPreset
+import com.ga.airdrop.feature.shipments.PackagesSortStore
 import com.ga.airdrop.feature.shipments.ShipmentsRepoBinding
 import com.ga.airdrop.feature.shop.ShopRecentSearches
 import com.ga.airdrop.feature.shop.ShopRepoBinding
@@ -28,6 +29,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
         CalculatorHistory.init(this)
         DropAlertPreset.init(this)
         ShopRecentSearches.init(this)
+        PackagesSortStore.init(this)
         ShopRepoBinding.install()
         ShipmentsRepoBinding.install(cacheDir)
     }

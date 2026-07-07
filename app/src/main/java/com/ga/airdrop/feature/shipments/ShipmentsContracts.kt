@@ -36,6 +36,8 @@ data class ShipmentPackage(
     val additionalCharges: Map<String, Double> = emptyMap(),
     val additionalChargesTotal: Double? = null,
     val exchangeRate: Double? = null,
+    /** ISO-ish creation stamp — drives the Newest/Oldest §B.4 sort. */
+    val createdAt: String? = null,
 )
 
 data class PackageHistoryItem(

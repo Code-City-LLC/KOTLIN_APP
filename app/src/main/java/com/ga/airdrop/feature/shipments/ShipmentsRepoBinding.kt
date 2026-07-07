@@ -65,6 +65,7 @@ private fun Package.toShipment() = ShipmentPackage(
     additionalCharges = additionalCharges,
     additionalChargesTotal = additionalChargesTotal,
     exchangeRate = exchangeRate,
+    createdAt = createdAt,
 ).also(ShipmentPackageRegistry::remember)
 
 private fun PackageDetail.toShipmentDetail() = ShipmentPackageDetail(

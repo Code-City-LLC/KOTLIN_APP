@@ -31,13 +31,17 @@ data class PackagesUiState(
     val statuses: List<PackageStatusInfo> = ShipmentStatusCatalog.defaults,
     val exchangeRate: Double = DEFAULT_USD_TO_JMD,
     val showFilterSheet: Boolean = false,
+    val showSortSheet: Boolean = false,
+    /** §B.4 user-selected sort, persisted via [PackagesSortStore]. */
+    val sort: PackagesSort = PackagesSort.NEWEST_FIRST,
     val error: String? = null,
 ) {
-    /** Rows after client-side search + shipment-type filters (Swift parity). */
+    /** Rows after client-side search + shipment-type filters, then the §B.4
+     *  sort (Swift reapplySearchFilter → applySortedOrder). */
     val visibleItems: List<ShipmentPackage>
         get() {
             val query = searchText.trim().lowercase(Locale.US)
-            return items.filter { pkg ->
+            val filtered = items.filter { pkg ->
                 methodFilter.matches(pkg) && (
                     query.isEmpty() ||
                         pkg.trackingCode.orEmpty().lowercase(Locale.US).contains(query) ||
@@ -45,6 +49,7 @@ data class PackagesUiState(
                         pkg.description.orEmpty().lowercase(Locale.US).contains(query)
                     )
             }
+            return sortPackages(filtered, sort)
         }
 }
 
@@ -62,7 +67,8 @@ class PackagesViewModel(
         const val PER_PAGE = 15
     }
 
-    private val _state = MutableStateFlow(PackagesUiState())
+    // §B.4: the saved sort survives launches (Swift currentSort seed).
+    private val _state = MutableStateFlow(PackagesUiState(sort = PackagesSortStore.read()))
     val state: StateFlow<PackagesUiState> = _state
 
     private var currentPage = 1
@@ -95,6 +101,16 @@ class PackagesViewModel(
 
     fun closeFilterSheet() {
         _state.update { it.copy(showFilterSheet = false) }
+    }
+
+    fun openSortSheet() = _state.update { it.copy(showSortSheet = true) }
+
+    fun closeSortSheet() = _state.update { it.copy(showSortSheet = false) }
+
+    /** §B.4 applySort: persist the choice and re-sort the visible list. */
+    fun applySort(sort: PackagesSort) {
+        PackagesSortStore.save(sort)
+        _state.update { it.copy(sort = sort, showSortSheet = false) }
     }
 
     /** Filters apply immediately on tap; tapping the active one clears it. */

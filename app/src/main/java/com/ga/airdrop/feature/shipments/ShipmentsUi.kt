@@ -436,6 +436,12 @@ fun ShipmentsDetailHeader(
     onRightClick: (() -> Unit)? = null,
     rightIconContentDescription: String? = null,
     rightIconTestTag: String? = null,
+    // Optional second trailing action rendered LEFT of the primary one
+    // (Swift Packages puts Sort left of the Filter square, gap 10).
+    secondaryRightIconRes: Int? = null,
+    onSecondaryRightClick: (() -> Unit)? = null,
+    secondaryRightIconContentDescription: String? = null,
+    secondaryRightIconTestTag: String? = null,
     // Swift uses Title2 (Bold 16) on the Payments/Orders/Order Details
     // headers and SubTitle1 elsewhere.
     titleStyle: TextStyle = AirdropType.subtitle1,
@@ -474,6 +480,26 @@ fun ShipmentsDetailHeader(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.weight(1f),
             )
+            if (secondaryRightIconRes != null) {
+                Image(
+                    painter = painterResource(secondaryRightIconRes),
+                    contentDescription = secondaryRightIconContentDescription,
+                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                    modifier = Modifier
+                        .padding(end = 10.dp)
+                        .size(24.dp)
+                        .then(
+                            if (secondaryRightIconTestTag != null) {
+                                Modifier.testTag(secondaryRightIconTestTag)
+                            } else Modifier
+                        )
+                        .then(
+                            if (onSecondaryRightClick != null) {
+                                Modifier.clickable(onClick = onSecondaryRightClick)
+                            } else Modifier
+                        ),
+                )
+            }
             if (rightIconRes != null) {
                 val iconModifier = Modifier
                     .size(24.dp)
