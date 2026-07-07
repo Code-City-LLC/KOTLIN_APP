@@ -591,16 +591,15 @@ light AND dark.
   samples plus Swift theme-tinted Home header icons. Proof filenames:
   `home_chrome_swift_opaque_light.png` and `home_chrome_swift_opaque_dark.png`.
 - **Bottom-tab active icon shape:** Shared tab chrome was compared against
-  Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma Help nav
-  icon node `40000770:4747`. Swift takes precedence: active icon + label are
-  `orangeMain`, inactive icons are `iconSelected` (black in app light, white in
-  app dark), and active/inactive states reuse the same outline icon shape.
-  Android was still swapping selected tabs to filled assets. `AirdropBottomBar`
-  now always uses the outline nav assets and `AirdropBottomBarIconParityTest`
-  pixel-checks every tab color plus the selected/inactive alpha mask in app
-  light and app dark. Proof:
-  `/tmp/kotlin_ui_proof/bottom_tab_outline/bottom_tab_outline_swift_light.png`,
-  `/tmp/kotlin_ui_proof/bottom_tab_outline/bottom_tab_outline_swift_dark.png`.
+  current Swift `FigmaBottomTabBar` in `FigmaTabHeader.swift` first, then Figma
+  Home nav node `40001464:28927`. Swift/Figma agree on the current rule: active
+  icon + label are `orangeMain`, inactive icons are `iconSelected` (black in app
+  light, white in app dark), active icons use filled variants, and inactive
+  icons use outline variants. `AirdropBottomBar` now reuses the existing filled
+  drawable variants for selected tabs and outline drawable variants for inactive
+  tabs. `AirdropBottomBarIconParityTest` pixel-checks every tab color plus the
+  selected filled-mask contract in app light and app dark. Proof filenames:
+  `bottom_tab_icons_swift_light.png` and `bottom_tab_icons_swift_dark.png`.
 - **Home primary route callbacks:** Swift `FigmaHomeViewController` maps
   Services, Ship Tax, Calculator, Drop Alert, See More, Refer a friend, bell,
   and cart to their corresponding route destinations. Android already emitted

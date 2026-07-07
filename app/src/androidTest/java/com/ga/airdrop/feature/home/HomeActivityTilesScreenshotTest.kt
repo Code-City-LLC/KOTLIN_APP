@@ -18,15 +18,17 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
-import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.homedetails.homeDetailsGraph
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -288,9 +290,9 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun standardWarehouseCardOpensWarehouseScreenFromAppRoot() {
-        assertWarehouseCardOpensFromAppRoot(
-            WarehouseAppRootCase(
+    fun standardWarehouseCardOpensWarehouseScreenFromHomeNavGraph() {
+        assertWarehouseCardOpensFromHomeNavGraph(
+            WarehouseNavGraphCase(
                 type = "standard",
                 expectedTitle = "AirDrop (Air Freight)",
                 screenshot = "home_warehouse_standard_after_tap.png",
@@ -299,9 +301,9 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun seadropWarehouseCardOpensWarehouseScreenFromAppRoot() {
-        assertWarehouseCardOpensFromAppRoot(
-            WarehouseAppRootCase(
+    fun seadropWarehouseCardOpensWarehouseScreenFromHomeNavGraph() {
+        assertWarehouseCardOpensFromHomeNavGraph(
+            WarehouseNavGraphCase(
                 type = "seadrop",
                 expectedTitle = "SeaDrop (Sea Freight)",
                 screenshot = "home_warehouse_seadrop_after_tap.png",
@@ -310,9 +312,9 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun expressWarehouseCardOpensWarehouseScreenFromAppRoot() {
-        assertWarehouseCardOpensFromAppRoot(
-            WarehouseAppRootCase(
+    fun expressWarehouseCardOpensWarehouseScreenFromHomeNavGraph() {
+        assertWarehouseCardOpensFromHomeNavGraph(
+            WarehouseNavGraphCase(
                 type = "express",
                 expectedTitle = "Express (Air Express)",
                 screenshot = "home_warehouse_express_after_tap.png",
@@ -320,37 +322,39 @@ class HomeActivityTilesScreenshotTest {
         )
     }
 
-    private fun assertWarehouseCardOpensFromAppRoot(warehouseCase: WarehouseAppRootCase) {
+    private fun assertWarehouseCardOpensFromHomeNavGraph(warehouseCase: WarehouseNavGraphCase) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
-            AuthTokenStore.save("ui-proof-token")
         }
 
-        try {
-            compose.setContent {
-                AirdropTheme {
-                    AppRoot()
+        compose.setContent {
+            AirdropTheme {
+                val navController = rememberNavController()
+                NavHost(
+                    navController = navController,
+                    startDestination = Routes.HOME,
+                ) {
+                    composable(Routes.HOME) {
+                        HomeScreen(onNavigate = { navController.navigate(it) })
+                    }
+                    homeDetailsGraph(navController)
                 }
             }
-            compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithTag("home-warehouse-carousel").fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.onNodeWithTag("home-warehouse-carousel")
-                .performScrollToNode(hasTestTag("home-warehouse-${warehouseCase.type}"))
-            compose.onNodeWithTag("home-warehouse-${warehouseCase.type}").performClick()
-            compose.waitUntil(timeoutMillis = 8_000) {
-                compose.onAllNodesWithText(warehouseCase.expectedTitle).fetchSemanticsNodes().isNotEmpty()
-            }
-            val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
-            val output = File(screenshotDir(), warehouseCase.screenshot)
-            FileOutputStream(output).use {
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-            }
-        } finally {
-            instrumentation.runOnMainSync {
-                AuthTokenStore.clear()
-            }
+        }
+        compose.waitUntil(timeoutMillis = 8_000) {
+            compose.onAllNodesWithTag("home-warehouse-carousel").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("home-warehouse-carousel")
+            .performScrollToNode(hasTestTag("home-warehouse-${warehouseCase.type}"))
+        compose.onNodeWithTag("home-warehouse-${warehouseCase.type}").performClick()
+        compose.waitUntil(timeoutMillis = 8_000) {
+            compose.onAllNodesWithText(warehouseCase.expectedTitle).fetchSemanticsNodes().isNotEmpty()
+        }
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val output = File(screenshotDir(), warehouseCase.screenshot)
+        FileOutputStream(output).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }
 
@@ -537,7 +541,7 @@ class HomeActivityTilesScreenshotTest {
         return (red shl 16) or (green shl 8) or blue
     }
 
-    private data class WarehouseAppRootCase(
+    private data class WarehouseNavGraphCase(
         val type: String,
         val expectedTitle: String,
         val screenshot: String,
