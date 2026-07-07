@@ -17,6 +17,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.data.repo.DeliveryRepository
+import com.ga.airdrop.feature.delivery.DeliveryMethodViewModel
 import com.ga.airdrop.feature.shop.ShopBillingProfile
 import com.ga.airdrop.feature.shop.ShopCheckoutRepository
 import java.util.concurrent.atomic.AtomicInteger
@@ -44,10 +48,12 @@ class CartHostedCheckoutParityTest {
     }
 
     @Test
-    fun makePaymentSendsSwiftCheckoutPayloadOpensUrlAndKeepsCartUntilVerifiedReturn() {
+    fun makePaymentRoutesToDeliveryMethodWithoutCreatingCheckout() {
+        // New contract (Kemar-cleared Delivery Method, PARITY_GAP_SPECS §4):
+        // Make Payment routes to the Delivery Method screen; Stripe checkout
+        // runs later from the currency popup. Cart stays intact.
         val repo = FakeCartCheckoutRepository()
-        val openedUrl = AtomicReference<String?>()
-        val cartCountDuringOpen = AtomicInteger(-1)
+        val navigated = AtomicReference<String?>()
 
         setCartContent(
             repo = repo,
@@ -55,56 +61,84 @@ class CartHostedCheckoutParityTest {
                 CartStore.CartLine(id = 2002, packageId = 7002, title = "Beta Lamp", priceUsd = 7.0),
                 CartStore.CartLine(id = 2001, packageId = 7001, title = "Alpha Radio", priceUsd = 5.0),
             ),
-            openCheckoutUrl = { url ->
-                openedUrl.set(url)
-                cartCountDuringOpen.set(CartStore.count)
-            },
+            openCheckoutUrl = {},
+            onNavigate = { navigated.set(it) },
         )
 
         waitForCart()
         compose.onNodeWithText("Make Payment").performClick()
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            openedUrl.get() == CheckoutUrl
+            navigated.get() == Routes.DELIVERY_METHOD
         }
 
-        assertEquals("Swift Cart sends sorted package IDs from FigmaCartStore lines", listOf(7001, 7002), repo.lastPackageIds)
-        assertEquals("Swift Cart checkout always pays in USD", "USD", repo.lastCurrency)
-        assertEquals("Swift Cart checkout sends is_auction=true", true, repo.lastIsAuction)
-        assertEquals("Cart must still exist while the hosted checkout open callback fires", 2, cartCountDuringOpen.get())
-        assertEquals("Stripe hosted checkout URL should be opened once", CheckoutUrl, openedUrl.get())
-        assertEquals("Cart clears only after verified-paid return, not on Custom Tab open", 2, CartStore.count)
+        assertEquals("Make Payment must route to Delivery Method", Routes.DELIVERY_METHOD, navigated.get())
+        assertEquals("No checkout may be created before the currency choice", 0, repo.checkoutCalls.get())
+        assertEquals("Routing to Delivery Method must not touch the cart", 2, CartStore.count)
     }
 
     @Test
-    fun unauthenticatedCheckoutUsesSwiftSignInRequiredAlert() {
+    fun currencyChoiceRunsSwiftCheckoutPayloadAndKeepsCart() {
+        // The Swift payload contract (sorted package ids, chosen currency,
+        // is_auction=true, cart kept until verified-paid return) now lives in
+        // DeliveryMethodViewModel.onCurrencyChosen — drive it directly.
+        val repo = FakeCartCheckoutRepository()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val vm = AtomicReference<DeliveryMethodViewModel>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            CartStore.init(context)
+            CartStore.clear()
+            CartStore.add(CartStore.CartLine(id = 2002, packageId = 7002, title = "Beta Lamp", priceUsd = 7.0))
+            CartStore.add(CartStore.CartLine(id = 2001, packageId = 7001, title = "Alpha Radio", priceUsd = 5.0))
+            vm.set(
+                DeliveryMethodViewModel(
+                    repo = DeliveryRepository(ApiClient.service),
+                    checkout = repo,
+                ),
+            )
+            vm.get().onCurrencyChosen("USD")
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            vm.get().state.value.checkoutUrl == CheckoutUrl
+        }
+
+        assertEquals("Swift checkout sends sorted package IDs", listOf(7001, 7002), repo.lastPackageIds)
+        assertEquals("Chosen currency is forwarded", "USD", repo.lastCurrency)
+        assertEquals("Swift checkout sends is_auction=true", true, repo.lastIsAuction)
+        assertEquals("Cart clears only after verified-paid return, not on checkout create", 2, CartStore.count)
+    }
+
+    @Test
+    fun unauthenticatedCurrencyCheckoutUsesSwiftSignInRequiredAlert() {
+        // The Swift sign-in-required branch moved behind the currency popup —
+        // assert it on DeliveryMethodViewModel (same detection + copy).
         val repo = FakeCartCheckoutRepository(
             checkoutFailure = IllegalStateException("Unauthenticated"),
         )
-        val openedUrl = AtomicReference<String?>()
-
-        setCartContent(
-            repo = repo,
-            lines = listOf(
-                CartStore.CartLine(id = 3001, packageId = 8001, title = "Swift Cart Line", priceUsd = 12.0),
-            ),
-            openCheckoutUrl = { openedUrl.set(it) },
-        )
-
-        waitForCart()
-        compose.onNodeWithText("Make Payment").performClick()
-
-        compose.waitUntil(timeoutMillis = 5_000) {
-            compose.onAllNodesWithText("Sign in required").fetchSemanticsNodes().isNotEmpty()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val vm = AtomicReference<DeliveryMethodViewModel>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            CartStore.init(context)
+            CartStore.clear()
+            CartStore.add(CartStore.CartLine(id = 3001, packageId = 8001, title = "Swift Cart Line", priceUsd = 12.0))
+            vm.set(
+                DeliveryMethodViewModel(
+                    repo = DeliveryRepository(ApiClient.service),
+                    checkout = repo,
+                ),
+            )
+            vm.get().onCurrencyChosen("USD")
         }
 
-        compose.onNodeWithText("Sign in required").assertIsDisplayed()
-        compose.onNodeWithText("Log in to your Airdropja account before checking out.").assertIsDisplayed()
-        assertTrue(
-            "Swift unauthenticated Cart checkout should not surface the generic failure title",
-            compose.onAllNodesWithText("Checkout failed").fetchSemanticsNodes().isEmpty(),
-        )
-        assertNull("Unauthenticated checkout must not open a hosted checkout URL", openedUrl.get())
+        compose.waitUntil(timeoutMillis = 5_000) {
+            vm.get().state.value.errorTitle == "Sign in required"
+        }
+
+        val state = vm.get().state.value
+        assertEquals("Sign in required", state.errorTitle)
+        assertEquals("Log in to your Airdropja account before checking out.", state.errorMessage)
+        assertNull("Unauthenticated checkout must not produce a hosted checkout URL", state.checkoutUrl)
         assertEquals("Failed checkout must not clear the cart", 1, CartStore.count)
     }
 
@@ -138,6 +172,7 @@ class CartHostedCheckoutParityTest {
         repo: FakeCartCheckoutRepository,
         lines: List<CartStore.CartLine>,
         openCheckoutUrl: (String) -> Unit,
+        onNavigate: (String) -> Unit = {},
     ) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -160,6 +195,7 @@ class CartHostedCheckoutParityTest {
                         onShopNow = {},
                         viewModel = viewModel,
                         openCheckoutUrl = openCheckoutUrl,
+                        onNavigate = onNavigate,
                     )
                 }
             }

@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartScreen
+import com.ga.airdrop.feature.delivery.DeliveryMethodScreen
 
 /**
  * SHOP + CART feature graph.
@@ -91,6 +92,19 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                     launchSingleTop = true
                 }
             },
+            onNavigate = {
+                // launchSingleTop: a rapid double-tap of Make Payment must not
+                // push two Delivery Method entries (verify finding, 2026-07-06).
+                navController.navigate(it) { launchSingleTop = true }
+            },
         )
+    }
+
+    // Delivery Method — Figma 40008740:28263, Swift
+    // FigmaDeliveryMethodViewController. Cart "Make Payment" lands here;
+    // the currency popup then front-runs the cart's Stripe checkout
+    // (docs/PARITY_GAP_SPECS.md §4 currency-branch deviation).
+    composable(Routes.DELIVERY_METHOD) {
+        DeliveryMethodScreen(onBack = { navController.popBackStack() })
     }
 }

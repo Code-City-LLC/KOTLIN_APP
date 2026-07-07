@@ -53,6 +53,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.TypeInputField
+import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
@@ -78,6 +79,8 @@ fun CartScreen(
     onShopNow: () -> Unit,
     viewModel: CartViewModel = viewModel(),
     openCheckoutUrl: ((String) -> Unit)? = null,
+    /** Route push — "Make Payment" now goes Cart → Delivery Method. */
+    onNavigate: (String) -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
@@ -101,6 +104,15 @@ fun CartScreen(
             onRemove = { line -> viewModel.removeSaved(line.id) },
         )
         return
+    }
+
+    // "Make Payment" hand-off — one-shot nav to the Delivery Method screen
+    // (Swift cart → FigmaDeliveryMethodViewController parity).
+    LaunchedEffect(state.navToDeliveryMethod) {
+        if (state.navToDeliveryMethod) {
+            onNavigate(Routes.DELIVERY_METHOD)
+            viewModel.consumeDeliveryNav()
+        }
     }
 
     // Stripe hosted checkout — Custom Tab; verified-paid return clears later.

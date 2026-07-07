@@ -196,13 +196,17 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
             onPaid = { ref, amount ->
                 com.ga.airdrop.feature.cart.CartStore.clear()
                 navController.navigate(Routes.paymentSuccess(ref, amount)) {
-                    popUpTo(Routes.PAYMENT_RETURN) { inclusive = true }
+                    // Pop through the cart so Back from Success never lands on
+                    // a stale Delivery Method / cleared cart (verify finding).
+                    popUpTo(Routes.CART) { inclusive = true }
                     launchSingleTop = true
                 }
             },
             onNotPaid = {
                 navController.navigate(Routes.CART) {
-                    popUpTo(Routes.PAYMENT_RETURN) { inclusive = true }
+                    // Replace the old CART→DELIVERY_METHOD sandwich with a
+                    // single fresh cart (contents intact).
+                    popUpTo(Routes.CART) { inclusive = true }
                     launchSingleTop = true
                 }
             },

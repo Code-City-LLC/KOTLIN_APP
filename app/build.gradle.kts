@@ -92,6 +92,8 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.browser)
     implementation(libs.androidx.biometric)
+    // Keyless — powers Delivery Method "Use Current Location" (spec §6).
+    implementation(libs.play.services.location)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)

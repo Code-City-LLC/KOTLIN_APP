@@ -50,6 +50,9 @@ object Routes {
     const val AUCTION_CHECKOUT = "auctionCheckout"
     const val FEATURED_PRODUCTS = "featuredProducts"
     const val CART = "cart"
+    // Cart "Make Payment" → Delivery Method → currency popup → Stripe
+    // (Swift FigmaDeliveryMethodViewController; docs/PARITY_GAP_SPECS.md §4).
+    const val DELIVERY_METHOD = "deliveryMethod"
 
     // More drill-downs
     const val SETTINGS = "settings"

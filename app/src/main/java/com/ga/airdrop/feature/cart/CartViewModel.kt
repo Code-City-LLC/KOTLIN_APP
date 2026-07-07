@@ -34,13 +34,22 @@ data class CartUiState(
     val showPaymentMethodDialog: Boolean = false,
     /** Stripe hosted checkout URL to open in a Custom Tab (one-shot). */
     val checkoutUrl: String? = null,
+    /**
+     * One-shot: "Make Payment" now routes to the Delivery Method screen
+     * (Swift cart → FigmaDeliveryMethodViewController parity,
+     * docs/PARITY_GAP_SPECS.md §4) instead of creating the Stripe checkout
+     * directly. The original checkout path lives on in [CartViewModel.payWithCurrency].
+     */
+    val navToDeliveryMethod: Boolean = false,
 )
 
 /**
  * My Cart — behavior from FigmaCartViewController (RN MyCartView): items
  * from [CartStore], billing form autofilled from the user profile, exchange
- * rate, "Make Payment" → POST /payments/create-checkout (USD, is_auction)
- * → Stripe hosted checkout, then the cart is cleared.
+ * rate. "Make Payment" → Delivery Method screen (Swift parity), whose
+ * currency popup runs POST /payments/create-checkout (chosen currency,
+ * is_auction) → Stripe hosted checkout; [payWithCurrency] keeps the original
+ * direct-checkout path.
  */
 class CartViewModel(
     private val checkout: ShopCheckoutRepository = ShopRepoProvider.checkout,
@@ -121,9 +130,13 @@ class CartViewModel(
         _state.update { it.copy(showPaymentMethodDialog = visible) }
     }
 
-    /** Swift onPay: needs a package id on every line; pays in USD. */
-    fun pay() {
-        if (_state.value.paying) return
+    /**
+     * Shared Swift-onPay guards: non-empty cart and a package id on every
+     * line. Returns null (after surfacing the error) when checkout can't
+     * proceed. Error copy is load-bearing — mirrored by
+     * DeliveryMethodViewModel.onCurrencyChosen.
+     */
+    private fun guardedPackageIds(): List<Int>? {
         val lines = items.value
         if (lines.isEmpty()) {
             _state.update {
@@ -132,7 +145,7 @@ class CartViewModel(
                     errorMessage = "Add at least one item before checkout.",
                 )
             }
-            return
+            return null
         }
         val packageIds = lines.mapNotNull { it.packageId }
         if (packageIds.size != lines.size) {
@@ -142,13 +155,42 @@ class CartViewModel(
                     errorMessage = "One or more products are missing the package ID required for auction checkout.",
                 )
             }
-            return
+            return null
         }
+        return packageIds
+    }
+
+    /**
+     * Swift onPay: needs a package id on every line. The cart no longer goes
+     * straight to Stripe — after the guards pass it hands off to the Delivery
+     * Method screen (one-shot [CartUiState.navToDeliveryMethod]), which owns
+     * the pickup/delivery choice + currency popup and then runs the original
+     * checkout path (docs/PARITY_GAP_SPECS.md §4).
+     */
+    fun pay() {
+        if (_state.value.paying) return
+        guardedPackageIds() ?: return
+        _state.update { it.copy(navToDeliveryMethod = true) }
+    }
+
+    /** The screen navigated — clear the one-shot flag. */
+    fun consumeDeliveryNav() {
+        _state.update { it.copy(navToDeliveryMethod = false) }
+    }
+
+    /**
+     * The ORIGINAL "Make Payment" body — Stripe hosted checkout with the
+     * chosen currency (default "USD" preserves the pre-Delivery-Method
+     * behavior byte-for-byte).
+     */
+    fun payWithCurrency(currency: String = "USD") {
+        if (_state.value.paying) return
+        val packageIds = guardedPackageIds() ?: return
         viewModelScope.launch {
             _state.update { it.copy(paying = true) }
             // RECONCILE: POST /payments/create-checkout
-            // { package_ids, currency: "USD", is_auction: true } → data.checkout_url.
-            checkout.createCheckout(packageIds, currency = "USD", isAuction = true)
+            // { package_ids, currency, is_auction: true } → data.checkout_url.
+            checkout.createCheckout(packageIds, currency = currency, isAuction = true)
                 .onSuccess { url ->
                     _state.update { it.copy(paying = false, checkoutUrl = url) }
                 }
