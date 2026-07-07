@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.homedetails
 
+import android.content.ContentValues
 import android.graphics.Bitmap
+import android.provider.MediaStore
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -66,6 +68,29 @@ class WarehousesScreenParityTest {
         assertSwiftHeroGeometry()
     }
 
+    @Test
+    fun activeWarehouseTabKeepsKemarCorrectedTintVisible() {
+        setWarehouseContent(ThemeController.Mode.LIGHT, initialType = "standard")
+
+        val tab = compose.onNodeWithTag("warehouse-tab-standard")
+            .captureToImage()
+            .asAndroidBitmap()
+        val fillPixel = tab.getPixel(8, tab.height / 2)
+
+        assertTrue(
+            "active Standard tab fill should not be too transparent",
+            android.graphics.Color.red(fillPixel) <= 230,
+        )
+        assertTrue(
+            "active Standard tab fill should carry visible purple tint",
+            android.graphics.Color.green(fillPixel) <= 224,
+        )
+        assertTrue(
+            "active Standard tab fill should stay softly translucent",
+            android.graphics.Color.blue(fillPixel) >= 238,
+        )
+    }
+
     private fun setWarehouseContent(
         mode: ThemeController.Mode,
         initialType: String,
@@ -114,11 +139,31 @@ class WarehousesScreenParityTest {
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        saveRootScreenshotToMediaStore(bitmap, filename)
     }
 
     private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return File(context.getExternalFilesDir(null), "screenshots/warehouses_swift").also { it.mkdirs() }
+    }
+
+    private fun saveRootScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/kotlin_ui_proof/warehouses_swift")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return
+        val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+        outputStream.use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        context.contentResolver.update(uri, values, null, null)
     }
 
     private fun boundsWidth(tag: String): Float =

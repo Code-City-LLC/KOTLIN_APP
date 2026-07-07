@@ -111,6 +111,7 @@ private const val FALLBACK_ADDRESS_LINE1 = "6175 NW 167th Street, Unit G36"
 private const val FALLBACK_CITY = "Hialeah"
 private const val FALLBACK_STATE = "Florida"
 private const val FALLBACK_PHONE = "1(954)508-1797"
+private const val ACTIVE_TYPE_TAB_FILL_ALPHA = 0.18f
 
 @Composable
 fun WarehousesScreen(
@@ -318,7 +319,7 @@ private fun TypeTabs(current: WarehouseType, onSelect: (WarehouseType) -> Unit) 
                     .height(40.dp)
                     .testTag("warehouse-tab-${type.key}")
                     .clip(RoundedCornerShape(Radius.xs))
-                    .background(if (active) type.tint.copy(alpha = 0.10f) else colors.gray100)
+                    .background(if (active) type.tint.copy(alpha = ACTIVE_TYPE_TAB_FILL_ALPHA) else colors.gray100)
                     .border(
                         1.dp,
                         if (active) type.tint else colors.iconShape,
