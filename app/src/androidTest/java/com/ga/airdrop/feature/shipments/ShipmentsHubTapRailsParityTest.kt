@@ -619,6 +619,7 @@ class ShipmentsHubTapRailsParityTest {
             perPage: Int,
             status: Int?,
             search: String?,
+            shippingMethod: String?,
         ): Result<List<ShipmentPackage>> {
             val query = search.orEmpty().trim().uppercase(Locale.US)
             val filtered = if (query.isEmpty()) {

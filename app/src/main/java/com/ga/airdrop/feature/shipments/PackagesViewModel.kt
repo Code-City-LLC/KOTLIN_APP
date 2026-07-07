@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-/** Client-side shipment-type filter values (FigmaPackagesViewController). */
+/** Shipment-type filter values (FigmaPackagesViewController). */
 enum class ShipmentTypeFilter(val label: String) {
     All("All"), Standard("Standard"), Seadrop("Seadrop"), Express("Express");
 
@@ -18,6 +18,9 @@ enum class ShipmentTypeFilter(val label: String) {
         val method = pkg.shippingMethod.orEmpty().lowercase(Locale.US).replace(" ", "")
         return method.contains(name.lowercase(Locale.US))
     }
+
+    val serverValue: String?
+        get() = label.takeUnless { this == All }
 }
 
 data class PackagesUiState(
@@ -50,8 +53,8 @@ data class PackagesUiState(
 
 /**
  * Packages list — FigmaPackagesViewController: GET /packages paginated
- * (perPage 15), server status filter + search, client-side shipment-type
- * filter, infinite scroll, cart toggles.
+ * (perPage 15), server status/search/shipping-method filters, client
+ * shipment-method cross-check, infinite scroll, cart toggles.
  */
 class PackagesViewModel(
     private val repo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
@@ -145,6 +148,7 @@ class PackagesViewModel(
                 perPage = PER_PAGE,
                 status = s.statusFilter.takeIf { it != 0 },
                 search = s.searchText.trim().takeIf { it.isNotEmpty() },
+                shippingMethod = s.methodFilter.serverValue,
             ).onSuccess { batch ->
                 _state.update { current ->
                     val merged = if (reset) batch else {

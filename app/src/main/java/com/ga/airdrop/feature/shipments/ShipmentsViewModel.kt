@@ -118,7 +118,7 @@ class ShipmentsViewModel(
         quickTrackJob = viewModelScope.launch {
             runCatching {
                 val searchResults = packagesRepo
-                    .packages(page = 1, perPage = 20, status = null, search = code)
+                    .packages(page = 1, perPage = 20, status = null, search = code, shippingMethod = null)
                     .getOrThrow()
                 exactQuickTrackMatch(searchResults, code)
                     ?: exactQuickTrackMatch(repo.packagesShortlist().getOrDefault(emptyList()), code)

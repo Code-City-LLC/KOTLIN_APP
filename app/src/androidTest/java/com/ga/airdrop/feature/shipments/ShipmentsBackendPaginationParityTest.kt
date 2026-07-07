@@ -57,7 +57,10 @@ class ShipmentsBackendPaginationParityTest {
         waitUntil("packages initial load", { packageSnapshot(repo, viewModel) }) {
             repo.calls.isNotEmpty() && !viewModel.state.value.loading
         }
-        assertEquals(PackageCall(page = 1, perPage = 15, status = null, search = null), repo.calls.first())
+        assertEquals(
+            PackageCall(page = 1, perPage = 15, status = null, search = null, shippingMethod = null),
+            repo.calls.first(),
+        )
 
         val callsBeforeTyping = repo.calls.size
         viewModel.onSearchTextChange(" ARD000 ")
@@ -83,6 +86,16 @@ class ShipmentsBackendPaginationParityTest {
         waitUntil("packages status filter", { packageSnapshot(repo, viewModel) }) {
             repo.calls.any { it.page == 1 && it.status == 7 && it.search == "ARD000" } &&
                 !viewModel.state.value.loading
+        }
+
+        viewModel.selectMethod(ShipmentTypeFilter.Express)
+        waitUntil("packages method filter", { packageSnapshot(repo, viewModel) }) {
+            repo.calls.any {
+                it.page == 1 &&
+                    it.status == 7 &&
+                    it.search == "ARD000" &&
+                    it.shippingMethod == "Express"
+            } && !viewModel.state.value.loading
         }
     }
 
@@ -168,6 +181,7 @@ class ShipmentsBackendPaginationParityTest {
         val perPage: Int,
         val status: Int?,
         val search: String?,
+        val shippingMethod: String?,
     )
 
     private class RecordingPackagesRepository : ShipmentsPackagesRepository {
@@ -181,8 +195,9 @@ class ShipmentsBackendPaginationParityTest {
             perPage: Int,
             status: Int?,
             search: String?,
+            shippingMethod: String?,
         ): Result<List<ShipmentPackage>> {
-            recordedCalls += PackageCall(page, perPage, status, search)
+            recordedCalls += PackageCall(page, perPage, status, search, shippingMethod)
             val count = if (page == 1) perPage else 2
             return Result.success((1..count).map { samplePackage(page * 100 + it) })
         }

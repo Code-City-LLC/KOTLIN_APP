@@ -79,7 +79,7 @@ class PackagesFilterFlowParityTest {
 
         compose.onNodeWithTag("packages-filter-method-row-express").performClick()
         compose.waitUntil(timeoutMillis = 5_000) {
-            packagesRepo.calls.count { it.status == 7 } >= 2
+            compose.onAllNodesWithText("Express visible").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("packages-filter-close").performClick()
         compose.waitForIdle()
@@ -97,9 +97,14 @@ class PackagesFilterFlowParityTest {
             calls.any { it.status == 7 },
         )
         assertEquals(
-            "Swift keeps shipment method client-side; repo status remains Ready after method tap",
+            "Swift keeps shipment method server-backed; repo status remains Ready after method tap",
             7,
             calls.last().status,
+        )
+        assertEquals(
+            "Swift sends selected shipment method as shipping_method",
+            "Express",
+            calls.last().shippingMethod,
         )
         assertEquals(null, calls.last().search)
     }
@@ -197,6 +202,7 @@ class PackagesFilterFlowParityTest {
         val perPage: Int,
         val status: Int?,
         val search: String?,
+        val shippingMethod: String?,
     )
 
     private class RecordingPackagesRepository : ShipmentsPackagesRepository {
@@ -210,8 +216,9 @@ class PackagesFilterFlowParityTest {
             perPage: Int,
             status: Int?,
             search: String?,
+            shippingMethod: String?,
         ): Result<List<ShipmentPackage>> {
-            recordedCalls += PackageCall(page, perPage, status, search)
+            recordedCalls += PackageCall(page, perPage, status, search, shippingMethod)
             return Result.success(samplePackages)
         }
 

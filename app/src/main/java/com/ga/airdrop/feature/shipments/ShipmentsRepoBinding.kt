@@ -178,8 +178,15 @@ private class DataShipmentsPackagesRepository(
         perPage: Int,
         status: Int?,
         search: String?,
+        shippingMethod: String?,
     ): Result<List<ShipmentPackage>> =
-        repo.packages(page = page, perPage = perPage, status = status, search = search)
+        repo.packages(
+            page = page,
+            perPage = perPage,
+            status = status,
+            search = search,
+            shippingMethod = shippingMethod,
+        )
             .map { list -> list.map { it.toShipment() } }
 
     override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> =
