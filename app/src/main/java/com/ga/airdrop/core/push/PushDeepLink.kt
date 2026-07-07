@@ -47,7 +47,14 @@ object PushDeepLink {
     }
 
     fun capture(intent: Intent?) {
-        val route = intent?.getStringExtra(AirdropMessagingService.EXTRA_ROUTE) ?: return
+        if (intent == null) return
+        // Route-less type-based pushes resolve through the same type→route map
+        // the in-app inbox uses (Audit#7 C3).
+        val route = intent.getStringExtra(AirdropMessagingService.EXTRA_ROUTE)
+            ?: intent.getStringExtra(AirdropMessagingService.EXTRA_NOTIFICATION_TYPE)?.let {
+                com.ga.airdrop.feature.homedetails.routeNameForNotificationType(it)
+            }
+            ?: return
         val referenceId = intent.getStringExtra(AirdropMessagingService.EXTRA_REFERENCE_ID)
         setPending(resolve(route, referenceId))
     }

@@ -139,14 +139,17 @@ fun AuctionCheckoutScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        text = product?.title ?: "Auction Product",
+                        text = product?.title
+                            ?: if (state.resolvingProduct) "Loading product…" else "Product unavailable",
                         style = AirdropType.subtitle1,
                         color = colors.textDarkTitle,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = String.format(Locale.US, "$%.2f USD", product?.priceUsd ?: 0.0),
+                        text = product?.priceUsd
+                            ?.let { usd -> String.format(Locale.US, "$%.2f USD", usd) }
+                            ?: "—",
                         style = AirdropType.title2,
                         color = BrandPalette.OrangeMain,
                     )

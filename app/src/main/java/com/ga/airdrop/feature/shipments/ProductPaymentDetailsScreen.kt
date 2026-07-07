@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,6 +63,14 @@ fun ProductPaymentDetailsScreen(
                 state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
                 payment == null -> ShipmentsEmptyLabel(state.error ?: "Payment not found")
                 else -> {
+                    if (state.orderUnavailable) {
+                        Text(
+                            text = "Product details are unavailable right now.",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            modifier = Modifier.padding(horizontal = 30.dp, vertical = Spacing.sm),
+                        )
+                    }
                     // Swift FigmaProductPaymentDetailsViewController.swift:
                     // 219pt wrap, 30pt insets, image fills remaining width.
                     Box(

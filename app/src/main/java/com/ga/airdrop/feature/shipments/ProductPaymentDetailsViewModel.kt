@@ -11,6 +11,9 @@ data class ProductPaymentDetailsUiState(
     val loading: Boolean = true,
     val payment: ShipmentPayment? = null,
     val order: ShipmentOrder? = null,
+    /** Order fetch failed — the Product Summary would render all dashes
+     *  silently without this flag (Audit#7 C1). */
+    val orderUnavailable: Boolean = false,
     val exchangeRate: Double = 160.0, // Swift fallback for this VC
     val error: String? = null,
 ) {
@@ -61,7 +64,12 @@ class ProductPaymentDetailsViewModel(
                     // Swift pushes FigmaProductPaymentDetailsViewController(orderID: payment.id).
                     ordersRepo.orderDetails(paymentIdInt)
                         .onSuccess { order ->
-                            _state.update { it.copy(order = order) }
+                            _state.update { it.copy(order = order, orderUnavailable = false) }
+                        }
+                        .onFailure {
+                            // Payment Summary still renders; flag the missing
+                            // product half instead of silent dashes (Audit#7 C1).
+                            _state.update { it.copy(orderUnavailable = true) }
                         }
                     _state.update { it.copy(loading = false) }
                 }

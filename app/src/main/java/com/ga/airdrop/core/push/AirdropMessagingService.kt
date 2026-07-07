@@ -60,11 +60,16 @@ class AirdropMessagingService : FirebaseMessagingService() {
             "package_id", "packageId", "packageID",
             "tracking_code", "courier_number",
         )
+        // Type-based backend pushes (payment_reminder, package_status_update…)
+        // carry no route; forward the type so the tray tap can deep-link via
+        // the same type→route map the in-app inbox uses (Audit#7 C3).
+        val notificationType = data("type", "notification_type")
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             route?.let { putExtra(EXTRA_ROUTE, it) }
             referenceId?.let { putExtra(EXTRA_REFERENCE_ID, it) }
+            notificationType?.let { putExtra(EXTRA_NOTIFICATION_TYPE, it) }
         }
         val pending = PendingIntent.getActivity(
             this,
@@ -122,5 +127,6 @@ class AirdropMessagingService : FirebaseMessagingService() {
         const val LOCAL_NOTIFY_WHEN_IN_STOCK = "notifyWhenInStock"
         const val EXTRA_ROUTE = "route"
         const val EXTRA_REFERENCE_ID = "referenceID"
+        const val EXTRA_NOTIFICATION_TYPE = "notificationType"
     }
 }

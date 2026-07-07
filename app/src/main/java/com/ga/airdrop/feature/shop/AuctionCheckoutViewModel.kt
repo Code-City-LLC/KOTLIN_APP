@@ -14,6 +14,8 @@ data class AuctionCheckoutUiState(
     // Shared fallback rate (FuchsiaTower Pass-4 C6).
     val exchangeUsdToJmd: Double = com.ga.airdrop.feature.shipments.DEFAULT_USD_TO_JMD,
     val paying: Boolean = false,
+    /** Deep-link product resolve in flight (Audit#7 C4). */
+    val resolvingProduct: Boolean = false,
     val errorTitle: String? = null,
     val errorMessage: String? = null,
     /** Stripe hosted checkout URL to open in a Custom Tab (one-shot). */
@@ -49,10 +51,23 @@ class AuctionCheckoutViewModel(
         if (_state.value.product == null) {
             ShopCheckoutStore.pendingRef?.let { pendingRef ->
                 ShopCheckoutStore.pendingRef = null
+                _state.update { it.copy(resolvingProduct = true) }
                 viewModelScope.launch {
-                    products.productBySlug(pendingRef, featured = false).onSuccess { resolved ->
-                        _state.update { it.copy(product = resolved) }
-                    }
+                    products.productBySlug(pendingRef, featured = false)
+                        .onSuccess { resolved ->
+                            _state.update { it.copy(product = resolved, resolvingProduct = false) }
+                        }
+                        .onFailure {
+                            // Without this the screen kept a phantom "$0.00
+                            // Auction Product" card forever (Audit#7 C4).
+                            _state.update {
+                                it.copy(
+                                    resolvingProduct = false,
+                                    errorTitle = "Product unavailable",
+                                    errorMessage = "This product could not be loaded. Please try again from the shop.",
+                                )
+                            }
+                        }
                 }
             }
         }
