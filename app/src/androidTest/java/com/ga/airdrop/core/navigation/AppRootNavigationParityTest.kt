@@ -104,6 +104,28 @@ class AppRootNavigationParityTest {
     }
 
     @Test
+    fun packageProofRoutesReturnToAuthLandingWhenBearerIsMissing() {
+        packageProofRoutes.forEach { route ->
+            assertEquals(
+                "Unauthenticated package proof route must be auth-gated: $route",
+                true,
+                shouldResetToAuthLanding(token = null, currentRoute = route),
+            )
+        }
+    }
+
+    @Test
+    fun packageProofRoutesRemainAccessibleWithBearer() {
+        packageProofRoutes.forEach { route ->
+            assertEquals(
+                "Authenticated package proof route should stay reachable: $route",
+                false,
+                shouldResetToAuthLanding(token = "ui-proof-token", currentRoute = route),
+            )
+        }
+    }
+
+    @Test
     fun switchTabRootSwapsEvenWhenHomeIsNotAlreadyInBackStack() {
         setNavigationHarness(startDestination = Routes.MORE)
 
@@ -155,6 +177,14 @@ class AppRootNavigationParityTest {
         return File(context.getExternalFilesDir(null), "screenshots/home_tab_navigation")
             .also { it.mkdirs() }
     }
+
+    private val packageProofRoutes = listOf(
+        Routes.PACKAGES,
+        Routes.PACKAGE_DETAILS,
+        Routes.packageDetails("AD123"),
+        Routes.PAYMENT_PACKAGE_DETAILS,
+        Routes.paymentPackageDetails("201"),
+    )
 }
 
 @Composable
