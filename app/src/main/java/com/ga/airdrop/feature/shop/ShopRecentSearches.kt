@@ -37,6 +37,11 @@ object ShopRecentSearches {
             }
     }
 
+    /** Logout hygiene — recent queries are the prior user's data. */
+    fun clear() {
+        prefs?.edit()?.remove(KEY)?.apply()
+    }
+
     /** Push [query] to the front of the ring. No-op before [init]. */
     fun save(query: String) {
         val store = prefs ?: return

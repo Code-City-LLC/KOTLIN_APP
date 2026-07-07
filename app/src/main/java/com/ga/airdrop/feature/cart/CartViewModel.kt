@@ -60,7 +60,9 @@ class CartViewModel(
     val currencyOptions = listOf("JMD", "USD")
     val countryOptions = listOf("United States", "Jamaica", "Canada", "United Kingdom", "Mexico")
 
-    private val _state = MutableStateFlow(CartUiState())
+    private val _state = MutableStateFlow(
+        CartUiState(exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current),
+    )
     val state: StateFlow<CartUiState> = _state
 
     /** Live cart lines (Swift re-reads FigmaCartStore on every appearance). */
@@ -96,7 +98,10 @@ class CartViewModel(
         viewModelScope.launch {
             // RECONCILE: GET /exchange-rates → { usd_to_jmd }.
             checkout.exchangeRate().onSuccess { rate ->
-                if (rate > 0) _state.update { it.copy(exchangeUsdToJmd = rate) }
+                if (rate > 0) {
+                    com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
+                    _state.update { it.copy(exchangeUsdToJmd = rate) }
+                }
             }
         }
     }

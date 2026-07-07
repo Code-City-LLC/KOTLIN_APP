@@ -37,6 +37,12 @@ object DropAlertPreset {
         )
     }
 
+    /** Logout hygiene — the saved shipper/courier/method are the prior
+     *  user's data (Swift wipeAllUserData clears its stores too). */
+    fun clear() {
+        prefs?.edit()?.clear()?.apply()
+    }
+
     /** Persist NON-EMPTY values only (Swift savePreset — defensive against a
      *  submit that blanked one of the three). No-op before [init]. */
     fun save(shipper: String, courierCompany: String, shippingMethod: String) {

@@ -103,12 +103,15 @@ class PackageDetailsViewModel(
     private val hubRepo: ShipmentsHubRepository = ShipmentsRepoProvider.hub,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PackageDetailsUiState())
+    private val _state = MutableStateFlow(
+        PackageDetailsUiState(exchangeRate = com.ga.airdrop.core.prefs.ExchangeRateStore.current),
+    )
     val state: StateFlow<PackageDetailsUiState> = _state
 
     init {
         viewModelScope.launch {
             hubRepo.exchangeRate().onSuccess { rate ->
+                com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
                 _state.update { it.copy(exchangeRate = rate) }
             }
         }

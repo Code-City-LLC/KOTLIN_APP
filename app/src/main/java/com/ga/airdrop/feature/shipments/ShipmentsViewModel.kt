@@ -47,7 +47,9 @@ class ShipmentsViewModel(
     private val packagesRepo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(ShipmentsUiState())
+    private val _state = MutableStateFlow(
+        ShipmentsUiState(exchangeRate = com.ga.airdrop.core.prefs.ExchangeRateStore.current),
+    )
     val state: StateFlow<ShipmentsUiState> = _state
     private val _quickTrack = MutableStateFlow(QuickTrackUiState())
     val quickTrack: StateFlow<QuickTrackUiState> = _quickTrack
@@ -63,6 +65,7 @@ class ShipmentsViewModel(
         refreshJob = viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             repo.exchangeRate().onSuccess { rate ->
+                com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
                 _state.update { it.copy(exchangeRate = rate) }
             }
             repo.summary().onSuccess { summary ->

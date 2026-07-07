@@ -32,12 +32,15 @@ class ProductPaymentDetailsViewModel(
     private val ordersRepo: ShipmentsOrdersRepository = ShipmentsRepoProvider.orders,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(ProductPaymentDetailsUiState())
+    private val _state = MutableStateFlow(
+        ProductPaymentDetailsUiState(exchangeRate = com.ga.airdrop.core.prefs.ExchangeRateStore.current),
+    )
     val state: StateFlow<ProductPaymentDetailsUiState> = _state
 
     init {
         viewModelScope.launch {
             ordersRepo.exchangeRate().onSuccess { rate ->
+                com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
                 _state.update { it.copy(exchangeRate = rate) }
             }
         }

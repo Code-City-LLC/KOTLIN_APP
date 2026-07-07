@@ -68,7 +68,9 @@ class PackagesViewModel(
     }
 
     // §B.4: the saved sort survives launches (Swift currentSort seed).
-    private val _state = MutableStateFlow(PackagesUiState(sort = PackagesSortStore.read()))
+    private val _state = MutableStateFlow(
+        PackagesUiState(sort = PackagesSortStore.read(), exchangeRate = com.ga.airdrop.core.prefs.ExchangeRateStore.current),
+    )
     val state: StateFlow<PackagesUiState> = _state
 
     private var currentPage = 1
@@ -77,6 +79,7 @@ class PackagesViewModel(
     init {
         viewModelScope.launch {
             hubRepo.exchangeRate().onSuccess { rate ->
+                com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
                 _state.update { it.copy(exchangeRate = rate) }
             }
         }

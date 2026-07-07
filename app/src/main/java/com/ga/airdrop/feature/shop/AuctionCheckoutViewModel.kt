@@ -59,7 +59,10 @@ class AuctionCheckoutViewModel(
         viewModelScope.launch {
             // RECONCILE: GET /exchange-rates → { usd_to_jmd } (no auth).
             checkout.exchangeRate().onSuccess { rate ->
-                if (rate > 0) _state.update { it.copy(exchangeUsdToJmd = rate) }
+                if (rate > 0) {
+                    com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
+                    _state.update { it.copy(exchangeUsdToJmd = rate) }
+                }
             }
         }
     }

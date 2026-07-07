@@ -104,15 +104,20 @@ class DropAlertViewModel(
     fun submit() {
         val form = _state.value
         if (form.submitting) return
-        val missingRequired = form.courierNumber.isBlank() ||
-            form.shippingMethod.isBlank() ||
-            form.shipper.isBlank() ||
-            form.courierCompany.isBlank() ||
-            form.consignee.isBlank() ||
-            form.packageValue.isBlank()
-        if (missingRequired) {
+        // Swift firstMissingRequiredFieldMessage: per-field message, first
+        // failure wins, in Swift's exact check order + copy.
+        val missingMessage = when {
+            form.courierNumber.isBlank() -> "Courier Number is required"
+            form.shippingMethod.isBlank() -> "Shipping Method is required"
+            form.shipper.isBlank() -> "Shipper/Merchant is required"
+            form.packageValue.isBlank() -> "Package Value is required"
+            form.courierCompany.isBlank() -> "Courier Company is required"
+            form.consignee.isBlank() -> "Consignee is required"
+            else -> null
+        }
+        if (missingMessage != null) {
             _state.update {
-                it.copy(dialog = DropAlertDialog("Missing fields", "Please fill the required fields marked with *."))
+                it.copy(dialog = DropAlertDialog("Missing fields", missingMessage))
             }
             return
         }

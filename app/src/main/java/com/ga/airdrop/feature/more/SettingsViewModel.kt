@@ -84,6 +84,11 @@ class SettingsViewModel(
         com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
         com.ga.airdrop.feature.shop.ShopCheckoutStore.product = null
         com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
+        // User-scoped persisted stores (Swift AirdropSessionTeardown parity —
+        // the next account must not inherit the prior user's data).
+        com.ga.airdrop.feature.calculator.CalculatorHistory.clear()
+        com.ga.airdrop.feature.dropalert.DropAlertPreset.clear()
+        com.ga.airdrop.feature.shop.ShopRecentSearches.clear()
         sweepCachePrefs(context)
         _state.update { it.copy(loggingOut = false, loggedOut = true) }
     }

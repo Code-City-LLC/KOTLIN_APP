@@ -162,10 +162,10 @@ class ProfileViewModel(
     fun save() {
         val s = _state.value
         if (s.saving) return
-        if (s.firstName.isBlank() || s.lastName.isBlank() || s.email.isBlank()) {
-            _state.update {
-                it.copy(alert = "Missing fields" to "Please fill the required fields marked with *.")
-            }
+        // Swift ProfileValidator.validate() ported rule-for-rule, surfacing the
+        // first error in the same canonical field order and copy.
+        profileValidationError(s)?.let { message ->
+            _state.update { it.copy(alert = "Invalid Information" to message) }
             return
         }
         if (s.password.isNotEmpty() && s.password != s.confirmPassword) {
@@ -236,5 +236,38 @@ class ProfileViewModel(
             return "+${digits.take(codeLength)}" to digits.drop(codeLength)
         }
         return "+1" to cleaned.filter { it.isDigit() }
+    }
+}
+
+/**
+ * Swift ProfileValidator.validate() + firstError(in:) — the 14-field rule set
+ * in canonical order, returning the first failure's exact Swift copy.
+ */
+internal fun profileValidationError(s: ProfileUiState): String? {
+    val rules = com.ga.airdrop.core.validation.ProfileRules
+    val email = s.email.trim()
+    val trn = s.taxId.trim()
+    val idNumber = s.idNumber.trim()
+    val phone = s.phone.trim()
+    val mobile = s.mobile.trim()
+    return when {
+        s.firstName.trim().length < 2 -> "First name must be at least 2 characters"
+        s.lastName.trim().length < 2 -> "Last name must be at least 2 characters"
+        email.isEmpty() -> "Email is required"
+        !rules.isValidEmail(email) -> "Invalid email format"
+        trn.isNotEmpty() && !rules.isValidTrn(trn) -> "TRN must be 9 digits"
+        s.idType.trim().isEmpty() -> "Identity type is required"
+        idNumber.isEmpty() -> "Identity number is required"
+        !rules.isValidIdentityNumber(idNumber, s.idType) -> "Invalid identity number format"
+        s.dob.trim().isEmpty() -> "Date of birth is required"
+        !rules.isAtLeast15(s.dob.trim()) -> "Invalid date of birth. Must be at least 15 years old"
+        s.language.trim().isEmpty() -> "Language is required"
+        s.addressLine1.trim().length < 3 -> "Address must be at least 3 characters"
+        s.city.trim().length < 2 -> "City is required"
+        s.state.trim().length < 2 -> "State/Province is required"
+        phone.isNotEmpty() && !rules.isValidPhone(phone) -> "Invalid phone number format"
+        mobile.isEmpty() -> "Mobile number is required"
+        !rules.isValidMobile(mobile) -> "Invalid mobile number. Must be 10-15 digits"
+        else -> null
     }
 }

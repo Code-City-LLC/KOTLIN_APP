@@ -27,6 +27,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
         DeliveryDefaultsStore.init(this)
         BiometricGate.init(this)
         CalculatorHistory.init(this)
+        com.ga.airdrop.core.prefs.ExchangeRateStore.init(this)
         DropAlertPreset.init(this)
         ShopRecentSearches.init(this)
         PackagesSortStore.init(this)

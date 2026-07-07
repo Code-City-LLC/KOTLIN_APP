@@ -207,15 +207,24 @@ class SignUpViewModel(
         required.firstOrNull { it.first.isBlank() }?.let {
             return "Please fill in ${it.second}."
         }
-        val emailRegex = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
-        if (!emailRegex.matches(s.email.trim())) {
+        // Swift FigmaSignUpViewController.validate(): 8-char minimum before
+        // the confirm-match check.
+        if (s.password.length < 8) {
+            return "Password must be at least 8 characters long."
+        }
+        if (s.password != s.confirmPassword) {
+            return "Passwords do not match."
+        }
+        // Swift SSOT email rule (ProfileValidator.isValidEmail — 2+ letter TLD).
+        if (!com.ga.airdrop.core.validation.ProfileRules.isValidEmail(s.email.trim())) {
             return "Please enter a valid email address."
         }
         if (s.email.trim() != s.confirmEmail.trim()) {
             return "Email addresses do not match."
         }
-        if (s.password != s.confirmPassword) {
-            return "Passwords do not match."
+        // Swift: ProfileValidator.isValidMobile — 10-15 digits.
+        if (!com.ga.airdrop.core.validation.ProfileRules.isValidMobile(s.mobile.trim())) {
+            return "Invalid mobile number. Must be 10-15 digits."
         }
         if (!s.acceptTerms) {
             return "Please accept the Terms and Conditions."
