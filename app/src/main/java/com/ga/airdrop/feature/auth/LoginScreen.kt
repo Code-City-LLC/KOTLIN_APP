@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
@@ -47,9 +49,9 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
  * Login form — Figma "Log in" node 40006240:24005 (light) /
- * 40005190:29153 (dark): wave background, logo, bottom sheet card
+ * 40006149:75728 (dark): wave background, logo, bottom sheet card
  * (top radius ~31dp) with Welcome Back!, email/password fields,
- * Forget Password?, gradient Log In, Register link.
+ * Forgot Password?, gradient Log In, Register link.
  */
 @Composable
 fun LoginScreen(
@@ -65,7 +67,11 @@ fun LoginScreen(
         androidx.compose.runtime.LaunchedEffect(Unit) { onLoggedIn() }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .testTag("login-root")
+    ) {
         Image(
             painter = painterResource(
                 if (colors.isDark) R.drawable.bg_auth_dark else R.drawable.bg_auth_light
@@ -89,44 +95,46 @@ fun LoginScreen(
             ) {
                 ThemeToggle()
             }
-            Spacer(Modifier.height(18.dp))
-            // Figma Login logo (node 40006240:26932): the wide color wordmark
-            // sized to 260 of the 375-wide frame (screen-relative, not a fixed
-            // dp box that renders tiny on real devices). Dark mode uses the
-            // round logo at a matching visual height.
-            Image(
-                painter = painterResource(
-                    if (colors.isDark) R.drawable.img_airdrop_logo_dark
-                    else R.drawable.img_airdrop_logo
-                ),
-                contentDescription = "AirDrop",
-                modifier = Modifier
-                    .fillMaxWidth(if (colors.isDark) 0.26f else 260f / 375f)
-                    .aspectRatio(if (colors.isDark) 1.049f else 649f / 180f)
-                    .align(Alignment.CenterHorizontally),
-                contentScale = ContentScale.Fit,
-            )
-            Spacer(Modifier.weight(1f))
-            // Bottom panel — Swift FigmaLoginViewController.swift:84-90,
-            // :118-123, :249-252: opaque white/#2e2e2e fill, top radius 32,
-            // 30 horizontal / 32 top / 32 bottom insets.
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        if (colors.isDark) colors.gray150 else colors.gray100,
-                        RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-                    )
-                    .padding(horizontal = 30.dp)
-                    .padding(top = 32.dp)
-                    // Lift the form above the keyboard (edge-to-edge means the
-                    // window doesn't resize on its own): pad by whichever is
-                    // larger — the nav bar or the IME. The focused field then
-                    // scrolls into view above the keyboard.
-                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
-                    .padding(bottom = 32.dp)
-                    .verticalScroll(rememberScrollState()),
-            ) {
+        }
+        // Figma dark node 40006149:75728 places the round mark at
+        // x=28/y=106/w=321/h=306 on a 375-wide frame. Keep it independent
+        // from the sheet so the panel remains bottom anchored like Swift.
+        Image(
+            painter = painterResource(
+                if (colors.isDark) R.drawable.img_airdrop_logo_dark
+                else R.drawable.img_airdrop_logo
+            ),
+            contentDescription = "AirDrop",
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = if (colors.isDark) 106.dp else 104.dp)
+                .fillMaxWidth(if (colors.isDark) 321f / 375f else 260f / 375f)
+                .aspectRatio(if (colors.isDark) 642f / 612f else 649f / 180f)
+                .testTag("login-logo"),
+            contentScale = ContentScale.Fit,
+        )
+        // Bottom panel — Swift FigmaLoginViewController.swift keeps the sheet
+        // at 65% height with 32 top/bottom padding and 30 horizontal inset.
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.65f)
+                .testTag("login-panel")
+                .background(
+                    if (colors.isDark) colors.gray150 else colors.gray100,
+                    RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+                )
+                .padding(horizontal = 30.dp)
+                .padding(top = 32.dp)
+                // Lift the form above the keyboard (edge-to-edge means the
+                // window doesn't resize on its own): pad by whichever is
+                // larger — the nav bar or the IME. The focused field then
+                // scrolls into view above the keyboard.
+                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
+                .padding(bottom = 32.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
                 Text(
                     text = "Welcome Back!",
                     style = AirdropType.h4,
@@ -138,8 +146,7 @@ fun LoginScreen(
                     style = AirdropType.body1,
                     color = colors.textDarkTitle,
                 )
-                // Swift FigmaLoginViewController.swift:209 — 24 after title block.
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
                 TypeInputField(
                     label = "Email Address",
                     required = true,
@@ -148,8 +155,16 @@ fun LoginScreen(
                     placeholder = "e.g. username@email.com",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     autofillContentType = ContentType.EmailAddress + ContentType.Username,
+                    testTagPrefix = "login-email",
+                    labelStyle = AirdropType.subtitle2,
+                    placeholderStyle = AirdropType.body2,
+                    inputTextStyle = AirdropType.body2,
+                    fieldHeight = 50.dp,
+                    fieldRadius = 10.dp,
+                    fieldHorizontalPadding = 20.dp,
+                    labelFieldGap = 5.dp,
                 )
-                Spacer(Modifier.height(Spacing.md))
+                Spacer(Modifier.height(14.dp))
                 TypeInputField(
                     label = "Password",
                     required = true,
@@ -160,12 +175,20 @@ fun LoginScreen(
                     onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     autofillContentType = ContentType.Password,
+                    testTagPrefix = "login-password",
+                    labelStyle = AirdropType.subtitle2,
+                    placeholderStyle = AirdropType.body2,
+                    inputTextStyle = AirdropType.body2,
+                    fieldHeight = 50.dp,
+                    fieldRadius = 10.dp,
+                    fieldHorizontalPadding = 20.dp,
+                    labelFieldGap = 5.dp,
                 )
                 // Swift FigmaLoginViewController.swift:213 — 10 after password;
                 // :171-179 — Body2 underline in textDarkTitle.
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Forget Password?",
+                    text = "Forgot Password?",
                     style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
                     color = colors.textDarkTitle,
                     modifier = Modifier.clickable(onClick = onForgotPassword),
@@ -178,15 +201,15 @@ fun LoginScreen(
                         color = AlertPalette.Error,
                     )
                 }
-                Spacer(Modifier.height(Spacing.md))
+                Spacer(Modifier.height(14.dp))
                 GradientButton(
                     text = "Log In",
                     onClick = viewModel::login,
                     loading = state.loading,
-                    enabled = state.email.isNotBlank() && state.password.isNotBlank(),
+                    enabled = !state.loading,
+                    modifier = Modifier.testTag("login-button"),
                 )
-                // Swift FigmaLoginViewController.swift:218 — 16 after Log In.
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -203,8 +226,6 @@ fun LoginScreen(
                         modifier = Modifier.clickable(onClick = onRegister),
                     )
                 }
-            }
         }
     }
 }
-

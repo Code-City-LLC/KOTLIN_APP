@@ -26,8 +26,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -57,19 +59,26 @@ fun TypeInputField(
     autofillContentType: ContentType? = null,
     /** Optional stable tags for parity tests: "$prefix-card", "$prefix-required". */
     testTagPrefix: String? = null,
+    labelStyle: TextStyle = AirdropType.subtitle2,
+    placeholderStyle: TextStyle = AirdropType.body1,
+    inputTextStyle: TextStyle = AirdropType.body1,
+    fieldHeight: Dp = 48.dp,
+    fieldRadius: Dp = 12.dp,
+    fieldHorizontalPadding: Dp = 14.dp,
+    labelFieldGap: Dp = 6.dp,
 ) {
     val colors = AirdropTheme.colors
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(labelFieldGap),
     ) {
         if (label.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(text = label, style = AirdropType.subtitle2, color = colors.textDarkTitle)
+                Text(text = label, style = labelStyle, color = colors.textDarkTitle)
                 if (required) {
                     Text(
                         text = "*",
-                        style = AirdropType.subtitle2,
+                        style = labelStyle,
                         color = BrandPalette.OrangeMain,
                         modifier = testTagPrefix?.let { Modifier.testTag("$it-required") }
                             ?: Modifier,
@@ -79,14 +88,14 @@ fun TypeInputField(
         }
         val cardModifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .background(colors.gray100, RoundedCornerShape(12.dp))
+            .height(fieldHeight)
+            .background(colors.gray100, RoundedCornerShape(fieldRadius))
             .border(
                 width = 1.dp,
                 color = if (error != null) AlertPalette.Error else colors.iconShape,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(fieldRadius),
             )
-            .padding(horizontal = 14.dp)
+            .padding(horizontal = fieldHorizontalPadding)
             .then(testTagPrefix?.let { Modifier.testTag("$it-card") } ?: Modifier)
         Row(
             modifier = cardModifier,
@@ -97,14 +106,14 @@ fun TypeInputField(
                 if (value.isEmpty() && placeholder.isNotEmpty()) {
                     Text(
                         text = placeholder,
-                        style = AirdropType.body1,
+                        style = placeholderStyle,
                         color = colors.textDescription,
                     )
                 }
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
-                    textStyle = AirdropType.body1.copy(color = colors.textDarkTitle),
+                    textStyle = inputTextStyle.copy(color = colors.textDarkTitle),
                     cursorBrush = SolidColor(BrandPalette.OrangeMain),
                     singleLine = true,
                     enabled = enabled,
