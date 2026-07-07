@@ -108,16 +108,18 @@ private val introPages = listOf(
     ),
 )
 
-/** Index of the trailing "Choose Your Look" page (Figma 40006240:24027). */
-private const val THEME_PAGE = 5
-private const val PAGE_COUNT = 6
+/** Swift/Figma launch sequence: Choose Your Look first, then the five slides. */
+private const val THEME_PAGE = 0
+private const val FIRST_INTRO_PAGE = 1
+private val LAST_INTRO_PAGE = introPages.size
+private val PAGE_COUNT = introPages.size + 1
 
 /**
- * First-run onboarding — Figma "Onboarding - Design Done" nodes
- * 40006240:23774/23798/23823/23848/23872 (intro pager with Skip/Next and
- * the 5-dash indicator, 40006240:23781) + 40006240:24027 ("Choose Your
- * Look" theme picker with Continue). Completing (or skipping through) marks
- * [OnboardingStore] seen and routes to the auth landing.
+ * First-run onboarding — Swift FigmaOnboardingSplashViewController advances to
+ * 40006240:24027 ("Choose Your Look"), then Continue opens the intro pager
+ * nodes 40006240:23774/23798/23823/23848/23872 with Skip/Next and the 5-dash
+ * indicator. Completing/skipping the intro pager marks [OnboardingStore] seen
+ * and routes to auth landing.
  */
 @Composable
 fun OnboardingScreen(onFinished: () -> Unit) {
@@ -144,13 +146,17 @@ fun OnboardingScreen(onFinished: () -> Unit) {
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
         ) { page ->
-            if (page < THEME_PAGE) {
-                OnboardIntroPageContent(introPages[page])
+            if (page == THEME_PAGE) {
+                OnboardThemePage(
+                    onContinue = {
+                        scope.launch { pagerState.animateScrollToPage(FIRST_INTRO_PAGE) }
+                    },
+                )
             } else {
-                OnboardThemePage(onContinue = finish)
+                OnboardIntroPageContent(introPages[page - FIRST_INTRO_PAGE])
             }
         }
-        if (pagerState.currentPage < THEME_PAGE) {
+        if (pagerState.currentPage >= FIRST_INTRO_PAGE) {
             // Header row with the small light/dark pill (Figma Header Type).
             Row(
                 modifier = Modifier
@@ -172,7 +178,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                     .padding(bottom = Spacing.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                OnboardPageIndicator(current = pagerState.currentPage)
+                OnboardPageIndicator(current = pagerState.currentPage - FIRST_INTRO_PAGE)
                 Spacer(Modifier.height(61.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -180,12 +186,16 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OnboardSkipButton(
-                        onClick = { scope.launch { pagerState.animateScrollToPage(THEME_PAGE) } },
+                        onClick = finish,
                     )
                     OnboardNextButton(
                         onClick = {
-                            scope.launch {
-                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            if (pagerState.currentPage < LAST_INTRO_PAGE) {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                }
+                            } else {
+                                finish()
                             }
                         },
                     )
