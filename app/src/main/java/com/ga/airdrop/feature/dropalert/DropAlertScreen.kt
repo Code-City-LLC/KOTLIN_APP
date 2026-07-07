@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -103,6 +102,7 @@ fun DropAlertScreen(
             .fillMaxSize()
             .background(colors.gray100)
             .imePadding()
+            .testTag("drop-alert-root")
     ) {
         InnerScreenHeader(title = "Drop Alert", onBack = onBack)
 
@@ -111,7 +111,12 @@ fun DropAlertScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(Spacing.md),
+                .padding(
+                    start = Spacing.md,
+                    top = Spacing.md,
+                    end = Spacing.md,
+                    bottom = 40.dp,
+                ),
             // Swift form stack spacing 16 (FigmaDropAlertViewController.swift:206).
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -168,6 +173,7 @@ fun DropAlertScreen(
                 inputTestTag = "drop-alert-package-value-input",
                 placeholder = "e.g. 84",
                 required = true,
+                modifier = Modifier.testTag("drop-alert-package-value-field"),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 trailing = { DollarTrailing() },
             )
@@ -221,24 +227,12 @@ fun DropAlertScreen(
                     },
                 )
             }
-        }
 
-        // Footer — Figma "Button Type" (40001826:22528): Cancel + Drop Alert.
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(colors.glassOverlay70)
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(colors.divider)
-            )
+            // Swift actionRow lives in the scroll stack below the upload help copy.
             Row(
                 Modifier
-                    .padding(Spacing.md)
-                    .navigationBarsPadding(),
+                    .fillMaxWidth()
+                    .testTag("drop-alert-actions"),
                 // Swift actionRow spacing 12 (FigmaDropAlertViewController.swift:223).
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {

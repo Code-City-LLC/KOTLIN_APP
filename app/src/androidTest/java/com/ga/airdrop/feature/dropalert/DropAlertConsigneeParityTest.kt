@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.dropalert
 
 import android.content.ContentValues
+import android.content.Context
 import android.graphics.Bitmap
 import android.provider.MediaStore
 import androidx.compose.foundation.background
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -16,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -26,6 +29,7 @@ import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,7 +46,10 @@ class DropAlertConsigneeParityTest {
         val viewModel = setDropAlert(ThemeController.Mode.LIGHT, repository)
 
         fillRequiredFields()
+        assertPackageValueFieldIsFullyVisible()
         saveRootScreenshot("drop_alert_consignee_manual_light.png")
+        scrollSubmitIntoView()
+        saveRootScreenshot("drop_alert_consignee_actions_light.png")
         submitAndAssertSwiftConsignee(viewModel, repository)
     }
 
@@ -52,7 +59,10 @@ class DropAlertConsigneeParityTest {
         val viewModel = setDropAlert(ThemeController.Mode.DARK, repository)
 
         fillRequiredFields()
+        assertPackageValueFieldIsFullyVisible()
         saveRootScreenshot("drop_alert_consignee_manual_dark.png")
+        scrollSubmitIntoView()
+        saveRootScreenshot("drop_alert_consignee_actions_dark.png")
         submitAndAssertSwiftConsignee(viewModel, repository)
     }
 
@@ -60,6 +70,7 @@ class DropAlertConsigneeParityTest {
         mode: ThemeController.Mode,
         repository: RecordingDropAlertRepository,
     ): DropAlertViewModel {
+        clearDropAlertPreset()
         lateinit var viewModel: DropAlertViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -87,6 +98,14 @@ class DropAlertConsigneeParityTest {
         return viewModel
     }
 
+    private fun clearDropAlertPreset() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.getSharedPreferences("dropalert_preset", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
+    }
+
     private fun fillRequiredFields() {
         compose.onNodeWithTag("drop-alert-courier-number-input", useUnmergedTree = true)
             .performTextInput("3498534580")
@@ -100,11 +119,31 @@ class DropAlertConsigneeParityTest {
         compose.onNodeWithText("Kerry Smith").assertIsDisplayed()
     }
 
+    private fun assertPackageValueFieldIsFullyVisible() {
+        val packageValue = compose.onNodeWithTag("drop-alert-package-value-field", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        val root = compose.onNodeWithTag("drop-alert-root", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        assertTrue(
+            "Package Value field should not be clipped by the screen fold; " +
+                "fieldBottom=${packageValue.bottom.value}, rootBottom=${root.bottom.value}",
+            packageValue.bottom.value <= root.bottom.value - 8f,
+        )
+    }
+
+    private fun scrollSubmitIntoView() {
+        compose.onNodeWithTag("drop-alert-submit-button", useUnmergedTree = true)
+            .performScrollTo()
+        compose.waitForIdle()
+    }
+
     private fun submitAndAssertSwiftConsignee(
         viewModel: DropAlertViewModel,
         repository: RecordingDropAlertRepository,
     ) {
-        compose.onNodeWithTag("drop-alert-submit-button", useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("drop-alert-submit-button", useUnmergedTree = true)
+            .performScrollTo()
+            .performClick()
         compose.waitUntil(timeoutMillis = 5_000) {
             repository.submission != null && viewModel.state.value.dialog?.title == "Submitted"
         }
@@ -112,6 +151,7 @@ class DropAlertConsigneeParityTest {
         val submission = repository.submission
         assertNotNull(submission)
         assertEquals("Kerry Smith", submission!!.consignee)
+        assertEquals("Amazon", submission.shipper)
         assertEquals("", viewModel.state.value.consignee)
         compose.onNodeWithText("Submitted").assertIsDisplayed()
     }
