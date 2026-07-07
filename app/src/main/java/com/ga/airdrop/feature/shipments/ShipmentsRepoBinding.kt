@@ -219,6 +219,8 @@ private class DataShipmentsPackagesRepository(
  * through navigation) — detail routes resolve from this page cache, refilled
  * by scanning recent pages when a deep link arrives cold.
  */
+private const val PAYMENT_LOOKUP_PER_PAGE = 15
+
 private object PaymentPageCache {
     private val byId = LinkedHashMap<Int, ShipmentPayment>()
 
@@ -233,7 +235,7 @@ private object PaymentPageCache {
     fun get(id: Int): ShipmentPayment? = byId[id]
 }
 
-private class DataShipmentsPaymentsRepository(
+internal class DataShipmentsPaymentsRepository(
     private val repo: PaymentsRepository,
     private val cacheDir: File,
 ) : ShipmentsPaymentsRepository {
@@ -249,15 +251,19 @@ private class DataShipmentsPaymentsRepository(
 
     override suspend fun payment(paymentId: Int): Result<ShipmentPayment> {
         PaymentPageCache.get(paymentId)?.let { return Result.success(it) }
-        // Cold deep link: scan the first pages for the row.
-        for (page in 1..5) {
-            val result = repo.payments(page = page, perPage = 15, type = null, search = null)
+        // Cold detail entry: keep scanning until the backend reports the end
+        // instead of cutting off after an arbitrary page window.
+        var page = 1
+        while (true) {
+            val result = repo.payments(page = page, perPage = PAYMENT_LOOKUP_PER_PAGE, type = null, search = null)
             val rows = result.getOrNull() ?: return Result.failure(
                 result.exceptionOrNull() ?: IllegalStateException("Payment not found"),
             )
+            if (rows.isEmpty()) break
             rows.forEach { PaymentPageCache.remember(it.toShipment()) }
             PaymentPageCache.get(paymentId)?.let { return Result.success(it) }
-            if (rows.isEmpty()) break
+            if (rows.size < PAYMENT_LOOKUP_PER_PAGE) break
+            page += 1
         }
         return Result.failure(IllegalStateException("Payment #$paymentId not found"))
     }
