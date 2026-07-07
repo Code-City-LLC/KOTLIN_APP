@@ -30,6 +30,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -218,9 +220,18 @@ internal fun GoldPriorityContent(
     ForceLightStatusBarIcons()
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(tierPages.indices)) { tierPages.size }
 
-    // Pre-scroll once the user's tier resolves (Swift scrollToItem).
+    // Pre-scroll once the user's tier resolves (Swift scrollToItem). Hardened
+    // like Swift 4a3024d ("reload first, layout, then scroll"): a scroll issued
+    // before the pager's first measure pass can be silently dropped, and a
+    // second index resolution (legacy name → tier API) cancels the in-flight
+    // effect and can strand the pager between pages — both were caught live
+    // (landed on Diamond after a cold boot, Platinum after a fast reopen).
     LaunchedEffect(resolvedTierIndex) {
-        resolvedTierIndex?.let { pagerState.scrollToPage(it) }
+        val idx = resolvedTierIndex ?: return@LaunchedEffect
+        snapshotFlow { pagerState.layoutInfo.viewportSize.width }.first { it > 0 }
+        pagerState.scrollToPage(idx)
+        // Settle: if a cancelled predecessor left the pager off-target, snap again.
+        if (pagerState.currentPage != idx) pagerState.scrollToPage(idx)
     }
 
     val activeTier = tierPages[pagerState.currentPage]
