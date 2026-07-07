@@ -71,11 +71,20 @@ data class TierPage(
     val gradientBottom: Color,
     val inactiveDash: Color,
     val benefits: List<String>,
+    /**
+     * Laravel tier code for the switchable tiers (service_tiers.code). null for
+     * the presentational-only pages (Inactive, Corporate) that the customer
+     * can't self-select — those show no upgrade/downgrade CTA.
+     */
+    val apiCode: String? = null,
+    /** service_tiers.lane_rank — higher = more premium; drives upgrade vs downgrade. */
+    val laneRank: Int = 0,
 )
 
 internal val tierPages = listOf(
     TierPage(
         id = "diamond", name = "Diamond Elite",
+        apiCode = "DIAM", laneRank = 5,
         gradientTop = Color(0xFF6B6B6B), gradientBottom = Color(0xFF292929),
         inactiveDash = Color.Black.copy(alpha = 0.4f),
         benefits = listOf(
@@ -91,6 +100,7 @@ internal val tierPages = listOf(
     ),
     TierPage(
         id = "platinum", name = "Platinum Priority",
+        apiCode = "PLAT", laneRank = 4,
         gradientTop = Color(0xFFCACACA), gradientBottom = Color(0xFF737373),
         inactiveDash = Color.White.copy(alpha = 0.3f),
         benefits = listOf(
@@ -106,6 +116,7 @@ internal val tierPages = listOf(
     ),
     TierPage(
         id = "gold", name = "Gold Standard",
+        apiCode = "GOLD", laneRank = 3,
         gradientTop = Color(0xFFEFBF04), gradientBottom = Color(0xFF8C6F01),
         inactiveDash = Color(0xFFEFBF04).copy(alpha = 0.6f),
         benefits = listOf(
@@ -120,6 +131,7 @@ internal val tierPages = listOf(
     ),
     TierPage(
         id = "ruby", name = "Ruby Starter",
+        apiCode = "RUBY", laneRank = 2,
         gradientTop = TierPalette.BronzeSaver2, gradientBottom = Color(0xFF5C262E),
         inactiveDash = TierPalette.BronzeSaver2.copy(alpha = 0.6f),
         benefits = listOf(
@@ -134,6 +146,7 @@ internal val tierPages = listOf(
     ),
     TierPage(
         id = "sapphire", name = "Sapphire Saver",
+        apiCode = "SAVR", laneRank = 1,
         gradientTop = TierPalette.CorporateBulk3, gradientBottom = TierPalette.CorporateBulk2,
         inactiveDash = TierPalette.CorporateBulk3.copy(alpha = 0.6f),
         benefits = listOf(
@@ -185,6 +198,10 @@ fun GoldPriorityScreen(
     GoldPriorityContent(
         onBack = onBack,
         resolvedTierIndex = state.resolvedTierIndex,
+        tierState = state,
+        onRequestChange = viewModel::requestTierChange,
+        onDismissError = viewModel::dismissChangeError,
+        onConsumeJustChanged = viewModel::consumeJustChanged,
     )
 }
 
@@ -193,6 +210,10 @@ internal fun GoldPriorityContent(
     onBack: () -> Unit,
     resolvedTierIndex: Int? = null,
     initialPage: Int = defaultTierIndex,
+    tierState: GoldPriorityUiState = GoldPriorityUiState(),
+    onRequestChange: (String) -> Unit = {},
+    onDismissError: () -> Unit = {},
+    onConsumeJustChanged: () -> Unit = {},
 ) {
     ForceLightStatusBarIcons()
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(tierPages.indices)) { tierPages.size }
@@ -235,6 +256,80 @@ internal fun GoldPriorityContent(
             ) { page ->
                 TierPageContent(tierPages[page])
             }
+        }
+
+        // Upgrade/downgrade layer over the untouched pager — CTA for the
+        // visible tier + confirmation sheet. Hidden entirely when the tier
+        // API isn't offering changes, so the core page stands on its own.
+        TierChangeOverlay(
+            visibleTier = activeTier,
+            state = tierState,
+            onRequestChange = onRequestChange,
+            onDismissError = onDismissError,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+
+        // Brief confirmation once a change applies (Swift success toast parity).
+        tierState.justChangedToName?.let { name ->
+            LaunchedEffect(name) {
+                pagerState.animateScrollToPage(
+                    tierPages.indexOfFirst { it.apiCode == tierState.currentTierCode }.coerceAtLeast(0),
+                )
+            }
+            TierChangeSuccessBanner(
+                name = name,
+                onDismiss = onConsumeJustChanged,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
+    }
+}
+
+/** Auto-dismissing "You're now {tier}" banner shown after a successful switch. */
+@Composable
+private fun TierChangeSuccessBanner(
+    name: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LaunchedEffect(name) {
+        kotlinx.coroutines.delay(2600)
+        onDismiss()
+    }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(top = 96.dp),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.Black.copy(alpha = 0.55f))
+                .padding(vertical = 14.dp, horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_check),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(Color.White),
+                    modifier = Modifier.size(11.dp),
+                )
+            }
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text = "You're now on $name",
+                style = AirdropType.button,
+                color = Color.White,
+            )
         }
     }
 }

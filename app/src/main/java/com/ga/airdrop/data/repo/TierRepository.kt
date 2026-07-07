@@ -19,6 +19,16 @@ import com.ga.airdrop.data.model.TierChangeRequest
 import com.ga.airdrop.data.model.TierChangeResult
 
 /**
+ * The current-tier + change subset the Customer Tier page depends on. A narrow
+ * seam so the ViewModel can be unit-tested without a live backend (the whole
+ * [TierRepository] implements it).
+ */
+interface CustomerTierGateway {
+    suspend fun customerTier(): Result<CustomerTier>
+    suspend fun changeTier(requestedTierCode: String): Result<TierChangeResult>
+}
+
+/**
  * Tier system data access — Laravel is the single source of truth for every
  * tier, price, insurance, customs, return and AirCoins rule. This layer only
  * fetches and returns backend values; nothing here (or above it) recomputes
@@ -29,18 +39,18 @@ import com.ga.airdrop.data.model.TierChangeResult
  * tier customs path. The original shipping-calculator remains the only
  * customer-facing customs number.
  */
-class TierRepository(private val service: AirdropApiService) {
+class TierRepository(private val service: AirdropApiService) : CustomerTierGateway {
 
     /** GET /service-tiers — the tier catalogue (badges, lanes, eligibility). */
     suspend fun serviceTiers(): Result<List<ServiceTier>> =
         apiResult { service.serviceTiers().requireData("service tiers") }
 
     /** GET /customers/me/tier — the signed-in customer's tier + benefits. */
-    suspend fun customerTier(): Result<CustomerTier> =
+    override suspend fun customerTier(): Result<CustomerTier> =
         apiResult { service.customerTier().requireData("customer tier") }
 
     /** PATCH /customers/me/tier — backend-validated upgrade/downgrade. */
-    suspend fun changeTier(requestedTierCode: String): Result<TierChangeResult> =
+    override suspend fun changeTier(requestedTierCode: String): Result<TierChangeResult> =
         apiResult {
             service.changeTier(TierChangeRequest(requestedTierCode)).requireData("tier change")
         }
