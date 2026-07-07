@@ -2,6 +2,8 @@ package com.ga.airdrop.feature.shop
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +24,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -54,6 +62,8 @@ fun ShopScreen(
     val headerInfo by SessionStore.header.collectAsState()
     val cartLines by CartStore.items.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    var searchFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { CartStore.init(context) }
 
@@ -91,8 +101,22 @@ fun ShopScreen(
                     onValueChange = viewModel::onQueryChange,
                     placeholder = "Search",
                     onFilterClick = { viewModel.setSortSheetVisible(true) },
-                    modifier = Modifier.testTag("shop-root-search"),
+                    modifier = Modifier
+                        .testTag("shop-root-search")
+                        .onFocusEvent { searchFocused = it.hasFocus },
                 )
+
+                // Swift §C.7 recents accessory: while the search field is
+                // focused, offer the last submitted queries as tappable chips.
+                if (searchFocused && state.recentSearches.isNotEmpty()) {
+                    RecentSearchChips(
+                        recents = state.recentSearches,
+                        onSelect = { query ->
+                            focusManager.clearFocus()
+                            viewModel.onRecentSearchSelected(query)
+                        },
+                    )
+                }
 
                 // ─── Auction section (2-column grid of 4) ───
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -221,5 +245,38 @@ internal fun ShopEmptyCard(text: String, modifier: Modifier = Modifier) {
             style = AirdropType.body1,
             color = colors.textDescription,
         )
+    }
+}
+
+/**
+ * Swift §C.7 recents accessory ported to Compose: a horizontally-scrolling
+ * "Recent:" strip of the last submitted queries — Body3 chips on gray150,
+ * radius 14, 12h/6v padding. Tapping one re-runs that search.
+ */
+@Composable
+private fun RecentSearchChips(recents: List<String>, onSelect: (String) -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .testTag("shop-recent-searches"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "Recent:", style = AirdropType.body3, color = colors.textDescription)
+        recents.forEach { query ->
+            Text(
+                text = query,
+                style = AirdropType.body3,
+                color = colors.textDarkTitle,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.gray150)
+                    .clickable { onSelect(query) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("shop-recent-chip-$query"),
+            )
+        }
     }
 }

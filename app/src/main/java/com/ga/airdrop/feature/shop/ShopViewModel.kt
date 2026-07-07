@@ -17,6 +17,8 @@ data class ShopUiState(
     val featuredLoading: Boolean = true,
     val sort: ShopSort = ShopSort.ALL,
     val showSortSheet: Boolean = false,
+    /** Swift §C.7 — the last 5 explicitly-submitted queries, newest first. */
+    val recentSearches: List<String> = emptyList(),
 )
 
 /**
@@ -39,6 +41,7 @@ class ShopViewModel(
     private var featuredOriginal: List<ShopProduct> = emptyList()
 
     init {
+        _state.update { it.copy(recentSearches = ShopRecentSearches.read()) }
         refresh()
     }
 
@@ -61,6 +64,21 @@ class ShopViewModel(
 
     fun onSearchSubmit() {
         searchJob?.cancel()
+        // Swift textFieldShouldReturn §C.7: persist the explicitly-submitted
+        // query (>= 3 chars — same floor as searchQuery()) into the ring so
+        // the recents chips can offer it next time.
+        val q = _state.value.query.trim()
+        if (q.length >= 3) {
+            ShopRecentSearches.save(q)
+            _state.update { it.copy(recentSearches = ShopRecentSearches.read()) }
+        }
+        refresh()
+    }
+
+    /** Chip tap — Swift accessory chip action: set the query and re-search. */
+    fun onRecentSearchSelected(query: String) {
+        searchJob?.cancel()
+        _state.update { it.copy(query = query) }
         refresh()
     }
 
