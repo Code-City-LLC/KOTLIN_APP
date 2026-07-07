@@ -568,30 +568,29 @@ visibly or functionally wrong.
   - proof PNGs:
     `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_light.png`,
     `/tmp/kotlin_ui_proof/legal_content/screenshots/legal_live_html_dark.png`
-- Android checks run for the AirCoins Swift/Figma pass:
+- Android checks run for the AirCoins Figma correction pass:
   - Figma MCP design context checked for balance node `40001911:22972` and
-    history node `40006461:26563`.
-  - Swift source compared:
-    `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaAirCoinHistoryViewController.swift`.
-  - Swift precedence documented: Figma balance uses a circular arrow pill and
-    different tip/stat sizing, while Swift uses 120x44 conversion pills, a
-    standalone 24pt arrow, 40pt tip/stat icons, and `subtitle1` headers.
-    Figma history uses static mock labels/rows, while Swift uses `Invoice No`,
-    `Used Date`, unsigned text-colored amounts, a 170pt hero wrap, 150pt image,
-    and one clipped 15pt table card.
+    dark balance node `40001911:23111`; history node `40006461:26563` and dark
+    history node `40006461:26461`.
+  - Kemar correction: these four Figma nodes are the AirCoin source of truth.
+    Do not restore the older Swift-precedence variant. Balance uses 336dp
+    conversion strip with 142.5dp / 51dp / 142.5dp controls, 40dp stat icons,
+    a 170dp stats card, 50dp tip icon, and no redeem/QR CTA. History uses the
+    receipt/lightning hero, 345x206 ledger card, `Invoice No.`, `Air Coin Used`,
+    `Date`, and four 40dp body rows.
   - `git diff --check`
   - clean `:app:clean :app:compileStagingDebugKotlin
     :app:compileStagingDebugAndroidTestKotlin`
   - targeted `AirCoinParityScreenshotTest` through
-    `:app:connectedStagingDebugAndroidTest`: 4 tests passed
+    `:app:connectedStagingDebugAndroidTest`: Figma geometry/copy tests passed
   - manual `adb shell am instrument -w -e class
     com.ga.airdrop.feature.homedetails.AirCoinParityScreenshotTest ...`:
     `OK (4 tests)`
   - proof PNGs:
-    `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_light.png`,
-    `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_balance_swift_dark.png`,
-    `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_light.png`,
-    `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/aircoin_history_swift_dark.png`
+    `/tmp/kotlin_ui_proof/aircoins_figma/aircoin_balance_figma_light.png`,
+    `/tmp/kotlin_ui_proof/aircoins_figma/aircoin_balance_figma_dark.png`,
+    `/tmp/kotlin_ui_proof/aircoins_figma/aircoin_history_figma_light.png`,
+    `/tmp/kotlin_ui_proof/aircoins_figma/aircoin_history_figma_dark.png`
 - Android checks run for the AirCoins live data contract follow-up:
   - Figma MCP design context refreshed for balance node `40001911:22972` and
     history node `40006461:26563`.
@@ -1330,17 +1329,18 @@ visibly or functionally wrong.
 
 ### AirCoins
 
-- AirCoins balance/history now has Swift-precedence proof. Figma balance node
-  `40001911:22972` conflicts with Swift on the conversion strip and tip/stat
-  sizing; Swift wins, so Android keeps the full-screen AirCoin art, 280dp hero
-  spacer, 120x44 conversion pills, standalone arrow, and 40dp tip/stat icons.
+- AirCoins balance/history now follows the explicit Figma nodes Kemar provided:
+  balance `40001911:22972` / `40001911:23111` and history `40006461:26563` /
+  `40006461:26461`. Do not restore the older Swift-precedence variant.
+- Balance keeps the full-screen AirCoin art but uses the Figma conversion strip
+  (`1 AirCoin`, 51dp arrow circle, `1 USD`), 170dp stats card, 50dp earn-card
+  icon, and no fabricated `Redeem at counter` / QR sheet.
 - The AirCoins header typography was corrected only for this screen pair:
   Swift uses `Typography.subtitle1()` for `AirCoin Balance` and `History`,
   while other home-detail screens still keep their Swift `title1` headers.
-- History node `40006461:26563` is a static Figma mock; Swift wins for runtime
-  copy and ledger behavior. Android now uses `Invoice No`, `Used Date`, no
-  plus/minus amount coloring, a 170dp hero wrap, 150dp hero image, and one
-  clipped 15dp ledger card. The balance history button is covered by
+- History is not a copied balance surface: it uses the receipt/lightning hero,
+  Figma ray layer, 345x206 ledger card, and exact column copy `Invoice No.`,
+  `Air Coin Used`, `Date`. The balance history button is covered by
   instrumentation.
 - Backend request paths were preserved: balance still reads
   `MiscRepository.airCoinsStatus()` / `/aircoins/status`, and history still reads
@@ -1771,17 +1771,17 @@ Source files:
 - Figma: nodes `40001911:22972`, `40006461:26563`
 
 Findings to verify/fix:
-- Closed by Swift-precedence pass: balance and history were compared against
-  Swift first and Figma second. Android now matches Swift-specific header
-  typography, balance control/card geometry, history hero/table geometry, and
-  history-copy behavior where Figma conflicts.
+- Closed by Figma-correction pass: Kemar rejected the older Swift-precedence
+  interpretation for this screen pair. Android now matches the provided Figma
+  balance/history nodes for control/card geometry, history hero/table geometry,
+  copy, and removal of the non-Figma redeem/QR CTA.
 - History navigation is covered by instrumentation through the top-right balance
   action.
 - `/aircoins/status` and `/aircoins/history` request paths are covered by a JVM
   repository contract test; Android now requests Swift's `per_page=50` for the
   history ledger instead of the stale 20-row page size.
 - Light and dark screenshots are verified under
-  `/tmp/kotlin_ui_proof/aircoins_swift_history/aircoins_swift/`.
+  `/tmp/kotlin_ui_proof/aircoins_figma/`.
 
 ### GoldPriority / Customer Tier
 
@@ -2090,7 +2090,7 @@ For each page, fill this before claiming completion:
 | Drop Alert | `feature/dropalert/DropAlertScreen.kt`, `DropAlertViewModel.kt`, `DropAlertRepository.kt`, `data/repo/PackagesRepository.kt` | `FigmaDropAlertViewController.swift`, `AirdropAPI.createDropAlert` | `40001826:22497`, related `40001836:22971` | `/drop-alerts`, `/user/profile`, multipart image upload path preserved through shared repository | yes | yes | yes | MagentaCastle | Consignee profile-failure manual-entry flow closed by Swift-precedence proof; active create-drop-alert path now delegates to shared `PackagesRepository` multipart implementation and has JVM proof for Swift's misspelled fields plus indexed invoice file parts; remaining risk is live authenticated server acceptance only |
 | Shipments hub/details | `feature/shipments/ShipmentsScreen.kt`, `PackageDetailsScreen.kt`, `PackagesFilterSheet.kt`, `PaymentsScreen.kt`, `OrdersScreen.kt`, `PaymentPackageDetailsScreen.kt`, `ProductPaymentDetailsScreen.kt`, `OrderDetailsScreen.kt`, `InvoiceViewerScreen.kt`, `ShipmentsUi.kt` | `FigmaShipmentsViewController.swift`, `FigmaPackageDetailsViewController.swift`, `FigmaPackagesFilterViewController.swift`, `FigmaPaymentsViewController.swift`, `FigmaOrdersViewController.swift`, `FigmaPaymentPackageDetailsViewController.swift`, `FigmaProductPaymentDetailsViewController.swift`, `FigmaOrderDetailsViewController.swift`, `FigmaInvoiceViewerScreenViewController.swift` | `40000823:9633`, Packages `40001666:42198`, Package Details `40001753:15716`, Packages filter `40006358:75618`, Payments `40001753:18909`, Orders `40001753:19595`, `40001761:29389`, `40004950:25064`, `40001761:28814`, related invoice-entry `40001753:15716` | summary/packages/statuses/payments/orders/package detail/payment detail/order detail/invoice files | yes | yes | partial | BlueDeer/MagentaCastle | hub tap rails, summary icon/geometry, shared search-field split, PackagesFilterSheet geometry/callbacks, Packages filter live flow, backend pagination/search/reset contracts, and dark status icons now verified against Swift/Figma; PackageDetails, Payments/Orders header/error follow-ups, section-card dividers, PaymentPackageDetails footer/timeline/payment-copy, ProductPaymentDetails/OrderDetails hero/payment-copy, and InvoiceViewer surface/share-file slices closed; remaining broad live-auth/full-flow backend parity still open |
 | Help | `feature/contacts/ContactsScreen.kt` | `FigmaContactsViewController.swift` | `40001617:20377` | contact/static routes/social URLs | yes | yes | yes | MagentaCastle | closed for Swift-precedence layout, typography, icons, copy actions, phone/email/social URI rails, and Swift WhatsApp native-app preference with `wa.me` fallback; map runtime app-handling can still be broadened if product wants native map-app preference |
-| AirCoins | `feature/homedetails/AirCoinScreen.kt`, `feature/homedetails/AirCoinViewModel.kt`, `data/repo/MiscRepository.kt` | `FigmaAirCoinHistoryViewController.swift` | `40001911:22972`, `40006461:26563` | `/aircoins/status`, `/aircoins/history?page=1&per_page=50` contract tested | yes | yes | yes | MagentaCastle | closed for balance/history Swift/Figma UI and Swift history page-size data contract; live authenticated server acceptance can still be broadened if credentials are assigned |
+| AirCoins | `feature/homedetails/AirCoinScreen.kt`, `feature/homedetails/AirCoinViewModel.kt`, `data/repo/MiscRepository.kt` | `FigmaAirCoinHistoryViewController.swift` for data comparison only | Balance `40001911:22972` / `40001911:23111`, History `40006461:26563` / `40006461:26461` | `/aircoins/status`, `/aircoins/history?page=1&per_page=50` contract tested | yes | yes | yes | MagentaCastle | closed for explicit Figma balance/history UI and Swift history page-size data contract; live authenticated server acceptance can still be broadened if credentials are assigned |
 | GoldPriority / Customer Tier | `feature/homedetails/GoldPriorityScreen.kt` | `FigmaGoldPriorityViewController.swift` | `40001432:23506` | `/user/me` tier resolution path preserved | yes | yes | yes | MagentaCastle | closed for tier-name autoscale and status-bar Swift parity; full pager data path preserved |
 | More/Profile/Legal | `feature/more/*`, `feature/more2/*` | matching `Figma*ViewController.swift` files | see backlog, More root `40001948:22354`, Payment Methods `40001428:9188`, Settings `40007388:24260`, Authorized Users `40000975:7859`, Add Authorized User `40001541:45296`, Authorized User Detail stale node `40001185:5345`, Background Images `40006644:65735`/`40006644:67051`, Restricted Items `40001432:*`, Shipping Rates `40001567:54206` | user/profile/content/faqs/etc., device-tokens/register, local background prefs, static restricted-items data, `/shipping-rates`, `/authorized-users`, `/authorized-users/{id}` mutations, `/paymentMethods` UI rail to Cart | partial | partial | partial | Codex | More root profile/menu/header tap rails plus app-dark menu icon pixels, Payment Methods Swift-precedence empty-state/Cart rail, Settings Swift/Figma geometry/icon/action rails, Documents card/action-row geometry, info alert, refresh/reload, Authorized Users pull-to-refresh/list taps, Add Authorized User add/edit payload rails, Authorized User Detail one-load/read-only/mutation/delete rails, Background Images Swift-precedence picker, Restricted Items Swift-precedence list/search/detail/icons/notes, Shipping Rates backend/fallback table and calculator CTA rail, Profile avatar/DOB, Preferences fields, Invite Friend contacts icon, Legal live CMS heading colors, FAQ gap, and Notification Settings verified |
 | Shop | `feature/shop/*` | shop/auction/product detail Swift files | `40001846:53519`, `40001846:54117`, `40001846:54396`, `40002072:24025` | products/auction/cart | partial | partial | partial | BlueDeer/others | `a1768d2` route proof captured; Product Detail related empty-state, fallback copy, invalid feature purchase links, add-to-cart/cart handoff, and full visual geometry are now Swift/Figma-proven; Shop root search/card/auction-vs-featured rail slice and Swift frosted header chrome have light/dark emulator proof; Auction/Feature ProductList bottom clearance now matches Swift's 124pt inset with emulator proof. Full Shop completion remains open for broader live-data and authenticated end-to-end acceptance |
