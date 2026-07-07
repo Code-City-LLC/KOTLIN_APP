@@ -56,10 +56,11 @@ object DropAlertPreset {
 }
 
 /**
- * Pre-fill the shipper / courier / method fields from [preset] only where the
- * form is still blank — Swift applySavedShipperPreset. The saved courier company
- * is applied only when it's still a valid option (a stale/renamed courier is
- * ignored rather than sticking an unselectable value in the dropdown).
+ * Pre-fill the shipper / courier / method fields from [preset] — Swift
+ * applySavedShipperPreset. Shipper and courier fill only where the form is
+ * still blank (the courier additionally must still be a valid option). The
+ * shipping method starts on a non-blank default ("Airdrop standard", Swift
+ * 9519615), so there the SAVED value wins and the default is the fallback.
  */
 fun applyPreset(
     state: DropAlertUiState,
@@ -67,7 +68,7 @@ fun applyPreset(
     courierOptions: List<String>,
 ): DropAlertUiState = state.copy(
     shipper = state.shipper.ifBlank { preset.shipper },
-    shippingMethod = state.shippingMethod.ifBlank { preset.shippingMethod },
+    shippingMethod = preset.shippingMethod.ifBlank { state.shippingMethod },
     courierCompany = if (state.courierCompany.isBlank() && preset.courierCompany in courierOptions) {
         preset.courierCompany
     } else {
