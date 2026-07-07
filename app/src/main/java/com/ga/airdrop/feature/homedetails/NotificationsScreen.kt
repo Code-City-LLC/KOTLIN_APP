@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -65,10 +66,9 @@ import java.util.Locale
 
 /**
  * Notifications — Figma 40007174:63447 (empty-state card + Settings footer;
- * 40007176:63599 is the flat variant). The Swift VC is STATIC (known gap);
- * here the inbox is LIVE: GET /user/notifications paginated, unread styling,
- * tap → mark-read + deep-link via route/referenceID. The Figma empty state
- * shows when the backend returns no rows.
+ * 40007176:63599 is the flat variant). Swift origin/main is live: local/server
+ * notifications render as cards, tap → mark-read + deep-link, and the Figma
+ * empty state shows only when no rows are available.
  */
 @Composable
 fun NotificationsScreen(
@@ -76,29 +76,50 @@ fun NotificationsScreen(
     onNavigate: (String) -> Unit,
     viewModel: NotificationsViewModel = viewModel(),
 ) {
-    val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+
+    NotificationsScreenContent(
+        state = state,
+        onBack = onBack,
+        onNavigate = onNavigate,
+        onRetry = viewModel::refresh,
+        onLoadMore = viewModel::loadMore,
+        onNotificationTapped = { notification ->
+            viewModel.onNotificationTapped(notification)?.let(onNavigate)
+        },
+    )
+}
+
+@Composable
+internal fun NotificationsScreenContent(
+    state: NotificationsUiState,
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit,
+    onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
+    onNotificationTapped: (AirdropNotification) -> Unit,
+) {
+    val colors = AirdropTheme.colors
 
     Column(
         Modifier
             .fillMaxSize()
             .background(colors.gray200)
+            .testTag("notifications-screen")
     ) {
         HomeDetailsHeader(title = "Notifications", onBack = onBack)
 
         when {
             state.loading && !state.loadedOnce -> LoadingState()
             state.error != null && state.items.isEmpty() ->
-                ErrorState(message = state.error!!, onRetry = viewModel::refresh)
+                ErrorState(message = state.error, onRetry = onRetry)
             state.items.isEmpty() && state.loadedOnce ->
                 EmptyState(onOpenSettings = { onNavigate(Routes.NOTIFICATION_SETTINGS) })
             else -> NotificationList(
                 items = state.items,
                 loadingMore = state.loadingMore,
-                onLoadMore = viewModel::loadMore,
-                onTap = { notification ->
-                    viewModel.onNotificationTapped(notification)?.let(onNavigate)
-                },
+                onLoadMore = onLoadMore,
+                onTap = onNotificationTapped,
             )
         }
     }
@@ -163,7 +184,9 @@ private fun NotificationList(
 
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("notifications-list"),
         contentPadding = PaddingValues(
             start = Spacing.md, end = Spacing.md, top = Spacing.md, bottom = Spacing.xl,
         ),
@@ -203,6 +226,7 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("notification-row-${notification.id}")
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
@@ -243,6 +267,7 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
                         Modifier
                             .padding(start = Spacing.xs)
                             .size(8.dp)
+                            .testTag("notification-unread-dot-${notification.id}")
                             .clip(CircleShape)
                             .background(BrandPalette.OrangeMain)
                     )
@@ -334,7 +359,11 @@ private fun EmptyState(onOpenSettings: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .testTag("notifications-empty-state")
+    ) {
         Column(
             Modifier
                 .weight(1f)
