@@ -1,6 +1,9 @@
 package com.ga.airdrop.feature.auth
 
+import android.content.ContentValues
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
+import android.provider.MediaStore
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -53,11 +56,13 @@ class AuthFigmaParityTest {
         val panel = compose.onNodeWithTag("login-bottom-panel").getUnclippedBoundsInRoot()
 
         assertClose(321f, boundsWidth(logo), "Figma dark login logo width")
-        assertClose(321f / (709f / 720f), boundsHeight(logo), "Figma dark login hero height")
+        assertClose(306f, boundsHeight(logo), "Figma dark login hero height")
         assertTrue(
             "Figma dark login sheet should start around y=288 on a 375x812 frame; actual=${panel.top.value}",
             panel.top.value in 280f..295f,
         )
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        assertRedFigmaLogoPixel(bitmap, xDp = 165f, yDp = 142f)
         compose.onNodeWithText("Welcome Back!").assertIsDisplayed()
         compose.onNodeWithText("Login to AirDrop").assertIsDisplayed()
         compose.onNodeWithText("Log In").assertIsDisplayed().assertHasClickAction()
@@ -158,17 +163,60 @@ class AuthFigmaParityTest {
         assertEquals(label, expected, actual, 1.0f)
     }
 
+    private fun assertRedFigmaLogoPixel(bitmap: Bitmap, xDp: Float, yDp: Float) {
+        val x = (xDp * bitmap.width / 375f).toInt()
+        val y = (yDp * bitmap.height / 812f).toInt()
+        val pixel = bitmap.getPixel(x, y)
+        val red = AndroidColor.red(pixel)
+        val green = AndroidColor.green(pixel)
+        val blue = AndroidColor.blue(pixel)
+        assertTrue(
+            "Figma dark login logo pixel should be red/orange at ($x,$y); actual rgb=($red,$green,$blue)",
+            red >= 230 && green in 120..210 && blue <= 130,
+        )
+    }
+
     private fun saveRootScreenshot(filename: String) {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
         val output = File(screenshotDir(), filename)
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        saveScreenshotToMediaStore(bitmap, filename)
     }
 
     private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return File(context.getExternalFilesDir(null), "screenshots/auth_figma")
             .also { it.mkdirs() }
+    }
+
+    private fun saveScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val relativePath = "Pictures/kotlin_ui_proof/auth_figma/"
+        runCatching {
+            context.contentResolver.delete(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
+                arrayOf(filename, relativePath),
+            )
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        runCatching {
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return
+            val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+            outputStream.use { output ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(uri, values, null, null)
+        }
     }
 }
