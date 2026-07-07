@@ -838,25 +838,35 @@ private fun InvoiceFileRow(
             Text(text = "PDF File", style = AirdropType.body3, color = colors.textPlaceholder)
         }
         if (canDelete) {
-            Image(
-                painter = painterResource(R.drawable.ic_trash),
-                contentDescription = "Delete invoice",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
+            Box(
                 modifier = Modifier
                     .testTag("package-details-invoice-delete-${doc.id}")
-                    .size(24.dp)
+                    .size(28.dp)
                     .clickable(onClick = onDelete),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_trash),
+                    contentDescription = "Delete invoice",
+                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
-        Image(
-            painter = painterResource(R.drawable.ic_eye),
-            contentDescription = "View invoice",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
+        Box(
             modifier = Modifier
                 .testTag("package-details-invoice-view-${doc.id}")
-                .size(24.dp)
+                .size(28.dp)
                 .clickable(onClick = onView),
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_eye),
+                contentDescription = "View invoice",
+                colorFilter = ColorFilter.tint(colors.iconSelected),
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
 
