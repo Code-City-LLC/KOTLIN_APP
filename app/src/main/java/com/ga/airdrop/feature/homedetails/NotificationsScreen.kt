@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -76,29 +77,49 @@ fun NotificationsScreen(
     onNavigate: (String) -> Unit,
     viewModel: NotificationsViewModel = viewModel(),
 ) {
-    val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
 
+    NotificationsScreenContent(
+        state = state,
+        onBack = onBack,
+        onOpenSettings = { onNavigate(Routes.NOTIFICATION_SETTINGS) },
+        onRefresh = viewModel::refresh,
+        onLoadMore = viewModel::loadMore,
+        onNotificationTap = { notification ->
+            viewModel.onNotificationTapped(notification)?.let(onNavigate)
+        },
+    )
+}
+
+@Composable
+internal fun NotificationsScreenContent(
+    state: NotificationsUiState,
+    onBack: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onRefresh: () -> Unit,
+    onLoadMore: () -> Unit,
+    onNotificationTap: (AirdropNotification) -> Unit,
+) {
+    val colors = AirdropTheme.colors
     Column(
         Modifier
             .fillMaxSize()
             .background(colors.gray200)
+            .testTag(NotificationsTags.ROOT)
     ) {
         HomeDetailsHeader(title = "Notifications", onBack = onBack)
 
         when {
             state.loading && !state.loadedOnce -> LoadingState()
             state.error != null && state.items.isEmpty() ->
-                ErrorState(message = state.error!!, onRetry = viewModel::refresh)
+                ErrorState(message = state.error!!, onRetry = onRefresh)
             state.items.isEmpty() && state.loadedOnce ->
-                EmptyState(onOpenSettings = { onNavigate(Routes.NOTIFICATION_SETTINGS) })
+                EmptyState(onOpenSettings = onOpenSettings)
             else -> NotificationList(
                 items = state.items,
                 loadingMore = state.loadingMore,
-                onLoadMore = viewModel::loadMore,
-                onTap = { notification ->
-                    viewModel.onNotificationTapped(notification)?.let(onNavigate)
-                },
+                onLoadMore = onLoadMore,
+                onTap = onNotificationTap,
             )
         }
     }
@@ -207,14 +228,16 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
             .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .clickable(onClick = onClick)
-            .padding(Spacing.sm1),
+            .padding(Spacing.sm1)
+            .testTag(NotificationsTags.row(notification.id)),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Box(
             Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(if (unread) colors.peachLight else colors.gray200),
+                .background(if (unread) colors.peachLight else colors.gray200)
+                .testTag(NotificationsTags.icon(notification.id)),
             contentAlignment = Alignment.Center,
         ) {
             // Per-type duotone glyph (ledger C5, Swift notificationIcon(for:)).
@@ -288,6 +311,12 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
             }
         }
     }
+}
+
+internal object NotificationsTags {
+    const val ROOT = "notifications-root"
+    fun row(id: String) = "notification-row-$id"
+    fun icon(id: String) = "notification-icon-$id"
 }
 
 private fun formatNotificationDate(raw: String): String {

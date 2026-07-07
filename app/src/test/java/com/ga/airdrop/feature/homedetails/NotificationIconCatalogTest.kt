@@ -15,8 +15,12 @@ import org.junit.Test
  */
 class NotificationIconCatalogTest {
 
-    private fun n(type: String? = null, title: String = "", body: String = "") =
-        AirdropNotification(id = "1", title = title, body = body, type = type)
+    private fun n(
+        type: String? = null,
+        title: String = "",
+        body: String = "",
+        payload: Map<String, String> = emptyMap(),
+    ) = AirdropNotification(id = "1", title = title, body = body, type = type, payload = payload)
 
     @Test
     fun `invoice wins over other status words - Swift order`() {
@@ -40,6 +44,23 @@ class NotificationIconCatalogTest {
     fun `ready for pickup maps to status 7 glyph`() {
         val res = NotificationIconCatalog.iconRes(n(title = "Ready for Pickup"), dark = true)
         assertEquals(ShipmentStatusCatalog.iconRes(7, dark = true), res)
+    }
+
+    @Test
+    fun `payload-only ready for pickup type maps to status 7 glyph`() {
+        val res = NotificationIconCatalog.iconRes(
+            n(payload = mapOf("notification_type" to "package_ready_for_pickup")),
+            dark = false,
+        )
+        assertEquals(ShipmentStatusCatalog.iconRes(7, dark = false), res)
+    }
+
+    @Test
+    fun `delivered maps to delivery check glyph distinct from ready for pickup`() {
+        val delivered = NotificationIconCatalog.iconRes(n(type = "package_delivered"), false)
+        val ready = NotificationIconCatalog.iconRes(n(type = "package_ready_for_pickup"), false)
+        assertEquals(ShipmentStatusCatalog.iconRes(8, false), delivered)
+        assertEquals(ShipmentStatusCatalog.iconRes(7, false), ready)
     }
 
     @Test
@@ -70,6 +91,10 @@ class NotificationIconCatalogTest {
         assertEquals(
             R.drawable.ic_notifications,
             NotificationIconCatalog.iconRes(n(title = "New promotion!"), false),
+        )
+        assertEquals(
+            R.drawable.ic_notifications,
+            NotificationIconCatalog.iconRes(n(type = "promotional"), false),
         )
     }
 

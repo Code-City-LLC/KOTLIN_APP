@@ -43,7 +43,7 @@ object NotificationIconCatalog {
             "payment" in text || "storage_fee" in text -> R.drawable.ic_payments
             "document" in text ->
                 if (dark) R.drawable.ic_more_documents_dark else R.drawable.ic_more_documents
-            "promotion" in text -> R.drawable.ic_notifications
+            "promotion" in text || "promotional" in text -> R.drawable.ic_notifications
             else -> R.drawable.ic_packages
         }
     }
@@ -65,9 +65,12 @@ object NotificationIconCatalog {
         }
     }
 
-    /** Swift normalizedNotificationText: join fields, "-"→"_", "/"→" ", lowercase. */
+    /** Swift normalizedNotificationText: join fields + payload, "-"→"_", "/"→" ", lowercase. */
     internal fun normalizedText(n: AirdropNotification): String =
-        listOfNotNull(n.type, n.title, n.body, n.route, n.referenceId)
+        (
+            listOfNotNull(n.type, n.title, n.body, n.route, n.referenceId) +
+                n.payload.flatMap { (key, value) -> listOf(key, value) }
+            )
             .joinToString(" ")
             .replace("-", "_")
             .replace("/", " ")

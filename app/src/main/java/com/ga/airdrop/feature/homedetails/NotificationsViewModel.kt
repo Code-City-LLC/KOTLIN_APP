@@ -108,7 +108,7 @@ class NotificationsViewModel(
                 miscRepository.markNotificationRead(notification.id)
             }
         }
-        return resolveNotificationRoute(notification.route, notification.referenceId)
+        return resolveNotificationRoute(notification)
     }
 }
 
@@ -117,8 +117,21 @@ class NotificationsViewModel(
  * FigmaRouteResolver.destination(for:detail:) so push payloads
  * (`route` + `referenceID`) deep-link identically.
  */
-fun resolveNotificationRoute(route: String?, referenceId: String?): String? {
-    val name = route?.trim().orEmpty()
+fun resolveNotificationRoute(notification: AirdropNotification): String? {
+    val route = notification.route?.trim()?.takeIf { it.isNotEmpty() }
+        ?: notificationTypeRouteName(notification)
+    return resolveNotificationRoute(route, notification.referenceId, notification)
+}
+
+fun resolveNotificationRoute(route: String?, referenceId: String?): String? =
+    resolveNotificationRoute(route, referenceId, notification = null)
+
+private fun resolveNotificationRoute(
+    route: String?,
+    referenceId: String?,
+    notification: AirdropNotification?,
+): String? {
+    val name = canonicalNotificationRoute(route?.trim().orEmpty())
     if (name.isEmpty()) return null
     val ref = referenceId?.trim().orEmpty()
     return when (name) {
@@ -130,6 +143,17 @@ fun resolveNotificationRoute(route: String?, referenceId: String?): String? {
         "PackagesView" -> Routes.PACKAGES
         "PackageDetailsView" ->
             if (ref.isNotEmpty()) Routes.packageDetails(ref) else Routes.PACKAGES
+        "InvoiceViewerScreen" -> {
+            val url = notification?.payload?.firstValue(
+                "invoice_url",
+                "invoiceUrl",
+                "document_url",
+                "documentUrl",
+                "url",
+            ).orEmpty()
+            val title = notification?.title?.takeIf { it.isNotBlank() } ?: "Invoice"
+            Routes.invoiceViewer(url, title)
+        }
         "PaymentsView" -> Routes.PAYMENTS
         "OrdersView" -> Routes.ORDERS
         "OrderDetailsView" ->
@@ -175,3 +199,97 @@ fun resolveNotificationRoute(route: String?, referenceId: String?): String? {
         else -> null
     }
 }
+
+private fun notificationTypeRouteName(notification: AirdropNotification): String? {
+    val candidates = listOf(
+        notification.type,
+        notification.payload["notification_type"],
+        notification.payload["type"],
+    )
+    for (candidate in candidates) {
+        routeNameForNotificationType(candidate)?.let { return it }
+    }
+    return null
+}
+
+internal fun routeNameForNotificationType(type: String?): String? {
+    val raw = type?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val normalized = raw.lowercase().replace("-", "_")
+    return NOTIFICATION_TYPE_ROUTES[raw] ?: NOTIFICATION_TYPE_ROUTES[normalized]
+}
+
+private fun canonicalNotificationRoute(route: String): String {
+    if (route.isEmpty()) return ""
+    return SCREEN_ROUTE_ALIASES[route] ?: SCREEN_ROUTE_ALIASES[route.replace("-", "_")] ?: route
+}
+
+private fun Map<String, String>.firstValue(vararg keys: String): String? {
+    for (key in keys) {
+        this[key]?.takeIf { it.isNotBlank() }?.let { return it }
+    }
+    return null
+}
+
+private val SCREEN_ROUTE_ALIASES = mapOf(
+    "PackageDetailScreen" to "PackageDetailsView",
+    "packageDetails" to "PackageDetailsView",
+    "PackagesScreen" to "PackagesView",
+    "UploadInvoiceScreen" to "InvoiceViewerScreen",
+    "UpdateAddressScreen" to "ProfileView",
+    "DocumentsScreen" to "DocumentsView",
+    "PaymentScreen" to "PaymentsView",
+    "PromotionsScreen" to "PromotionsView",
+    "HomeScreen" to "HomeView",
+    "ProfileScreen" to "ProfileView",
+    "AuctionScreen" to "AuctionView",
+    "TransactionScreen" to "PaymentsView",
+    "WalletScreen" to "PaymentsView",
+    "MessagesScreen" to "NotificationsView",
+    "AccountScreen" to "ProfileView",
+    "AirdropScreen" to "HomeView",
+    "ReferralScreen" to "ReferView",
+    "KYCScreen" to "ProfileView",
+    "SupportScreen" to "ContactsView",
+    "ReferView" to "ReferView",
+    "ContactsView" to "ContactsView",
+)
+
+private val NOTIFICATION_TYPE_ROUTES = mapOf(
+    "package_status_update" to "PackageDetailsView",
+    "package_received" to "PackageDetailsView",
+    "shipment_received" to "PackageDetailsView",
+    "shipment_update" to "PackageDetailsView",
+    "shipment_status" to "PackageDetailsView",
+    "shipment_status_update" to "PackageDetailsView",
+    "package_ready_for_pickup" to "PackageDetailsView",
+    "shipment_ready_for_pickup" to "PackageDetailsView",
+    "ready_for_pickup" to "PackageDetailsView",
+    "paid_ready_for_pickup" to "PackageDetailsView",
+    "paid_and_ready_for_pickup" to "PackageDetailsView",
+    "package_paid_and_ready_for_pickup" to "PackageDetailsView",
+    "package_paid_and_ready_for_delivery" to "PackageDetailsView",
+    "package_delivered" to "PackageDetailsView",
+    "shipment_delivered" to "PackageDetailsView",
+    "package_in_transit" to "PackageDetailsView",
+    "shipment_in_transit" to "PackageDetailsView",
+    "package_customs_clearance" to "PackageDetailsView",
+    "shipment_customs_clearance" to "PackageDetailsView",
+    "processing_at_customs" to "PackageDetailsView",
+    "package_processing_at_customs" to "PackageDetailsView",
+    "invoice_required" to "InvoiceViewerScreen",
+    "address_required" to "ProfileView",
+    "document_uploaded" to "DocumentsView",
+    "storage_fee_reminder" to "PackageDetailsView",
+    "storage_fee_first_notice" to "PackageDetailsView",
+    "storage_fee_weekly_reminder" to "PackageDetailsView",
+    "auction_warning" to "PackagesView",
+    "auction_completion" to "PackagesView",
+    "payment_reminder" to "PaymentsView",
+    "payment_received" to "PaymentsView",
+    "payment_failed" to "PaymentsView",
+    "promotional" to "PromotionsView",
+    "system_announcement" to "HomeView",
+    "system_maintenance" to "HomeView",
+    "account_verification" to "ProfileView",
+    "password_reset" to "ProfileView",
+)
