@@ -15,9 +15,9 @@ Swift is the behavior, flow, and implementation-precedence guide. Figma is the
 pixel-measurement and visual-comparison source, especially where Swift is
 missing a designed element. If Swift and Figma conflict, Swift wins as the
 updated implementation truth unless Kemar explicitly marks a page-level
-exception. The Refer a Friend landing is one such exception: Figma wins there.
-Preserve working Android flows and assets; only repair the parts that are
-visibly or functionally wrong.
+exception. For Refer a Friend, current Swift and Figma now agree on the carousel
+landing and the `InviteFriendView` route. Preserve working Android flows and
+assets; only repair the parts that are visibly or functionally wrong.
 
 ## Current Evidence
 
@@ -1973,22 +1973,23 @@ Source files:
 - Figma: Refer a Friend `40001940:26885`, dark `40001940:26797`
 
 Findings verified/fixed:
-- Refer is an explicit Figma-over-Swift exception per Kemar's 2026-07-06
-  correction. The earlier Swift-precedence restoration was rejected and must not
-  be revived.
+- Current Swift and Figma agree on the Refer landing. Swift remains the guide
+  for route/flow, and Figma node `40001940:26885` supplies the matching visual
+  frame.
 - Correct Refer surface: three hero cards (`Invite your friends`,
   `Refer. Reward. Repeat.`, `Invite and Earn`), exact heading
   `Earn $2 USD Per Invite`, explanatory `$2 USD` body copy, and one bottom
-  `Invite` button that routes to the separate Invite Friend form.
-- Incorrect on Refer: Swift's referral-link card, Copy action, inline
-  `Invite Friends` CTA, and `Your Referrals` list. Those belong to the separate
-  Invite Friend / Referred Friends flows, not the Refer landing.
-- Figma MCP reauth is currently blocking fresh live screenshots. Cached Figma
-  proof remains at `/tmp/kotlin_ui_proof/refer_friend_current/figma/` for
-  `refer_friend_40001940_26885.png` and
-  `refer_friend_dark_40001940_26797.png`; both show the three-card landing in
-  light/dark.
-- `ReferAFriendParityTest` is the guard rail for this exception: it verifies all
+  `Invite` button. Current Swift `onInvite()` pushes `InviteFriendView`, so the
+  CTA opens the dedicated Invite Friend / Send Invitation flow.
+- Incorrect on Refer: the old referral-link card, Copy action, inline
+  `Invite Friends` CTA, and embedded `Your Referrals` list. Keep referral
+  history on the separate Referred Friends route; do not embed it on the Refer
+  landing.
+- Figma MCP screenshot access was available on 2026-07-07 for
+  `40001940:26885`; current Swift source was also inspected from
+  `/Users/codecityceo/Documents/GitHub/SWIFT_APP/Airdrop/FigmaReferAFriendViewController.swift`.
+  Both confirm the three-card landing.
+- `ReferAFriendParityTest` is the guard rail for this source-of-truth decision: it verifies all
   three hero cards, the exact `$2 USD` copy, bottom `Invite` callback, light and
   dark rendering, and rejects stale Swift-only labels (`Earn AirCoins...`,
   `Your Referral Link`, `Your Referrals`, `Invite Friends`) on Refer.

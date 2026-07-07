@@ -82,8 +82,8 @@ RN→Kotlin function sweep is **complete: all 66 RN useCases accounted for** (50
 ### C2 — Chrome (header/footer) is OPAQUE by ruling
 The old translucent/`SCRIM_ALPHA` locks are **DEAD** — Kemar revoked the Figma-supreme chrome exception; opaque `gray200` per Swift accepted at `2af3110`. Do not restore any alpha band or flag opaque chrome as a regression.
 
-### C3 — Refer-a-Friend is FIGMA landing (explicit exception)
-Kemar reversed the prior Swift-structure interpretation for this route on 2026-07-06. The correct Refer page is the Figma three-card landing only (nodes 40001940:26885/26797), exact copy `Earn $2 USD Per Invite`, and one bottom `Invite` CTA to the separate Invite Friend route. Do **not** restore the Swift referral-link card, `Invite Friends` inline CTA, or `Your Referrals` list on Refer; those belong to separate Invite/Referred flows.
+### C3 — Refer-a-Friend is current Swift + Figma landing
+Current Swift `FigmaReferAFriendViewController.swift` and Figma node `40001940:26885` agree on the Refer landing: three carousel cards, exact copy `Earn $2 USD Per Invite`, body copy, and one bottom `Invite` CTA. The live Swift CTA pushes `InviteFriendView`, so Android should route to the dedicated Invite Friend / Send Invitation flow. Do **not** restore the old referral-link card, Copy action, inline `Invite Friends` CTA, or embedded `Your Referrals` list on the Refer landing; keep referral history on the separate route.
 
 ### C4 — Warehouses: keep the tab strip; ignore two Figma errors
 - ONE screen with Standard/SeaDrop/Express tabs = **approved Kemar deviation** (2026-05-22). Audits must NOT remove the tabs.
@@ -100,7 +100,7 @@ Every notification/status keeps its **own specific icon** (invoice-required, pac
 | 40001383:9894 / 40001387:9042 Terms & Privacy | "etoy app"-style placeholder copy | Cold-start fallback = Swift/RN `sectionsData` verbatim; live `/content/*` API replaces it. |
 | 40000994:19044 Preferences | red `*` asterisks, gradient Save | Swift has no asterisks and a SOLID orange Save — Android correct. |
 | 40000975:7748 Documents | card order, Upload-disabled-with-file | Swift order + Upload-always-enabled win. |
-| 40001940:26885/26797 Refer | landing carousel | See C3 — the fake page. |
+| 40001940:26885/26797 Refer | landing carousel | See C3 — current Swift and Figma agree on this page. |
 | 40001464:30381 SeaDrop calc info copy | differing delivery copy | Swift wins ("2 to 4 weeks…"). |
 
 ### C7 — Restricted boundaries (standing)
@@ -163,7 +163,7 @@ Verification levels: **D-L/D-D** = device light/dark seen · **3W** = Figma node
 | Auction Product Details | 40002072:24025 | 3W | |
 | Shop root / ProductList / Cart empty | 40001846:53519 / — / 40008284:26547 | 3W | |
 | Edit Profile / Preferences | 40007189:63763 / 40000994:19044 | 3W | Preferences email-fill deferred (P2) |
-| Refer a Friend / Invite Friend | Swift-structure (C3) | 3W (D-L/D-D) | |
+| Refer a Friend / Invite Friend | 40001940:26885/26797 + Swift route (C3) | 3W (D-L/D-D) | Refer landing is carousel; Invite opens dedicated flow |
 | Documents | 40000975:7748 | 3W (L+D) | info-icon deferred (P3) |
 | Authorized Users / Promotions / Shipping Rates | 40001185:4935 / 40001646:14035 / 40001567:54206 | 3W (L+D) | |
 | Chrome (header/footer) | — | 3W (L+D) | opaque per C2 |
@@ -198,7 +198,7 @@ Verification levels: **D-L/D-D** = device light/dark seen · **3W** = Figma node
 - `send_message` can **time out while the message still lands** — check the topic before retrying (avoid duplicate posts); use 60s timeouts.
 - API shapes: `fetch_topic {project_key, topic_name, limit, include_bodies}` · `send_message {sender_name, sender_token, project_key, to:[], broadcast:true, topic, subject, body_md}` · `fetch_inbox {registration_token, project_key, agent_name, limit}`.
 - **Hash-tie your proofs** to the actual remote branch (`git ls-remote`), not `/tmp` copies — unverifiable-hash claims get rejected.
-- Governance rulings can be **reversed** (chrome, Refer both flipped). Before enforcing any remembered lock, check the CURRENT ORC ruling; escalate, don't edit-war.
+- Governance rulings can be **reversed** (chrome changed; Refer was revalidated against current Swift + Figma). Before enforcing any remembered lock, check the CURRENT ORC ruling; escalate, don't edit-war.
 
 ### Verification discipline (#14639)
 - Device proof over code inspection for interactive rails; when the device path is genuinely unreachable (needs special account state, screen not on main yet), say so explicitly and mark the verification level honestly — no fast done-claims.
