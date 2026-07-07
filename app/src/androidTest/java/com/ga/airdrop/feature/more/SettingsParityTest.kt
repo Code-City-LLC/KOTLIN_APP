@@ -28,11 +28,15 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.cart.SavedForLaterStore
+import com.ga.airdrop.feature.shop.ShopCheckoutStore
+import com.ga.airdrop.feature.shop.ShopProduct
+import com.ga.airdrop.feature.shop.ShopProductHandoffStore
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -104,6 +108,9 @@ class SettingsParityTest {
 
     @Test
     fun clearCacheAndLogoutChromeMatchSwiftBehavior() {
+        ShopCheckoutStore.product = ShopProduct(id = 201, slug = "cache-checkout", title = "Cache Checkout")
+        ShopCheckoutStore.pendingRef = "cache-pending-ref"
+        ShopProductHandoffStore.put(ShopProduct(id = 202, slug = "cache-details", title = "Cache Details"))
         setSettings(mode = ThemeController.Mode.LIGHT)
 
         compose.onNodeWithTag(SettingsTags.CACHE, useUnmergedTree = true).performClick()
@@ -121,6 +128,9 @@ class SettingsParityTest {
             compose.onAllNodesWithTag(SettingsTags.CACHE_SHEET, useUnmergedTree = true)
                 .fetchSemanticsNodes().size,
         )
+        assertNull(ShopCheckoutStore.product)
+        assertNull(ShopCheckoutStore.pendingRef)
+        assertNull(ShopProductHandoffStore.consume("cache-details"))
 
         compose.onNodeWithText("Logout").performClick()
         assertTrue(
@@ -161,6 +171,9 @@ class SettingsParityTest {
         SavedForLaterStore.init(context)
         SavedForLaterStore.clearAll()
         SavedForLaterStore.save(CartStore.CartLine(id = 18, title = "Saved Swift Cart", qty = 1, priceUsd = 9.0))
+        ShopCheckoutStore.product = ShopProduct(id = 99, slug = "stale-checkout", title = "Stale Checkout")
+        ShopCheckoutStore.pendingRef = "stale-notification-ref"
+        ShopProductHandoffStore.put(ShopProduct(id = 100, slug = "stale-details", title = "Stale Details"))
         val cachePrefs = context.getSharedPreferences(
             SettingsViewModel.CACHE_PREFS,
             android.content.Context.MODE_PRIVATE,
@@ -184,6 +197,9 @@ class SettingsParityTest {
         assertEquals(SessionStore.HeaderInfo(), SessionStore.header.value)
         assertEquals(0, CartStore.count)
         assertEquals(0, SavedForLaterStore.count)
+        assertNull(ShopCheckoutStore.product)
+        assertNull(ShopCheckoutStore.pendingRef)
+        assertNull(ShopProductHandoffStore.consume("stale-details"))
         SettingsViewModel.CACHE_KEYS.forEach { key ->
             assertFalse("Logout should remove cache key $key", cachePrefs.contains(key))
         }
