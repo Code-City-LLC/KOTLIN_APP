@@ -40,6 +40,7 @@ class AirdropBottomBarIconParityTest {
     fun bottomTabIconsUseSwiftFilledActiveStateInAppLight() {
         assertBottomBarIconRoles(
             mode = ThemeController.Mode.LIGHT,
+            activeColor = LIGHT_ACTIVE_ORANGE,
             inactiveColor = DARK_ICON,
             screenshotName = "bottom_tab_icons_swift_light.png",
         )
@@ -49,6 +50,7 @@ class AirdropBottomBarIconParityTest {
     fun bottomTabIconsUseSwiftFilledActiveStateInAppDark() {
         assertBottomBarIconRoles(
             mode = ThemeController.Mode.DARK,
+            activeColor = DARK_ACTIVE_ORANGE,
             inactiveColor = WHITE_ICON,
             screenshotName = "bottom_tab_icons_swift_dark.png",
         )
@@ -56,6 +58,7 @@ class AirdropBottomBarIconParityTest {
 
     private fun assertBottomBarIconRoles(
         mode: ThemeController.Mode,
+        activeColor: Int,
         inactiveColor: Int,
         screenshotName: String,
     ) {
@@ -89,7 +92,7 @@ class AirdropBottomBarIconParityTest {
             compose.waitForIdle()
 
             AirdropTab.entries.forEach { tab ->
-                val expected = if (tab == selectedTab) ORANGE else inactiveColor
+                val expected = if (tab == selectedTab) activeColor else inactiveColor
                 assertNodeContainsColor(
                     contentDescription = tab.label,
                     target = expected,
@@ -99,7 +102,7 @@ class AirdropBottomBarIconParityTest {
 
             assertNodeTextContainsColor(
                 text = selectedTab.label,
-                target = ORANGE,
+                target = activeColor,
                 label = "${mode.name} ${selectedTab.label} selected label",
             )
             if (selectedTab == AirdropTab.Home) {
@@ -113,6 +116,7 @@ class AirdropBottomBarIconParityTest {
             val selectedIcon = captureIcon(selectedTab.label)
             assertSelectedFilledColorArea(
                 bitmap = selectedIcon,
+                target = activeColor,
                 label = "${mode.name} ${selectedTab.label} selected icon should use Swift filled shape",
             )
 
@@ -154,9 +158,10 @@ class AirdropBottomBarIconParityTest {
 
     private fun assertSelectedFilledColorArea(
         bitmap: Bitmap,
+        target: Int,
         label: String,
     ) {
-        val orangePixels = bitmap.pixelCountNear(ORANGE)
+        val orangePixels = bitmap.pixelCountNear(target)
         val minimumOrangePixels = maxOf(96, bitmap.width * bitmap.height / 8)
         assertTrue(
             "$label: expected filled active icon to paint a substantial orange area; " +
@@ -252,7 +257,8 @@ class AirdropBottomBarIconParityTest {
 
     private companion object {
         private const val ROOT_TAG = "bottom-tab-icon-proof-root"
-        private const val ORANGE = 0xFFF15114.toInt()
+        private const val LIGHT_ACTIVE_ORANGE = 0xFFF15114.toInt()
+        private const val DARK_ACTIVE_ORANGE = 0xFFF88458.toInt()
         private const val DARK_ICON = 0xFF292929.toInt()
         private const val WHITE_ICON = 0xFFFFFFFF.toInt()
         private const val COLOR_TOLERANCE = 12

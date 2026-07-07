@@ -168,7 +168,7 @@ fun AirdropHeader(
                                 .align(Alignment.TopEnd)
                                 .offset(x = 6.dp, y = (-2).dp)
                                 .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
-                                .background(BrandPalette.OrangeMain, CircleShape),
+                                .background(colors.orangeMain, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(

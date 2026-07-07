@@ -62,6 +62,45 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
+    fun homeLinksUseSwiftFigmaOrangeLight() {
+        assertHomeLinkAccent(
+            mode = ThemeController.Mode.LIGHT,
+            targetColor = FIGMA_ORANGE_LIGHT,
+            screenshot = "home_orange_links_light.png",
+        )
+    }
+
+    @Test
+    fun homeLinksUseFigmaDarkFunctionOrange() {
+        assertHomeLinkAccent(
+            mode = ThemeController.Mode.DARK,
+            targetColor = FIGMA_DARK_FUNCTION_ORANGE,
+            forbiddenColor = FIGMA_ORANGE_LIGHT,
+            screenshot = "home_orange_links_dark.png",
+        )
+    }
+
+    @Test
+    fun homeActivityIconsKeepSwiftFigmaOrangeLight() {
+        assertHomeActivityIconAccent(
+            mode = ThemeController.Mode.LIGHT,
+            targetColor = FIGMA_ORANGE_LIGHT,
+            alternateColor = FIGMA_DARK_FUNCTION_ORANGE,
+            screenshot = "home_activity_icons_light.png",
+        )
+    }
+
+    @Test
+    fun homeActivityIconsUseFigmaDarkFunctionOrange() {
+        assertHomeActivityIconAccent(
+            mode = ThemeController.Mode.DARK,
+            targetColor = FIGMA_DARK_FUNCTION_ORANGE,
+            alternateColor = FIGMA_ORANGE_LIGHT,
+            screenshot = "home_activity_icons_dark.png",
+        )
+    }
+
+    @Test
     fun warehouseCardsEmitSwiftRoutes() {
         val navigatedRoutes = mutableListOf<String>()
         setHomeContent { route -> navigatedRoutes += route }
@@ -438,6 +477,60 @@ class HomeActivityTilesScreenshotTest {
         saveRootScreenshot(screenshot)
     }
 
+    private fun assertHomeLinkAccent(
+        mode: ThemeController.Mode,
+        targetColor: Int,
+        screenshot: String,
+        forbiddenColor: Int? = null,
+    ) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync { ThemeController.set(mode) }
+
+        setHomeContent()
+        assertTextContainsColor("Read More", targetColor, "${mode.name} Read More accent")
+        forbiddenColor?.let {
+            assertTextDoesNotContainColor("Read More", it, "${mode.name} Read More stale accent")
+        }
+
+        compose.onNodeWithText("See More").performScrollTo()
+        compose.waitForIdle()
+        assertTextContainsColor("See More", targetColor, "${mode.name} See More accent")
+        forbiddenColor?.let {
+            assertTextDoesNotContainColor("See More", it, "${mode.name} See More stale accent")
+        }
+        saveRootScreenshot(screenshot)
+    }
+
+    private fun assertHomeActivityIconAccent(
+        mode: ThemeController.Mode,
+        targetColor: Int,
+        alternateColor: Int,
+        screenshot: String,
+    ) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync { ThemeController.set(mode) }
+
+        setHomeContent()
+        compose.onNodeWithTag("home-activity-services").performScrollTo()
+        compose.waitForIdle()
+
+        listOf(
+            "home-activity-services-icon",
+            "home-activity-ship-tax-icon",
+            "home-activity-calculator-icon",
+            "home-activity-drop-alert-icon",
+        ).forEach { tag ->
+            assertIconContainsColor(tag, targetColor, "${mode.name} $tag accent")
+            assertIconColorDominates(
+                tag = tag,
+                expected = targetColor,
+                alternate = alternateColor,
+                label = "${mode.name} $tag expected accent should dominate alternate",
+            )
+        }
+        saveRootScreenshot(screenshot)
+    }
+
     private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
@@ -469,10 +562,46 @@ class HomeActivityTilesScreenshotTest {
         assertTrue(label, !bitmap.hasPixelNear(target))
     }
 
+    private fun assertIconColorDominates(
+        tag: String,
+        expected: Int,
+        alternate: Int,
+        label: String,
+    ) {
+        val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+        val expectedCount = bitmap.pixelCountNear(expected)
+        val alternateCount = bitmap.pixelCountNear(alternate)
+        assertTrue(
+            "$label: expectedCount=$expectedCount alternateCount=$alternateCount",
+            expectedCount > alternateCount,
+        )
+    }
+
+    private fun assertTextContainsColor(text: String, target: Int, label: String) {
+        val bitmap = compose.onAllNodesWithText(text, useUnmergedTree = true)[0]
+            .captureToImage()
+            .asAndroidBitmap()
+        assertTrue(label, bitmap.hasPixelNear(target))
+    }
+
+    private fun assertTextDoesNotContainColor(text: String, target: Int, label: String) {
+        val bitmap = compose.onAllNodesWithText(text, useUnmergedTree = true)[0]
+            .captureToImage()
+            .asAndroidBitmap()
+        assertTrue(label, !bitmap.hasPixelNear(target))
+    }
+
     private fun Bitmap.hasPixelNear(target: Int): Boolean {
+        return pixelCountNear(target) > 0
+    }
+
+    private fun Bitmap.pixelCountNear(target: Int): Int {
         val targetRed = (target shr 16) and 0xFF
         val targetGreen = (target shr 8) and 0xFF
         val targetBlue = target and 0xFF
+        var count = 0
         for (x in 0 until width) {
             for (y in 0 until height) {
                 val pixel = getPixel(x, y)
@@ -486,11 +615,11 @@ class HomeActivityTilesScreenshotTest {
                     kotlin.math.abs(green - targetGreen) <= COLOR_TOLERANCE &&
                     kotlin.math.abs(blue - targetBlue) <= COLOR_TOLERANCE
                 ) {
-                    return true
+                    count += 1
                 }
             }
         }
-        return false
+        return count
     }
 
     private fun assertWarehouseCardHasGlassComposite(type: String, bitmap: Bitmap) {
@@ -555,6 +684,8 @@ class HomeActivityTilesScreenshotTest {
     private companion object {
         private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
+        private const val FIGMA_ORANGE_LIGHT = 0xFFF15114.toInt()
+        private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF88458.toInt()
         private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
         private const val SWIFT_GRAY150_LIGHT = 0xFFFBFBFB.toInt()
         private const val COLOR_TOLERANCE = 8

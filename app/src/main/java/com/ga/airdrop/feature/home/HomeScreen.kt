@@ -117,7 +117,7 @@ fun HomeScreen(
                 PullToRefreshDefaults.Indicator(
                     state = pullRefreshState,
                     isRefreshing = state.refreshing,
-                    color = BrandPalette.OrangeMain,
+                    color = colors.orangeMain,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
             },
@@ -330,7 +330,7 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     text = "Read More",
                     // Swift: Body2 underlined in orangeDark.
                     style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
-                    color = BrandPalette.OrangeDark,
+                    color = colors.orangeDark,
                 )
             }
         }
@@ -379,11 +379,12 @@ private fun ActivityGrid(onNavigate: (String) -> Unit) {
 @Composable
 private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
+    val tagSuffix = activity.label.lowercase(Locale.US).replace(" ", "-")
     Column(
         modifier = modifier
             // Swift: fixed 108pt tile (py20 + icon 32 + gap 10 + label 26).
             .height(108.dp)
-            .testTag("home-activity-${activity.label.lowercase(Locale.US).replace(" ", "-")}")
+            .testTag("home-activity-$tagSuffix")
             .clip(RoundedCornerShape(Spacing.sm1)) // radius 15
             .background(colors.gray150)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
@@ -395,7 +396,9 @@ private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modi
         Image(
             painter = painterResource(iconRes),
             contentDescription = null,
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier
+                .size(32.dp)
+                .testTag("home-activity-$tagSuffix-icon"),
         )
         Spacer(Modifier.height(Spacing.sm))
         Text(
@@ -436,7 +439,7 @@ private fun AuctionHighlights(
                 // Swift :529-534 — underlined Body2 in orangeDark.
                 text = "See More",
                 style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
-                color = BrandPalette.OrangeDark,
+                color = colors.orangeDark,
                 modifier = Modifier.clickable(onClick = onSeeMore),
             )
         }
@@ -520,7 +523,7 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
                 text = NumberFormat.getCurrencyInstance(Locale.US)
                     .format(product.displayPriceUsd),
                 style = AirdropType.title2,
-                color = if (product.isAvailable) BrandPalette.ButtonStatic else colors.textDescription,
+                color = if (product.isAvailable) colors.buttonStatic else colors.textDescription,
             )
         }
         // Cart toggle — Swift onTapAddToCart / updateAuctionCartButton.
@@ -539,7 +542,7 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
                 painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
                 contentDescription = if (inCart) "Remove from cart" else "Add to cart",
                 colorFilter = ColorFilter.tint(
-                    if (inCart) BrandPalette.OrangeMain else colors.textDarkTitle
+                    if (inCart) colors.orangeMain else colors.textDarkTitle
                 ),
                 modifier = Modifier.size(24.dp),
             )

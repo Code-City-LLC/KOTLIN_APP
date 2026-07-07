@@ -28,13 +28,13 @@ fun AirdropTheme(content: @Composable () -> Unit) {
     // visible colors come from AirdropColorScheme per the Figma tokens.
     val material = if (dark) {
         darkColorScheme(
-            primary = BrandPalette.OrangeMain,
+            primary = colors.orangeMain,
             background = colors.gray200,
             surface = colors.gray100,
         )
     } else {
         lightColorScheme(
-            primary = BrandPalette.OrangeMain,
+            primary = colors.orangeMain,
             background = colors.gray200,
             surface = colors.gray100,
         )

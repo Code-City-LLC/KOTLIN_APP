@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -117,7 +118,8 @@ fun ServicesScreen(onBack: () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(colors.gray150),
+            .background(colors.gray150)
+            .testTag("services-root"),
     ) {
     Column(
         Modifier
@@ -215,7 +217,7 @@ private fun CustomerSatisfactionPill() {
                     Image(
                         painter = painterResource(R.drawable.ic_star),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                        colorFilter = ColorFilter.tint(colors.orangeDark),
                         modifier = Modifier.size(14.dp),
                     )
                 }
@@ -237,14 +239,16 @@ private fun MainHeading() {
     Text(
         text = buildAnnotatedString {
             append("Shop From Any Store ")
-            withStyle(SpanStyle(color = BrandPalette.OrangeMain)) { append("Worldwide,") }
+            withStyle(SpanStyle(color = colors.orangeDark)) { append("Worldwide,") }
             append(" & Ship To ")
             withStyle(SpanStyle(color = BrandPalette.BlueAccentMain)) { append("Jamaica") }
         },
         style = AirdropType.title1,
         color = colors.textDarkTitle,
         textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("services-main-heading"),
     )
 }
 
@@ -265,12 +269,14 @@ private fun TaxFreeHeading() {
     Text(
         text = buildAnnotatedString {
             append("Shop Tax Free in ")
-            withStyle(SpanStyle(color = BrandPalette.OrangeMain)) { append("Thousands of Stores") }
+            withStyle(SpanStyle(color = colors.orangeDark)) { append("Thousands of Stores") }
         },
         style = AirdropType.title2,
         color = colors.textDarkTitle,
         textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("services-tax-free-heading"),
     )
 }
 
@@ -388,7 +394,7 @@ private fun BenefitsCard() {
                         Image(
                             painter = painterResource(R.drawable.ic_check),
                             contentDescription = null,
-                            colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                            colorFilter = ColorFilter.tint(colors.orangeDark),
                             modifier = Modifier.size(12.dp),
                         )
                     }

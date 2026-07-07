@@ -21,6 +21,8 @@ object BrandPalette {
     // Primary brand orange — Figma Primary Color/Orange/Main
     val OrangeMain = Color(0xFFF15114)
     val OrangeDark = Color(0xFFF15114) // alias retained (see Swift comment)
+    val OrangeMainDark = Color(0xFFF1855C) // Figma Home - Dark Mode primary orange
+    val OrangeFunctionDark = Color(0xFFF88458) // Figma dark Buttons/Function/Static
     val OrangeLegacy = Color(0xFFFF8000) // RN's bright pumpkin — explicit references only
     val OrangeTertiary1 = Color(0xFF994D00)
     val OrangeTertiary2 = Color(0xFFCC6600)
@@ -110,6 +112,11 @@ object GradientPalette {
 @Immutable
 data class AirdropColorScheme(
     val isDark: Boolean,
+    // Brand accents
+    val orangeMain: Color,
+    val orangeDark: Color,
+    val buttonStatic: Color,
+    val buttonLoading: Color,
     // Grayscale
     val gray100: Color, // surface
     val gray150: Color, // BG Box
@@ -140,6 +147,10 @@ data class AirdropColorScheme(
 
 val lightAirdropColors = AirdropColorScheme(
     isDark = false,
+    orangeMain = BrandPalette.OrangeMain,
+    orangeDark = BrandPalette.OrangeDark,
+    buttonStatic = BrandPalette.ButtonStatic,
+    buttonLoading = BrandPalette.ButtonLoading,
     gray100 = Color(0xFFFFFFFF),
     gray150 = Color(0xFFFBFBFB),
     gray200 = Color(0xFFF5F5F5),
@@ -165,6 +176,10 @@ val lightAirdropColors = AirdropColorScheme(
 
 val darkAirdropColors = AirdropColorScheme(
     isDark = true,
+    orangeMain = BrandPalette.OrangeMainDark,
+    orangeDark = BrandPalette.OrangeFunctionDark,
+    buttonStatic = BrandPalette.OrangeFunctionDark,
+    buttonLoading = BrandPalette.OrangeFunctionDark,
     gray100 = Color(0xFF383838),
     gray150 = Color(0xFF2E2E2E),
     gray200 = Color(0xFF333333),
