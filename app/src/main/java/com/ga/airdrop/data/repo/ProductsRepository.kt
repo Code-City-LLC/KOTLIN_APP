@@ -42,10 +42,10 @@ class ProductsRepository(private val service: AirdropApiService) {
                 put("per_page", "4")
                 put("order", "created_at")
                 put("direction", "desc")
+                put("in_stock", "1")
+                put("on_sale", "1")
                 normalizedSearch(search)?.let {
                     put("search", it)
-                    put("in_stock", "1")
-                    put("on_sale", "1")
                 }
             }
             service.featuredProducts(params).items
