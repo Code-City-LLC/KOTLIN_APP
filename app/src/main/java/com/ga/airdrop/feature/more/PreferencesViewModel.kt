@@ -36,19 +36,11 @@ class PreferencesViewModel(
 
     private var userId: Int? = null
 
-    // Cached from currentUser(): PUT /user/profile validates first/last name
-    // as required, so the sparse preferences payload must carry them or every
-    // Save fails backend validation (WORK ORDER B2).
-    private var firstName: String? = null
-    private var lastName: String? = null
-
     fun start(context: Context) {
         seedFromPrefs(context)
         viewModelScope.launch {
             repository.currentUser().onSuccess { user ->
                 userId = user.id
-                firstName = user.firstName
-                lastName = user.lastName
                 _state.update { it.copy(email = user.email.orEmpty()) }
                 user.pickupLocation?.takeIf { it.isNotEmpty() && it in pickupLocations }
                     ?.let { applyPickup(context, it) }
@@ -76,8 +68,6 @@ class PreferencesViewModel(
         viewModelScope.launch {
             val fields = mapOf(
                 "user_id" to userId?.toString(),
-                "first_name" to firstName?.trim()?.takeIf { it.isNotEmpty() },
-                "last_name" to lastName?.trim()?.takeIf { it.isNotEmpty() },
                 "email" to s.email.trim().takeIf { it.isNotEmpty() },
                 "pickup_location" to s.pickupLocation.trim().takeIf { it.isNotEmpty() },
                 "payment_currency" to s.paymentCurrency.trim().takeIf { it.isNotEmpty() },
