@@ -46,7 +46,11 @@ fun OrdersScreen(
         derivedStateOf {
             val info = listState.layoutInfo
             val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            info.totalItemsCount > 0 && lastVisible >= info.totalItemsCount - 3
+            // Gate on the data list, not layout rows — empty/error states render
+            // rows too, which kept re-firing loadNextPage after a failed first
+            // load (Swift FigmaOrdersViewController requires !orders.isEmpty).
+            state.items.isNotEmpty() &&
+                info.totalItemsCount > 0 && lastVisible >= info.totalItemsCount - 3
         }
     }
     LaunchedEffect(shouldLoadMore) {

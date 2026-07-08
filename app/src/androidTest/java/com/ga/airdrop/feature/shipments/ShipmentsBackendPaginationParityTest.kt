@@ -181,6 +181,7 @@ class ShipmentsBackendPaginationParityTest {
             perPage: Int,
             status: Int?,
             search: String?,
+            shippingMethod: String?,
         ): Result<Paged<ShipmentPackage>> {
             recordedCalls += PackageCall(page, perPage, status, search)
             val count = if (page == 1) perPage else 2

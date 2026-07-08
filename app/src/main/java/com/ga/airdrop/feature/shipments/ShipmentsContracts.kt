@@ -172,8 +172,16 @@ data class Paged<T>(
 )
 
 interface ShipmentsPackagesRepository {
-    // RECONCILE: GET /packages?page=&perPage=15&status=&search= → [Package] (perPage 15; status omitted when 0; search omitted when blank)
-    suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?): Result<Paged<ShipmentPackage>>
+    // RECONCILE: GET /packages?page=&perPage=15&status=&search=&shipping_method= → [Package]
+    // (perPage 15; status omitted when 0; search omitted when blank; shipping_method
+    // omitted for All — server accepts Standard | Seadrop | Express)
+    suspend fun packages(
+        page: Int,
+        perPage: Int,
+        status: Int?,
+        search: String?,
+        shippingMethod: String?,
+    ): Result<Paged<ShipmentPackage>>
 
     // RECONCILE: GET /packages/{id} → PackageDetail (incl. history[], invoices[], additional_charges{})
     suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail>
@@ -239,8 +247,13 @@ object ShipmentsRepoProvider {
         override suspend fun ordersShortlist() = Result.failure<List<ShipmentOrder>>(PendingDataLayerException())
     }
     var packages: ShipmentsPackagesRepository = object : ShipmentsPackagesRepository {
-        override suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?) =
-            Result.failure<Paged<ShipmentPackage>>(PendingDataLayerException())
+        override suspend fun packages(
+            page: Int,
+            perPage: Int,
+            status: Int?,
+            search: String?,
+            shippingMethod: String?,
+        ) = Result.failure<Paged<ShipmentPackage>>(PendingDataLayerException())
         override suspend fun packageDetails(packageId: String) =
             Result.failure<ShipmentPackageDetail>(PendingDataLayerException())
         override suspend fun packageStatuses() =
