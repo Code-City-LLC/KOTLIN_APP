@@ -39,7 +39,13 @@ class AuctionCheckoutViewModel(
     val currencyOptions = listOf("USD", "JMD")
 
     private val _state = MutableStateFlow(
-        AuctionCheckoutUiState(product = ShopCheckoutStore.product)
+        AuctionCheckoutUiState(
+            product = ShopCheckoutStore.product,
+            // Seed from the persisted rate like every sibling VM (CartViewModel
+            // et al.) — otherwise the JMD total paints at the hardcoded default
+            // until /exchange-rates answers, and stays wrong if it fails.
+            exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+        )
     )
     val state: StateFlow<AuctionCheckoutUiState> = _state
 
