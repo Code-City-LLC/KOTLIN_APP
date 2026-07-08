@@ -95,6 +95,7 @@ class SettingsViewModel(
         com.ga.airdrop.feature.calculator.CalculatorHistory.clear()
         com.ga.airdrop.feature.dropalert.DropAlertPreset.clear()
         com.ga.airdrop.feature.shop.ShopRecentSearches.clear()
+        com.ga.airdrop.core.prefs.ExchangeRateStore.clear()
         sweepCachePrefs(context)
         _state.update { it.copy(loggingOut = false, loggedOut = true) }
     }

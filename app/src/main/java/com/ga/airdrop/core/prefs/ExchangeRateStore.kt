@@ -34,4 +34,14 @@ object ExchangeRateStore {
         current = rate
         prefs?.edit()?.putString(KEY, rate.toString())?.apply()
     }
+
+    /**
+     * Logout hygiene (Swift AirdropExchangeRateStore.clear): drop the persisted
+     * value and fall back to the default so the next account doesn't inherit
+     * the prior user's last-known rate.
+     */
+    fun clear() {
+        current = DEFAULT_USD_TO_JMD
+        prefs?.edit()?.remove(KEY)?.apply()
+    }
 }
