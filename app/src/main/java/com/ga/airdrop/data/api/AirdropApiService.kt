@@ -22,7 +22,6 @@ import com.ga.airdrop.data.model.DeviceToken
 import com.ga.airdrop.data.model.DropAlertResponse
 import com.ga.airdrop.data.model.EmptyRequest
 import com.ga.airdrop.data.model.ExchangeRate
-import com.ga.airdrop.data.model.FaqItem
 import com.ga.airdrop.data.model.ForgotPasswordRequest
 import com.ga.airdrop.data.model.LoginRequest
 import com.ga.airdrop.data.model.LoginResponse
@@ -69,7 +68,6 @@ import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.Headers
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -107,20 +105,9 @@ interface AirdropApiService {
     @POST("user/reactivate-account")
     suspend fun reactivateAccount(@Body body: ReactivateAccountRequest): LoginResponse
 
-    // ── CMS / FAQ ──
-
-    @Headers("X-Airdrop-No-Auth: true")
-    @GET("faqs")
-    suspend fun faqs(): Paginated<FaqItem>
-
-    // Body may be a JSON envelope or raw HTML; parsed in MiscRepository.
-    @Headers("X-Airdrop-No-Auth: true")
-    @GET("content/terms-conditions")
-    suspend fun termsAndConditions(): ResponseBody
-
-    @Headers("X-Airdrop-No-Auth: true")
-    @GET("content/privacy-policy")
-    suspend fun privacyPolicy(): ResponseBody
+    // CMS/FAQ endpoints live on feature/more2/More2Api (FaqViewModel,
+    // TermsViewModel) — the live path filters blank FAQ questions, which the
+    // duplicate here never did (FuchsiaTower Audit #120 P33-C2).
 
     // ── User / profile ──
 
