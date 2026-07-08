@@ -56,17 +56,15 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
     composable(Routes.SIGN_UP) {
         SignUpScreen(
             onBack = { navController.popBackStack() },
-            // Swift SignUpViewController.swift:522-523 — success shows an alert
-            // then returns to Login. From the Landing → Sign Up path LOGIN is
-            // not on the back stack, so a bare popBackStack is a no-op and the
-            // success dialog dead-ends (WORK ORDER B1) — fall back to
-            // navigating to Login explicitly.
+            // Current Swift: success presents the full-screen Registration
+            // Successful glass sheet (verification-link copy + "Back to Log
+            // In") instead of the old alert. Route to the previously-orphaned
+            // screen (FuchsiaTower Audit #59 F5); SignUp is popped off so back
+            // can't return to the submitted form.
             onRegistered = {
-                if (!navController.popBackStack(Routes.LOGIN, inclusive = false)) {
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(Routes.AUTH_LANDING)
-                        launchSingleTop = true
-                    }
+                navController.navigate(Routes.REGISTRATION_SUCCESS) {
+                    popUpTo(Routes.AUTH_LANDING)
+                    launchSingleTop = true
                 }
             },
         )
