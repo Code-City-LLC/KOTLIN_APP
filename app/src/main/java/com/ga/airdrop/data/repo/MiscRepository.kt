@@ -1,15 +1,12 @@
 package com.ga.airdrop.data.repo
 
 import com.ga.airdrop.data.api.AirdropApiService
-import com.ga.airdrop.data.api.AirdropJson
 import com.ga.airdrop.data.model.AirCoinTransaction
 import com.ga.airdrop.data.model.AirCoinsStatus
 import com.ga.airdrop.data.model.AirdropNotification
-import com.ga.airdrop.data.model.CmsContentResponse
 import com.ga.airdrop.data.model.CustomDutyRate
 import com.ga.airdrop.data.model.DeviceToken
 import com.ga.airdrop.data.model.ExchangeRate
-import com.ga.airdrop.data.model.FaqItem
 import com.ga.airdrop.data.model.MarkNotificationReadRequest
 import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.PromotionalBanner
@@ -21,28 +18,6 @@ import com.ga.airdrop.data.model.ShippingRates
 import com.ga.airdrop.data.model.Warehouse
 
 class MiscRepository(private val service: AirdropApiService) {
-
-    // ── CMS / FAQ ──
-
-    suspend fun faqs(): Result<List<FaqItem>> = apiResult { service.faqs().items }
-
-    suspend fun termsAndConditions(): Result<String> =
-        apiResult { cmsContent(service.termsAndConditions().string()) }
-
-    suspend fun privacyPolicy(): Result<String> =
-        apiResult { cmsContent(service.privacyPolicy().string()) }
-
-    // Envelope JSON, bare JSON string, or raw HTML — same cascade as Swift's
-    // cmsContent(path:).
-    private fun cmsContent(raw: String): String {
-        val fromEnvelope = runCatching {
-            AirdropJson.decodeFromString(CmsContentResponse.serializer(), raw)
-        }.getOrNull()?.content?.trim()
-        if (!fromEnvelope.isNullOrEmpty()) return fromEnvelope
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty()) error("No content returned.")
-        return trimmed
-    }
 
     // ── Warehouses / rates / calculator ──
 
