@@ -81,6 +81,62 @@ class ShipmentsRepoBindingPaymentLookupTest {
     }
 
     @Test
+    fun clearSessionCachesEvictsPreviouslyRememberedPayment() = runBlocking {
+        val targetPaymentId = 5432
+        val seedRepository = repository(
+            capture = CapturedPaymentCalls(),
+            pages = { page, _ ->
+                if (page == 1) listOf(payment(targetPaymentId, "INV-CACHED")) else emptyList()
+            },
+            directoryName = "airdrop-payment-cache-eviction-seed",
+        )
+        seedRepository.payments(page = 1, perPage = 15, type = null, search = null).getOrThrow()
+        assertEquals("INV-CACHED", seedRepository.payment(targetPaymentId).getOrThrow().invoiceId)
+
+        clearShipmentsSessionCaches()
+
+        val postClearCapture = CapturedPaymentCalls()
+        val postClearRepository = repository(
+            capture = postClearCapture,
+            pages = { _, _ -> emptyList() },
+            directoryName = "airdrop-payment-cache-eviction-check",
+        )
+        assertTrue(postClearRepository.payment(targetPaymentId).isFailure)
+        assertEquals(listOf(1), postClearCapture.pages)
+    }
+
+    @Test
+    fun refreshFallsBackToCachedPaymentWhenFreshRowMovesBeyondScanCap() = runBlocking {
+        val targetPaymentId = 6543
+        val seedRepository = repository(
+            capture = CapturedPaymentCalls(),
+            pages = { page, _ ->
+                if (page == 1) listOf(payment(targetPaymentId, "INV-CACHED")) else emptyList()
+            },
+            directoryName = "airdrop-payment-cache-page21-seed",
+        )
+        seedRepository.payments(page = 1, perPage = 15, type = null, search = null).getOrThrow()
+
+        val refreshCapture = CapturedPaymentCalls()
+        val refreshRepository = repository(
+            capture = refreshCapture,
+            pages = { page, perPage ->
+                if (page <= 20) {
+                    List(perPage) { index -> payment(page * 10_000 + index, "INV-$page-$index") }
+                } else {
+                    listOf(payment(targetPaymentId, "INV-PAGE-21"))
+                }
+            },
+            directoryName = "airdrop-payment-cache-page21-refresh",
+        )
+
+        val refreshed = refreshRepository.payment(targetPaymentId, refresh = true).getOrThrow()
+
+        assertEquals("INV-CACHED", refreshed.invoiceId)
+        assertEquals((1..20).toList(), refreshCapture.pages)
+    }
+
+    @Test
     fun paymentLookupStopsOnPaginationLastPageEvenWhenPageIsFull() = runBlocking {
         val capture = CapturedPaymentCalls()
         val repository = DataShipmentsPaymentsRepository(
@@ -123,6 +179,15 @@ class ShipmentsRepoBindingPaymentLookupTest {
         val types = mutableListOf<String?>()
         val searches = mutableListOf<String?>()
     }
+
+    private fun repository(
+        capture: CapturedPaymentCalls,
+        pages: (page: Int, perPage: Int) -> List<Payment>,
+        directoryName: String,
+    ) = DataShipmentsPaymentsRepository(
+        PaymentsRepository(paymentsService(capture = capture, pages = pages)),
+        Files.createTempDirectory(directoryName).toFile().apply { deleteOnExit() },
+    )
 
     @Suppress("UNCHECKED_CAST")
     private fun paymentsService(
