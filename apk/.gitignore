@@ -1,0 +1,6 @@
+# The ONLY sanctioned APK builder writes here: scripts/build-apk.sh
+# APK binaries, the build counter, the latest symlink, and the build log are
+# generated artifacts — never commit them. This .gitignore keeps the folder
+# tracked while ignoring everything inside it.
+*
+!.gitignore
