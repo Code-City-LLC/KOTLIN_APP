@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.calculator
 
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.data.model.arrayAt
 import com.ga.airdrop.data.model.flexDouble
 import com.ga.airdrop.data.model.flexInt
@@ -68,10 +69,11 @@ class RemoteCalculatorRepository(
     private val baseUrl: String = BuildConfig.API_BASE_URL,
 ) : CalculatorRepository {
 
-    companion object {
-        /** Swift APIConfig.usdToJmdFallback. */
-        const val USD_TO_JMD_FALLBACK = 156.0
-    }
+    // USD→JMD fallback comes from the shared ExchangeRateStore (last-known live
+    // rate, server-seeded 160.625) instead of a private 156.0 constant — the
+    // calculator was the one screen quoting a different offline JMD total than
+    // Cart/Shop/Shipments (Swift carries the same APIConfig drift; the shared
+    // store is the app-wide SSOT per the 6f8f8af rate-store work).
 
     private fun url(path: String) = baseUrl.trimEnd('/') + path
 
@@ -181,6 +183,6 @@ class RemoteCalculatorRepository(
                 root?.flexDouble("usd_to_jmd")
                     ?: root?.objectAt("data")?.flexDouble("usd_to_jmd")
             }
-        }.getOrNull() ?: USD_TO_JMD_FALLBACK
+        }.getOrNull() ?: ExchangeRateStore.current
     }
 }

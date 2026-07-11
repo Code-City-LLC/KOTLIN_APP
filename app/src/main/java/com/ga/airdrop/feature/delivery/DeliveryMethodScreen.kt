@@ -130,12 +130,16 @@ fun DeliveryMethodScreen(
         }
     }
 
-    // Stripe hosted checkout — Custom Tab (CartScreen parity).
+    // Stripe hosted checkout — Custom Tab (CartScreen parity). Only consume the
+    // one-shot URL when the browser actually opened — a failed launch must keep
+    // the URL retryable instead of silently no-oping so a retry doesn't mint a
+    // second Stripe session (same gate as CartScreen, FuchsiaTower Pass-4 C5).
     val checkoutUrl = state.checkoutUrl
     LaunchedEffect(checkoutUrl) {
         if (checkoutUrl != null) {
-            launchExternalUrl(context, checkoutUrl)
-            viewModel.onCheckoutOpened()
+            if (launchExternalUrl(context, checkoutUrl)) {
+                viewModel.onCheckoutOpened()
+            }
         }
     }
 

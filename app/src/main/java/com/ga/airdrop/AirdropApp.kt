@@ -29,6 +29,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
         CalculatorHistory.init(this)
         com.ga.airdrop.core.prefs.ExchangeRateStore.init(this)
         com.ga.airdrop.core.push.PushDeepLink.init(this)
+        com.ga.airdrop.core.push.PushRegistrar.init(this)
         DropAlertPreset.init(this)
         ShopRecentSearches.init(this)
         PackagesSortStore.init(this)

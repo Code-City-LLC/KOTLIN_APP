@@ -51,6 +51,17 @@
             </intent-filter>
         </service>
 
+        <!-- Background (system-posted) notification-block pushes land on this
+             channel instead of Firebase's unnamed "Miscellaneous" fallback —
+             without it, Quiet Hours and the named channel are bypassed for
+             every push received while the app is backgrounded/killed. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="airdrop_alerts" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_nav_home_filled" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -48,14 +48,44 @@ object PushDeepLink {
 
     fun capture(intent: Intent?) {
         if (intent == null) return
+        fun raw(vararg keys: String): String? =
+            keys.firstNotNullOfOrNull { k -> intent.getStringExtra(k)?.takeIf { it.isNotBlank() } }
+
+        // Two delivery paths land here with DIFFERENT extras:
+        //  - foreground/data-only pushes: our service re-keys them to
+        //    EXTRA_ROUTE/EXTRA_NOTIFICATION_TYPE/EXTRA_REFERENCE_ID;
+        //  - background/killed-state notification-block pushes: ANDROID posts
+        //    the tray entry itself (onMessageReceived never runs) and delivers
+        //    the RAW backend data keys (screen/navigate_to/deep_link/
+        //    notification_type/type/package_id/…) as launcher-intent extras.
+        // The old capture only read the re-keyed extras, so every background
+        // tap dead-ended on Home (Swift didReceive + RN NotificationRouter both
+        // parse the raw keys).
+
+        // deep_link is the FIRST priority in both references' resolution order.
+        raw("deep_link")?.let { link ->
+            runCatching { Uri.parse(link) }.getOrNull()?.let { uri ->
+                resolveDeepLink(uri)?.let { setPending(it); return }
+            }
+        }
+
+        val routeName = raw(AirdropMessagingService.EXTRA_ROUTE, "screen", "navigate_to")
+        val notificationType = raw(
+            AirdropMessagingService.EXTRA_NOTIFICATION_TYPE, "notification_type", "type",
+        )
         // Route-less type-based pushes resolve through the same type→route map
         // the in-app inbox uses (Audit#7 C3).
-        val route = intent.getStringExtra(AirdropMessagingService.EXTRA_ROUTE)
-            ?: intent.getStringExtra(AirdropMessagingService.EXTRA_NOTIFICATION_TYPE)?.let {
+        val route = routeName
+            ?: notificationType?.let {
                 com.ga.airdrop.feature.homedetails.routeNameForNotificationType(it)
             }
             ?: return
-        val referenceId = intent.getStringExtra(AirdropMessagingService.EXTRA_REFERENCE_ID)
+        val referenceId = raw(
+            AirdropMessagingService.EXTRA_REFERENCE_ID,
+            "reference_id", "referenceId",
+            "package_id", "packageId",
+            "tracking_code", "courier_number",
+        )
         setPending(resolve(route, referenceId))
     }
 
@@ -92,6 +122,31 @@ object PushDeepLink {
                 Routes.paymentCancelled()
             else -> null
         }
+    }
+
+    /**
+     * Full airdrop:// host map for push `deep_link` payloads — Swift
+     * AppDelegate.parseDeepLink (:1141-1184). Hosts map to the SAME screen
+     * names the notification resolver already understands, so both entry
+     * points share one routing table. Payment-return hosts keep their
+     * dedicated pipeline via [resolveUri].
+     */
+    internal fun resolveDeepLink(uri: Uri): String? {
+        resolveUri(uri)?.let { return it }
+        if (uri.scheme?.lowercase() !in setOf("airdrop", "airdropexpress")) return null
+        val detail = uri.path?.split('/')?.firstOrNull { it.isNotEmpty() }
+        val screen = when (uri.host?.lowercase() ?: "") {
+            "package" -> "PackageDetailsView"
+            "upload-invoice" -> "InvoiceViewerScreen"
+            "update-address" -> "ProfileView"
+            "packages" -> "PackagesView"
+            "payments" -> "PaymentsView"
+            "promotions" -> "PromotionsView"
+            "refer", "referral" -> "ReferView"
+            "support", "contact", "contacts" -> "ContactsView"
+            else -> uri.host ?: return null
+        }
+        return com.ga.airdrop.feature.homedetails.resolveNotificationRoute(screen, detail)
     }
 
     /**

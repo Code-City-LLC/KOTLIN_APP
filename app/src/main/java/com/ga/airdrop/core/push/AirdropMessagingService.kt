@@ -8,38 +8,24 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.ga.airdrop.MainActivity
 import com.ga.airdrop.R
-import com.ga.airdrop.core.auth.AuthTokenStore
-import com.ga.airdrop.core.network.ApiClient
-import com.ga.airdrop.data.repo.MiscRepository
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 
 /**
  * FCM entry point. Mirrors the Swift AppDelegate push handling: register the
- * device token with /device-tokens/register, surface the notification, and
- * carry `route` + `referenceID` data through to the route resolver.
- *
- * Inactive until google-services.json is provided (the google-services plugin
- * is commented out in app/build.gradle.kts) — without Firebase init this
- * service is never instantiated.
+ * device token with /device-tokens/register (via [PushRegistrar]), surface the
+ * notification, and carry `route` + `referenceID` data through to the route
+ * resolver. Live: the google-services plugin is enabled and
+ * app/google-services.json is committed.
  */
 class AirdropMessagingService : FirebaseMessagingService() {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     override fun onNewToken(token: String) {
-        if (AuthTokenStore.token == null) return
-        scope.launch {
-            MiscRepository(ApiClient.service).registerFcmToken(
-                deviceToken = token,
-                deviceType = "android",
-            )
-        }
+        // Always cache — a fresh install issues the token BEFORE login, and the
+        // old early-return dropped it forever (no push ever reached the device).
+        // PushRegistrar registers on an application-scoped coroutine, so the
+        // POST also survives this short-lived service being destroyed.
+        PushRegistrar.onNewToken(token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -87,16 +73,7 @@ class AirdropMessagingService : FirebaseMessagingService() {
         val silent = QuietHoursStore.isInQuietWindow(applicationContext) && !exemptLocal
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Airdrop", NotificationManager.IMPORTANCE_DEFAULT),
-        )
-        manager.createNotificationChannel(
-            NotificationChannel(
-                QUIET_CHANNEL_ID,
-                "Airdrop (quiet hours)",
-                NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
+        createChannels(manager)
         val notification = NotificationCompat.Builder(
             this,
             if (silent) QUIET_CHANNEL_ID else CHANNEL_ID,
@@ -107,26 +84,56 @@ class AirdropMessagingService : FirebaseMessagingService() {
             .setAutoCancel(true)
             .setContentIntent(pending)
             .setPriority(
-                if (silent) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_DEFAULT,
+                if (silent) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_HIGH,
             )
             .apply { if (silent) setSilent(true) }
             .build()
-        manager.notify(System.identityHashCode(message), notification)
+        // Monotonic id — identityHashCode could collide and overwrite a
+        // still-visible earlier notification.
+        manager.notify(nextNotificationId.incrementAndGet(), notification)
     }
 
-    override fun onDestroy() {
-        // Cancel the IO scope so in-flight token-registration coroutines don't
-        // outlive the service — the scope used to leak (BUG_AUDIT C3).
-        scope.cancel()
-        super.onDestroy()
-    }
+    // No local coroutine scope: token registration moved to PushRegistrar's
+    // application scope precisely because this service's onDestroy used to
+    // cancel the in-flight POST (rotated token silently never reached the
+    // backend → stale token, dropped pushes).
 
     companion object {
-        const val CHANNEL_ID = "airdrop_default"
+        // "airdrop_alerts" replaces the legacy "airdrop_default" channel: a
+        // channel's importance is frozen at creation, and DEFAULT importance
+        // meant no heads-up banner ever (RN uses AndroidImportance.HIGH; iOS
+        // shows [.banner, .sound]). The legacy channel is deleted on the next
+        // channel creation so existing installs migrate.
+        const val CHANNEL_ID = "airdrop_alerts"
+        const val LEGACY_CHANNEL_ID = "airdrop_default"
         const val QUIET_CHANNEL_ID = "airdrop_quiet"
         const val LOCAL_NOTIFY_WHEN_IN_STOCK = "notifyWhenInStock"
         const val EXTRA_ROUTE = "route"
         const val EXTRA_REFERENCE_ID = "referenceID"
         const val EXTRA_NOTIFICATION_TYPE = "notificationType"
+
+        private val nextNotificationId = java.util.concurrent.atomic.AtomicInteger(
+            (System.currentTimeMillis() % 100_000).toInt(),
+        )
+
+        /**
+         * Also called from MainActivity at startup so the channels exist BEFORE
+         * the first background (system-posted) push arrives — the manifest
+         * meta-data points background notification-block messages at
+         * [CHANNEL_ID] instead of Firebase's unnamed "Miscellaneous" fallback.
+         */
+        fun createChannels(manager: NotificationManager) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "Airdrop", NotificationManager.IMPORTANCE_HIGH),
+            )
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    QUIET_CHANNEL_ID,
+                    "Airdrop (quiet hours)",
+                    NotificationManager.IMPORTANCE_LOW,
+                ),
+            )
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+        }
     }
 }

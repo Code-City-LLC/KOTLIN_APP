@@ -90,6 +90,9 @@ class SettingsViewModel(
         runCatching {
             com.google.firebase.messaging.FirebaseMessaging.getInstance().deleteToken()
         }
+        // Drop the cached/registered token markers so the next login registers
+        // the freshly issued token instead of replaying the deleted one.
+        com.ga.airdrop.core.push.PushRegistrar.onLogout()
         // User-scoped persisted stores (Swift AirdropSessionTeardown parity —
         // the next account must not inherit the prior user's data).
         com.ga.airdrop.feature.calculator.CalculatorHistory.clear()

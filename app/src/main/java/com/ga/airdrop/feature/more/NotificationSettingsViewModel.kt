@@ -1,12 +1,12 @@
 package com.ga.airdrop.feature.more
 
 import android.content.Context
-import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.push.androidDeviceInfo
+import com.ga.airdrop.core.push.requestCurrentFcmToken
 import com.ga.airdrop.data.repo.MiscRepository
-import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -156,13 +156,5 @@ class NotificationSettingsViewModel(
 internal fun NotificationSettingsUiState.pushWanted(): Boolean =
     master && (packagePush || promosPush)
 
-private fun requestCurrentFcmToken(onToken: (String) -> Unit) {
-    runCatching { FirebaseMessaging.getInstance().token }
-        .getOrNull()
-        ?.addOnSuccessListener { token ->
-            if (!token.isNullOrBlank()) onToken(token)
-        }
-}
-
-private fun androidDeviceInfo(): String =
-    "Manufacturer: ${Build.MANUFACTURER}, Model: ${Build.MODEL}, OS: ${Build.VERSION.RELEASE}"
+// requestCurrentFcmToken / androidDeviceInfo moved to core.push (PushRegistrar.kt)
+// so the login/rotation registration path and this settings path share one copy.

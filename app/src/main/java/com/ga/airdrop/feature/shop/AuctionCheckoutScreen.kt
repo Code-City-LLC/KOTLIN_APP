@@ -70,13 +70,17 @@ fun AuctionCheckoutScreen(
     val heroImageUrl = product?.imageUrl
 
     // Open the Stripe hosted checkout in a Custom Tab, then pop back
-    // (Swift pops checkout + details after presenting Safari).
+    // (Swift pops checkout + details after presenting Safari). Only consume the
+    // one-shot URL when the browser actually opened — a failed launch must keep
+    // it retryable so a retry doesn't mint a second Stripe session (same gate
+    // as CartScreen, FuchsiaTower Pass-4 C5).
     val checkoutUrl = state.checkoutUrl
     LaunchedEffect(checkoutUrl) {
         if (checkoutUrl != null) {
-            launchExternalUrl(context, checkoutUrl)
-            viewModel.consumeCheckoutUrl()
-            onCheckoutOpened()
+            if (launchExternalUrl(context, checkoutUrl)) {
+                viewModel.consumeCheckoutUrl()
+                onCheckoutOpened()
+            }
         }
     }
 

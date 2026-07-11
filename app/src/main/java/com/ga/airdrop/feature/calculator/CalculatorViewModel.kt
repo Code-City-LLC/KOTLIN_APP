@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.calculator
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.prefs.ExchangeRateStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,8 +55,8 @@ class CalculatorViewModel(
     private val _result = MutableStateFlow<CalculationResult?>(null)
     val result: StateFlow<CalculationResult?> = _result
 
-    /** USD→JMD rate for the CIF bottom sheet; fallback until fetched. */
-    private val _usdToJmd = MutableStateFlow(RemoteCalculatorRepository.USD_TO_JMD_FALLBACK)
+    /** USD→JMD rate for the CIF bottom sheet; shared last-known rate until fetched. */
+    private val _usdToJmd = MutableStateFlow(ExchangeRateStore.current)
     val usdToJmd: StateFlow<Double> = _usdToJmd
 
     private var searchJob: Job? = null
@@ -252,7 +253,8 @@ class CalculatorViewModel(
         rateLoaded = true
         viewModelScope.launch {
             _usdToJmd.value = runCatching { repository.usdToJmdRate() }
-                .getOrDefault(RemoteCalculatorRepository.USD_TO_JMD_FALLBACK)
+                .onSuccess { ExchangeRateStore.update(it) }
+                .getOrDefault(ExchangeRateStore.current)
         }
     }
 }

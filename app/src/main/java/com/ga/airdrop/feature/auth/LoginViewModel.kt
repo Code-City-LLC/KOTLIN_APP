@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.push.PushRegistrar
 import com.ga.airdrop.data.repo.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +51,11 @@ class LoginViewModel(
                         }
                     } else {
                         AuthTokenStore.save(token)
+                        // Swift FigmaLoginViewController:504-511 parity: the FCM
+                        // token minted before login is replayed to
+                        // /device-tokens/register now that a bearer exists —
+                        // without this, a fresh install never registers for push.
+                        PushRegistrar.registerIfLoggedIn(force = true)
                         _state.update { it.copy(loading = false, loggedIn = true) }
                     }
                 }

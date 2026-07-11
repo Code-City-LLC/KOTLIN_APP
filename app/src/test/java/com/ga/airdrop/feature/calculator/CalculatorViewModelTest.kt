@@ -19,7 +19,8 @@ class CalculatorViewModelTest {
 
         override suspend fun searchProducts(query: String, limit: Int): List<CalcProduct> = emptyList()
 
-        override suspend fun usdToJmdRate(): Double = RemoteCalculatorRepository.USD_TO_JMD_FALLBACK
+        override suspend fun usdToJmdRate(): Double =
+            com.ga.airdrop.core.prefs.ExchangeRateStore.DEFAULT_USD_TO_JMD
     }
 
     @Test

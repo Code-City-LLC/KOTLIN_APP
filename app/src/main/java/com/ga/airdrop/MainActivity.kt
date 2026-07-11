@@ -1,11 +1,16 @@
 package com.ga.airdrop
 
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,7 +24,9 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.network.TokenRefresher
+import com.ga.airdrop.core.push.AirdropMessagingService
 import com.ga.airdrop.core.push.PushDeepLink
+import com.ga.airdrop.core.push.PushRegistrar
 import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.data.model.EmptyRequest
 import com.ga.airdrop.feature.auth.OnboardingStore
@@ -59,12 +66,31 @@ class MainActivity : FragmentActivity() {
         super.attachBaseContext(base)
     }
 
+    /**
+     * Android 13+ (targetSdk 35): POST_NOTIFICATIONS defaults to DENIED and
+     * every notify() silently no-ops until the user grants it. The permission
+     * was declared in the manifest but never requested — no push was ever
+     * visible on 13+. RN requests on app mount (NotificationService.ts:29-39);
+     * Swift at cold launch (AppDelegate.swift:100-113). Same timing here.
+     */
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) PushRegistrar.registerIfLoggedIn()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         PushDeepLink.capture(intent)
         PushDeepLink.captureUri(intent)
         maybeSeedSession()
+        // Channels must exist BEFORE the first background (system-posted) push:
+        // the manifest meta-data routes those to airdrop_alerts, which only
+        // takes effect once the channel is created.
+        AirdropMessagingService.createChannels(
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager,
+        )
+        maybeRequestNotificationPermission()
         // Cold-launch biometric gate (Swift SceneDelegate.presentBiometricLockIfNeeded).
         // Opt-in + default OFF + falls back to no-gate when biometry is
         // unavailable, so this is inert unless the user enabled it.
@@ -96,6 +122,19 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         refreshStoredSession()
+        // Replays the cached FCM token to /device-tokens/register when logged
+        // in (dedupes on last-registered) — covers login-before-token installs,
+        // permission grants, and app updates that predate PushRegistrar.
+        PushRegistrar.registerIfLoggedIn()
+    }
+
+    private fun maybeRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     /**
