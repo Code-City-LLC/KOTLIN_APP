@@ -329,18 +329,10 @@ internal fun GoldPriorityContent(
                 )
             },
     ) {
-        // Contour-lines Shape backdrop — Figma places it on the page frame at
-        // 5%, SVG 1632.7×1847.93 at (-122, -418) in 375-wide page space.
-        val pageScale = maxWidth / 375f
-        Image(
-            painter = painterResource(R.drawable.tier_lines_backdrop),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            alpha = 0.05f,
-            modifier = Modifier
-                .offset(x = pageScale * -122f, y = pageScale * -418f)
-                .size(width = pageScale * 1632.7f, height = pageScale * 1847.93f),
-        )
+        // Contour-lines Shape backdrop — the exact Figma export (5% opacity,
+        // placed at (-122, -418) in 375-wide page space), stroked at final
+        // scale so the hairlines read like the Figma canvas.
+        TierLinesBackdrop(Modifier.fillMaxSize())
 
         Column(Modifier.fillMaxSize()) {
             // Header on the Figma Header-Type gradient (rgba(41,41,41,0.8) → 0).
