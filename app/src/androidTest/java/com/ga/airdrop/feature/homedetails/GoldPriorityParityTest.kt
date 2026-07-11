@@ -132,9 +132,10 @@ class GoldPriorityParityTest {
         val name = compose.onNodeWithTag("gold-priority-tier-name", useUnmergedTree = true)
             .getUnclippedBoundsInRoot()
 
-        assertClose(64f, boundsWidth(badge), "Swift tier badge width")
-        assertClose(64f, boundsHeight(badge), "Swift tier badge height")
-        assertClose(12f, boundsLeft(name) - boundsRight(badge), "Swift badge/name gap")
+        // Swift TierPageCell: 70×70 PNG glyph, 15dp title-row spacing.
+        assertClose(70f, boundsWidth(badge), "Swift tier glyph width")
+        assertClose(70f, boundsHeight(badge), "Swift tier glyph height")
+        assertClose(15f, boundsLeft(name) - boundsRight(badge), "Swift glyph/name gap")
         assertTrue(
             "Tier name should fit inside title row, nameRight=${boundsRight(name)} rowRight=${boundsRight(row)}",
             boundsRight(name) <= boundsRight(row) + 0.75f,

@@ -162,6 +162,11 @@ class HomeLiveDataParityTest {
             )
         }
 
+        override suspend fun customerTier(): Result<com.ga.airdrop.data.model.CustomerTier> =
+            // Tier API unavailable in this fixture — the header falls back to
+            // the user payload's tier name, which these rails assert.
+            Result.failure(IllegalStateException("tier API not faked"))
+
         override suspend fun airCoinsStatus(): Result<AirCoinsStatus> {
             airCoinsCalls.incrementAndGet()
             return Result.success(AirCoinsStatus(available = 42, balance = 7))

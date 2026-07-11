@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,10 +37,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ga.airdrop.R
@@ -53,47 +58,80 @@ private data class PendingTierChange(
 )
 
 /**
- * The upgrade/downgrade layer that sits ON TOP of the untouched Customer Tier
- * pager: a bottom-pinned call-to-action for the visible tier, plus a beautiful
- * confirmation sheet. The backend validates and applies the change; this only
- * requests it. No tier is shown as switchable unless the API says can_change.
+ * The tier-change layer over the untouched Customer Tier pager: the single
+ * page-relative Figma CTA (Kemar 2026-07-08 — "Upgrade to <page>" above the
+ * customer's tier, "Your Tier" breakdown on their own page, activation copy
+ * on Inactive, hidden below/preview — never a downgrade sign) plus the
+ * sheets it opens. The backend validates and applies every change.
  */
 @Composable
 internal fun TierChangeOverlay(
     visibleTier: TierPage,
+    relation: TierRelation,
+    userTierIndex: Int?,
     state: GoldPriorityUiState,
     onRequestChange: (String) -> Unit,
     onDismissError: () -> Unit,
+    onActivate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val currentPage = remember(state.currentTierCode) {
-        tierPages.firstOrNull { it.apiCode != null && it.apiCode == state.currentTierCode }
-    }
+    val currentPage = userTierIndex?.let { tierPages.getOrNull(it) }
     var pending by remember { mutableStateOf<PendingTierChange?>(null) }
+    var showBreakdown by remember { mutableStateOf(false) }
 
-    // Open the sheet only for a switchable, non-current tier the API allows.
-    val visibleCode = visibleTier.apiCode
-    val canOfferChange = state.canChange &&
-        visibleCode != null &&
-        state.currentTierCode != null &&
-        !visibleCode.equals(state.currentTierCode, ignoreCase = true)
+    // Backend catalogue rows when present, else the page's own copy.
+    fun benefitsFor(tier: TierPage): List<String> =
+        tier.apiCode?.let { state.benefitsByCode[it] }?.takeIf { it.isNotEmpty() } ?: tier.benefits
 
-    val isUpgrade = when (state.directionByCode[visibleCode]?.lowercase()) {
-        "upgrade" -> true
-        "downgrade" -> false
-        // Fallback when the API omitted a direction: compare lane rank.
-        else -> visibleTier.laneRank > (currentPage?.laneRank ?: Int.MIN_VALUE)
+    val label = when (relation) {
+        TierRelation.Current -> "Your Tier"
+        TierRelation.Upgrade -> "Upgrade to ${visibleTier.name}"
+        TierRelation.Activation -> "Ship a package now to activate your account"
+        TierRelation.Downgrade, TierRelation.Preview -> null
+    }
+    if (label != null) {
+        TierCtaButton(
+            label = label,
+            onClick = {
+                when (relation) {
+                    TierRelation.Activation -> onActivate()
+                    TierRelation.Current -> showBreakdown = true
+                    TierRelation.Upgrade -> if (visibleTier.apiCode != null) {
+                        pending = PendingTierChange(visibleTier, currentPage, isUpgrade = true)
+                    }
+                    else -> Unit
+                }
+            },
+            modifier = modifier,
+        )
     }
 
-    TierChangeCtaBar(
-        canOfferChange = canOfferChange,
-        onClick = { pending = PendingTierChange(visibleTier, currentPage, isUpgrade) },
-        modifier = modifier,
-    )
+    if (showBreakdown && currentPage != null) {
+        // Kemar 2026-07-11: the breakdown carries the one sanctioned
+        // downgrade path. Adjacent CODED tiers only (skips Inactive/Corporate).
+        val up = if (state.canChange && userTierIndex != null) adjacentCodedTier(userTierIndex, -1) else null
+        val down = if (state.canChange && userTierIndex != null) adjacentCodedTier(userTierIndex, +1) else null
+        YourTierSheet(
+            tier = currentPage,
+            benefits = benefitsFor(currentPage),
+            upgradeTarget = up,
+            downgradeTarget = down,
+            onUpgrade = {
+                showBreakdown = false
+                up?.let { pending = PendingTierChange(it, currentPage, isUpgrade = true) }
+            },
+            onDowngrade = {
+                showBreakdown = false
+                down?.let { pending = PendingTierChange(it, currentPage, isUpgrade = false) }
+            },
+            onDismiss = { showBreakdown = false },
+        )
+    }
 
     pending?.let { change ->
         TierChangeSheet(
             change = change,
+            benefits = benefitsFor(if (change.isUpgrade) change.target else (change.current ?: change.target)),
             changing = state.changingToCode == change.target.apiCode,
             error = state.changeError,
             onConfirm = { change.target.apiCode?.let(onRequestChange) },
@@ -112,44 +150,67 @@ internal fun TierChangeOverlay(
     }
 }
 
+/**
+ * Figma "Function Buttons Desktop" — 316×50, #FF783E→#F15114 gradient,
+ * radius 10, Cairo SemiBold 16, horizontally centered (never full-width).
+ */
 @Composable
-private fun TierChangeCtaBar(
-    canOfferChange: Boolean,
+private fun TierCtaButton(
+    label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // The current tier and the presentational-only pages carry NO indicator
-    // (Kemar 2026-07-07: the "your current tier" reminder duplicated the header
-    // on almost every page). Only a switchable tier shows an action, and it's a
-    // restrained translucent pill — Swift "Set as My Tier" parity — not a heavy
-    // solid button, so the tier art stays the hero.
-    if (!canOfferChange) return
-
     Box(
         modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .padding(bottom = 22.dp)
+            .padding(bottom = 12.dp)
             .navigationBarsPadding(),
         contentAlignment = Alignment.Center,
     ) {
-        Row(
+        Box(
             Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color.White.copy(alpha = 0.18f))
-                .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                .size(width = 316.dp, height = 50.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFFFF783E), Color(0xFFF15114))))
                 .clickable(onClick = onClick)
-                .testTag("tier-change-cta")
-                .padding(vertical = 13.dp, horizontal = 28.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .testTag("tier-change-cta"),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = "Set as My Tier",
-                style = AirdropType.button.copy(fontWeight = FontWeight.SemiBold),
-                color = Color.White,
-                textAlign = TextAlign.Center,
+            CtaShrinkText(
+                label = label,
+                modifier = Modifier.padding(horizontal = 12.dp),
             )
         }
+    }
+}
+
+/** One-line CTA label that steps its font down until it fits (Swift 316×50 component). */
+@Composable
+private fun CtaShrinkText(label: String, modifier: Modifier = Modifier) {
+    val textMeasurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier) {
+        val density = LocalDensity.current
+        val maxWidthPx = with(density) { maxWidth.roundToPx() }
+        val fontSize = remember(label, maxWidthPx, textMeasurer) {
+            if (maxWidthPx <= 0) {
+                16.sp
+            } else {
+                (16 downTo 11).firstOrNull { candidate ->
+                    !textMeasurer.measure(
+                        text = AnnotatedString(label),
+                        style = AirdropType.button.copy(fontSize = candidate.sp),
+                        maxLines = 1,
+                        constraints = Constraints(maxWidth = maxWidthPx),
+                    ).hasVisualOverflow
+                }?.sp ?: 11.sp
+            }
+        }
+        Text(
+            text = label,
+            style = AirdropType.button.copy(fontSize = fontSize),
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
     }
 }
 
@@ -157,6 +218,7 @@ private fun TierChangeCtaBar(
 @Composable
 private fun TierChangeSheet(
     change: PendingTierChange,
+    benefits: List<String>,
     changing: Boolean,
     error: String?,
     onConfirm: () -> Unit,
@@ -228,7 +290,7 @@ private fun TierChangeSheet(
                     color = Color.White,
                 )
                 Spacer(Modifier.height(12.dp))
-                TierBenefitList(target.benefits, tint = Color.White)
+                TierBenefitList(benefits, tint = Color.White, tickColor = tierTickColor(target))
             } else {
                 // Downgrade: make the loss explicit before they commit.
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -258,8 +320,9 @@ private fun TierChangeSheet(
                 )
                 Spacer(Modifier.height(12.dp))
                 TierBenefitList(
-                    (change.current ?: target).benefits,
+                    benefits,
                     tint = Color.White.copy(alpha = 0.85f),
+                    tickColor = tierTickColor(change.current ?: target),
                     lost = true,
                 )
             }
@@ -309,23 +372,38 @@ private fun TierChangeSheet(
 }
 
 @Composable
-private fun TierBenefitList(benefits: List<String>, tint: Color, lost: Boolean = false) {
+private fun TierBenefitList(
+    benefits: List<String>,
+    tint: Color,
+    tickColor: Color,
+    lost: Boolean = false,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         benefits.forEach { benefit ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    Modifier
-                        .padding(top = 2.dp)
-                        .size(22.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(if (lost) R.drawable.ic_x else R.drawable.ic_check),
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(if (lost) Color(0xFFF7A072) else Color.White),
-                        modifier = Modifier.size(11.dp),
+                if (lost) {
+                    Box(
+                        Modifier
+                            .padding(top = 2.dp)
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_x),
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(Color(0xFFF7A072)),
+                            modifier = Modifier.size(11.dp),
+                        )
+                    }
+                } else {
+                    // Kemar 2026-07-11 tick rule: checks carry the tier's tint.
+                    TierTick(
+                        color = tickColor,
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .size(22.dp),
                     )
                 }
                 Text(text = benefit, style = AirdropType.body2, color = tint, modifier = Modifier.weight(1f))

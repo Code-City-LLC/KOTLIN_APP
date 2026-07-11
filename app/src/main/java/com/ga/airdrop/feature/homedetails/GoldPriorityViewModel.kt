@@ -156,13 +156,89 @@ internal fun directionsFrom(tier: com.ga.airdrop.data.model.CustomerTier): Map<S
     tier.availableChanges.filter { it.code.isNotBlank() }.associate { it.code to it.direction }
 
 /**
- * Map the tier catalogue to code → benefit bullets, dropping tiers with a blank
- * code or no bullets so the page only overrides its fallback copy when the
- * backend actually supplied benefits_summary for that tier.
+ * Map the tier catalogue to code → MERGED benefit bullets — the Swift
+ * FigmaGoldPriorityViewController.apiBenefits model (Kemar 2026-07-11 "add
+ * back everything"), in order:
+ *   1. processing_copy (backend)
+ *   2. benefits_summary lines (backend, verbatim)
+ *   3. flag-derived facts ONLY when the server sent no benefits_summary
+ *      (otherwise AirCoins/returns would show twice on GOLD/PLAT/DIAM)
+ *   4. restored legacy marketing lines (curated, minus dupes)
  */
 internal fun benefitsByCodeFrom(tiers: List<ServiceTier>): Map<String, List<String>> =
-    tiers.filter { it.code.isNotBlank() && it.benefitsSummary.isNotEmpty() }
-        .associate { it.code.uppercase() to it.benefitsSummary }
+    tiers.filter { it.code.isNotBlank() }
+        .associate { it.code.uppercase() to mergedBenefits(it) }
+
+private fun mergedBenefits(tier: ServiceTier): List<String> {
+    val rows = mutableListOf<String>()
+    tier.processingCopy?.takeIf { it.isNotBlank() }?.let(rows::add)
+    rows += tier.benefitsSummary
+    if (tier.benefitsSummary.isEmpty()) {
+        if (tier.isPriority) rows += "Priority processing lane."
+        if (tier.aircoinsEligible) rows += "Earns AirCoins on eligible shipping charges."
+        if (tier.freeReturnLbCap > 0) {
+            rows += "Free returns up to ${formatLb(tier.freeReturnLbCap)} lb per package."
+        }
+    }
+    restoredMarketingBenefits[tier.code.uppercase()].orEmpty()
+        .filterNot { it in rows }
+        .forEach(rows::add)
+    if (rows.isEmpty()) rows += "Standard AirDrop service."
+    return rows
+}
+
+private fun formatLb(value: Double): String =
+    if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()
+
+/**
+ * Restored original-app benefit copy (Swift restoredMarketingBenefits,
+ * Kemar 2026-07-11 "add back everything"), minus: (a) lines excluded by
+ * explicit ruling — RUBY and SAVR must never mention AirCoins; (b) exact
+ * duplicates of the API rows; (c) the held conflicts pending Kemar's ruling
+ * (next-day/unlimited-storage on DIAM, 24h/60-day on PLAT, 2-3-day on RUBY)
+ * which must NOT be shown against contradicting backend copy.
+ */
+private val restoredMarketingBenefits: Map<String, List<String>> = mapOf(
+    "DIAM" to listOf(
+        "Priority logging, warehouse handling, and customs clearance.",
+        "Dedicated WhatsApp VIP line for real-time assistance.",
+        "Exclusive discounts and AirCoins multipliers on every shipment.",
+        "Early access to clearance events, auctions, and flash sales.",
+        "Personalized account concierge for dispute or issue resolution.",
+        "Surprise appreciation gifts for milestone achievements (e.g. 100th shipment, 1-year VIP anniversary).",
+    ),
+    "PLAT" to listOf(
+        "Premium customer support queue with faster handling.",
+        "Up to 10% shipping discounts and reduced handling fees.",
+        "Double AirCoins events and random loyalty gifts.",
+        "Priority in pre-auction and sales events.",
+        "Access to affiliate and referral bonuses.",
+        "Complimentary upgrade offers during seasonal promotions.",
+    ),
+    "GOLD" to listOf(
+        "Free storage for 30 days on all incoming packages.",
+        "3-5% discounted shipping rates.",
+        "Standard loyalty rewards plus double-points promotions during AirDrop events.",
+        "Early notifications for sales, warehouse auctions, and holiday offers.",
+        "General support line priority over standard-tier members.",
+        "Eligibility for seasonal upgrade offers.",
+    ),
+    "RUBY" to listOf(
+        "No free storage included.",
+        "Competitive base shipping rates.",
+        "Exclusive partner coupons and limited-time promos.",
+        "Access to standard customer support channels during business hours.",
+        "Auto-upgrade eligibility after 12 months of consistent activity.",
+    ),
+    "SAVR" to listOf(
+        "Basic processing (3-5 business days).",
+        "Standard shipping rates.",
+        "No free storage included.",
+        "Access to limited promotions and onboarding discounts.",
+        "Eligibility for early upgrade upon meeting spend thresholds.",
+        "Welcome emails and loyalty guidance to familiarize them with benefits.",
+    ),
+)
 
 /** Fold GET /customers/me/tier into the page state (the authoritative source). */
 internal fun applyCustomerTier(

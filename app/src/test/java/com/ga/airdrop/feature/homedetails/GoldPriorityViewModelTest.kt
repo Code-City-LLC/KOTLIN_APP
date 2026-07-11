@@ -84,18 +84,84 @@ class GoldPriorityViewModelTest {
     }
 
     @Test
-    fun `benefitsByCodeFrom keys by upper-case code and drops empty tiers`() {
+    fun `benefitsByCodeFrom merges server copy, flags and restored marketing (Swift model)`() {
         val tiers = listOf(
-            ServiceTier(code = "diam", benefitsSummary = listOf("VIP priority", "Free returns")),
-            ServiceTier(code = "RUBY", benefitsSummary = emptyList()), // no bullets → dropped
+            ServiceTier(
+                code = "diam",
+                processingCopy = "Next possible ship-out; highest priority",
+                benefitsSummary = listOf("VIP priority", "Free returns"),
+                isPriority = true, // must NOT duplicate into a flag row — summary owns the facts
+            ),
+            ServiceTier(code = "RUBY", benefitsSummary = emptyList()),
             ServiceTier(code = "", benefitsSummary = listOf("orphan")), // blank code → dropped
         )
         val map = benefitsByCodeFrom(tiers)
 
-        assertEquals(1, map.size)
-        assertEquals(listOf("VIP priority", "Free returns"), map["DIAM"])
-        assertFalse(map.containsKey("RUBY")) // page keeps its own fallback copy
+        // DIAM: processing_copy first, summary verbatim, then restored marketing.
+        val diam = map.getValue("DIAM")
+        assertEquals("Next possible ship-out; highest priority", diam[0])
+        assertEquals(listOf("VIP priority", "Free returns"), diam.subList(1, 3))
+        assertFalse(diam.contains("Priority processing lane.")) // flag rows only when summary empty
+        assertTrue(diam.contains("Dedicated WhatsApp VIP line for real-time assistance."))
+        assertEquals(diam.size, diam.distinct().size)
+
+        // RUBY: no summary + no flags → restored marketing only, and NEVER AirCoins.
+        val ruby = map.getValue("RUBY")
+        assertTrue(ruby.isNotEmpty())
+        assertTrue(ruby.contains("Competitive base shipping rates."))
+        assertFalse(ruby.any { it.contains("AirCoins", ignoreCase = true) })
+
         assertFalse(map.containsKey(""))
+    }
+
+    @Test
+    fun `benefitsByCodeFrom derives flag rows only when the server sent no summary`() {
+        val tiers = listOf(
+            ServiceTier(
+                code = "GOLD",
+                benefitsSummary = emptyList(),
+                isPriority = true,
+                aircoinsEligible = true,
+                freeReturnLbCap = 10.0,
+            ),
+        )
+        val gold = benefitsByCodeFrom(tiers).getValue("GOLD")
+        assertEquals("Priority processing lane.", gold[0])
+        assertEquals("Earns AirCoins on eligible shipping charges.", gold[1])
+        assertEquals("Free returns up to 10 lb per package.", gold[2])
+        // Restored marketing follows the flag-derived facts.
+        assertTrue(gold.contains("Free storage for 30 days on all incoming packages."))
+    }
+
+    @Test
+    fun `tierRelation drives the page-relative CTA state machine`() {
+        val gold = tierPages.indexOfFirst { it.id == "gold" }
+        val diamond = tierPages.indexOfFirst { it.id == "diamond" }
+        val ruby = tierPages.indexOfFirst { it.id == "ruby" }
+        val inactive = tierPages.indexOfFirst { it.id == "inactive" }
+        val corporate = tierPages.indexOfFirst { it.id == "corporate" }
+
+        // Gold customer: higher pages upsell, own page is current, lower hidden.
+        assertEquals(TierRelation.Upgrade, tierRelation(diamond, gold))
+        assertEquals(TierRelation.Current, tierRelation(gold, gold))
+        assertEquals(TierRelation.Downgrade, tierRelation(ruby, gold))
+        // Corporate is a separate B2B SKU — never an upgrade path.
+        assertEquals(TierRelation.Preview, tierRelation(corporate, gold))
+        // Inactive page: activation CTA only when it IS the customer's state.
+        assertEquals(TierRelation.Downgrade, tierRelation(inactive, gold))
+        assertEquals(TierRelation.Activation, tierRelation(inactive, inactive))
+        // Unresolved tier → preview everywhere (CTA hidden).
+        assertEquals(TierRelation.Preview, tierRelation(gold, null))
+    }
+
+    @Test
+    fun `adjacentCodedTier skips the presentational pages`() {
+        val gold = tierPages.indexOfFirst { it.id == "gold" }
+        val sapphire = tierPages.indexOfFirst { it.id == "sapphire" }
+        assertEquals("PLAT", adjacentCodedTier(gold, -1)?.apiCode)
+        assertEquals("RUBY", adjacentCodedTier(gold, +1)?.apiCode)
+        // Below Sapphire sit only Inactive/Corporate — no coded tier.
+        assertNull(adjacentCodedTier(sapphire, +1))
     }
 
     @Test
