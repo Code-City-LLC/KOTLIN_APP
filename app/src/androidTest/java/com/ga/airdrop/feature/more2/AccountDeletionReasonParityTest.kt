@@ -14,6 +14,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuthorizedUserEnvelope
@@ -145,6 +146,8 @@ class AccountDeletionReasonParityTest {
             ThemeController.set(ThemeController.Mode.LIGHT)
             AuthTokenStore.init(context)
             AuthTokenStore.save("token-before-delete")
+            ExchangeRateStore.init(context)
+            ExchangeRateStore.update(201.25)
             SessionStore.update {
                 it.copy(greeting = "Hi", firstName = "Kemar", airCoins = "42", cartCount = 1)
             }
@@ -171,6 +174,9 @@ class AccountDeletionReasonParityTest {
         assertNull(ShopCheckoutStore.product)
         assertNull(ShopCheckoutStore.pendingRef)
         assertNull(ShopProductHandoffStore.consume("delete-details"))
+        assertEquals(ExchangeRateStore.DEFAULT_USD_TO_JMD, ExchangeRateStore.current, 0.0)
+        ExchangeRateStore.init(context)
+        assertEquals(ExchangeRateStore.DEFAULT_USD_TO_JMD, ExchangeRateStore.current, 0.0)
         assertEquals(BackgroundStore.DEFAULT_ID, BackgroundStore.selectedId(context))
         assertEquals("", AccountDeletionFlow.email)
         assertEquals("", AccountDeletionFlow.password)

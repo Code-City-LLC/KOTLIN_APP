@@ -25,6 +25,7 @@ import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.cart.SavedForLaterStore
@@ -156,6 +157,8 @@ class SettingsParityTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         AuthTokenStore.init(context)
         AuthTokenStore.save("token-to-clear")
+        ExchangeRateStore.init(context)
+        ExchangeRateStore.update(199.75)
         SessionStore.update {
             it.copy(
                 greeting = "Welcome back",
@@ -200,6 +203,9 @@ class SettingsParityTest {
         assertNull(ShopCheckoutStore.product)
         assertNull(ShopCheckoutStore.pendingRef)
         assertNull(ShopProductHandoffStore.consume("stale-details"))
+        assertEquals(ExchangeRateStore.DEFAULT_USD_TO_JMD, ExchangeRateStore.current, 0.0)
+        ExchangeRateStore.init(context)
+        assertEquals(ExchangeRateStore.DEFAULT_USD_TO_JMD, ExchangeRateStore.current, 0.0)
         SettingsViewModel.CACHE_KEYS.forEach { key ->
             assertFalse("Logout should remove cache key $key", cachePrefs.contains(key))
         }

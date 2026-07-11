@@ -155,6 +155,7 @@ fun BiometricLockScreen(
                         BiometricGate.reset()
                         com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
                         com.ga.airdrop.feature.shop.clearShopSessionCaches()
+                        com.ga.airdrop.core.prefs.ExchangeRateStore.clear()
                         onUnlocked()
                     }
                     .padding(8.dp)

@@ -34,4 +34,10 @@ object ExchangeRateStore {
         current = rate
         prefs?.edit()?.putString(KEY, rate.toString())?.apply()
     }
+
+    /** Drop the user-session value and restore the server-seeded default. */
+    fun clear() {
+        current = DEFAULT_USD_TO_JMD
+        prefs?.edit()?.remove(KEY)?.apply()
+    }
 }
