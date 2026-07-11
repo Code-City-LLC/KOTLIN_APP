@@ -72,7 +72,11 @@ fun FeaturedProductsScreen(
 ) {
     ProductListScreen(
         title = "Feature Products",
-        searchPlaceholder = "Paste Any Amazon Product Link",
+        // React (behavioral source of truth, NavyCave #21020 gap 2): the field
+        // is a normal server search — "Paste Any Amazon Product Link" promised
+        // an importer that doesn't exist. Swift is adopting the same truthful
+        // copy; do not invent a link importer.
+        searchPlaceholder = "Search Products",
         emptyText = "No Products Found",
         featured = true,
         viewModel = viewModel,
