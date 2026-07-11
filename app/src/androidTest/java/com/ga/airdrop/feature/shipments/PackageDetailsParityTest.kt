@@ -123,6 +123,21 @@ class PackageDetailsParityTest {
             detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
         )
 
+        val row = compose.onNodeWithTag("package-details-invoice-row-101")
+            .performScrollTo()
+            .getUnclippedBoundsInRoot()
+        val delete = compose.onNodeWithTag("package-details-invoice-delete-101")
+            .getUnclippedBoundsInRoot()
+        val view = compose.onNodeWithTag("package-details-invoice-view-101")
+            .getUnclippedBoundsInRoot()
+        assertClose(56f, boundsHeight(row), "Swift invoice row height before ready")
+        assertClose(28f, boundsWidth(delete), "Swift invoice delete control width")
+        assertClose(28f, boundsHeight(delete), "Swift invoice delete control height")
+        assertClose(28f, boundsWidth(view), "Swift invoice view control width")
+        assertClose(28f, boundsHeight(view), "Swift invoice view control height")
+        assertTrue("Swift orders invoice actions trash before view", delete.right <= view.left)
+        assertTrue("Swift keeps invoice actions inside row trailing edge", view.right < row.right)
+
         compose.onNodeWithTag("package-details-invoice-delete-101")
             .performScrollTo()
             .performClick()
@@ -178,6 +193,10 @@ class PackageDetailsParityTest {
         compose.onNodeWithTag("package-details-invoice-deleting-101")
             .performScrollTo()
             .assertIsDisplayed()
+        val deleting = compose.onNodeWithTag("package-details-invoice-deleting-101")
+            .getUnclippedBoundsInRoot()
+        assertClose(28f, boundsWidth(deleting), "Delete progress control width")
+        assertClose(28f, boundsHeight(deleting), "Delete progress control height")
         assertFalse(
             "Delete mutation should not replace visible package details with a full-page loading state",
             packageDetailsViewModel.state.value.loading,
