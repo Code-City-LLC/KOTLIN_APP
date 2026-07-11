@@ -89,6 +89,37 @@ class AuctionCheckoutParityTest {
     }
 
     @Test
+    fun failedLiveRateKeepsPersistedRateForInitialJmdTotal() {
+        val previousRate = com.ga.airdrop.core.prefs.ExchangeRateStore.current
+        val previousProduct = ShopCheckoutStore.product
+        try {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                com.ga.airdrop.core.prefs.ExchangeRateStore.update(173.25)
+                ShopCheckoutStore.product = SampleProduct
+                val viewModel = AuctionCheckoutViewModel(
+                    checkout = FakeShopCheckoutRepository(
+                        checkoutFailure = null,
+                        exchangeRateResult = Result.failure(IllegalStateException("offline")),
+                    )
+                )
+
+                viewModel.setCurrency("JMD")
+
+                assertEquals(
+                    "The last-known rate must survive a failed live refresh",
+                    " JA$7,276.50",
+                    viewModel.totalLabel(),
+                )
+            }
+        } finally {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                com.ga.airdrop.core.prefs.ExchangeRateStore.update(previousRate)
+                ShopCheckoutStore.product = previousProduct
+            }
+        }
+    }
+
+    @Test
     fun sharedCheckoutAndCartFieldsUseSwiftMakeFieldTokens() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
@@ -197,6 +228,7 @@ class AuctionCheckoutParityTest {
 
     private class FakeShopCheckoutRepository(
         private val checkoutFailure: Throwable?,
+        private val exchangeRateResult: Result<Double> = Result.success(161.0),
     ) : ShopCheckoutRepository {
         override suspend fun createCheckout(
             packageIds: List<Int>,
@@ -205,7 +237,7 @@ class AuctionCheckoutParityTest {
         ): Result<String> = checkoutFailure?.let { Result.failure(it) }
             ?: Result.success("https://checkout.airdropja.test/session")
 
-        override suspend fun exchangeRate(): Result<Double> = Result.success(161.0)
+        override suspend fun exchangeRate(): Result<Double> = exchangeRateResult
 
         override suspend fun billingProfile(): Result<ShopBillingProfile> =
             Result.success(ShopBillingProfile())
