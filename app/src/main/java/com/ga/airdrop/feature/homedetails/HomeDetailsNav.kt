@@ -52,11 +52,7 @@ fun NavGraphBuilder.homeDetailsGraph(navController: NavHostController) {
     }
 
     composable(Routes.GOLD_PRIORITY) {
-        GoldPriorityScreen(
-            onBack = { navController.popBackStack() },
-            // Corporate page's "Contact Us" CTA (seven-page contract).
-            onNavigate = { navController.navigate(it) },
-        )
+        GoldPriorityScreen(onBack = { navController.popBackStack() })
     }
 
     composable(Routes.NOTIFICATIONS) {

@@ -13,8 +13,6 @@ import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
 import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.CustomerTier
-import com.ga.airdrop.data.model.TierChangeRequest
-import com.ga.airdrop.data.model.TierChangeResult
 import com.ga.airdrop.data.model.CustomDutyRate
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
@@ -116,12 +114,6 @@ interface AirdropApiService {
 
     @GET("customers/me/tier")
     suspend fun customerTier(): DataEnvelope<CustomerTier>
-
-    // PATCH /customers/me/tier — backend applies its own rules (Swift
-    // AirdropAPI.changeCustomerTier). Response is a change RESULT (not the
-    // tier shape); the flow only claims success after the GET confirmation.
-    @PATCH("customers/me/tier")
-    suspend fun changeCustomerTier(@Body body: TierChangeRequest): DataEnvelope<TierChangeResult>
 
     // ── CMS / FAQ ──
 
