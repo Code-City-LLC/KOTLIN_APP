@@ -12,6 +12,7 @@ import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
 import com.ga.airdrop.data.model.CurrentUserResponse
+import com.ga.airdrop.data.model.CustomerTier
 import com.ga.airdrop.data.model.CustomDutyRate
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
@@ -53,6 +54,7 @@ import com.ga.airdrop.data.model.ResetPasswordRequest
 import com.ga.airdrop.data.model.ReverseGeocodeRequest
 import com.ga.airdrop.data.model.ReverseGeocodeResult
 import com.ga.airdrop.data.model.SaveDeliveryPreferenceRequest
+import com.ga.airdrop.data.model.ServiceTier
 import com.ga.airdrop.data.model.SearchPlacesRequest
 import com.ga.airdrop.data.model.SendTestNotificationRequest
 import com.ga.airdrop.data.model.ShipmentCalculation
@@ -106,6 +108,12 @@ interface AirdropApiService {
 
     @POST("user/reactivate-account")
     suspend fun reactivateAccount(@Body body: ReactivateAccountRequest): LoginResponse
+
+    @GET("service-tiers")
+    suspend fun serviceTiers(): Paginated<ServiceTier>
+
+    @GET("customers/me/tier")
+    suspend fun customerTier(): DataEnvelope<CustomerTier>
 
     // ── CMS / FAQ ──
 
