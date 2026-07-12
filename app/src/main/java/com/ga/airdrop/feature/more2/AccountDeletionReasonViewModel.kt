@@ -74,18 +74,7 @@ class AccountDeletionReasonViewModel(
                 .onSuccess {
                     // Full logout hygiene mirrors Swift AccountDeletionReason:
                     // token/session plus local visual/cart state.
-                    AuthTokenStore.clear()
-                    SessionStore.clear()
-                    CartStore.init(appContext)
-                    CartStore.clear()
-                    SavedForLaterStore.init(appContext)
-                    SavedForLaterStore.clearAll()
-                    com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
-                    com.ga.airdrop.core.push.QuietHoursStore.clear(appContext)
-                    com.ga.airdrop.core.security.BiometricGate.reset()
-                    com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
-                    com.ga.airdrop.feature.shop.clearShopSessionCaches()
-                    com.ga.airdrop.core.prefs.ExchangeRateStore.clear()
+                    com.ga.airdrop.core.session.clearLocalUserSession(appContext)
                     BackgroundStore.clear(appContext)
                     AccountDeletionFlow.clear()
                     _state.update { it.copy(deleting = false, deleted = true) }

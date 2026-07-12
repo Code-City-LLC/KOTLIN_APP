@@ -70,19 +70,16 @@ fun SignUpScreen(
     var pickerFor by remember { mutableStateOf<String?>(null) }
     var showCustomsText by remember { mutableStateOf(false) }
 
-    // Swift SignUpViewController.swift:510-523 — on success show a success
-    // alert, then pop back to Login when the user taps OK.
+    // Current Swift (FigmaSignUpViewController success sheet): registration
+    // success routes straight to the full-screen Registration Successful
+    // glass sheet with the verification-link copy — the old :510-523 bare
+    // alert is gone (FuchsiaTower Audit #59 F5). Consume the flag before
+    // navigating so this can never re-fire (WORK ORDER B1).
     if (state.registered) {
-        AuthAlertDialog(
-            title = "Registration Successful",
-            message = "Your account has been created. Please log in to continue.",
-            // Consume the flag before navigating so the dialog can never
-            // re-arm if navigation is delayed or fails (WORK ORDER B1).
-            onDismiss = {
-                viewModel.consumeRegistered()
-                onRegistered()
-            },
-        )
+        LaunchedEffect(Unit) {
+            viewModel.consumeRegistered()
+            onRegistered()
+        }
     }
 
     Column(

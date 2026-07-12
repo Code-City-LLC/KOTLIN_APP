@@ -163,18 +163,7 @@ internal fun BiometricLockContent(
                 color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier
                     .clickable {
-                        AuthTokenStore.clear()
-                        SessionStore.clear()
-                        CartStore.init(context.applicationContext)
-                        CartStore.clear()
-                        SavedForLaterStore.init(context.applicationContext)
-                        SavedForLaterStore.clearAll()
-                        DeliveryDefaultsStore.clearAll()
-                        QuietHoursStore.clear(context.applicationContext)
-                        BiometricGate.reset()
-                        com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
-                        com.ga.airdrop.feature.shop.clearShopSessionCaches()
-                        com.ga.airdrop.core.prefs.ExchangeRateStore.clear()
+                        com.ga.airdrop.core.session.clearLocalUserSession(context)
                         onUnlocked()
                     }
                     .padding(8.dp)

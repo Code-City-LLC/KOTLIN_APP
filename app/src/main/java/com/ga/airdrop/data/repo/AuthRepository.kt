@@ -20,7 +20,9 @@ class AuthRepository(private val service: AirdropApiService) {
 
     suspend fun signUp(request: SignUpRequest): Result<LoginResponse> = apiResult {
         val response = service.register(request)
-        response.token?.let(AuthTokenStore::save)
+        // Registration may return a real bearer, but Swift keeps the user
+        // signed out until email verification and an explicit login.
+        AuthTokenStore.clear()
         response
     }
 
