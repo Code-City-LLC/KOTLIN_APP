@@ -9,15 +9,14 @@ import org.junit.Test
  *
  * Source of truth: Swift `FigmaPackageDetailsViewController.canDeleteInvoices(for:)`
  * (FigmaPackageDetailsViewController.swift L1473-1485):
- *   - false if `Int(status) >= 7`
- *   - else false if `statusName` contains ready / pickup / pick up
- *   - else false if `statusName` contains delivered / complete
+ *   - false for explicit IDs 7, 8, 14-20 (excluding gaps)
+ *   - else false when the status/catalog name describes a locked terminal state
  *   - else true
  *
  * The single `PackageDetailsUiState.canDeleteInvoices` predicate drives BOTH surfaces:
  * the Screen hides the trash icon (`canDelete = state.canDeleteInvoices`) AND the
  * ViewModel guard makes `requestDeleteInvoice` inert — so exercising the predicate
- * proves "delete/trash is gone OR inert at status 7+" for both.
+ * proves the delete/trash action is hidden or inert for every locked state.
  *
  * Upload is intentionally NOT gated (the Swift upload zone and Kotlin `UploadInvoiceZone`
  * are ungated), so upload stays reachable at every status including status 7.
@@ -36,22 +35,22 @@ class PackageDetailsInvoiceGatingTest {
         assertTrue(canDelete("6", "Processing at our Warehouse"))
     }
 
-    // ── Numeric status >= 7 (Ready for Pickup and later): delete blocked ──────
-    @Test fun deleteBlocked_whenNumericStatus7OrLater() {
+    @Test fun deleteBlocked_whenNumericStatusIsInSwiftLockSet() {
         assertFalse(canDelete("7", "Ready for Pickup"))
         assertFalse(canDelete("8", "Delivered"))
+        assertFalse(canDelete("14"))
+        assertFalse(canDelete("15"))
+        assertFalse(canDelete("16"))
+        assertFalse(canDelete("17"))
         assertFalse(canDelete("18", "Paid and Ready for Pick Up"))
+        assertFalse(canDelete("19"))
+        assertFalse(canDelete("20"))
     }
 
-    /**
-     * Swift keeps the numeric `>= 7` predicate for DELETE on purpose (charges use a
-     * different `== 7 || == 18`), so codes 9/10/12 — although workflow-earlier — are
-     * blocked by `>= 7` in BOTH apps. We match Swift exactly rather than "correct" it.
-     */
-    @Test fun deleteBlocked_matchesSwiftNumericPredicate_forHighCodes() {
-        assertFalse(canDelete("9"))
-        assertFalse(canDelete("10"))
-        assertFalse(canDelete("12"))
+    @Test fun deleteAllowed_whenNumericStatusIsAHighButUnlockedGap() {
+        assertTrue(canDelete("9"))
+        assertTrue(canDelete("10"))
+        assertTrue(canDelete("12"))
     }
 
     // ── statusName fallback: the regression the old `statusInt >= 7` gate missed ──
@@ -62,7 +61,12 @@ class PackageDetailsInvoiceGatingTest {
         assertFalse(canDelete(status = null, statusName = "Ready for Pickup"))
         assertFalse(canDelete(status = null, statusName = "Ready For Pick Up"))
         assertFalse(canDelete(status = null, statusName = "Delivered"))
+        assertFalse(canDelete(status = null, statusName = "Ready for Delivery"))
         assertFalse(canDelete(status = null, statusName = "Order Complete"))
+        assertFalse(canDelete(status = null, statusName = "Returned to Merchant"))
+        assertFalse(canDelete(status = null, statusName = "Uncollected Packages"))
+        assertFalse(canDelete(status = null, statusName = "Dangerous Goods"))
+        assertFalse(canDelete(status = null, statusName = "Auction"))
     }
 
     @Test fun deleteBlocked_viaStatusNameFallback_whenNumericStatusNonNumeric() {
@@ -92,5 +96,6 @@ class PackageDetailsInvoiceGatingTest {
 
     @Test fun deleteAllowed_whenDecimalStatusBelow7() {
         assertTrue(canDelete("6.5"))
+        assertTrue(canDelete("7.5"))
     }
 }

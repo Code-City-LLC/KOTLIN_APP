@@ -50,12 +50,11 @@ data class PackageDetailsUiState(
     /**
      * Invoice trash gating — parity with Swift FigmaPackageDetailsViewController
      * .canDeleteInvoices(for:) (L1473-1485): the delete/trash action is hidden
-     * once a package is Ready for Pickup (numeric status >= 7) or later, with a
-     * statusName fallback for when the numeric `status` is missing/non-numeric.
+     * once a package reaches one of Swift's explicit terminal/locked status IDs,
+     * with a status-name fallback for missing, stale, or non-numeric values.
      * Upload stays allowed at every status. UI/action-gating parity only (QC #14710).
      *
-     * Deliberately independent of [showChargesAndCart] (which uses `== 7 || == 18`);
-     * delete keeps Swift's numeric `>= 7`. Do not fold these together.
+     * Deliberately independent of [showChargesAndCart]. Do not fold these together.
      */
     val canDeleteInvoices: Boolean
         get() {
@@ -64,9 +63,6 @@ data class PackageDetailsUiState(
             // comma-decimal and floating values accepted.
             val values = listOfNotNull(detail?.status, detail?.statusName).map { it.trim() }
             if (values.any(::statusLocksInvoiceDeletion)) return false
-            val lower = values.joinToString(" ") { it.lowercase() }
-            if (lower.contains("ready") || lower.contains("pickup") || lower.contains("pick up")) return false
-            if (lower.contains("delivered") || lower.contains("complete")) return false
             return true
         }
 
@@ -79,14 +75,37 @@ data class PackageDetailsUiState(
 
 /**
  * Swift FigmaPackageDetailsViewController.statusLocksInvoiceDeletion
- * (5496ed0): a status value locks invoice deletion when it parses to a
- * number >= 7 — integer or floating, comma decimals normalized.
+ * Package status IDs are non-contiguous. Mirror Swift's explicit lock set,
+ * integer-valued decimal/comma normalization, catalog lookup, and name fallback.
  */
 internal fun statusLocksInvoiceDeletion(value: String): Boolean {
-    val normalized = value.replace(",", ".")
-    normalized.toIntOrNull()?.let { return it >= 7 }
-    normalized.toDoubleOrNull()?.let { return it >= 7.0 }
-    return false
+    val code = normalizedInvoiceStatusCode(value)
+    if (code != null) {
+        if (code in INVOICE_DELETION_LOCKED_STATUS_IDS) return true
+        ShipmentStatusCatalog.defaults.firstOrNull { it.id == code }?.name?.let { name ->
+            if (statusNameLocksInvoiceDeletion(name)) return true
+        }
+    }
+    return statusNameLocksInvoiceDeletion(value)
+}
+
+private val INVOICE_DELETION_LOCKED_STATUS_IDS = setOf(7, 8, 14, 15, 16, 17, 18, 19, 20)
+
+private fun normalizedInvoiceStatusCode(value: String): Int? {
+    val normalized = value.trim().replace(",", ".")
+    normalized.toIntOrNull()?.let { return it }
+    val number = normalized.toDoubleOrNull() ?: return null
+    if (!number.isFinite() || number % 1.0 != 0.0) return null
+    if (number < Int.MIN_VALUE.toDouble() || number > Int.MAX_VALUE.toDouble()) return null
+    return number.toInt()
+}
+
+private fun statusNameLocksInvoiceDeletion(value: String): Boolean {
+    val lower = value.lowercase()
+    return lower.contains("ready") || lower.contains("pickup") || lower.contains("pick up") ||
+        lower.contains("delivered") || lower.contains("delivery") || lower.contains("complete") ||
+        lower.contains("returned") || lower.contains("uncollected") ||
+        lower.contains("dangerous") || lower.contains("auction")
 }
 
 internal fun reportDamageFeatureEnabled(): Boolean =
