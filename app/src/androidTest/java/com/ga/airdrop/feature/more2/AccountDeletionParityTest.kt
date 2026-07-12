@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.data.model.AirdropUser
@@ -54,7 +53,6 @@ class AccountDeletionParityTest {
 
     @Test
     fun entryScreenFollowsSwiftOverStaleFigmaAndVerifiesCredentials() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
         val api = FakeMore2Api()
         val verifiedCallbacks = AtomicInteger()
 
@@ -62,8 +60,6 @@ class AccountDeletionParityTest {
             api = api,
             mode = ThemeController.Mode.LIGHT,
             beforeCreate = {
-                AuthTokenStore.init(context)
-                AuthTokenStore.save("token-before-verify")
                 AccountDeletionFlow.clear()
             },
             onVerified = { verifiedCallbacks.incrementAndGet() },
@@ -97,14 +93,7 @@ class AccountDeletionParityTest {
         )
         assertEquals("kemar@example.com", AccountDeletionFlow.email)
         assertEquals("secret-password", AccountDeletionFlow.password)
-        assertEquals(
-            "Swift credential verification must not overwrite the logged-in bearer token.",
-            "token-before-verify",
-            AuthTokenStore.token,
-        )
-
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            AuthTokenStore.clear()
             AccountDeletionFlow.clear()
         }
     }

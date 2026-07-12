@@ -44,8 +44,15 @@ object TokenRefresher {
      * bearer; anything else (network error, body-less response) leaves the
      * session untouched — Swift logs and skips.
      */
-    fun applyForegroundRefresh(httpCode: Int?, newToken: String?) {
+    fun applyForegroundRefresh(
+        expectedSession: AuthTokenStore.Snapshot,
+        httpCode: Int?,
+        newToken: String?,
+    ) {
         synchronized(lock) {
+            // The request may finish after login or another refresh installs a
+            // newer bearer. A stale outcome must neither clear nor overwrite it.
+            if (AuthTokenStore.snapshot() != expectedSession) return
             when {
                 httpCode == 401 -> AuthTokenStore.clear()
                 !newToken.isNullOrBlank() -> AuthTokenStore.save(newToken)
