@@ -36,4 +36,8 @@ class PackageStatusColorParityTest {
         assertEquals(AlertPalette.Completed, packageStatusColor("Drop Alerted"))
         assertEquals(AlertPalette.Completed, packageStatusColor(null))
     }
+
+    @Test fun arrivedDoesNotMaskARealErrorStatus() {
+        assertEquals(AlertPalette.Error, packageStatusColor("Arrived with Error"))
+    }
 }
