@@ -97,9 +97,19 @@ class PackagesFilterFlowParityTest {
             calls.any { it.status == 7 },
         )
         assertEquals(
-            "Swift keeps shipment method client-side; repo status remains Ready after method tap",
+            "Repo status remains Ready after the method tap",
             7,
             calls.last().status,
+        )
+        assertEquals(
+            "Swift sends shipping_method server-side (AirdropAPI.packages); Express tap must reach the repo",
+            "Express",
+            calls.last().shippingMethod,
+        )
+        assertEquals(
+            "No method filter selected yet — shipping_method must be omitted",
+            null,
+            calls.first().shippingMethod,
         )
         assertEquals(null, calls.last().search)
     }
@@ -197,6 +207,7 @@ class PackagesFilterFlowParityTest {
         val perPage: Int,
         val status: Int?,
         val search: String?,
+        val shippingMethod: String?,
     )
 
     private class RecordingPackagesRepository : ShipmentsPackagesRepository {
@@ -210,8 +221,9 @@ class PackagesFilterFlowParityTest {
             perPage: Int,
             status: Int?,
             search: String?,
+            shippingMethod: String?,
         ): Result<Paged<ShipmentPackage>> {
-            recordedCalls += PackageCall(page, perPage, status, search)
+            recordedCalls += PackageCall(page, perPage, status, search, shippingMethod)
             return Result.success(Paged(samplePackages))
         }
 

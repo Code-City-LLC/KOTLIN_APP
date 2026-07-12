@@ -172,9 +172,15 @@ private class DataShipmentsPackagesRepository(
         perPage: Int,
         status: Int?,
         search: String?,
+        shippingMethod: String?,
     ): Result<Paged<ShipmentPackage>> =
-        repo.packages(page = page, perPage = perPage, status = status, search = search)
-            .map { page -> Paged(page.items.map { it.toShipment() }, page.isLastPage()) }
+        repo.packages(
+            page = page,
+            perPage = perPage,
+            status = status,
+            search = search,
+            shippingMethod = shippingMethod,
+        ).map { page -> Paged(page.items.map { it.toShipment() }, page.isLastPage()) }
 
     override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> =
         repo.packageDetails(packageId).map { it.toShipmentDetail() }

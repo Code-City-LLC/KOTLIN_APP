@@ -227,6 +227,8 @@ interface AirdropApiService {
         @Query("sort_order") sortOrder: String,
         @Query("status") status: Int?,
         @Query("search") search: String?,
+        // Laravel accepts Standard | Seadrop | Express (PackageController).
+        @Query("shipping_method") shippingMethod: String?,
     ): Paginated<Package>
 
     @GET("packages/{id}")

@@ -84,8 +84,13 @@ class ShipmentsSearchFieldParityTest {
     }
 
     private class FakePackagesRepository : ShipmentsPackagesRepository {
-        override suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?) =
-            Result.success(
+        override suspend fun packages(
+            page: Int,
+            perPage: Int,
+            status: Int?,
+            search: String?,
+            shippingMethod: String?,
+        ) = Result.success(
                 Paged(
                 listOf(
                     ShipmentPackage(

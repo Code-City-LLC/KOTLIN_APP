@@ -164,6 +164,9 @@ class PackagesViewModel(
                 perPage = PER_PAGE,
                 status = s.statusFilter.takeIf { it != 0 },
                 search = s.searchText.trim().takeIf { it.isNotEmpty() },
+                // Server-side method filter (Swift loadPackages parity) — the
+                // client-side visibleItems filter alone paginated wrong pages.
+                shippingMethod = s.methodFilter.takeIf { it != ShipmentTypeFilter.All }?.name,
             ).onSuccess { paged ->
                 val batch = paged.items
                 _state.update { current ->

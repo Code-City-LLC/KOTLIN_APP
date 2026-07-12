@@ -29,6 +29,7 @@ class PackagesRepository(private val service: AirdropApiService) {
         perPage: Int = 15,
         status: Int? = null,
         search: String? = null,
+        shippingMethod: String? = null,
     ): Result<Paginated<Package>> = apiResult {
         service.packages(
             page = page,
@@ -37,6 +38,9 @@ class PackagesRepository(private val service: AirdropApiService) {
             sortOrder = "desc",
             status = status?.takeIf { it > 0 },
             search = normalizedSearch(search),
+            // Swift AirdropAPI.packages skips the param for "All".
+            shippingMethod = shippingMethod?.trim()
+                ?.takeIf { it.isNotEmpty() && !it.equals("all", ignoreCase = true) },
         )
     }
 
