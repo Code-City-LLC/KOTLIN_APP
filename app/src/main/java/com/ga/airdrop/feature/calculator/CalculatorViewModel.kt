@@ -244,8 +244,9 @@ class CalculatorViewModel(
         calculate()
     }
 
+    // Plain (ungrouped) — this back-fills text INPUTS; grouping would break parsing.
     private fun formatAmount(value: Double): String =
-        java.util.Locale.US.let { String.format(it, "%.2f", value) }
+        com.ga.airdrop.core.designsystem.Money.plain(value)
 
     /** Lazily fetch the USD→JMD rate for the CIF sheet (once per session). */
     fun loadExchangeRate() {

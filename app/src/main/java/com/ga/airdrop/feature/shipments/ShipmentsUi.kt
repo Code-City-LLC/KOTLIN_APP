@@ -291,11 +291,12 @@ object ShipmentsFormat {
         }
 
     /** "64,841.58" — decimal, grouped, always 2 fraction digits. */
-    fun money(value: Double): String = decimal(2, 2).format(value)
+    fun money(value: Double): String =
+        com.ga.airdrop.core.designsystem.Money.grouped(value)
 
     /** "64841.58" — Swift payment-detail String(format:) style, no grouping. */
     fun moneyPlain(value: Double): String =
-        String.format(Locale.US, "%.2f", value)
+        com.ga.airdrop.core.designsystem.Money.plain(value)
 
     /** "1.3" — 0–2 fraction digits (weights). */
     fun compact(value: Double): String = decimal(0, 2).format(value)

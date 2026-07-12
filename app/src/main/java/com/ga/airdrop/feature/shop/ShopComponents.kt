@@ -60,13 +60,16 @@ import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import java.util.Locale
 
-/* ─── Formatting (Swift displayPrice / renderTotal parity) ─────────────── */
+/* ─── Formatting (Swift displayPrice / renderTotal parity) ───────────────
+ * Delegates to core Money — the single source for money strings. Plain (no
+ * grouping) is deliberate Swift cart parity (FigmaCartViewController:1242). */
 
-fun formatUsd(value: Double): String = "$" + String.format(Locale.US, "%,.2f", value)
+fun formatUsd(value: Double): String = com.ga.airdrop.core.designsystem.Money.usd(value)
 
-fun formatUsdPlain(value: Double): String = String.format(Locale.US, "USD %.2f", value)
+fun formatUsdPlain(value: Double): String =
+    com.ga.airdrop.core.designsystem.Money.usdLabelPlain(value)
 
-fun formatJmd(value: Double): String = "JA$" + String.format(Locale.US, "%,.2f", value)
+fun formatJmd(value: Double): String = com.ga.airdrop.core.designsystem.Money.jmd(value)
 
 /* ─── Stripe hosted checkout / external links (androidx.browser) ───────── */
 

@@ -51,11 +51,13 @@ import java.util.Locale
  * inner header used by every detail screen in the file.
  */
 
-/** RN formatPrice — en-US currency, 2 decimals. */
-internal fun formatPrice(value: Double): String = String.format(Locale.US, "$%,.2f", value)
+/** RN formatPrice — en-US currency, 2 decimals. Delegates to core Money. */
+internal fun formatPrice(value: Double): String =
+    com.ga.airdrop.core.designsystem.Money.usd(value)
 
 /** Currency amount without the `$` symbol — the "USD 403.35" pill format. */
-internal fun formatDecimal(value: Double): String = String.format(Locale.US, "%,.2f", value)
+internal fun formatDecimal(value: Double): String =
+    com.ga.airdrop.core.designsystem.Money.grouped(value)
 
 /**
  * Inner detail header — Swift FigmaCalculatorViewController.swift:149-168:

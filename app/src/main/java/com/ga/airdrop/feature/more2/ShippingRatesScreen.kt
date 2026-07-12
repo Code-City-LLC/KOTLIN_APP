@@ -41,10 +41,10 @@ private val FALLBACK_STANDARD_RATES: List<Pair<String, Double>> = listOf(
     "16" to 26.00, "17" to 28.00, "18" to 30.00, "19" to 32.00, "20" to 34.00,
 )
 
-// Grouped like every other money string in the app (ShopComponents.formatUsd,
-// CalculatorUi.formatPrice, ShipmentsFormat.price) — was ungrouped "%.2f",
-// rendering $1500.00 here vs $1,500.00 everywhere else.
-private fun currency(value: Double): String = "$" + String.format(java.util.Locale.US, "%,.2f", value)
+// Grouped like every other money string in the app (was ungrouped "%.2f",
+// rendering $1500.00 here vs $1,500.00 everywhere else). Delegates to core Money.
+private fun currency(value: Double): String =
+    com.ga.airdrop.core.designsystem.Money.usd(value)
 
 /**
  * Shipping Rates — Figma node 40001567:54206, behavior from

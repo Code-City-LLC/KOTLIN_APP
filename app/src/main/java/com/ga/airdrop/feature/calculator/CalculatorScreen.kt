@@ -646,4 +646,5 @@ private fun RecentCalculationItem(entry: CalculatorHistory.Entry, onClick: () ->
 private fun formatCalcNumber(v: Double): String =
     if (v == v.toLong().toDouble()) v.toLong().toString() else String.format(Locale.US, "%.1f", v)
 
-private fun formatCalcMoney(v: Double): String = String.format(Locale.US, "%.2f", v)
+private fun formatCalcMoney(v: Double): String =
+    com.ga.airdrop.core.designsystem.Money.plain(v)
