@@ -139,7 +139,11 @@ class InviteFriendViewModel(
         }
     }
 
-    fun sendEmailInvitation(contact: InviteContact) {
+    fun sendEmailInvitation(
+        contact: InviteContact,
+        showSuccess: Boolean = true,
+        onSuccess: (() -> Unit)? = null,
+    ) {
         if (_state.value.saving) return
         val first = contact.firstName.ifBlank { "Friend" }
         val last = contact.lastName.ifBlank { "Friend" }
@@ -180,11 +184,12 @@ class InviteFriendViewModel(
                             email = "",
                             selectedContact = null,
                             saving = false,
-                            successMessage = message,
+                            successMessage = message.takeIf { showSuccess },
                             validationError = null,
                             error = null,
                         )
                     }
+                    onSuccess?.invoke()
                 }
                 .onFailure { e ->
                     _state.update {
