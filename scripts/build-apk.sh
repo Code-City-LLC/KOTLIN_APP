@@ -329,7 +329,7 @@ publish_apk() {
   mv "$TXN_DIR/staged.apk" "$dest"
   fail_at after_artifact
 
-  bytes="$(stat -f '%z' "$dest" 2>/dev/null || stat -c '%s' "$dest")"
+  bytes="$(wc -c < "$dest" | tr -d '[:space:]')"
   printf 'v%s\t%s\t%s\tapp_version=%s\tgradle_version=%s\tgit=%s\t%s bytes\n' \
     "$n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$variant" "$(app_version)" \
     "$(gradle_version)" "$source_sha" "$bytes" >> "$LOG_FILE"

@@ -66,6 +66,7 @@ for _ in 1 2 3 4 5; do test_publish "$store" 3; done
 [ "$(find "$store" -name 'airdrop-v*.apk' -type f | wc -l | tr -d ' ')" = 3 ] || fail "retention count is wrong"
 [ ! -e "$store/airdrop-v2.apk" ] && [ -e "$store/airdrop-v3.apk" ] || fail "retention is not numeric"
 grep -q 'app_version=.*gradle_version=' "$store/BUILD_LOG.txt" || fail "provenance fields are not split"
+[ "$(wc -l < "$store/BUILD_LOG.txt" | tr -d '[:space:]')" = 5 ] || fail "ledger rows are not one line per publication"
 pass "spaces, monotonic counter, retention, latest, and provenance"
 
 # Malformed inputs fail without mutation.
