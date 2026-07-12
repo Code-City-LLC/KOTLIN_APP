@@ -78,6 +78,78 @@ data class MoreUser(
         }
 }
 
+/** The fields Laravel `UpdateUserRequest` marks `required` on PUT /user/profile. */
+private val PROFILE_REQUIRED_KEYS = listOf("user_id", "email", "first_name", "last_name")
+
+/** True if any Laravel-required profile field is absent/blank in a sparse payload. */
+internal fun profileRequiredFieldsMissing(fields: Map<String, String?>): Boolean =
+    PROFILE_REQUIRED_KEYS.any { fields[it].isNullOrBlank() }
+
+/**
+ * Swift `AirdropAPI.completedProfileUpdateRequest` parity: given a (possibly
+ * sparse) profile payload and the cached [user], fill any missing required field
+ * (user_id/email/first_name/last_name) from the cache so PUT /user/profile passes
+ * Laravel validation. Present values win; a null [user] leaves the payload as-is.
+ */
+internal fun completeProfileFields(fields: Map<String, String?>, user: MoreUser?): Map<String, String?> {
+    if (user == null) return fields
+    val out = fields.toMutableMap()
+    fun fill(key: String, value: String?) {
+        if (out[key].isNullOrBlank()) value?.trim()?.takeIf { it.isNotEmpty() }?.let { out[key] = it }
+    }
+    fill("user_id", user.id?.toString())
+    fill("email", user.email)
+    fill("first_name", user.firstName)
+    fill("last_name", user.lastName)
+    return out
+}
+
+/**
+ * Fail-closed back-fill decision (NavyCave #21904, Swift truth at AirdropAPI
+ * 1732-1745): when the sparse payload misses required fields, the current-user
+ * fetch is MANDATORY — a failed GET or a still-incomplete fetched profile means
+ * ZERO PUT and a user-visible error, never a sparse request Laravel will 422 or
+ * half-apply. Pure so the branches are unit-testable.
+ */
+internal fun resolveProfileBackfill(
+    fields: Map<String, String?>,
+    cached: Result<MoreUser>,
+): Result<Map<String, String?>> {
+    val user = cached.getOrElse {
+        // Swift's async-throws completion helper propagates this fetch error.
+        return Result.failure(it)
+    }
+    val filled = completeProfileFields(fields, user)
+    return if (profileRequiredFieldsMissing(filled)) {
+        Result.failure(
+            IllegalStateException(
+                "Your profile is missing required details (name or email). " +
+                    "Update your profile and try again.",
+            ),
+        )
+    } else {
+        Result.success(filled)
+    }
+}
+
+/**
+ * The single GET-if-needed -> completed PUT operation used by [MoreRepository].
+ * Lambdas keep request sequencing directly testable without a second repo path.
+ */
+internal suspend fun updateProfileWithBackfill(
+    fields: Map<String, String?>,
+    fetchCurrentUser: suspend () -> Result<MoreUser>,
+    putProfile: suspend (Map<String, String?>) -> Result<String?>,
+): Result<String?> {
+    val completed = if (profileRequiredFieldsMissing(fields)) {
+        resolveProfileBackfill(fields, fetchCurrentUser())
+            .getOrElse { return Result.failure(it) }
+    } else {
+        fields
+    }
+    return putProfile(completed)
+}
+
 data class ProfileAsset(val url: String?, val path: String?) {
     val resolvedUrl: String?
         get() = (url ?: path)?.trim()?.takeIf { it.isNotEmpty() }
@@ -134,11 +206,25 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
      * ProfileUpdateRequest. Null values are omitted (server keeps old value).
      */
     override suspend fun updateProfile(fields: Map<String, String?>): Result<String?> {
-        val body = buildJsonObject {
-            fields.forEach { (key, value) -> if (value != null) put(key, value) }
-        }
-        return request("PUT", "/user/profile", body.toString().toRequestBody(jsonMedia)) { root ->
-            root.flexString("message")
+        // Swift AirdropAPI.completedProfileUpdateRequest (AirdropAPI.swift:1699):
+        // PUT /user/profile validates user_id + email + first_name + last_name as
+        // REQUIRED (Laravel UpdateUserRequest), so a sparse caller (Preferences
+        // sends only user_id/email/pickup_location/payment_currency) must be
+        // COMPLETED with the cached profile's required fields before the request,
+        // or every Save 422s. Mirror Swift: back-fill from currentUser() only when
+        // a required field is missing.
+        // Fail closed (NavyCave #21904): required fields missing + failed or
+        // incomplete current-user fetch => zero PUT, error surfaces to Save.
+        return updateProfileWithBackfill(
+            fields = fields,
+            fetchCurrentUser = ::currentUser,
+        ) { completed ->
+            val body = buildJsonObject {
+                completed.forEach { (key, value) -> if (value != null) put(key, value) }
+            }
+            request("PUT", "/user/profile", body.toString().toRequestBody(jsonMedia)) { root ->
+                root.flexString("message")
+            }
         }
     }
 
