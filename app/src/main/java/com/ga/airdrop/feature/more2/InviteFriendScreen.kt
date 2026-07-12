@@ -157,7 +157,13 @@ fun InviteFriendScreen(
             .imePadding()
             .testTag("invite-friend-screen"),
     ) {
-        More2InnerHeader(title = "Send Invitation", onBack = onBack)
+        More2InnerHeader(
+            title = "Send Invitation",
+            onBack = onBack,
+            modifier = Modifier.testTag("invite-friend-glass-header"),
+            surfaceColor = colors.glassOverlay70,
+            dividerColor = colors.cardHairline,
+        )
 
         Column(
             Modifier
@@ -255,12 +261,22 @@ fun InviteFriendScreen(
             InfoCard()
         }
 
-        More2BottomBar {
+        More2BottomBar(
+            modifier = Modifier.testTag("invite-friend-footer"),
+            verticalPadding = 20.dp,
+            surfaceColor = colors.gray150,
+            dividerColor = colors.cardHairline,
+        ) {
             More2PrimaryButton(
                 text = "Save",
                 onClick = viewModel::save,
                 loading = state.saving,
                 modifier = Modifier.testTag("invite-friend-save"),
+                height = 50.dp,
+                radius = 10.dp,
+                gradient = Brush.verticalGradient(
+                    listOf(Color(0xFFFF783E), BrandPalette.OrangeMain),
+                ),
             )
         }
     }

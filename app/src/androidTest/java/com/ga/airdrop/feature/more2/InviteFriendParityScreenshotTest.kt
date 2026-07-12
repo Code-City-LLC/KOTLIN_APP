@@ -6,6 +6,7 @@ import android.provider.MediaStore
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -50,9 +51,13 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithTag("invite-friend-description-input").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-info-body").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-save").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-glass-header").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-footer").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-history-link").assertIsDisplayed()
         compose.onNodeWithText("View Referral History  \u2192").assertIsDisplayed()
         compose.onNodeWithText("Description").assertIsDisplayed()
+        val save = compose.onNodeWithTag("invite-friend-save").getUnclippedBoundsInRoot()
+        assertEquals("Swift Save button height", 50f, (save.bottom - save.top).value, 1f)
         saveRootScreenshot("invite_friend_figma_light.png")
     }
 

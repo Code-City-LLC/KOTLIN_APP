@@ -164,13 +164,14 @@ internal fun More2PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     loading: Boolean = false,
+    height: androidx.compose.ui.unit.Dp = 52.dp,
     radius: androidx.compose.ui.unit.Dp = 14.dp,
     gradient: Brush = Brush.horizontalGradient(listOf(Color(0xFFFF783E), Color(0xFFF15114))),
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(height)
             .clip(RoundedCornerShape(radius))
             // alpha must precede background — applied after, it no-ops on the
             // already-drawn gradient and the disabled CTA looked enabled.
