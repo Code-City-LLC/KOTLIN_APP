@@ -146,12 +146,19 @@ class MainActivity : FragmentActivity() {
      * still guards individual calls).
      */
     private fun refreshStoredSession() {
-        if (AuthTokenStore.token == null) return
+        val refreshingSession = AuthTokenStore.snapshot()
+        if (refreshingSession.token == null) return
         lifecycleScope.launch {
             runCatching { ApiClient.service.refreshToken(EmptyRequest()) }
-                .onSuccess { TokenRefresher.applyForegroundRefresh(null, it.token) }
+                .onSuccess {
+                    TokenRefresher.applyForegroundRefresh(refreshingSession, null, it.token)
+                }
                 .onFailure { e ->
-                    TokenRefresher.applyForegroundRefresh((e as? HttpException)?.code(), null)
+                    TokenRefresher.applyForegroundRefresh(
+                        refreshingSession,
+                        (e as? HttpException)?.code(),
+                        null,
+                    )
                 }
         }
     }
