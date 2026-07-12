@@ -1,6 +1,7 @@
 package com.ga.airdrop.core.push
 
 import android.content.Intent
+import android.net.Uri
 import com.ga.airdrop.core.navigation.Routes
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -40,6 +41,27 @@ class PushDeepLinkParityTest {
         assertRoute("AuctionProductCheckoutView", Routes.AUCTION_CHECKOUT, referenceId = "auction-22")
         assertEquals("auction-22", com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef)
         com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
+    }
+
+    @Test
+    fun stripeHostedCheckoutAliasesResolveToTheSinglePaymentOwners() {
+        listOf("payment-success", "payment_success", "payment-complete", "payment_complete")
+            .forEach { host ->
+                assertEquals(
+                    Routes.paymentReturn("cs_test_42"),
+                    PushDeepLink.resolveUri(Uri.parse("airdrop://$host?session_id=cs_test_42")),
+                )
+            }
+
+        listOf(
+            "payment-cancelled", "payment_cancelled", "payment-cancel", "payment_cancel",
+            "payment-cancelled-by-user", "payment_cancelled_by_user",
+        ).forEach { host ->
+            assertEquals(
+                Routes.PAYMENT_CANCELLED,
+                PushDeepLink.resolveUri(Uri.parse("airdrop://$host?session_id=cs_test_42")),
+            )
+        }
     }
 
     private fun assertRoute(route: String, expected: String, referenceId: String? = null) {

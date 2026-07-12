@@ -118,7 +118,10 @@ object PushDeepLink {
         return when (uri.host?.lowercase()) {
             "payment-success", "payment_success", "payment-complete", "payment_complete" ->
                 Routes.paymentReturn(uri.getQueryParameter("session_id"))
-            "payment-cancelled", "payment_cancelled", "payment-cancel", "payment_cancel" ->
+            // Swift SceneDelegate:533 also accepts the *_by_user variants the
+            // backend emits for user-initiated aborts (Audit #95 P42-C2).
+            "payment-cancelled", "payment_cancelled", "payment-cancel", "payment_cancel",
+            "payment-cancelled-by-user", "payment_cancelled_by_user" ->
                 Routes.paymentCancelled()
             else -> null
         }

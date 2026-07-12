@@ -6,6 +6,7 @@ import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
 import com.ga.airdrop.data.model.InvoiceUrlEnvelope
+import com.ga.airdrop.data.model.MOBILE_CHECKOUT_RETURN_URL
 import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.Payment
 import com.ga.airdrop.data.model.PaymentIntentStatus
@@ -62,7 +63,12 @@ class PaymentsRepository(private val service: AirdropApiService) {
         isAuction: Boolean = true,
     ): Result<CheckoutResponse> = apiResult {
         val envelope = service.createCheckout(
-            CreateCheckoutRequest(packageIds = packageIds, currency = currency, isAuction = isAuction),
+            CreateCheckoutRequest(
+                packageIds = packageIds,
+                currency = currency,
+                isAuction = isAuction,
+                returnUrl = MOBILE_CHECKOUT_RETURN_URL,
+            ),
         )
         val data = envelope.data
         if (envelope.success == false || data == null || data.checkoutUrl.isNullOrEmpty()) {

@@ -218,6 +218,19 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
             },
         )
     }
+    // Stripe cancel_url deeplink (airdrop://payment-cancelled): explain first
+    // (Swift SceneDelegate "Payment cancelled" alert), then land on the cart
+    // with its contents intact.
+    composable(Routes.PAYMENT_CANCELLED) {
+        com.ga.airdrop.feature.cart.PaymentCancelledHost(
+            onDone = {
+                navController.navigate(Routes.CART) {
+                    popUpTo(Routes.PAYMENT_CANCELLED) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
+        )
+    }
     composable(
         Routes.PAYMENT_SUCCESS,
         arguments = listOf(

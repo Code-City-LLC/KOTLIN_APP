@@ -66,7 +66,11 @@ data class CreateCheckoutRequest(
     @SerialName("package_ids") val packageIds: List<Int>,
     val currency: String,
     @SerialName("is_auction") val isAuction: Boolean,
+    @SerialName("return_url") val returnUrl: String? = null,
 )
+
+/** Non-null signal that makes Laravel issue the mobile Stripe deep links. */
+const val MOBILE_CHECKOUT_RETURN_URL = "airdrop://payment-success"
 
 @Serializable
 data class CheckoutResponse(

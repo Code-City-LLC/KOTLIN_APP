@@ -3,15 +3,23 @@ package com.ga.airdrop.feature.cart
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.repo.PaymentsRepository
@@ -94,6 +102,11 @@ internal suspend fun verifySession(
 /**
  * Spinner while the session verifies, then dispatches exactly once. Hosted at
  * [com.ga.airdrop.core.navigation.Routes.PAYMENT_RETURN].
+ *
+ * A paid session navigates straight to the success screen. Not-paid and
+ * unconfirmed outcomes first explain themselves in an alert (Swift
+ * SceneDelegate parity — it never teleports the user without saying why),
+ * then run the caller's navigation when the alert is dismissed.
  */
 @Composable
 fun PaymentReturnHost(
@@ -103,13 +116,59 @@ fun PaymentReturnHost(
     onUnconfirmed: (detail: String) -> Unit,
     viewModel: PaymentReturnViewModel = viewModel(),
 ) {
+    PaymentReturnContent(
+        sessionId = sessionId,
+        verify = viewModel::verify,
+        onPaid = onPaid,
+        onNotPaid = onNotPaid,
+        onUnconfirmed = onUnconfirmed,
+    )
+}
+
+/** Injectable production content used by the hosted-return instrumentation tests. */
+@Composable
+internal fun PaymentReturnContent(
+    sessionId: String,
+    verify: suspend (String) -> PaymentReturnResult,
+    onPaid: (ref: String?, amount: String?) -> Unit,
+    onNotPaid: (statusText: String) -> Unit,
+    onUnconfirmed: (detail: String) -> Unit,
+) {
+    var pendingAlert by remember { mutableStateOf<PaymentReturnResult?>(null) }
+
     LaunchedEffect(sessionId) {
-        when (val result = viewModel.verify(sessionId)) {
+        when (val result = verify(sessionId)) {
             is PaymentReturnResult.Success -> onPaid(result.orderReference, result.formattedAmount)
-            is PaymentReturnResult.NotPaid -> onNotPaid(result.statusText)
-            is PaymentReturnResult.Unconfirmed -> onUnconfirmed(result.detail)
+            // Alert first; navigation runs on dismiss.
+            is PaymentReturnResult.NotPaid -> pendingAlert = result
+            is PaymentReturnResult.Unconfirmed -> pendingAlert = result
         }
     }
+
+    when (val alert = pendingAlert) {
+        is PaymentReturnResult.NotPaid -> PaymentOutcomeAlert(
+            // Swift: "Payment incomplete" — authoritative not-paid answer.
+            title = "Payment incomplete",
+            message = "Stripe reports status \"${alert.statusText}\". Try again from the cart.",
+            onDismiss = {
+                pendingAlert = null
+                onNotPaid(alert.statusText)
+            },
+        )
+        is PaymentReturnResult.Unconfirmed -> PaymentOutcomeAlert(
+            // Swift: never imply failure — the charge may have gone through,
+            // and implying failure tempts the customer to pay twice.
+            title = "Couldn't confirm payment",
+            message = "Your payment may have completed — please check your Shipments " +
+                "before paying again. (${alert.detail})",
+            onDismiss = {
+                pendingAlert = null
+                onUnconfirmed(alert.detail)
+            },
+        )
+        else -> Unit
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -119,4 +178,48 @@ fun PaymentReturnHost(
     ) {
         CircularProgressIndicator(color = BrandPalette.OrangeMain)
     }
+}
+
+/**
+ * Stripe cancel_url landing (airdrop://payment-cancelled). Swift SceneDelegate
+ * parity: tell the user nothing was charged before showing the intact cart.
+ */
+@Composable
+fun PaymentCancelledHost(onDone: () -> Unit) {
+    PaymentOutcomeAlert(
+        title = "Payment cancelled",
+        message = "No payment was completed. Your cart is still available.",
+        onDismiss = onDone,
+    )
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(AirdropTheme.colors.gray150)
+            .testTag("payment-cancelled-host"),
+    )
+}
+
+/** One-button outcome alert, Swift presentPaymentResultAlert counterpart. */
+@Composable
+private fun PaymentOutcomeAlert(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = colors.gray100,
+        title = { Text(text = title, style = AirdropType.title2, color = colors.textDarkTitle) },
+        text = { Text(text = message, style = AirdropType.body2, color = colors.textDescription) },
+        confirmButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("payment-outcome-ok"),
+            ) {
+                Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+            }
+        },
+        modifier = Modifier.testTag("payment-outcome-alert"),
+    )
 }
