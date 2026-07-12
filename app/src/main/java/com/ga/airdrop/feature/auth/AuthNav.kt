@@ -62,10 +62,7 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
             // screen (FuchsiaTower Audit #59 F5); SignUp is popped off so back
             // can't return to the submitted form.
             onRegistered = {
-                navController.navigate(Routes.REGISTRATION_SUCCESS) {
-                    popUpTo(Routes.AUTH_LANDING)
-                    launchSingleTop = true
-                }
+                navController.showRegistrationSuccess()
             },
         )
     }
@@ -79,11 +76,24 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
     composable(Routes.REGISTRATION_SUCCESS) {
         RegistrationSuccessScreen(
             onLogin = {
-                navController.navigate(Routes.LOGIN) {
-                    popUpTo(0) { inclusive = true }
-                    launchSingleTop = true
-                }
+                navController.returnToLoginAfterRegistration()
             },
         )
+    }
+}
+
+internal fun NavHostController.showRegistrationSuccess() {
+    com.ga.airdrop.core.session.clearLocalUserSession(context)
+    navigate(Routes.REGISTRATION_SUCCESS) {
+        popUpTo(Routes.SIGN_UP) { inclusive = true }
+        launchSingleTop = true
+    }
+}
+
+internal fun NavHostController.returnToLoginAfterRegistration() {
+    com.ga.airdrop.core.session.clearLocalUserSession(context)
+    navigate(Routes.LOGIN) {
+        popUpTo(0) { inclusive = true }
+        launchSingleTop = true
     }
 }

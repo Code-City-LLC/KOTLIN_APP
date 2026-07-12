@@ -41,7 +41,7 @@ class SettingsViewModel(
         com.ga.airdrop.feature.calculator.CalculatorHistory.clear()
         com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
         com.ga.airdrop.feature.shop.clearShopSessionCaches()
-        sweepCachePrefs(context)
+        com.ga.airdrop.core.session.clearLegacySessionCachePrefs(context)
         _state.update { it.copy(cacheCleared = true) }
     }
 
@@ -72,51 +72,12 @@ class SettingsViewModel(
     private fun finishLocalLogout(context: Context) {
         // Full hygiene: bearer token, shared header cache, cart store, cached
         // cart/package blobs. FCM token deregistration joins once push lands.
-        AuthTokenStore.clear()
-        SessionStore.clear()
-        com.ga.airdrop.feature.cart.CartStore.init(context)
-        com.ga.airdrop.feature.cart.CartStore.clear()
-        com.ga.airdrop.feature.cart.SavedForLaterStore.init(context)
-        com.ga.airdrop.feature.cart.SavedForLaterStore.clearAll()
-        com.ga.airdrop.core.prefs.DeliveryDefaultsStore.clearAll()
-        com.ga.airdrop.core.push.QuietHoursStore.clear(context)
-        com.ga.airdrop.core.security.BiometricGate.reset()
-        // Process-global shipment caches + the shop checkout hand-off must not
-        // leak into the next account's session (FuchsiaTower P3b-C3 / P4-U2).
-        com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
-        com.ga.airdrop.feature.shop.clearShopSessionCaches()
-        // Swift wipeDeviceSessionArtifacts parity: delete the FCM token so this
-        // device stops receiving the logged-out account's pushes. Fire-and-forget
-        // — Firebase may be uninitialised in test builds.
-        runCatching {
-            com.google.firebase.messaging.FirebaseMessaging.getInstance().deleteToken()
-        }
-        // Drop the cached/registered token markers so the next login registers
-        // the freshly issued token instead of replaying the deleted one.
-        com.ga.airdrop.core.push.PushRegistrar.onLogout()
-        // User-scoped persisted stores (Swift AirdropSessionTeardown parity —
-        // the next account must not inherit the prior user's data).
-        com.ga.airdrop.feature.calculator.CalculatorHistory.clear()
-        com.ga.airdrop.feature.dropalert.DropAlertPreset.clear()
-        com.ga.airdrop.feature.shop.ShopRecentSearches.clear()
-        com.ga.airdrop.core.prefs.ExchangeRateStore.clear()
-        sweepCachePrefs(context)
+        com.ga.airdrop.core.session.clearLocalUserSession(context)
         _state.update { it.copy(loggingOut = false, loggedOut = true) }
     }
 
-    private fun sweepCachePrefs(context: Context) {
-        val prefs = context.applicationContext
-            .getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
-        prefs.edit().apply {
-            CACHE_KEYS.forEach(::remove)
-        }.apply()
-    }
-
     companion object {
-        const val CACHE_PREFS = "airdrop_cache"
-        val CACHE_KEYS = listOf(
-            "PACKAGE", "CART_PACKAGES", "PACKAGE_SHORTLIST",
-            "figma.cart.items", "figma.packages.cache", "figma.packages.shortlist",
-        )
+        const val CACHE_PREFS = com.ga.airdrop.core.session.SESSION_CACHE_PREFS
+        val CACHE_KEYS = com.ga.airdrop.core.session.SESSION_CACHE_KEYS
     }
 }
