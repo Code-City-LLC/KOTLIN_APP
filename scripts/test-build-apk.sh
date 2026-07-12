@@ -91,6 +91,18 @@ if test_publish "$inconsistent" 3 >/dev/null 2>&1; then fail "inconsistent ledge
 [ ! -e "$inconsistent/.publish.lock" ] || fail "inconsistent ledger leaked its lock"
 pass "inconsistent publication state fails closed"
 
+unattributed="$ROOT/unattributed"
+mkdir -p "$unattributed"
+printf '1\n' > "$unattributed/.build-number"
+printf 'apk bytes\n' > "$unattributed/airdrop-v1.apk"
+ln -s airdrop-v1.apk "$unattributed/airdrop-latest.apk"
+printf 'v1\t2026-07-12T00:00:00Z\tstaging\tgradle=8.0(8)\tgit=nogit\t10 bytes\n' > \
+  "$unattributed/BUILD_LOG.txt"
+unattributed_before="$(snapshot "$unattributed")"
+if test_publish "$unattributed" 3 >/dev/null 2>&1; then fail "unattributed ledger was accepted"; fi
+[ "$(snapshot "$unattributed")" = "$unattributed_before" ] || fail "unattributed ledger was mutated"
+pass "unattributed and legacy ledger rows fail closed"
+
 allowed_root="$ROOT/allowed-root"
 outside_root="$ROOT/outside-root"
 mkdir -p "$allowed_root" "$outside_root"

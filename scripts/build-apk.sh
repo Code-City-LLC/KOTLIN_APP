@@ -177,7 +177,7 @@ validate_numeric_inputs() {
 }
 
 validate_publication_state() {
-  local current expected found="" has_apks=0
+  local current expected found="" has_apks=0 last_record recorded_git
   if [ -L "$COUNTER_FILE" ]; then
     die "counter must not be a symlink: $COUNTER_FILE"
   fi
@@ -201,6 +201,19 @@ validate_publication_state() {
       [ -f "$LOG_FILE" ] || die "counter exists without a publication ledger"
       [ -L "$APK_DIR/$LATEST_LINK" ] || die "counter exists without a latest symlink"
       [ "$(readlink "$APK_DIR/$LATEST_LINK")" = "$expected" ] || die "latest symlink disagrees with counter"
+      last_record="$(tail -n 1 "$LOG_FILE")"
+      case "$last_record" in
+        "v${current}"$'\t'*) ;;
+        *) die "final ledger row does not match counter v$current" ;;
+      esac
+      case "$last_record" in
+        *$'\tapp_version='*$'\tgradle_version='*$'\tgit='*) ;;
+        *) die "final ledger row uses an unsupported provenance schema" ;;
+      esac
+      recorded_git="$(printf '%s\n' "$last_record" | sed -nE 's/.*\tgit=([0-9a-f]+)\t.*/\1/p')"
+      [[ "$recorded_git" =~ ^[0-9a-f]{7,40}$ ]] || die "final ledger row has an invalid git SHA"
+      git -C "$REPO_ROOT" cat-file -e "$recorded_git^{commit}" 2>/dev/null || \
+        die "final ledger git SHA is not present in this repository"
     else
       [ "$has_apks" = 0 ] && [ ! -e "$LOG_FILE" ] && [ ! -L "$APK_DIR/$LATEST_LINK" ] || \
         die "zero counter disagrees with existing publication state"
@@ -293,10 +306,12 @@ acquire_publish_lock() {
 # Publish one already-built APK. Validation happens before publication state is
 # locked or mutated; the lock then covers number allocation through pruning.
 publish_apk() {
-  local src="$1" variant="$2" n dest counter_tmp latest_tmp pruned=0 listing count ndel f bytes mb
+  local src="$1" variant="$2" n dest counter_tmp latest_tmp pruned=0 listing count ndel f bytes mb source_sha
   [ -f "$src" ] || die "expected APK not found at: $src"
   validate_numeric_inputs
   [ "$SELF_TEST_MODE" = 1 ] || validate_apk "$src" "$variant"
+  source_sha="$(git_sha)"
+  [[ "$source_sha" =~ ^[0-9a-f]{7,40}$ ]] || die "current source is not an attributable Git commit"
   acquire_publish_lock
   validate_publication_state
   n="$(next_build_number)"
@@ -317,7 +332,7 @@ publish_apk() {
   bytes="$(stat -f '%z' "$dest" 2>/dev/null || stat -c '%s' "$dest")"
   printf 'v%s\t%s\t%s\tapp_version=%s\tgradle_version=%s\tgit=%s\t%s bytes\n' \
     "$n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$variant" "$(app_version)" \
-    "$(gradle_version)" "$(git_sha)" "$bytes" >> "$LOG_FILE"
+    "$(gradle_version)" "$source_sha" "$bytes" >> "$LOG_FILE"
   fail_at after_log
 
   counter_tmp="$TXN_DIR/counter.tmp"
@@ -389,6 +404,14 @@ if [ "${1:-}" = "--validate-apk" ]; then
   resolve_toolchain
   validate_apk "$2" "$3"
   step "APK validation passed; nothing was published."
+  exit 0
+fi
+
+if [ "${1:-}" = "--check-publication-store" ]; then
+  [ -d "$APK_DIR" ] || die "publication directory does not exist: $APK_DIR"
+  validate_numeric_inputs
+  validate_publication_state
+  step "Publication store is internally consistent; nothing was changed."
   exit 0
 fi
 

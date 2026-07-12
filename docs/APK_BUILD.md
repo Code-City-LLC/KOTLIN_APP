@@ -64,6 +64,18 @@ An existing artifact can be checked without publishing or changing build state:
 scripts/build-apk.sh --validate-apk /path/to/app-staging-debug.apk staging
 ```
 
+Before a release build, audit the existing counter/ledger/latest relationship
+without changing it:
+
+```bash
+AIRDROP_APK_DIR=/Users/codecityceo/Desktop/airdrop-apk \
+  scripts/build-apk.sh --check-publication-store
+```
+
+The final ledger row must match the counter, use the current provenance schema,
+and reference a commit present in the checkout. Handwritten or `git=nogit`
+records fail closed.
+
 ## Reverting the spammer (if ever needed)
 
 The launchd job was unloaded/disabled and its plist backed up, not deleted:
