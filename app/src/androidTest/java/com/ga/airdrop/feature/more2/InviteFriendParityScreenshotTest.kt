@@ -1,13 +1,15 @@
 package com.ga.airdrop.feature.more2
 
-import android.content.Intent
+import android.content.ContentValues
 import android.graphics.Bitmap
-import android.provider.ContactsContract
+import android.provider.MediaStore
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -20,8 +22,6 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.ReferFriendRequest
-import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.Assert.assertEquals
@@ -51,9 +51,13 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithTag("invite-friend-description-input").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-info-body").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-save").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-glass-header").assertIsDisplayed()
+        compose.onNodeWithTag("invite-friend-footer").assertIsDisplayed()
         compose.onNodeWithTag("invite-friend-history-link").assertIsDisplayed()
         compose.onNodeWithText("View Referral History  \u2192").assertIsDisplayed()
         compose.onNodeWithText("Description").assertIsDisplayed()
+        val save = compose.onNodeWithTag("invite-friend-save").getUnclippedBoundsInRoot()
+        assertEquals("Swift Save button height", 50f, (save.bottom - save.top).value, 1f)
         saveRootScreenshot("invite_friend_figma_light.png")
     }
 
@@ -96,9 +100,8 @@ class InviteFriendParityScreenshotTest {
     }
 
     @Test
-    fun contactsRowLaunchesContactsPickerAndCanUseContactInForm() {
+    fun contactsSheetRowTapPrefillsForm() {
         val api = FakeInviteFriendRepository()
-        val launchedIntent = AtomicReference<Intent?>()
         lateinit var viewModel: InviteFriendViewModel
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -110,12 +113,11 @@ class InviteFriendParityScreenshotTest {
                 InviteFriendScreen(
                     onBack = {},
                     viewModel = viewModel,
-                    onContactPickerIntent = { intent ->
-                        launchedIntent.set(intent)
-                        viewModel.onContactPicked(
-                            displayName = "Jordan Marie Smith",
-                            email = "jordan@example.com",
-                            phone = "+1 876 555 0101",
+                    contactsPermissionOverride = true,
+                    contactsProvider = {
+                        listOf(
+                            contact("Zara Brown", "zara@example.com", ""),
+                            contact("Jordan Marie Smith", "jordan@example.com", "+1 876 555 0101"),
                         )
                     },
                 )
@@ -125,16 +127,97 @@ class InviteFriendParityScreenshotTest {
 
         compose.onNodeWithTag("invite-friend-contacts-row").performClick()
 
-        compose.runOnIdle {
-            val intent = launchedIntent.get()
-            assertEquals(Intent.ACTION_PICK, intent?.action)
-            assertEquals(ContactsContract.Contacts.CONTENT_URI, intent?.data)
-        }
-        compose.onNodeWithText("Invite Jordan Marie Smith").assertIsDisplayed()
-        compose.onNodeWithText("Use in form").performClick()
+        compose.onNodeWithTag("invite-friend-contacts-sheet").assertIsDisplayed()
+        saveNodeScreenshot("invite-friend-contacts-sheet", "invite_contacts_sheet_light.png")
+        compose.onNodeWithText("Jordan Marie Smith").performClick()
         compose.onNodeWithText("Jordan").assertIsDisplayed()
         compose.onNodeWithText("Marie Smith").assertIsDisplayed()
         compose.onNodeWithText("jordan@example.com").assertIsDisplayed()
+    }
+
+    @Test
+    fun contactsSheetMatchesSwiftDark() {
+        setInviteFriendWithContacts(
+            contacts = listOf(
+                contact("Jordan Marie Smith", "jordan@example.com", "+1 876 555 0101"),
+                contact("No Channel", "", ""),
+            ),
+            mode = ThemeController.Mode.DARK,
+        )
+        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+        compose.onNodeWithTag("invite-friend-contacts-sheet").assertIsDisplayed()
+        compose.onNodeWithText("Invite your contacts").assertIsDisplayed()
+        assertTagAbsent("invite-friend-contact-invite-No Channel")
+        saveNodeScreenshot("invite-friend-contacts-sheet", "invite_contacts_sheet_dark.png")
+    }
+
+    @Test
+    fun emptyContactsStateIsRendered() {
+        setInviteFriendWithContacts(contacts = emptyList())
+        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+        compose.onNodeWithText("No contacts available.").assertIsDisplayed()
+    }
+
+    @Test
+    fun deniedContactsStateOpensSettings() {
+        val settingsClicks = AtomicInteger()
+        setInviteFriendWithContacts(
+            contacts = emptyList(),
+            permissionGranted = false,
+            onOpenSettings = { settingsClicks.incrementAndGet() },
+        )
+        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+        compose.onNodeWithText("Contacts Permission").assertIsDisplayed()
+        compose.onNodeWithText("Open Settings").performClick()
+        compose.runOnIdle { assertEquals(1, settingsClicks.get()) }
+    }
+
+    @Test
+    fun directInviteWithEmailPostsReferral() {
+        val emailApi = FakeInviteFriendRepository()
+        setInviteFriendWithContacts(
+            contacts = listOf(contact("Email Friend", "email@example.com", "")),
+            api = emailApi,
+        )
+        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+        compose.onNodeWithTag("invite-friend-contact-invite-Email Friend").performClick()
+        compose.waitUntil(5_000) { emailApi.referFriendCalls.get() == 1 }
+        compose.onNodeWithText("Invitation Sent").assertIsDisplayed()
+    }
+
+    @Test
+    fun directInviteWithPhoneUsesWhatsApp() {
+        val handoff = AtomicReference<InviteFriendHandoff?>()
+        setInviteFriendWithContacts(
+            contacts = listOf(contact("Phone Friend", "", "+1 876 555 0101")),
+            externalInviteHandoff = { type, _, _ -> handoff.set(type); true },
+        )
+        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+        compose.onNodeWithTag("invite-friend-contact-invite-Phone Friend").performClick()
+        compose.runOnIdle { assertEquals(InviteFriendHandoff.WhatsApp, handoff.get()) }
+    }
+
+    @Test
+    fun contactWithoutChannelHasNoInviteAction() {
+        val handoff = AtomicReference<InviteFriendHandoff?>()
+        setInviteFriendWithContacts(
+            contacts = listOf(contact("Share Friend", "", "")),
+            externalInviteHandoff = { type, _, _ -> handoff.set(type); true },
+        )
+        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+        compose.onNodeWithText("Share Friend").assertIsDisplayed()
+        assertTagAbsent("invite-friend-contact-invite-Share Friend")
+        compose.runOnIdle { assertNull(handoff.get()) }
+    }
+
+    @Test
+    fun manifestDeclaresReadContactsPermission() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val info = context.packageManager.getPackageInfo(
+            context.packageName,
+            android.content.pm.PackageManager.GET_PERMISSIONS,
+        )
+        assertTrue(info.requestedPermissions.orEmpty().contains(android.Manifest.permission.READ_CONTACTS))
     }
 
     @Test
@@ -169,6 +252,23 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithText("Share referral link").performClick()
         compose.waitForIdle()
         assertAbsent("Invitation Sent")
+    }
+
+    @Test
+    fun sharingBlocksUntilAccountReferralCodeLoads() {
+        val handoffCalls = AtomicInteger()
+        setInviteFriendWithPickedContact(
+            api = FakeInviteFriendRepository(accountNumber = null),
+            externalInviteHandoff = { _, _, _ ->
+                handoffCalls.incrementAndGet()
+                true
+            },
+        )
+        compose.onNodeWithText("Share referral link").performClick()
+        compose.onNodeWithText(
+            "Your referral code is still loading. Please try again in a moment."
+        ).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(0, handoffCalls.get()) }
     }
 
     @Test
@@ -279,12 +379,13 @@ class InviteFriendParityScreenshotTest {
 
     private fun setInviteFriendWithPickedContact(
         onSaved: () -> Unit = {},
+        api: FakeInviteFriendRepository = FakeInviteFriendRepository(),
         externalInviteHandoff: (InviteFriendHandoff, InviteContact, String) -> Boolean,
     ) {
         lateinit var viewModel: InviteFriendViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
-            viewModel = InviteFriendViewModel(FakeInviteFriendRepository())
+            viewModel = InviteFriendViewModel(api)
         }
         compose.setContent {
             AirdropTheme {
@@ -292,20 +393,53 @@ class InviteFriendParityScreenshotTest {
                     onBack = {},
                     onSaved = onSaved,
                     viewModel = viewModel,
-                    onContactPickerIntent = {
-                        viewModel.onContactPicked(
-                            displayName = "Jordan Marie Smith",
-                            email = "jordan@example.com",
-                            phone = "+1 876 555 0101",
-                        )
-                    },
                     externalInviteHandoff = externalInviteHandoff,
                 )
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("invite-friend-contacts-row").performClick()
+        compose.runOnIdle {
+            viewModel.onContactPicked(
+                displayName = "Jordan Marie Smith",
+                email = "jordan@example.com",
+                phone = "+1 876 555 0101",
+            )
+        }
         compose.onNodeWithText("Invite Jordan Marie Smith").assertIsDisplayed()
+    }
+
+    private fun setInviteFriendWithContacts(
+        contacts: List<InviteContact>,
+        mode: ThemeController.Mode = ThemeController.Mode.LIGHT,
+        permissionGranted: Boolean = true,
+        api: FakeInviteFriendRepository = FakeInviteFriendRepository(),
+        onOpenSettings: () -> Unit = {},
+        externalInviteHandoff: (InviteFriendHandoff, InviteContact, String) -> Boolean = { _, _, _ -> true },
+    ) {
+        lateinit var viewModel: InviteFriendViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(mode)
+            viewModel = InviteFriendViewModel(api)
+        }
+        compose.setContent {
+            AirdropTheme {
+                InviteFriendScreen(
+                    onBack = {},
+                    viewModel = viewModel,
+                    contactsPermissionOverride = permissionGranted,
+                    onRequestContactsPermission = { complete -> complete(false) },
+                    contactsProvider = { contacts },
+                    onOpenContactsSettings = onOpenSettings,
+                    externalInviteHandoff = externalInviteHandoff,
+                )
+            }
+        }
+        compose.waitForIdle()
+    }
+
+    private fun contact(name: String, email: String, phone: String): InviteContact {
+        val parts = name.split(" ")
+        return InviteContact(name, parts.first(), parts.drop(1).joinToString(" "), email, phone)
     }
 
     private fun setInviteFriend(
@@ -347,6 +481,10 @@ class InviteFriendParityScreenshotTest {
         assertEquals(0, compose.onAllNodesWithText(text).fetchSemanticsNodes().size)
     }
 
+    private fun assertTagAbsent(tag: String) {
+        assertEquals(0, compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size)
+    }
+
     private fun Bitmap.hasPixelNear(target: Int, tolerance: Int = COLOR_TOLERANCE): Boolean {
         val targetRed = (target shr 16) and 0xFF
         val targetGreen = (target shr 8) and 0xFF
@@ -373,23 +511,46 @@ class InviteFriendParityScreenshotTest {
 
     private fun saveRootScreenshot(filename: String) {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
-        val output = File(screenshotDir(), filename)
-        FileOutputStream(output).use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-        }
+        saveScreenshot(bitmap, filename)
     }
 
-    private fun screenshotDir(): File {
+    private fun saveNodeScreenshot(tag: String, filename: String) {
+        val bitmap = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+        saveScreenshot(bitmap, filename)
+    }
+
+    private fun saveScreenshot(bitmap: Bitmap, filename: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
+        val relativePath = "Pictures/kotlin_ui_proof/refer_invite/"
+        context.contentResolver.delete(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?",
+            arrayOf(filename, "%kotlin_ui_proof/refer_invite%"),
+        )
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return
+        context.contentResolver.openOutputStream(uri)?.use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        context.contentResolver.update(uri, values, null, null)
     }
 
-    private class FakeInviteFriendRepository : InviteFriendRepository {
+    private class FakeInviteFriendRepository(
+        private val accountNumber: String? = "AD-2048",
+    ) : InviteFriendRepository {
         val referFriendCalls = AtomicInteger()
         val lastReferFriendRequest = AtomicReference<ReferFriendRequest?>()
 
         override suspend fun currentUser(): Result<AirdropUser> =
-            Result.success(AirdropUser(accountNumber = "AD-2048"))
+            Result.success(AirdropUser(accountNumber = accountNumber))
 
         override suspend fun referFriend(
             firstName: String,

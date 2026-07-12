@@ -134,6 +134,7 @@ data class AirdropColorScheme(
     // Misc
     val divider: Color,
     val iconShape: Color,
+    val cardHairline: Color,
     val iconWhite: Color,
     val iconSelected: Color,
     val peachLight: Color,
@@ -165,6 +166,7 @@ val lightAirdropColors = AirdropColorScheme(
     textPlaceholder = Color(0xFF999999),
     divider = Color(0xFFD9D9D9),
     iconShape = Color(0xFFE5E5E5),
+    cardHairline = Color(0xFFEFEFEF),
     iconWhite = Color(0xFFFFFFFF),
     iconSelected = Color(0xFF292929),
     peachLight = Color(0xFFF8E9E0),
@@ -194,6 +196,7 @@ val darkAirdropColors = AirdropColorScheme(
     textPlaceholder = Color(0xFF5C5C5C),
     divider = Color(0xFF404040),
     iconShape = Color(0xFF595959),
+    cardHairline = Color(0xFF2A2A2A),
     iconWhite = Color(0xFFFFFFFF),
     iconSelected = Color(0xFFFFFFFF),
     peachLight = Color(0xFF3A2A22),

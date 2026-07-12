@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -45,10 +46,9 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 /**
  * Refer a Friend landing.
  *
- * Figma-over-Swift exception: the Refer landing is only the reset three-card
- * Figma page (nodes 40001940:26885 and 40001940:26797). Swift route names are
- * valid, but Swift's referral-link/history Refer VC is polluted and must not be
- * rebuilt here.
+ * Swift and Figma agree on the reset three-card carousel page (node
+ * 40001940:26885). The old referral-link/history surface must not reappear on
+ * this route; the Invite CTA opens the dedicated Send Invitation flow.
  */
 @Composable
 fun ReferAFriendScreen(
@@ -71,7 +71,16 @@ fun ReferAFriendScreen(
             .testTag("refer-figma-screen"),
     ) {
         Column(Modifier.fillMaxSize()) {
-            More2InnerHeader(title = "Refer a Friend", onBack = onBack)
+            More2InnerHeader(
+                title = "Refer a Friend",
+                onBack = onBack,
+                modifier = Modifier.testTag("refer-glass-header"),
+                surfaceColor = colors.glassOverlay70,
+                dividerColor = colors.cardHairline,
+                contentHeight = 62.dp,
+                backTargetSize = 44.dp,
+                backStartPadding = 16.dp,
+            )
 
             Column(
                 modifier = Modifier
@@ -82,16 +91,25 @@ fun ReferAFriendScreen(
             ) {
                 Spacer(Modifier.height(20.dp))
                 ReferCarousel()
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(20.dp))
                 ReferInfoBlock()
                 Spacer(Modifier.height(140.dp))
             }
 
-            More2BottomBar(verticalPadding = 20.dp) {
+            More2BottomBar(
+                modifier = Modifier.testTag("refer-glass-footer"),
+                verticalPadding = 20.dp,
+                surfaceColor = colors.glassOverlay70,
+                dividerColor = colors.cardHairline,
+            ) {
                 More2PrimaryButton(
                     text = "Invite",
                     onClick = onInviteFriend,
                     modifier = Modifier.testTag("refer-invite-button"),
+                    radius = 10.dp,
+                    gradient = Brush.verticalGradient(
+                        listOf(Color(0xFFFF783E), Color(0xFFF15114)),
+                    ),
                 )
             }
         }
@@ -142,14 +160,14 @@ private fun ReferCarousel() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(CarouselCardHeight)
+            .height(CarouselViewportHeight)
             .horizontalScroll(scroll)
             .testTag("refer-hero-carousel"),
-        horizontalArrangement = Arrangement.spacedBy(CarouselSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(Modifier.width(CarouselSideInset))
-        referSlides().forEach { slide ->
+        referSlides().forEachIndexed { index, slide ->
+            if (index > 0) Spacer(Modifier.width(CarouselSpacing))
             ReferSlideCard(slide)
         }
         Spacer(Modifier.width(CarouselSideInset))
@@ -169,12 +187,14 @@ private fun ReferSlideCard(slide: ReferSlide) {
             .clip(RoundedCornerShape(15.dp))
             .background(colors.gray100)
             .border(1.dp, slide.borderColor, RoundedCornerShape(15.dp))
-            .padding(horizontal = 20.dp, vertical = 52.dp),
+            .padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Spacer(Modifier.height(60.dp))
         Box(
             modifier = Modifier
                 .size(122.dp)
+                .testTag("refer-hero-card-icon-${slide.tag}")
                 .shadow(elevation = 18.dp, shape = CircleShape, clip = false)
                 .clip(CircleShape)
                 .background(iconBackground),
@@ -251,6 +271,7 @@ private fun referSlides() = listOf(
 )
 
 private val CarouselCardWidth = 238.dp
-private val CarouselCardHeight = 339.dp
+private val CarouselCardHeight = 326.dp
+private val CarouselViewportHeight = 339.dp
 private val CarouselSpacing = 15.dp
 private val CarouselSideInset = 68.5.dp

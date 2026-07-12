@@ -78,6 +78,14 @@ class InviteFriendViewModel(
     fun dismissError() = _state.update { it.copy(error = null) }
     fun dismissContactOptions() = _state.update { it.copy(selectedContact = null) }
 
+    fun requireReferralLink(): Boolean {
+        if (_state.value.referralLink.contains("/refer/")) return true
+        _state.update {
+            it.copy(validationError = "Your referral code is still loading. Please try again in a moment.")
+        }
+        return false
+    }
+
     private fun loadReferralLink() {
         viewModelScope.launch {
             repository.currentUser().onSuccess { user ->
@@ -139,7 +147,11 @@ class InviteFriendViewModel(
         }
     }
 
-    fun sendEmailInvitation(contact: InviteContact) {
+    fun sendEmailInvitation(
+        contact: InviteContact,
+        showSuccess: Boolean = true,
+        onSuccess: (() -> Unit)? = null,
+    ) {
         if (_state.value.saving) return
         val first = contact.firstName.ifBlank { "Friend" }
         val last = contact.lastName.ifBlank { "Friend" }
@@ -180,11 +192,12 @@ class InviteFriendViewModel(
                             email = "",
                             selectedContact = null,
                             saving = false,
-                            successMessage = message,
+                            successMessage = message.takeIf { showSuccess },
                             validationError = null,
                             error = null,
                         )
                     }
+                    onSuccess?.invoke()
                 }
                 .onFailure { e ->
                     _state.update {
