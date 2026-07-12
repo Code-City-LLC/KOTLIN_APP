@@ -41,6 +41,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,6 +107,18 @@ fun InviteFriendScreen(
     var permissionRequested by rememberSaveable { mutableStateOf(false) }
     var loadingContacts by remember { mutableStateOf(false) }
     var contactsError by remember { mutableStateOf<String?>(null) }
+    var screenActive by remember { mutableStateOf(true) }
+
+    DisposableEffect(Unit) {
+        screenActive = true
+        onDispose { screenActive = false }
+    }
+
+    fun handoffIfReady(
+        type: InviteFriendHandoff,
+        contact: InviteContact,
+        message: String,
+    ): Boolean = viewModel.requireReferralLink() && inviteHandoff(type, contact, message)
 
     fun presentContacts() {
         loadingContacts = true
@@ -263,7 +276,7 @@ fun InviteFriendScreen(
             onSms = {
                 viewModel.dismissContactOptions()
                 if (
-                    inviteHandoff(
+                    handoffIfReady(
                         InviteFriendHandoff.Sms,
                         contact,
                         referralMessage(state.referralLink, contact.displayName),
@@ -275,7 +288,7 @@ fun InviteFriendScreen(
             onWhatsApp = {
                 viewModel.dismissContactOptions()
                 if (
-                    inviteHandoff(
+                    handoffIfReady(
                         InviteFriendHandoff.WhatsApp,
                         contact,
                         referralMessage(state.referralLink, contact.displayName),
@@ -287,7 +300,7 @@ fun InviteFriendScreen(
             onShare = {
                 viewModel.dismissContactOptions()
                 if (
-                    inviteHandoff(
+                    handoffIfReady(
                         InviteFriendHandoff.Share,
                         contact,
                         referralMessage(state.referralLink, contact.displayName),
@@ -318,18 +331,21 @@ fun InviteFriendScreen(
                         showSuccess = contact.phone.isBlank(),
                         onSuccess = if (contact.phone.isNotBlank()) {
                             {
-                                if (inviteHandoff(InviteFriendHandoff.WhatsApp, contact, message)) {
+                                if (
+                                    screenActive &&
+                                    handoffIfReady(InviteFriendHandoff.WhatsApp, contact, message)
+                                ) {
                                     viewModel.onInvitationShared()
                                 }
                             }
                         } else null,
                     )
                     contact.phone.isNotBlank() -> if (
-                        inviteHandoff(InviteFriendHandoff.WhatsApp, contact, message)
+                        handoffIfReady(InviteFriendHandoff.WhatsApp, contact, message)
                     ) {
                         viewModel.onInvitationShared()
                     }
-                    inviteHandoff(InviteFriendHandoff.Share, contact, message) ->
+                    handoffIfReady(InviteFriendHandoff.Share, contact, message) ->
                         viewModel.onInvitationShared()
                 }
             },

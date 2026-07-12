@@ -250,6 +250,23 @@ class InviteFriendParityScreenshotTest {
     }
 
     @Test
+    fun sharingBlocksUntilAccountReferralCodeLoads() {
+        val handoffCalls = AtomicInteger()
+        setInviteFriendWithPickedContact(
+            api = FakeInviteFriendRepository(accountNumber = null),
+            externalInviteHandoff = { _, _, _ ->
+                handoffCalls.incrementAndGet()
+                true
+            },
+        )
+        compose.onNodeWithText("Share referral link").performClick()
+        compose.onNodeWithText(
+            "Your referral code is still loading. Please try again in a moment."
+        ).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(0, handoffCalls.get()) }
+    }
+
+    @Test
     fun saveValidatesRequiredFirstNameBeforePosting() {
         val api = FakeInviteFriendRepository()
         setInviteFriend(api = api, mode = ThemeController.Mode.LIGHT)
@@ -357,12 +374,13 @@ class InviteFriendParityScreenshotTest {
 
     private fun setInviteFriendWithPickedContact(
         onSaved: () -> Unit = {},
+        api: FakeInviteFriendRepository = FakeInviteFriendRepository(),
         externalInviteHandoff: (InviteFriendHandoff, InviteContact, String) -> Boolean,
     ) {
         lateinit var viewModel: InviteFriendViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
-            viewModel = InviteFriendViewModel(FakeInviteFriendRepository())
+            viewModel = InviteFriendViewModel(api)
         }
         compose.setContent {
             AirdropTheme {
@@ -520,12 +538,14 @@ class InviteFriendParityScreenshotTest {
         context.contentResolver.update(uri, values, null, null)
     }
 
-    private class FakeInviteFriendRepository : InviteFriendRepository {
+    private class FakeInviteFriendRepository(
+        private val accountNumber: String? = "AD-2048",
+    ) : InviteFriendRepository {
         val referFriendCalls = AtomicInteger()
         val lastReferFriendRequest = AtomicReference<ReferFriendRequest?>()
 
         override suspend fun currentUser(): Result<AirdropUser> =
-            Result.success(AirdropUser(accountNumber = "AD-2048"))
+            Result.success(AirdropUser(accountNumber = accountNumber))
 
         override suspend fun referFriend(
             firstName: String,
