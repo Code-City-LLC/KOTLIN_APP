@@ -51,10 +51,10 @@ step() { printf '\n[build-apk] %s\n' "$*"; }
 # --- Map friendly variant -> Gradle task + output subdir ---------------------
 resolve_variant() {
   case "${1:-staging}" in
-    staging|staging-debug)   GRADLE_TASK="assembleStagingDebug";   OUT_SUBDIR="stagingDebug"  ;;
-    staging-release)         GRADLE_TASK="assembleStagingRelease"; OUT_SUBDIR="stagingRelease";;
-    prod|prod-debug)         GRADLE_TASK="assembleProdDebug";      OUT_SUBDIR="prodDebug"     ;;
-    prod-release)            GRADLE_TASK="assembleProdRelease";    OUT_SUBDIR="prodRelease"   ;;
+    staging|staging-debug)   GRADLE_TASK="assembleStagingDebug";   OUT_SUBDIR="staging/debug"  ;;
+    staging-release)         GRADLE_TASK="assembleStagingRelease"; OUT_SUBDIR="staging/release";;
+    prod|prod-debug)         GRADLE_TASK="assembleProdDebug";      OUT_SUBDIR="prod/debug"     ;;
+    prod-release)            GRADLE_TASK="assembleProdRelease";    OUT_SUBDIR="prod/release"   ;;
     *) die "unknown variant '$1' (use: staging | staging-release | prod | prod-release)";;
   esac
   VARIANT_LABEL="$1"
