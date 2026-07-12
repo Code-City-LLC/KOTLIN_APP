@@ -203,16 +203,21 @@ class GoldPriorityParityTest {
             compose.onAllNodesWithText("Upgrade to Gold Standard").fetchSemanticsNodes().size,
         )
 
-        // Swipe down to Sapphire (below the customer): CTA hidden — never a
-        // downgrade sign on the pager.
+        // Swipe down to Sapphire (below the customer): seven-page contract —
+        // the INFO button shows (never a downgrade sign) and opens the
+        // breakdown (Kemar eyes-on ruling 2026-07-12).
         compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
         compose.waitForIdle()
         compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
         compose.waitForIdle()
+        compose.onNodeWithText("Your Tier: Ruby Starter").assertIsDisplayed()
         assertEquals(
             0,
-            compose.onAllNodesWithTag("gold-priority-cta").fetchSemanticsNodes().size,
+            compose.onAllNodesWithText("Downgrade to Sapphire Saver").fetchSemanticsNodes().size,
         )
+        compose.onNodeWithTag("gold-priority-cta").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("tier-breakdown-sheet").assertIsDisplayed()
     }
 
     @Test

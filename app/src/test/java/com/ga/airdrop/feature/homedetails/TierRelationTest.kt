@@ -76,9 +76,22 @@ class TierRelationTest {
     }
 
     @Test
-    fun ctaHiddenOnDowngradeAndPreview_neverADowngradeSign() {
-        assertNull(tierCtaLabel(TierRelation.DOWNGRADE, "Sapphire Saver"))
-        assertNull(tierCtaLabel(TierRelation.PREVIEW, "Corporate"))
+    fun sevenPageContract_noPageIsBlank_andNeverADowngradeSign() {
+        // Kemar eyes-on ruling 2026-07-12: lower pages show the INFO button
+        // (opens the breakdown) — still no downgrade sign on the pager.
+        assertEquals(
+            "Your Tier: Ruby Starter",
+            tierCtaLabel(TierRelation.DOWNGRADE, "Sapphire Saver", "sapphire", "Ruby Starter"),
+        )
+        // Corporate page: B2B contact affordance.
+        assertEquals(
+            "Contact Us",
+            tierCtaLabel(TierRelation.PREVIEW, "Corporate", "corporate", "Ruby Starter"),
+        )
+        // Only while the customer's tier is unresolved may a page be
+        // temporarily CTA-less.
+        assertNull(tierCtaLabel(TierRelation.DOWNGRADE, "Sapphire Saver", "sapphire", null))
+        assertNull(tierCtaLabel(TierRelation.PREVIEW, "Gold Standard", "gold", null))
     }
 
     // ── benefit-row resolution (server copy + static legacy pages) ──

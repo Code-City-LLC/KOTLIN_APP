@@ -210,12 +210,29 @@ internal fun tierRelation(pageIndex: Int, userTierIndex: Int?): TierRelation {
     }
 }
 
-/** CTA label for a relation, or null when the CTA is hidden (pure/testable). */
-internal fun tierCtaLabel(relation: TierRelation, pageName: String): String? = when (relation) {
+/**
+ * CTA label for a relation — SEVEN-PAGE CONTRACT (Kemar eyes-on ruling
+ * 2026-07-12: no tier page may show a blank bottom action):
+ *  - CURRENT    → "Your Tier" (opens the breakdown)
+ *  - UPGRADE    → "Upgrade to <page tier>"
+ *  - ACTIVATION → activation copy (Inactive as the customer's own state)
+ *  - DOWNGRADE  → "Your Tier: <customer's tier>" — an INFO button that opens
+ *    the breakdown; the pager still never shows a downgrade sign (standing
+ *    ruling: downgrade lives only inside the breakdown sheet).
+ *  - PREVIEW    → "Contact Us" on the Corporate page (B2B); null only while
+ *    the customer's tier is still resolving.
+ */
+internal fun tierCtaLabel(
+    relation: TierRelation,
+    pageName: String,
+    pageId: String = "",
+    userTierName: String? = null,
+): String? = when (relation) {
     TierRelation.CURRENT -> "Your Tier"
     TierRelation.UPGRADE -> "Upgrade to $pageName"
     TierRelation.ACTIVATION -> "Ship a package now to activate your account"
-    TierRelation.DOWNGRADE, TierRelation.PREVIEW -> null
+    TierRelation.DOWNGRADE -> userTierName?.let { "Your Tier: $it" }
+    TierRelation.PREVIEW -> if (pageId == "corporate") "Contact Us" else null
 }
 
 /**
@@ -296,12 +313,14 @@ internal fun offerTargetPage(
 @Composable
 fun GoldPriorityScreen(
     onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {},
     viewModel: GoldPriorityViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
 
     GoldPriorityContent(
         onBack = onBack,
+        onNavigate = onNavigate,
         resolvedTierIndex = state.resolvedTierIndex,
         benefitRowsByCode = state.benefitRowsByCode,
         catalogStatus = state.catalogStatus,
@@ -325,6 +344,7 @@ private sealed interface TierSheet {
 @Composable
 internal fun GoldPriorityContent(
     onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {},
     resolvedTierIndex: Int? = null,
     initialPage: Int = defaultTierIndex,
     benefitRowsByCode: Map<String, List<String>> = emptyMap(),
@@ -351,6 +371,8 @@ internal fun GoldPriorityContent(
     val activeIndex = pagerState.currentPage
     val activeTier = tierPages[activeIndex]
     val relation = tierRelation(activeIndex, resolvedTierIndex)
+    val userTierName = resolvedTierIndex?.let(tierPages::getOrNull)?.name
+    val ctaLabel = tierCtaLabel(relation, activeTier.name, activeTier.id, userTierName)
     val gradientTop by animateColorAsState(activeTier.gradientTop, label = "tierTop")
     val gradientBottom by animateColorAsState(activeTier.gradientBottom, label = "tierBottom")
 
@@ -388,6 +410,12 @@ internal fun GoldPriorityContent(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
             ) { page ->
+                // Per-page CTA presence decides the reserved bottom space —
+                // a hidden CTA must not leave a dead field (#22989).
+                val pageRelation = tierRelation(page, resolvedTierIndex)
+                val pageHasCta = tierCtaLabel(
+                    pageRelation, tierPages[page].name, tierPages[page].id, userTierName,
+                ) != null
                 TierPageContent(
                     tier = tierPages[page],
                     // Server copy for API tiers; display-only static rows for
@@ -395,22 +423,29 @@ internal fun GoldPriorityContent(
                     benefitRows = benefitRowsForPage(tierPages[page], benefitRowsByCode),
                     catalogStatus = catalogStatus,
                     onRetry = onRetryBenefits,
+                    reserveCtaSpace = pageHasCta,
                 )
             }
         }
 
+        // Un-offered upgrades render DISABLED (dimmed, inert, a11y-disabled)
+        // instead of silently-dead (#22991-2).
+        val upgradeOffered = relation != TierRelation.UPGRADE ||
+            isOfferedChange(changeOffers, canChange, activeTier.apiCode)
         TierCtaButton(
-            relation = relation,
-            pageName = activeTier.name,
+            label = ctaLabel,
+            enabled = upgradeOffered,
             onTap = {
                 when (relation) {
                     // Kemar 2026-07-11: "Your Tier" opens the benefits
-                    // breakdown — the ONE sanctioned downgrade entry.
-                    TierRelation.CURRENT -> activeSheet = TierSheet.Breakdown
-                    // Upgrade opens the change sheet ONLY when this page's
-                    // tier is an actual backend offer (#22867-5) — the
-                    // OFFER's direction labels the sheet (#22836-3); page
-                    // order is only the CTA's visual state.
+                    // breakdown — the ONE sanctioned downgrade entry. The
+                    // lower pages' info button opens the SAME breakdown
+                    // (seven-page contract, Kemar 2026-07-12).
+                    TierRelation.CURRENT, TierRelation.DOWNGRADE ->
+                        activeSheet = TierSheet.Breakdown
+                    // Upgrade opens the change sheet ONLY for an actual
+                    // backend offer (#22867-5); the OFFER's direction labels
+                    // the sheet (#22836-3).
                     TierRelation.UPGRADE -> {
                         val direction =
                             offerDirectionIsUpgrade(changeOffers, activeTier.apiCode)
@@ -425,7 +460,10 @@ internal fun GoldPriorityContent(
                     }
                     // Inactive page's activation copy pops back to Home.
                     TierRelation.ACTIVATION -> onBack()
-                    TierRelation.DOWNGRADE, TierRelation.PREVIEW -> Unit
+                    // Corporate page: B2B contact (seven-page contract).
+                    TierRelation.PREVIEW -> onNavigate(
+                        com.ga.airdrop.core.navigation.Routes.CONTACTS,
+                    )
                 }
             },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -588,6 +626,7 @@ private fun TierPageContent(
     benefitRows: List<String>?,
     catalogStatus: TierCatalogStatus,
     onRetry: () -> Unit,
+    reserveCtaSpace: Boolean = true,
 ) {
     Box(Modifier.fillMaxSize()) {
         // Figma Ellipse 3413 — 284×284 at (-93, 151): soft radial glow from
@@ -611,12 +650,13 @@ private fun TierPageContent(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                // Figma: 30dp sides (Spaceing-s), 20 top; bottom reserves the
-                // 50dp CTA + 12dp gap (Swift pins the scroll to the CTA top).
+                // Figma: 30dp sides (Spaceing-s), 20 top. Bottom reserves the
+                // 50dp CTA + gaps ONLY when this page actually shows a CTA —
+                // a hidden CTA must not leave a dead field (#22989).
                 .padding(horizontal = 30.dp)
                 .padding(top = 20.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(bottom = 86.dp),
+                .padding(bottom = if (reserveCtaSpace) 86.dp else 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Row(
@@ -760,30 +800,35 @@ private fun BenefitCheck(modifier: Modifier = Modifier) {
 
 /**
  * Swift TierCTAButton verbatim: 316×50, radius 12, white 7% fill, 1px white
- * 18% border, Cairo SemiBold 17, white title. Page-relative states from
- * [tierRelation]; DOWNGRADE/PREVIEW render nothing (never a downgrade sign).
- * CURRENT opens the Your-Tier breakdown sheet, UPGRADE opens the change
- * sheet, ACTIVATION pops back to Home — all live (issue #41).
+ * 18% border, Cairo SemiBold 17, white title. Label comes from
+ * [tierCtaLabel]'s seven-page contract (no page is blank); [enabled]=false
+ * renders the honest DISABLED state (dimmed, inert, a11y-disabled) for
+ * un-offered upgrades instead of a silently-dead button (#22991-2).
  */
 @Composable
 private fun TierCtaButton(
-    relation: TierRelation,
-    pageName: String,
+    label: String?,
+    enabled: Boolean,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val label = tierCtaLabel(relation, pageName) ?: return
+    if (label == null) return
     Box(
         modifier = modifier
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(bottom = 12.dp)
             .size(width = 316.dp, height = 50.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = if (enabled) 0.07f else 0.04f))
+            .border(
+                1.dp,
+                Color.White.copy(alpha = if (enabled) 0.18f else 0.10f),
+                RoundedCornerShape(12.dp),
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
+                enabled = enabled,
                 onClick = onTap,
             )
             .testTag("gold-priority-cta"),
@@ -795,7 +840,7 @@ private fun TierCtaButton(
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
             ),
-            color = Color.White,
+            color = Color.White.copy(alpha = if (enabled) 1f else 0.55f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
