@@ -1,11 +1,18 @@
 package com.ga.airdrop.feature.more2
 
+import android.content.ContentValues
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.provider.MediaStore
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
@@ -14,13 +21,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
-import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -44,7 +50,7 @@ class ReferAFriendParityTest {
     }
 
     @Test
-    fun referLandingMatchesFigmaOverrideLight() {
+    fun referLandingMatchesSwiftAndFigmaLight() {
         val inviteClicks = AtomicInteger()
 
         setReferContent(ThemeController.Mode.LIGHT) {
@@ -75,12 +81,23 @@ class ReferAFriendParityTest {
         assertAbsent("Invite Friends")
 
         val card = compose.onNodeWithTag("refer-hero-card-reward").getUnclippedBoundsInRoot()
+        val carousel = compose.onNodeWithTag("refer-hero-carousel").getUnclippedBoundsInRoot()
+        val icon = compose.onNodeWithTag("refer-hero-card-icon-reward").getUnclippedBoundsInRoot()
+        val title = compose.onNodeWithTag("refer-hero-card-title-reward").getUnclippedBoundsInRoot()
         val body = compose.onNodeWithTag("refer-hero-card-body-reward").getUnclippedBoundsInRoot()
+        val button = compose.onNodeWithTag("refer-invite-button").getUnclippedBoundsInRoot()
+        assertEquals("Swift/Figma carousel viewport height", 339f, boundsHeight(carousel), 1f)
         assertEquals("Figma carousel card width", 238f, boundsWidth(card), 1f)
-        assertEquals("Figma carousel card height", 339f, boundsHeight(card), 1f)
+        assertEquals("Swift/Figma carousel card height", 326f, boundsHeight(card), 1f)
+        assertEquals("Swift/Figma centered reward card x", 68.5f, card.left.value, 1f)
+        assertEquals("Swift/Figma icon plate top", 60f, (icon.top - card.top).value, 1f)
+        assertEquals("Swift/Figma icon plate width", 122f, boundsWidth(icon), 1f)
+        assertEquals("Swift/Figma icon plate height", 122f, boundsHeight(icon), 1f)
+        assertEquals("Swift/Figma icon-to-title gap", 20f, (title.top - icon.bottom).value, 1f)
+        assertEquals("Swift/Figma Invite CTA height", 52f, boundsHeight(button), 1f)
         assertTrue(
             "Reward-card body text must fit inside the Figma card, not clip",
-            body.bottom.value <= card.bottom.value - 42f,
+            body.bottom.value <= card.bottom.value,
         )
 
         compose.onNodeWithTag("refer-invite-button").performClick()
@@ -91,7 +108,7 @@ class ReferAFriendParityTest {
     }
 
     @Test
-    fun referLandingMatchesFigmaOverrideDark() {
+    fun referLandingMatchesSwiftAndFigmaDark() {
         setReferContent(ThemeController.Mode.DARK)
 
         compose.onNodeWithTag("refer-figma-screen").assertIsDisplayed()
@@ -115,11 +132,18 @@ class ReferAFriendParityTest {
         compose.setContent {
             val refreshAfterInvite by remember { mutableStateOf(false) }
             AirdropTheme {
-                ReferAFriendScreen(
-                    onBack = {},
-                    onInviteFriend = onInviteFriend,
-                    refreshAfterInvite = refreshAfterInvite,
-                )
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .height(812.dp)
+                        .background(AirdropTheme.colors.gray150)
+                ) {
+                    ReferAFriendScreen(
+                        onBack = {},
+                        onInviteFriend = onInviteFriend,
+                        refreshAfterInvite = refreshAfterInvite,
+                    )
+                }
             }
         }
         compose.waitForIdle()
@@ -160,14 +184,31 @@ class ReferAFriendParityTest {
 
     private fun saveRootScreenshot(filename: String) {
         val bitmap: Bitmap = compose.onNodeWithTag("refer-figma-screen").captureToImage().asAndroidBitmap()
-        val output = File(screenshotDir(), filename)
-        FileOutputStream(output).use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-        }
+        saveRootScreenshotToMediaStore(bitmap, filename)
     }
 
-    private fun screenshotDir(): File {
+    private fun saveRootScreenshotToMediaStore(bitmap: Bitmap, filename: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        return File(context.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
+        val relativePath = "Pictures/kotlin_ui_proof/refer_friend/"
+        context.contentResolver.delete(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?",
+            arrayOf(filename, "%kotlin_ui_proof/refer_friend%"),
+        )
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return
+        val outputStream = context.contentResolver.openOutputStream(uri) ?: return
+        outputStream.use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        context.contentResolver.update(uri, values, null, null)
     }
 }

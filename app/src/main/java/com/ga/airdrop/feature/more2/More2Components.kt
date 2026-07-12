@@ -60,25 +60,30 @@ internal fun More2InnerHeader(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    surfaceColor: Color? = null,
+    dividerColor: Color? = null,
+    contentHeight: androidx.compose.ui.unit.Dp = 56.dp,
+    backTargetSize: androidx.compose.ui.unit.Dp = 36.dp,
+    backStartPadding: androidx.compose.ui.unit.Dp = 12.dp,
     rightContent: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
     Column(
         modifier
             .fillMaxWidth()
-            .background(colors.gray100)
+            .background(surfaceColor ?: colors.gray100)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(contentHeight)
         ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 12.dp)
-                    .size(36.dp)
+                    .padding(start = backStartPadding)
+                    .size(backTargetSize)
                     .testTag("more2-inner-header-back")
                     .clickable(onClick = onBack),
                 contentAlignment = Alignment.Center,
@@ -114,7 +119,7 @@ internal fun More2InnerHeader(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(colors.iconShape)
+                .background(dividerColor ?: colors.iconShape)
         )
     }
 }
@@ -124,19 +129,21 @@ internal fun More2InnerHeader(
 internal fun More2BottomBar(
     modifier: Modifier = Modifier,
     verticalPadding: androidx.compose.ui.unit.Dp = Spacing.md,
+    surfaceColor: Color? = null,
+    dividerColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = AirdropTheme.colors
     Column(
         modifier
             .fillMaxWidth()
-            .background(colors.gray100)
+            .background(surfaceColor ?: colors.gray100)
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(colors.iconShape)
+                .background(dividerColor ?: colors.iconShape)
         )
         Column(
             Modifier
@@ -157,18 +164,18 @@ internal fun More2PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     loading: Boolean = false,
+    radius: androidx.compose.ui.unit.Dp = 14.dp,
+    gradient: Brush = Brush.horizontalGradient(listOf(Color(0xFFFF783E), Color(0xFFF15114))),
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(radius))
             // alpha must precede background — applied after, it no-ops on the
             // already-drawn gradient and the disabled CTA looked enabled.
             .alpha(if (enabled) 1f else 0.5f)
-            .background(
-                Brush.horizontalGradient(listOf(Color(0xFFFF783E), Color(0xFFF15114)))
-            )
+            .background(gradient)
             .clickable(enabled = enabled && !loading, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
