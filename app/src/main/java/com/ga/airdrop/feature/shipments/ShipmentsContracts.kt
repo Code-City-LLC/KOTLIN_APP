@@ -289,6 +289,17 @@ object ShipmentsRepoProvider {
  * ShipmentsCartStore was an orphan id-set whose adds silently vanished.
  */
 
+/**
+ * Numeric kg for the cart line — Swift FigmaCartViewController weightKgNumeric:
+ * prefer the canonical kg string (server sends a plain decimal like "1.30",
+ * sometimes suffixed "kg"), else convert pounds at 0.45359237.
+ */
+fun packageWeightKg(weightKg: String?, weightLbs: Double?): Double? {
+    weightKg?.replace("kg", "", ignoreCase = true)?.replace(" ", "")
+        ?.toDoubleOrNull()?.takeIf { it > 0 }?.let { return it }
+    return weightLbs?.takeIf { it > 0 }?.let { it * 0.45359237 }
+}
+
 fun ShipmentPackage.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine =
     com.ga.airdrop.feature.cart.CartStore.CartLine(
         id = id,
@@ -298,6 +309,7 @@ fun ShipmentPackage.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine
         qty = 1,
         priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
         isAuction = false,
+        weightKg = packageWeightKg(weightKg, weightLbs),
     )
 
 fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine =
@@ -309,4 +321,5 @@ fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.Ca
         qty = 1,
         priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
         isAuction = false,
+        weightKg = packageWeightKg(weightKg, weightLbs),
     )

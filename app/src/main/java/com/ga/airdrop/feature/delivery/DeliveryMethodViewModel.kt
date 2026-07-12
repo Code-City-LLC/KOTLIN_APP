@@ -7,6 +7,7 @@ import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.data.model.DeliveryLocation
 import com.ga.airdrop.data.model.DeliveryWarehouse
 import com.ga.airdrop.data.model.PlaceResult
+import com.ga.airdrop.data.repo.DeliveryGateway
 import com.ga.airdrop.data.repo.DeliveryRepository
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.shop.ShopCheckoutRepository
@@ -38,7 +39,7 @@ import kotlinx.coroutines.launch
  * Tab. restore JMD→Profile / USD→Order Summary when those screens land.
  */
 class DeliveryMethodViewModel(
-    private val repo: DeliveryRepository = DeliveryRepository(ApiClient.service),
+    private val repo: DeliveryGateway = DeliveryRepository(ApiClient.service),
     private val checkout: ShopCheckoutRepository = ShopRepoProvider.checkout,
 ) : ViewModel() {
 
@@ -112,7 +113,13 @@ class DeliveryMethodViewModel(
     }
 
     fun onModeSelected(mode: DeliveryMode) {
-        _state.update { it.copy(mode = mode) }
+        _state.update {
+            // Swift modeChanged: switching to pickup clears any in-flight
+            // delivery-mode search artifacts so a later toggle back doesn't
+            // resurface stale suggestions.
+            if (mode == DeliveryMode.Pickup) it.copy(mode = mode, searchResults = emptyList())
+            else it.copy(mode = mode)
+        }
     }
 
     fun onWarehouseSelected(warehouse: DeliveryWarehouse) {
@@ -269,6 +276,14 @@ class DeliveryMethodViewModel(
      * reverse-geocode that commits the resolved address only if the marker
      * hasn't moved since this chain started (coord-equality guard).
      */
+    /**
+     * Device reverse-geocoder fallback, supplied by the SCREEN (which owns all
+     * Android services — same split as onUseCurrentLocation). Swift falls back
+     * to CLGeocoder when Laravel reverse-geocode fails so a human-readable
+     * place name always lands instead of raw "lat, lng".
+     */
+    var deviceGeocoder: (suspend (Double, Double) -> String?)? = null
+
     fun onMapPointPicked(latitude: Double, longitude: Double) {
         val coord = latitude to longitude
         val fallback = String.format(Locale.US, "%.5f, %.5f", latitude, longitude)
@@ -289,13 +304,12 @@ class DeliveryMethodViewModel(
 
         reverseGeocodeJob?.cancel()
         reverseGeocodeJob = viewModelScope.launch {
-            repo.reverseGeocode(latitude, longitude).onSuccess { result ->
-                val address = result.address?.takeIf { it.isNotBlank() } ?: return@onSuccess
-                // Belt-and-braces alongside the cancel above: commit only if
-                // the marker coord is unchanged (Swift's final guard).
-                if (_state.value.markerCoord == coord) {
-                    _state.update { it.copy(searchQuery = address, validatedAddress = address) }
-                }
+            val address = resolveGeocodedAddress(repo, deviceGeocoder, latitude, longitude)
+                ?: return@launch
+            // Belt-and-braces alongside the cancel above: commit only if
+            // the marker coord is unchanged (Swift's final guard).
+            if (geocodeCommitAllowed(_state.value.markerCoord, coord)) {
+                _state.update { it.copy(searchQuery = address, validatedAddress = address) }
             }
         }
     }
@@ -318,12 +332,16 @@ class DeliveryMethodViewModel(
         onMapPointPicked(latLng.first, latLng.second)
     }
 
-    /** POST /delivery/validate-location — total_weight_kg=null (CartLine has no weight). */
+    /**
+     * POST /delivery/validate-location. The cart's fail-closed total weight is
+     * forwarded so the server prices the preview off real data (PR44 gate:
+     * a partial sum must never be sent — see [cartTotalWeightKg]).
+     */
     private fun validate(latitude: Double, longitude: Double, address: String?) {
         validateJob?.cancel()
         _state.update { it.copy(ctaState = DeliveryCtaState.Validating) }
         validateJob = viewModelScope.launch {
-            repo.validateLocation(latitude, longitude, address, totalWeightKg = null)
+            repo.validateLocation(latitude, longitude, address, totalWeightKg = cartTotalWeightKg(CartStore.items.value))
                 .onSuccess { result ->
                     if (result.valid == true) {
                         _state.update {
@@ -416,6 +434,7 @@ class DeliveryMethodViewModel(
                         longitude = coord?.second,
                         formattedAddress = address,
                     ),
+                    totalWeightKg = cartTotalWeightKg(CartStore.items.value),
                 )
             }
             result
@@ -684,3 +703,42 @@ internal fun decideContinue(
         )
     }
 }
+
+// ─── Pure/suspend delivery helpers (unit-tested without coroutines-test) ────
+
+/**
+ * Fail-closed cart weight for `total_weight_kg` (PR44 gate ruling): auction
+ * lines are weightless by design (Swift parity) and are excluded; if ANY
+ * package line lacks a parseable positive weight the total is UNKNOWN — return
+ * null so the server never prices a fee preview off a knowingly understated
+ * partial sum.
+ */
+internal fun cartTotalWeightKg(lines: List<CartStore.CartLine>): Double? {
+    val packageLines = lines.filter { !it.isAuction }
+    if (packageLines.isEmpty()) return null
+    if (packageLines.any { (it.weightKg ?: 0.0) <= 0.0 }) return null
+    return packageLines.sumOf { it.weightKg ?: 0.0 }
+}
+
+/**
+ * Reverse-geocode chain: Laravel first (parity with the backend address
+ * store), device geocoder as the safety net (Swift CLGeocoder fallback) so a
+ * human-readable place name lands whenever either source can produce one.
+ */
+internal suspend fun resolveGeocodedAddress(
+    gateway: DeliveryGateway,
+    deviceGeocoder: (suspend (Double, Double) -> String?)?,
+    latitude: Double,
+    longitude: Double,
+): String? =
+    gateway.reverseGeocode(latitude, longitude).getOrNull()?.address?.takeIf { it.isNotBlank() }
+        ?: deviceGeocoder?.invoke(latitude, longitude)?.takeIf { it.isNotBlank() }
+
+/**
+ * Swift's final guard: a late geocode result may only commit while the marker
+ * still sits on the coordinate the chain was started for.
+ */
+internal fun geocodeCommitAllowed(
+    currentMarker: Pair<Double, Double>?,
+    chainCoord: Pair<Double, Double>,
+): Boolean = currentMarker == chainCoord

@@ -43,6 +43,12 @@ object CartStore {
          * flag so a mixed cart is declared honestly.
          */
         val isAuction: Boolean = false,
+        /**
+         * Parsed numeric kilograms for the Delivery Method `total_weight_kg`
+         * preview (Swift FigmaCartLine.weightKg). null for auction lines or
+         * when the server didn't return a parseable weight.
+         */
+        val weightKg: Double? = null,
     )
 
     private const val PREFS = "airdrop_cart"

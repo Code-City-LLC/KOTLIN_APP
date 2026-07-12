@@ -16,9 +16,17 @@ import android.content.SharedPreferences
  */
 object DeliveryDefaultsStore {
 
-    enum class Method(val raw: String, val displayName: String) {
-        PICKUP("pickup", "Counter pickup"),
-        HOME("homeDelivery", "Home delivery");
+    enum class Method(val raw: String, val displayName: String, val subtitle: String) {
+        PICKUP(
+            "pickup",
+            "Counter pickup",
+            "Pick up at the AirDrop counter when your package arrives. No delivery fee.",
+        ),
+        HOME(
+            "homeDelivery",
+            "Home delivery",
+            "Deliver to your saved Jamaica address. A delivery fee applies based on distance.",
+        );
 
         companion object {
             fun fromRaw(raw: String?): Method? = entries.firstOrNull { it.raw == raw }
