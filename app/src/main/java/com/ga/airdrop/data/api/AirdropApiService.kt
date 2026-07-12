@@ -55,6 +55,8 @@ import com.ga.airdrop.data.model.ReverseGeocodeRequest
 import com.ga.airdrop.data.model.ReverseGeocodeResult
 import com.ga.airdrop.data.model.SaveDeliveryPreferenceRequest
 import com.ga.airdrop.data.model.ServiceTier
+import com.ga.airdrop.data.model.TierChangeResult
+import com.ga.airdrop.data.model.TierChangeRequest
 import com.ga.airdrop.data.model.SearchPlacesRequest
 import com.ga.airdrop.data.model.SendTestNotificationRequest
 import com.ga.airdrop.data.model.ShipmentCalculation
@@ -114,6 +116,10 @@ interface AirdropApiService {
 
     @GET("customers/me/tier")
     suspend fun customerTier(): DataEnvelope<CustomerTier>
+
+    // PATCH is provisional (#22450); only the follow-up GET is authoritative.
+    @PATCH("customers/me/tier")
+    suspend fun changeCustomerTier(@Body body: TierChangeRequest): DataEnvelope<TierChangeResult>
 
     // ── CMS / FAQ ──
 
