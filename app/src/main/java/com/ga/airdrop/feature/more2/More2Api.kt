@@ -2,13 +2,11 @@ package com.ga.airdrop.feature.more2
 
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.api.AirdropJson
-import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuthorizedUserEnvelope
 import com.ga.airdrop.data.model.AuthorizedUserRequest
 import com.ga.airdrop.data.model.AuthorizedUsers
 import com.ga.airdrop.data.model.AuthorizedUsersEnvelope
 import com.ga.airdrop.data.model.CmsContentResponse
-import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
 import com.ga.airdrop.data.model.EmptyRequest
@@ -18,8 +16,6 @@ import com.ga.airdrop.data.model.LoginResponse
 import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.PromotionalBanner
-import com.ga.airdrop.data.model.ReferFriendRequest
-import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.model.ShippingRates
 import okhttp3.ResponseBody
 import retrofit2.http.Body
@@ -30,7 +26,6 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
-import retrofit2.http.Query
 
 /*
  * MORE-group part 2 endpoints, mirroring Swift AirdropAPI / APIEndpoints.
@@ -68,16 +63,6 @@ interface More2Api {
 
     @PATCH("authorized-users/{id}/deactivate")
     suspend fun deactivateAuthorizedUser(@Path("id") id: Int, @Body body: EmptyRequest): MutationResponse
-
-    // ── Refer a friend ──
-    @GET("refer-friend/history")
-    suspend fun referredFriends(@Query("limit") limit: Int): Paginated<ReferredFriend>
-
-    @POST("refer-friend")
-    suspend fun referFriend(@Body body: ReferFriendRequest): MutationResponse
-
-    @GET("user/profile")
-    suspend fun profile(): CurrentUserResponse
 
     // ── Content / info ──
     @GET("promotional-banners")
@@ -143,21 +128,6 @@ class More2Repository(
 
     suspend fun deactivateAuthorizedUser(id: Int) =
         apiCall { api.deactivateAuthorizedUser(id, EmptyRequest()) }
-
-    suspend fun referredFriends(limit: Int = 20): Result<List<ReferredFriend>> =
-        apiCall { api.referredFriends(limit).items }
-
-    suspend fun referFriend(request: ReferFriendRequest) =
-        apiCall {
-            val response = api.referFriend(request)
-            if (response.success == false) {
-                error(response.message ?: "Error")
-            }
-            response
-        }
-
-    suspend fun profile(): Result<AirdropUser> =
-        apiCall { api.profile().user ?: error("No profile returned") }
 
     suspend fun promotionalBanners(activeOnly: Boolean = true): Result<List<PromotionalBanner>> =
         apiCall {

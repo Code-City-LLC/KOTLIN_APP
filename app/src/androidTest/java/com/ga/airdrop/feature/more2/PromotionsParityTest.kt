@@ -25,11 +25,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
-import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuthorizedUserEnvelope
 import com.ga.airdrop.data.model.AuthorizedUserRequest
 import com.ga.airdrop.data.model.AuthorizedUsersEnvelope
-import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
 import com.ga.airdrop.data.model.EmptyRequest
@@ -39,8 +37,6 @@ import com.ga.airdrop.data.model.LoginResponse
 import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.PromotionalBanner
-import com.ga.airdrop.data.model.ReferFriendRequest
-import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.model.ShippingRates
 import java.io.File
 import java.io.FileOutputStream
@@ -296,16 +292,6 @@ class PromotionsParityTest {
 
         override suspend fun deactivateAuthorizedUser(id: Int, body: EmptyRequest): MutationResponse =
             throw AssertionError("Unused in PromotionsParityTest")
-
-        override suspend fun referredFriends(limit: Int): Paginated<ReferredFriend> =
-            throw AssertionError("Unused in PromotionsParityTest")
-
-        override suspend fun referFriend(body: ReferFriendRequest): MutationResponse =
-            throw AssertionError("Unused in PromotionsParityTest")
-
-        override suspend fun profile(): CurrentUserResponse =
-            throw AssertionError("Unused in PromotionsParityTest")
-
         override suspend fun shippingRates(): DataEnvelope<ShippingRates> =
             throw AssertionError("Unused in PromotionsParityTest")
 
