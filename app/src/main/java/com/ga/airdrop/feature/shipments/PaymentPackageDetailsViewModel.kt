@@ -54,23 +54,33 @@ class PaymentPackageDetailsViewModel(
 
     fun refresh() {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            val showFullLoader = _state.value.payment == null && _state.value.detail == null
+            _state.update { it.copy(loading = showFullLoader, error = null) }
             val paymentIdInt = paymentId.toIntOrNull()
             if (paymentIdInt == null) {
                 _state.update { it.copy(loading = false, error = "Invalid payment id") }
                 return@launch
             }
-            paymentsRepo.payment(paymentIdInt)
+            paymentsRepo.payment(paymentIdInt, refresh = true)
                 .onSuccess { payment ->
                     _state.update { it.copy(payment = payment) }
                     val packageId = payment.packageId
                     if (packageId != null) {
                         packagesRepo.packageDetails(packageId.toString())
                             .onSuccess { detail ->
-                                _state.update { it.copy(detail = detail) }
+                                _state.update { it.copy(detail = detail, loading = false) }
                             }
+                            .onFailure { e ->
+                                _state.update {
+                                    it.copy(
+                                        loading = false,
+                                        error = e.message ?: "Package details not found",
+                                    )
+                                }
+                            }
+                    } else {
+                        _state.update { it.copy(loading = false) }
                     }
-                    _state.update { it.copy(loading = false) }
                 }
                 .onFailure { e ->
                     _state.update { it.copy(loading = false, error = e.message) }

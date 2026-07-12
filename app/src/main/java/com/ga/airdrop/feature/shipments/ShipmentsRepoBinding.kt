@@ -214,6 +214,7 @@ private class DataShipmentsPackagesRepository(
  * by scanning recent pages when a deep link arrives cold.
  */
 private const val PAYMENT_LOOKUP_PER_PAGE = 15
+private const val MAX_PAYMENT_LOOKUP_PAGES = 20
 
 private object PaymentPageCache {
     private val byId = LinkedHashMap<Int, ShipmentPayment>()
@@ -257,23 +258,27 @@ internal class DataShipmentsPaymentsRepository(
                 Paged(page.items.map { it.toShipment().also(PaymentPageCache::remember) }, page.isLastPage())
             }
 
-    override suspend fun payment(paymentId: Int): Result<ShipmentPayment> {
-        PaymentPageCache.get(paymentId)?.let { return Result.success(it) }
+    override suspend fun payment(paymentId: Int, refresh: Boolean): Result<ShipmentPayment> {
+        val cached = PaymentPageCache.get(paymentId)
+        if (!refresh) cached?.let { return Result.success(it) }
         // Cold detail entry: keep scanning until the backend reports the end
-        // instead of cutting off after an arbitrary page window.
+        // instead of cutting off at five pages; still cap metadata-less scans
+        // so a broken backend cannot spin through unbounded full pages.
         var page = 1
-        while (true) {
+        while (page <= MAX_PAYMENT_LOOKUP_PAGES) {
             val result = repo.payments(page = page, perPage = PAYMENT_LOOKUP_PER_PAGE, type = null, search = null)
-            val rows = result.getOrNull()?.items ?: return Result.failure(
-                result.exceptionOrNull() ?: IllegalStateException("Payment not found"),
-            )
+            val envelope = result.getOrNull() ?: return cached?.let(Result.Companion::success)
+                ?: Result.failure(result.exceptionOrNull() ?: IllegalStateException("Payment not found"))
+            val rows = envelope.items
             if (rows.isEmpty()) break
-            rows.forEach { PaymentPageCache.remember(it.toShipment()) }
-            PaymentPageCache.get(paymentId)?.let { return Result.success(it) }
+            val mappedRows = rows.map { it.toShipment().also(PaymentPageCache::remember) }
+            mappedRows.firstOrNull { it.id == paymentId }?.let { return Result.success(it) }
+            if (envelope.isLastPage() == true) break
             if (rows.size < PAYMENT_LOOKUP_PER_PAGE) break
             page += 1
         }
-        return Result.failure(IllegalStateException("Payment #$paymentId not found"))
+        return cached?.let(Result.Companion::success)
+            ?: Result.failure(IllegalStateException("Payment #$paymentId not found"))
     }
 
     override suspend fun paymentInvoiceUrl(paymentId: Int): Result<String> =

@@ -172,6 +172,11 @@ object ShopCheckoutStore {
      * always "Product unavailable").
      */
     @Volatile var pendingRef: String? = null
+
+    fun clear() {
+        product = null
+        pendingRef = null
+    }
 }
 
 /**
@@ -198,4 +203,14 @@ object ShopProductHandoffStore {
         entry = null
         return handed.takeIf { it.routeSlug == routeSlug }
     }
+
+    fun clear() {
+        entry = null
+    }
+}
+
+/** Clears volatile shop navigation hand-offs that must not survive account switches. */
+internal fun clearShopSessionCaches() {
+    ShopCheckoutStore.clear()
+    ShopProductHandoffStore.clear()
 }

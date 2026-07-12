@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.security
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,12 +59,28 @@ fun BiometricLockScreen(
     onUnlocked: () -> Unit,
 ) {
     val typeName = remember { BiometricGate.biometricTypeName(activity) }
+    BiometricLockContent(
+        context = activity,
+        typeName = typeName,
+        authenticate = { BiometricGate.authenticate(activity, "Unlock AirDrop") },
+        onUnlocked = onUnlocked,
+    )
+}
+
+@Composable
+internal fun BiometricLockContent(
+    context: Context,
+    typeName: String,
+    authenticate: suspend () -> Boolean,
+    onUnlocked: () -> Unit,
+    autoAuthenticate: Boolean = true,
+) {
     var status by remember { mutableStateOf("Locked") }
     val scope = rememberCoroutineScope()
 
     fun attemptUnlock() {
         scope.launch {
-            if (BiometricGate.authenticate(activity, "Unlock AirDrop")) {
+            if (authenticate()) {
                 onUnlocked()
             } else {
                 status = "$typeName failed — tap to try again."
@@ -71,7 +88,9 @@ fun BiometricLockScreen(
         }
     }
 
-    LaunchedEffect(Unit) { attemptUnlock() }
+    LaunchedEffect(autoAuthenticate) {
+        if (autoAuthenticate) attemptUnlock()
+    }
 
     Box(
         Modifier
@@ -146,13 +165,16 @@ fun BiometricLockScreen(
                     .clickable {
                         AuthTokenStore.clear()
                         SessionStore.clear()
-                        CartStore.init(activity.applicationContext)
+                        CartStore.init(context.applicationContext)
                         CartStore.clear()
-                        SavedForLaterStore.init(activity.applicationContext)
+                        SavedForLaterStore.init(context.applicationContext)
                         SavedForLaterStore.clearAll()
                         DeliveryDefaultsStore.clearAll()
-                        QuietHoursStore.clear(activity.applicationContext)
+                        QuietHoursStore.clear(context.applicationContext)
                         BiometricGate.reset()
+                        com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches()
+                        com.ga.airdrop.feature.shop.clearShopSessionCaches()
+                        com.ga.airdrop.core.prefs.ExchangeRateStore.clear()
                         onUnlocked()
                     }
                     .padding(8.dp)

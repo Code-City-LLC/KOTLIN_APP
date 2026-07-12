@@ -11,6 +11,7 @@ class PushDeepLinkParityTest {
     @Before
     fun clearPendingRoute() {
         PushDeepLink.consume()
+        com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
     }
 
     @Test
@@ -24,9 +25,27 @@ class PushDeepLinkParityTest {
         assertRoute("InviteFriend", Routes.INVITE_FRIEND)
     }
 
-    private fun assertRoute(route: String, expected: String) {
+    @Test
+    fun paymentAndOrderDetailRoutesCarrySwiftReferenceIds() {
+        assertRoute("PaymentPackageDetailsView", Routes.paymentPackageDetails("42"), referenceId = "42")
+        assertRoute("ProductPaymentDetailsView", Routes.productPaymentDetails("43"), referenceId = "43")
+        assertRoute("OrderDetailsView", Routes.orderDetails("44"), referenceId = "44")
+        assertRoute("PaymentPackageDetailsView", Routes.PAYMENTS)
+        assertRoute("ProductPaymentDetailsView", Routes.PAYMENTS)
+        assertRoute("OrderDetailsView", Routes.ORDERS)
+    }
+
+    @Test
+    fun auctionCheckoutRoutePreservesSwiftReferenceIdForCheckoutLoader() {
+        assertRoute("AuctionProductCheckoutView", Routes.AUCTION_CHECKOUT, referenceId = "auction-22")
+        assertEquals("auction-22", com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef)
+        com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
+    }
+
+    private fun assertRoute(route: String, expected: String, referenceId: String? = null) {
         PushDeepLink.capture(
             Intent().putExtra(AirdropMessagingService.EXTRA_ROUTE, route)
+                .putExtra(AirdropMessagingService.EXTRA_REFERENCE_ID, referenceId)
         )
         assertEquals(expected, PushDeepLink.consume())
     }

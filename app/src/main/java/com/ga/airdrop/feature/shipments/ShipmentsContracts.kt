@@ -202,7 +202,7 @@ interface ShipmentsPaymentsRepository {
     // RECONCILE: single payment lookup for the detail routes. Swift passes the tapped Payment
     // object through the navigation push; Android routes carry only the id, so the repo must
     // resolve it (GET /payments/{id} if available, else an in-memory page cache).
-    suspend fun payment(paymentId: Int): Result<ShipmentPayment>
+    suspend fun payment(paymentId: Int, refresh: Boolean = false): Result<ShipmentPayment>
 
     // RECONCILE: GET /payments/{id}/invoice → invoice URL. Accept envelopes
     // {data:{url}}, {data:{file_url}}, {data:"..."}, {url}, {file_url}; raw bytes → cache file URL.
@@ -253,7 +253,7 @@ object ShipmentsRepoProvider {
     var payments: ShipmentsPaymentsRepository = object : ShipmentsPaymentsRepository {
         override suspend fun payments(page: Int, perPage: Int, type: String?, search: String?) =
             Result.failure<Paged<ShipmentPayment>>(PendingDataLayerException())
-        override suspend fun payment(paymentId: Int) =
+        override suspend fun payment(paymentId: Int, refresh: Boolean) =
             Result.failure<ShipmentPayment>(PendingDataLayerException())
         override suspend fun paymentInvoiceUrl(paymentId: Int) =
             Result.failure<String>(PendingDataLayerException())

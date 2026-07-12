@@ -30,6 +30,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -72,6 +73,31 @@ class PaymentPackageDetailsParityTest {
 
         assertHistorySwiftParity()
         saveRootScreenshot("payment_package_history_swift_dark.png")
+    }
+
+    @Test
+    fun viewModelRefreshSurfacesPackageDetailFailureAndKeepsPaymentContext() {
+        val payments = RecordingPaymentsRepository()
+        val packages = RecordingPackagesRepository(
+            Result.failure(IllegalStateException("Package details unavailable")),
+        )
+        val viewModel = PaymentPackageDetailsViewModel(
+            paymentId = "42",
+            paymentsRepo = payments,
+            packagesRepo = packages,
+            hubRepo = StaticHubRepository(),
+        )
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.error == "Package details unavailable"
+        }
+
+        assertEquals(1, payments.paymentCalls.get())
+        assertEquals(listOf(true), payments.refreshFlags)
+        assertEquals(1, packages.detailCalls.get())
+        assertEquals(samplePayment(), viewModel.state.value.payment)
+        assertEquals(null, viewModel.state.value.detail)
+        assertEquals(false, viewModel.state.value.loading)
     }
 
     private fun setDetailsContent(mode: ThemeController.Mode) {
@@ -191,7 +217,59 @@ class PaymentPackageDetailsParityTest {
     private fun sampleState() = PaymentPackageDetailsUiState(
         loading = false,
         exchangeRate = 160.0,
-        payment = ShipmentPayment(
+        payment = samplePayment(),
+        detail = sampleDetail(),
+    )
+
+    private class RecordingPaymentsRepository : ShipmentsPaymentsRepository {
+        val paymentCalls = AtomicInteger()
+        val refreshFlags = mutableListOf<Boolean>()
+
+        override suspend fun payments(page: Int, perPage: Int, type: String?, search: String?) =
+            Result.success(Paged(listOf(samplePayment())))
+
+        override suspend fun payment(paymentId: Int, refresh: Boolean): Result<ShipmentPayment> {
+            paymentCalls.incrementAndGet()
+            refreshFlags += refresh
+            return Result.success(samplePayment())
+        }
+
+        override suspend fun paymentInvoiceUrl(paymentId: Int) =
+            Result.success("https://example.test/invoice.pdf")
+    }
+
+    private class RecordingPackagesRepository(
+        private val detailResult: Result<ShipmentPackageDetail>,
+    ) : ShipmentsPackagesRepository {
+        val detailCalls = AtomicInteger()
+
+        override suspend fun packages(page: Int, perPage: Int, status: Int?, search: String?) =
+            Result.success(Paged(emptyList<ShipmentPackage>()))
+
+        override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> {
+            detailCalls.incrementAndGet()
+            return detailResult
+        }
+
+        override suspend fun packageStatuses() = Result.success(emptyList<PackageStatusInfo>())
+
+        override suspend fun uploadInvoices(packageId: String, files: List<InvoiceUploadFile>) =
+            Result.success(Unit)
+
+        override suspend fun deleteInvoice(packageId: String, invoiceId: Int) =
+            Result.success(Unit)
+    }
+
+    private class StaticHubRepository : ShipmentsHubRepository {
+        override suspend fun exchangeRate() = Result.success(161.0)
+        override suspend fun summary() = Result.success(ShipmentsSummary())
+        override suspend fun packagesShortlist() = Result.success(emptyList<ShipmentPackage>())
+        override suspend fun paymentsShortlist() = Result.success(emptyList<ShipmentPayment>())
+        override suspend fun ordersShortlist() = Result.success(emptyList<ShipmentOrder>())
+    }
+
+    private companion object {
+        fun samplePayment() = ShipmentPayment(
             id = 42,
             invoiceId = "INV-100",
             method = "card",
@@ -201,8 +279,9 @@ class PaymentPackageDetailsParityTest {
             packageDescription = "test_package",
             packageStatusName = "Paid and Ready for Pick Up",
             exchangeRate = 161.0,
-        ),
-        detail = ShipmentPackageDetail(
+        )
+
+        fun sampleDetail() = ShipmentPackageDetail(
             id = 7,
             status = "18",
             statusName = "Paid and Ready for Pick Up",
@@ -221,8 +300,8 @@ class PaymentPackageDetailsParityTest {
             additionalCharges = mapOf("Customs" to 5.0),
             additionalChargesTotal = 5.0,
             exchangeRate = 160.0,
-        ),
-    )
+        )
+    }
 
     private fun saveRootScreenshot(filename: String) {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()

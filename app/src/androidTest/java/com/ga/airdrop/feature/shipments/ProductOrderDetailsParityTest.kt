@@ -25,6 +25,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -78,6 +79,28 @@ class ProductOrderDetailsParityTest {
 
         saveRootScreenshot("order_details_swift_dark.png")
         assertOrderDetailsSwiftParity()
+    }
+
+    @Test
+    fun productPaymentRefreshSurfacesOrderDetailFailureAndKeepsPaymentContext() {
+        val payments = RecordingPaymentsRepository()
+        val orders = FailingOrdersRepository()
+        val viewModel = ProductPaymentDetailsViewModel(
+            paymentId = "42",
+            paymentsRepo = payments,
+            ordersRepo = orders,
+        )
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.error == "Order details unavailable"
+        }
+
+        assertEquals(1, payments.paymentCalls.get())
+        assertEquals(listOf(true), payments.refreshFlags)
+        assertEquals(1, orders.detailCalls.get())
+        assertEquals(samplePaymentFixture(), viewModel.state.value.payment)
+        assertEquals(null, viewModel.state.value.order)
+        assertEquals(false, viewModel.state.value.loading)
     }
 
     private fun setProductPaymentContent(mode: ThemeController.Mode): FakeOrdersRepository {
@@ -238,7 +261,24 @@ class ProductOrderDetailsParityTest {
         override suspend fun payments(page: Int, perPage: Int, type: String?, search: String?) =
             Result.success(Paged(listOf(payment)))
 
-        override suspend fun payment(paymentId: Int) = Result.success(payment)
+        override suspend fun payment(paymentId: Int, refresh: Boolean) = Result.success(payment)
+
+        override suspend fun paymentInvoiceUrl(paymentId: Int) =
+            Result.success("https://example.test/invoice.pdf")
+    }
+
+    private class RecordingPaymentsRepository : ShipmentsPaymentsRepository {
+        val paymentCalls = AtomicInteger()
+        val refreshFlags = mutableListOf<Boolean>()
+
+        override suspend fun payments(page: Int, perPage: Int, type: String?, search: String?) =
+            Result.success(Paged(listOf(samplePaymentFixture())))
+
+        override suspend fun payment(paymentId: Int, refresh: Boolean): Result<ShipmentPayment> {
+            paymentCalls.incrementAndGet()
+            refreshFlags += refresh
+            return Result.success(samplePaymentFixture())
+        }
 
         override suspend fun paymentInvoiceUrl(paymentId: Int) =
             Result.success("https://example.test/invoice.pdf")
@@ -255,6 +295,20 @@ class ProductOrderDetailsParityTest {
         override suspend fun orderDetails(orderId: Int): Result<ShipmentOrder> {
             lastOrderDetailId.set(orderId)
             return Result.success(order)
+        }
+
+        override suspend fun exchangeRate() = Result.success(161.0)
+    }
+
+    private class FailingOrdersRepository : ShipmentsOrdersRepository {
+        val detailCalls = AtomicInteger()
+
+        override suspend fun orders(page: Int, perPage: Int, search: String?) =
+            Result.success(Paged(emptyList<ShipmentOrder>()))
+
+        override suspend fun orderDetails(orderId: Int): Result<ShipmentOrder> {
+            detailCalls.incrementAndGet()
+            return Result.failure(IllegalStateException("Order details unavailable"))
         }
 
         override suspend fun exchangeRate() = Result.success(161.0)
@@ -290,5 +344,18 @@ class ProductOrderDetailsParityTest {
 
     private fun assertClose(expected: Float, actual: Float, label: String, tolerance: Float = 1.5f) {
         assertTrue("$label expected $expected but was $actual", kotlin.math.abs(expected - actual) <= tolerance)
+    }
+
+    private companion object {
+        fun samplePaymentFixture() = ShipmentPayment(
+            id = 42,
+            invoiceId = "INV-100",
+            paymentType = "product",
+            method = "card",
+            totalAmount = 100.0,
+            orderId = 7,
+            packageId = 7,
+            exchangeRate = 161.0,
+        )
     }
 }

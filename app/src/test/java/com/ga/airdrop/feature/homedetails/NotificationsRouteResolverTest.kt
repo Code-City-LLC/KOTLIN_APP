@@ -51,6 +51,18 @@ class NotificationsRouteResolverTest {
             Routes.packageDetails("ADX-240524"),
             resolveNotificationRoute("PackageDetailScreen", "ADX-240524"),
         )
+        assertEquals(
+            Routes.paymentPackageDetails("42"),
+            resolveNotificationRoute("PaymentPackageDetailsView", "42"),
+        )
+        assertEquals(
+            Routes.productPaymentDetails("43"),
+            resolveNotificationRoute("ProductPaymentDetailsScreen", "43"),
+        )
+        assertEquals(
+            Routes.orderDetails("44"),
+            resolveNotificationRoute("orderDetails", "44"),
+        )
         assertEquals(Routes.PAYMENTS, resolveNotificationRoute("PaymentScreen", null))
         assertEquals(Routes.PROFILE, resolveNotificationRoute("KYCScreen", null))
     }

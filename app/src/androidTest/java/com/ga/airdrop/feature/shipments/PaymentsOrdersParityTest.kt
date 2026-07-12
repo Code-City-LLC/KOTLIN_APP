@@ -258,7 +258,7 @@ class PaymentsOrdersParityTest {
         override suspend fun payments(page: Int, perPage: Int, type: String?, search: String?) =
             paymentsResult
 
-        override suspend fun payment(paymentId: Int) = Result.success(payment)
+        override suspend fun payment(paymentId: Int, refresh: Boolean) = Result.success(payment)
 
         override suspend fun paymentInvoiceUrl(paymentId: Int): Result<String> {
             invoiceUrlRequests += paymentId

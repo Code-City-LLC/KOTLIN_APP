@@ -225,7 +225,7 @@ class ShipmentsBackendPaginationParityTest {
             return Result.success(Paged((1..count).map { samplePayment(page * 100 + it, type ?: "package") }))
         }
 
-        override suspend fun payment(paymentId: Int) = Result.success(samplePayment(paymentId))
+        override suspend fun payment(paymentId: Int, refresh: Boolean) = Result.success(samplePayment(paymentId))
 
         override suspend fun paymentInvoiceUrl(paymentId: Int) = Result.success("https://example.test/invoice.pdf")
     }

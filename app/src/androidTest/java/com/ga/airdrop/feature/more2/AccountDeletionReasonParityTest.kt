@@ -14,6 +14,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuthorizedUserEnvelope
@@ -34,6 +35,9 @@ import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.model.ShippingRates
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.more.BackgroundStore
+import com.ga.airdrop.feature.shop.ShopCheckoutStore
+import com.ga.airdrop.feature.shop.ShopProduct
+import com.ga.airdrop.feature.shop.ShopProductHandoffStore
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
@@ -142,12 +146,17 @@ class AccountDeletionReasonParityTest {
             ThemeController.set(ThemeController.Mode.LIGHT)
             AuthTokenStore.init(context)
             AuthTokenStore.save("token-before-delete")
+            ExchangeRateStore.init(context)
+            ExchangeRateStore.update(201.25)
             SessionStore.update {
                 it.copy(greeting = "Hi", firstName = "Kemar", airCoins = "42", cartCount = 1)
             }
             CartStore.init(context)
             CartStore.clear()
             CartStore.add(CartStore.CartLine(id = 9001, title = "Seeded cart line"))
+            ShopCheckoutStore.product = ShopProduct(id = 77, slug = "delete-checkout", title = "Delete Checkout")
+            ShopCheckoutStore.pendingRef = "delete-pending-ref"
+            ShopProductHandoffStore.put(ShopProduct(id = 78, slug = "delete-details", title = "Delete Details"))
             BackgroundStore.save(context, 4)
             AccountDeletionFlow.set("k@example.com", "secret-password")
             viewModel = AccountDeletionReasonViewModel(More2Repository(api))
@@ -162,6 +171,12 @@ class AccountDeletionReasonParityTest {
         assertNull("Swift parity: account deletion clears bearer token", AuthTokenStore.token)
         assertEquals(SessionStore.HeaderInfo(), SessionStore.header.value)
         assertEquals(0, CartStore.count)
+        assertNull(ShopCheckoutStore.product)
+        assertNull(ShopCheckoutStore.pendingRef)
+        assertNull(ShopProductHandoffStore.consume("delete-details"))
+        assertEquals(ExchangeRateStore.DEFAULT_USD_TO_JMD, ExchangeRateStore.current, 0.0)
+        ExchangeRateStore.init(context)
+        assertEquals(ExchangeRateStore.DEFAULT_USD_TO_JMD, ExchangeRateStore.current, 0.0)
         assertEquals(BackgroundStore.DEFAULT_ID, BackgroundStore.selectedId(context))
         assertEquals("", AccountDeletionFlow.email)
         assertEquals("", AccountDeletionFlow.password)
