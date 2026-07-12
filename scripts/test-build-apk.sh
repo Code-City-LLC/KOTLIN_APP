@@ -8,6 +8,9 @@ trap 'rm -rf "$ROOT"' EXIT HUP INT TERM
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 pass() { printf 'PASS: %s\n' "$*"; }
+inode() {
+  if [ "$(uname -s)" = Darwin ]; then stat -f '%i' "$1"; else stat -c '%i' "$1"; fi
+}
 
 snapshot() {
   local dir="$1" path rel
@@ -42,13 +45,13 @@ printf 'real apk bytes\n' > "$real/airdrop-v41.apk"
 ln -s airdrop-v41.apk "$real/airdrop-latest.apk"
 before="$(snapshot "$real")"
 inode_before="$(for f in "$real/.build-number" "$real/BUILD_LOG.txt" "$real/airdrop-v41.apk"; do
-  stat -f '%i' "$f" 2>/dev/null || stat -c '%i' "$f"
+  inode "$f"
 done)"
 mkdir -p "$ROOT/self-test-tmp"
 TMPDIR="$ROOT/self-test-tmp" AIRDROP_APK_DIR="$real" "$BUILDER" --self-test >/dev/null
 [ "$(snapshot "$real")" = "$before" ] || fail "self-test mutated the exported publication store"
 inode_after="$(for f in "$real/.build-number" "$real/BUILD_LOG.txt" "$real/airdrop-v41.apk"; do
-  stat -f '%i' "$f" 2>/dev/null || stat -c '%i' "$f"
+  inode "$f"
 done)"
 [ "$inode_after" = "$inode_before" ] || fail "self-test replaced a real publication inode"
 [ -z "$(find "$ROOT/self-test-tmp" -mindepth 1 -print -quit)" ] || fail "self-test leaked temporary files"
