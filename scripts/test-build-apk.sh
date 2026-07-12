@@ -81,6 +81,16 @@ if test_publish "$bad" 0 >/dev/null 2>&1; then fail "KEEP=0 was accepted"; fi
 [ "$(snapshot "$bad")" = "$bad_before" ] || fail "invalid KEEP mutated state"
 pass "malformed counter and KEEP fail closed"
 
+inconsistent="$ROOT/inconsistent"
+mkdir -p "$inconsistent"
+printf '5\n' > "$inconsistent/.build-number"
+printf 'historical ledger\n' > "$inconsistent/BUILD_LOG.txt"
+inconsistent_before="$(snapshot "$inconsistent")"
+if test_publish "$inconsistent" 3 >/dev/null 2>&1; then fail "inconsistent ledger was accepted"; fi
+[ "$(snapshot "$inconsistent")" = "$inconsistent_before" ] || fail "inconsistent ledger was mutated"
+[ ! -e "$inconsistent/.publish.lock" ] || fail "inconsistent ledger leaked its lock"
+pass "inconsistent publication state fails closed"
+
 if AIRDROP_INTERNAL_TESTING=1 "$BUILDER" --test-publish "$ROOT/fake.apk" self-test \
   "/Users/Shared/forbidden-apk-test-store" >/dev/null 2>&1; then
   fail "internal fake publisher escaped TMPDIR"

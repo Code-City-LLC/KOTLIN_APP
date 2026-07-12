@@ -172,6 +172,39 @@ validate_numeric_inputs() {
   [[ "$MIN_FREE_GB" =~ ^[0-9]+$ ]] || die "MIN_FREE_GB must be a non-negative integer"
 }
 
+validate_publication_state() {
+  local current expected found="" has_apks=0
+  if [ -e "$LOG_FILE" ] && [ ! -f "$LOG_FILE" ]; then
+    die "publication ledger is not a regular file: $LOG_FILE"
+  fi
+  if [ -e "$APK_DIR/$LATEST_LINK" ] && [ ! -L "$APK_DIR/$LATEST_LINK" ]; then
+    die "latest pointer is not a symlink: $APK_DIR/$LATEST_LINK"
+  fi
+  for found in "$APK_DIR"/airdrop-v[0-9]*.apk; do
+    [ -e "$found" ] || continue
+    has_apks=1
+    [ -f "$found" ] || die "versioned APK is not a regular file: $found"
+  done
+  if [ -e "$COUNTER_FILE" ]; then
+    current="$(cat "$COUNTER_FILE")"
+    [[ "$current" =~ ^[0-9]+$ ]] || die "counter must contain one non-negative integer"
+    if [ "$current" -gt 0 ]; then
+      expected="airdrop-v${current}.apk"
+      [ -f "$APK_DIR/$expected" ] || die "counter points to missing APK: $expected"
+      [ -f "$LOG_FILE" ] || die "counter exists without a publication ledger"
+      [ -L "$APK_DIR/$LATEST_LINK" ] || die "counter exists without a latest symlink"
+      [ "$(readlink "$APK_DIR/$LATEST_LINK")" = "$expected" ] || die "latest symlink disagrees with counter"
+    else
+      [ "$has_apks" = 0 ] && [ ! -e "$LOG_FILE" ] && [ ! -L "$APK_DIR/$LATEST_LINK" ] || \
+        die "zero counter disagrees with existing publication state"
+    fi
+  else
+    [ "$has_apks" = 0 ] || die "versioned APK exists without a counter"
+    [ ! -e "$LOG_FILE" ] && [ ! -L "$APK_DIR/$LATEST_LINK" ] || \
+      die "publication metadata exists without a counter"
+  fi
+}
+
 latest_build_tool() {
   local tool="$1" root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/build-tools" candidate="" version
   [ -d "$root" ] || return 1
@@ -258,6 +291,7 @@ publish_apk() {
   validate_numeric_inputs
   [ "$SELF_TEST_MODE" = 1 ] || validate_apk "$src" "$variant"
   acquire_publish_lock
+  validate_publication_state
   n="$(next_build_number)"
   dest="$APK_DIR/airdrop-v${n}.apk"
   PUBLISH_DEST="$dest"
