@@ -15,3 +15,9 @@ data class ServiceTier(
 data class CustomerTier(
     @SerialName("current_tier") val currentTier: String = "",
 )
+
+/** PATCH /customers/me/tier body — Swift AirdropAPI.TierChangeRequest. */
+@Serializable
+data class TierChangeRequest(
+    @SerialName("requested_tier_code") val requestedTierCode: String,
+)

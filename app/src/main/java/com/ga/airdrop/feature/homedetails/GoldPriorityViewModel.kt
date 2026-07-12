@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.ServiceTier
 import com.ga.airdrop.data.repo.CustomerTierReader
+import com.ga.airdrop.data.repo.TierChanger
 import com.ga.airdrop.data.repo.TierRepository
 import com.ga.airdrop.data.repo.UserRepository
 import kotlinx.coroutines.async
@@ -15,10 +16,17 @@ import kotlinx.coroutines.launch
 
 enum class TierCatalogStatus { Loading, Ready, Failed }
 
+/** Phase of the PATCH→GET tier-change flow driven from the change sheet. */
+enum class TierChangePhase { Idle, Working, Success, Error }
+
 data class GoldPriorityUiState(
     val resolvedTierIndex: Int? = null,
     val benefitRowsByCode: Map<String, List<String>> = emptyMap(),
     val catalogStatus: TierCatalogStatus = TierCatalogStatus.Loading,
+    val changePhase: TierChangePhase = TierChangePhase.Idle,
+    /** Display name of the tier the customer just changed to (Success only). */
+    val changeSuccessName: String? = null,
+    val changeError: String? = null,
 )
 
 fun interface CurrentTierNameReader {
@@ -28,6 +36,7 @@ fun interface CurrentTierNameReader {
 class GoldPriorityViewModel(
     private val tierReader: CustomerTierReader = TierRepository(ApiClient.service),
     private val fallbackTierNameReader: CurrentTierNameReader = defaultTierNameReader(),
+    private val tierChanger: TierChanger = TierRepository(ApiClient.service),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(GoldPriorityUiState())
@@ -38,6 +47,49 @@ class GoldPriorityViewModel(
     }
 
     fun retryBenefits() = loadTierData()
+
+    /**
+     * PATCH /customers/me/tier → GET confirmation → pager/benefits refresh
+     * (Swift onConfirmTierChange: PATCH applied, then the tier resolvers
+     * re-run so the pager lands on the new tier). The backend owns the
+     * change rules; its error message surfaces verbatim.
+     */
+    fun changeTier(requestedTierCode: String, targetName: String) {
+        if (_state.value.changePhase == TierChangePhase.Working) return
+        _state.update { it.copy(changePhase = TierChangePhase.Working, changeError = null) }
+        viewModelScope.launch {
+            tierChanger.changeTier(requestedTierCode)
+                .onSuccess {
+                    _state.update {
+                        it.copy(
+                            changePhase = TierChangePhase.Success,
+                            changeSuccessName = targetName,
+                        )
+                    }
+                    // GET confirmation: authoritative re-read of tier + catalog.
+                    loadTierData()
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            changePhase = TierChangePhase.Error,
+                            changeError = e.message ?: "Unable to change tier. Please try again.",
+                        )
+                    }
+                }
+        }
+    }
+
+    /** Change sheet dismissed — back to Idle so it can run again. */
+    fun resetChangeFlow() {
+        _state.update {
+            it.copy(
+                changePhase = TierChangePhase.Idle,
+                changeSuccessName = null,
+                changeError = null,
+            )
+        }
+    }
 
     private fun loadTierData() {
         _state.update { it.copy(catalogStatus = TierCatalogStatus.Loading) }

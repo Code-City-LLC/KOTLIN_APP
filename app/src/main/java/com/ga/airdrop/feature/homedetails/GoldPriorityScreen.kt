@@ -36,7 +36,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -106,6 +108,13 @@ data class TierPage(
     /** Canonical API tier code (DIAM/PLAT/GOLD/RUBY/SAVR); null for the
      *  legacy-only pages (Inactive, Corporate) the API does not serve. */
     val apiCode: String?,
+    /**
+     * Display-only rows for the pages the API does NOT serve (Kemar ruling
+     * 2026-07-12 via #22424: "the tier is missing info from inactive and
+     * corporate" — these MUST show their benefit info). Never injected into
+     * service_tiers; server copy still owns every apiCode page.
+     */
+    val staticBenefits: List<String>? = null,
 )
 
 internal val tierPages = listOf(
@@ -150,6 +159,12 @@ internal val tierPages = listOf(
         hairline = Color(0xFF8C2F0C),
         gradientTop = Color(0xFFF1A88C), gradientBottom = Color(0xFF8C2F0C),
         inactiveDash = Color(0xFF5C262E).copy(alpha = 0.6f), apiCode = null,
+        staticBenefits = listOf(
+            "Access to account setup and onboarding assistance.",
+            "Invitations to introductory offers or bonus AirCoins promos.",
+            "Reactivation campaigns with one-time shipping credits.",
+            "Auto-upgrade eligibility after their first paid shipment.",
+        ),
     ),
     TierPage(
         id = "corporate", name = "Corporate",
@@ -157,6 +172,15 @@ internal val tierPages = listOf(
         hairline = Color(0xFF3A2663),
         gradientTop = TierPalette.PlatinumElite2, gradientBottom = Color(0xFF3A2663),
         inactiveDash = TierPalette.PlatinumElite2.copy(alpha = 0.6f), apiCode = null,
+        staticBenefits = listOf(
+            "Expedited 24-hour processing for all cleared packages.",
+            "Next-day shipping on all packages.",
+            "Priority logging, warehouse handling, and customs clearance.",
+            "Customized pricing agreements.",
+            "Dedicated account manager.",
+            "Monthly reporting and analytics.",
+            "Warehouse coordination for large shipments.",
+        ),
     ),
 )
 
@@ -186,6 +210,37 @@ internal fun tierRelation(pageIndex: Int, userTierIndex: Int?): TierRelation {
     }
 }
 
+/** CTA label for a relation, or null when the CTA is hidden (pure/testable). */
+internal fun tierCtaLabel(relation: TierRelation, pageName: String): String? = when (relation) {
+    TierRelation.CURRENT -> "Your Tier"
+    TierRelation.UPGRADE -> "Upgrade to $pageName"
+    TierRelation.ACTIVATION -> "Ship a package now to activate your account"
+    TierRelation.DOWNGRADE, TierRelation.PREVIEW -> null
+}
+
+/**
+ * Benefit rows for a page: server copy for API-served tiers; the display-only
+ * static rows for Inactive/Corporate (Kemar ruling #22424). Pure/testable.
+ */
+internal fun benefitRowsForPage(
+    page: TierPage,
+    benefitRowsByCode: Map<String, List<String>>,
+): List<String>? = page.apiCode?.let(benefitRowsByCode::get) ?: page.staticBenefits
+
+/**
+ * Nearest REAL (API-served) tier above/below the user's — the breakdown
+ * sheet's Upgrade/Downgrade targets skip the presentational Inactive and
+ * Corporate pages (Swift #21052). Pure/testable.
+ */
+internal fun nearestApiTier(fromIndex: Int, upward: Boolean): TierPage? {
+    val range = if (upward) (fromIndex - 1) downTo 0 else (fromIndex + 1) until tierPages.size
+    for (i in range) {
+        val page = tierPages[i]
+        if (page.apiCode != null) return page
+    }
+    return null
+}
+
 @Composable
 fun GoldPriorityScreen(
     onBack: () -> Unit,
@@ -199,7 +254,18 @@ fun GoldPriorityScreen(
         benefitRowsByCode = state.benefitRowsByCode,
         catalogStatus = state.catalogStatus,
         onRetryBenefits = viewModel::retryBenefits,
+        changePhase = state.changePhase,
+        changeSuccessName = state.changeSuccessName,
+        changeError = state.changeError,
+        onChangeTier = viewModel::changeTier,
+        onResetChangeFlow = viewModel::resetChangeFlow,
     )
+}
+
+/** Which sheet is presented over the pager. */
+private sealed interface TierSheet {
+    data object Breakdown : TierSheet
+    data class Change(val target: TierPage, val isUpgrade: Boolean) : TierSheet
 }
 
 @Composable
@@ -210,6 +276,11 @@ internal fun GoldPriorityContent(
     benefitRowsByCode: Map<String, List<String>> = emptyMap(),
     catalogStatus: TierCatalogStatus = TierCatalogStatus.Loading,
     onRetryBenefits: () -> Unit = {},
+    changePhase: TierChangePhase = TierChangePhase.Idle,
+    changeSuccessName: String? = null,
+    changeError: String? = null,
+    onChangeTier: (code: String, name: String) -> Unit = { _, _ -> },
+    onResetChangeFlow: () -> Unit = {},
 ) {
     ForceLightStatusBarIcons()
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(tierPages.indices)) { tierPages.size }
@@ -218,6 +289,8 @@ internal fun GoldPriorityContent(
     LaunchedEffect(resolvedTierIndex) {
         resolvedTierIndex?.let { pagerState.scrollToPage(it) }
     }
+
+    var activeSheet by remember { mutableStateOf<TierSheet?>(null) }
 
     val activeIndex = pagerState.currentPage
     val activeTier = tierPages[activeIndex]
@@ -261,7 +334,9 @@ internal fun GoldPriorityContent(
             ) { page ->
                 TierPageContent(
                     tier = tierPages[page],
-                    benefitRows = tierPages[page].apiCode?.let(benefitRowsByCode::get),
+                    // Server copy for API tiers; display-only static rows for
+                    // Inactive/Corporate (Kemar ruling #22424).
+                    benefitRows = benefitRowsForPage(tierPages[page], benefitRowsByCode),
                     catalogStatus = catalogStatus,
                     onRetry = onRetryBenefits,
                 )
@@ -271,9 +346,56 @@ internal fun GoldPriorityContent(
         TierCtaButton(
             relation = relation,
             pageName = activeTier.name,
-            onActivate = onBack,
+            onTap = {
+                when (relation) {
+                    // Kemar 2026-07-11: "Your Tier" opens the benefits
+                    // breakdown — the ONE sanctioned downgrade entry.
+                    TierRelation.CURRENT -> activeSheet = TierSheet.Breakdown
+                    // Upgrade opens the change sheet for THIS page's tier.
+                    TierRelation.UPGRADE ->
+                        activeSheet = TierSheet.Change(activeTier, isUpgrade = true)
+                    // Inactive page's activation copy pops back to Home.
+                    TierRelation.ACTIVATION -> onBack()
+                    TierRelation.DOWNGRADE, TierRelation.PREVIEW -> Unit
+                }
+            },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+    }
+
+    val userTier = resolvedTierIndex?.let(tierPages::getOrNull)
+    when (val sheet = activeSheet) {
+        is TierSheet.Breakdown -> if (userTier != null && resolvedTierIndex != null) {
+            YourTierBreakdownSheet(
+                tier = userTier,
+                benefitRows = benefitRowsForPage(userTier, benefitRowsByCode).orEmpty(),
+                upgradeTarget = nearestApiTier(resolvedTierIndex, upward = true),
+                downgradeTarget = nearestApiTier(resolvedTierIndex, upward = false),
+                onUpgrade = { target -> activeSheet = TierSheet.Change(target, isUpgrade = true) },
+                onDowngrade = { target -> activeSheet = TierSheet.Change(target, isUpgrade = false) },
+                onDismiss = { activeSheet = null },
+            )
+        } else {
+            activeSheet = null
+        }
+        is TierSheet.Change -> TierChangeSheet(
+            target = sheet.target,
+            isUpgrade = sheet.isUpgrade,
+            phase = changePhase,
+            successName = changeSuccessName,
+            error = changeError,
+            onConfirm = { onChangeTier(sheet.target.apiCode.orEmpty(), sheet.target.name) },
+            onDone = {
+                onResetChangeFlow()
+                activeSheet = null
+            },
+            onDismiss = {
+                // Swipe-away mid-flow: reset so the next open starts clean.
+                onResetChangeFlow()
+                activeSheet = null
+            },
+        )
+        null -> Unit
     }
 }
 
@@ -558,23 +680,17 @@ private fun BenefitCheck(modifier: Modifier = Modifier) {
  * Swift TierCTAButton verbatim: 316×50, radius 12, white 7% fill, 1px white
  * 18% border, Cairo SemiBold 17, white title. Page-relative states from
  * [tierRelation]; DOWNGRADE/PREVIEW render nothing (never a downgrade sign).
- * CURRENT/UPGRADE taps are inert until the breakdown/change sheets land
- * (the narrow tier PR owns that wiring); ACTIVATION pops back to Home
- * (Swift behavior for the Inactive page's CTA).
+ * CURRENT opens the Your-Tier breakdown sheet, UPGRADE opens the change
+ * sheet, ACTIVATION pops back to Home — all live (issue #41).
  */
 @Composable
 private fun TierCtaButton(
     relation: TierRelation,
     pageName: String,
-    onActivate: () -> Unit,
+    onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val label = when (relation) {
-        TierRelation.CURRENT -> "Your Tier"
-        TierRelation.UPGRADE -> "Upgrade to $pageName"
-        TierRelation.ACTIVATION -> "Ship a package now to activate your account"
-        TierRelation.DOWNGRADE, TierRelation.PREVIEW -> return
-    }
+    val label = tierCtaLabel(relation, pageName) ?: return
     Box(
         modifier = modifier
             .windowInsetsPadding(WindowInsets.navigationBars)
@@ -583,16 +699,10 @@ private fun TierCtaButton(
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.07f))
             .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
-            .then(
-                if (relation == TierRelation.ACTIVATION) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onActivate,
-                    )
-                } else {
-                    Modifier
-                }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onTap,
             )
             .testTag("gold-priority-cta"),
         contentAlignment = Alignment.Center,
@@ -608,6 +718,321 @@ private fun TierCtaButton(
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 12.dp),
+        )
+    }
+}
+
+// ─── Your-Tier breakdown sheet (Swift YourTierBreakdownSheetViewController) ─
+
+/**
+ * Kemar 2026-07-11 (#21052): tapping "Your Tier" opens a breakdown of what
+ * the customer is getting, with explicit Upgrade AND Downgrade options — the
+ * sheet is the ONE sanctioned downgrade path (the pager stays upsell-only).
+ * Targets are the nearest REAL API tiers (Inactive/Corporate skipped).
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun YourTierBreakdownSheet(
+    tier: TierPage,
+    benefitRows: List<String>,
+    upgradeTarget: TierPage?,
+    downgradeTarget: TierPage?,
+    onUpgrade: (TierPage) -> Unit,
+    onDowngrade: (TierPage) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color.Transparent,
+        dragHandle = null,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(tier.gradientTop, tier.gradientBottom),
+                    )
+                )
+                .padding(horizontal = 24.dp)
+                .padding(top = 24.dp, bottom = 16.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .testTag("tier-breakdown-sheet"),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Image(
+                painter = painterResource(tier.iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+            )
+            Text(
+                text = "YOUR TIER",
+                style = AirdropType.subtitle2.copy(letterSpacing = 2.sp),
+                color = Color.White.copy(alpha = 0.7f),
+            )
+            Text(
+                text = tier.name,
+                style = AirdropType.h5,
+                color = Color.White,
+            )
+            // Frosted "What you're getting" panel — server-owned rows.
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "What you're getting",
+                    style = AirdropType.title2,
+                    color = Color.White,
+                )
+                benefitRows.forEach { benefit ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        BenefitCheck(modifier = Modifier.padding(top = 1.dp))
+                        Text(
+                            text = benefit,
+                            style = AirdropType.body2,
+                            color = Color.White,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                if (benefitRows.isEmpty()) {
+                    Text(
+                        text = "Tier benefits are unavailable.",
+                        style = AirdropType.body2,
+                        color = Color.White,
+                    )
+                }
+            }
+            Text(
+                text = "Changes apply to how your future shipments are processed.",
+                style = AirdropType.body3,
+                color = Color.White.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center,
+            )
+            if (upgradeTarget != null) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .clickable { onUpgrade(upgradeTarget) }
+                        .testTag("tier-breakdown-upgrade"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Upgrade to ${upgradeTarget.name}",
+                        style = AirdropType.subtitle1.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+                        color = tier.gradientBottom,
+                    )
+                }
+            }
+            if (downgradeTarget != null) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.07f))
+                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+                        .clickable { onDowngrade(downgradeTarget) }
+                        .testTag("tier-breakdown-downgrade"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Downgrade to ${downgradeTarget.name}",
+                        style = AirdropType.subtitle1.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+                        color = Color.White,
+                    )
+                }
+            }
+            Text(
+                text = "Close",
+                style = AirdropType.subtitle1,
+                color = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .clickable(onClick = onDismiss)
+                    .testTag("tier-breakdown-close"),
+            )
+        }
+    }
+}
+
+// ─── Tier change sheet (PATCH → GET confirmation) ──────────────────────────
+
+/**
+ * Confirm → Working → Success/Error over the target tier's gradient. The
+ * downgrade confirm keeps the explicit "you'll lose" disclosure with Keep My
+ * Benefits as the PRIMARY action (Swift change-sheet ruling).
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun TierChangeSheet(
+    target: TierPage,
+    isUpgrade: Boolean,
+    phase: TierChangePhase,
+    successName: String?,
+    error: String?,
+    onConfirm: () -> Unit,
+    onDone: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = { if (phase != TierChangePhase.Working) onDismiss() },
+        containerColor = Color.Transparent,
+        dragHandle = null,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(target.gradientTop, target.gradientBottom),
+                    )
+                )
+                .padding(24.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .testTag("tier-change-sheet"),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Image(
+                painter = painterResource(target.iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(56.dp),
+            )
+            when (phase) {
+                TierChangePhase.Success -> {
+                    Text(
+                        text = "Welcome to ${successName ?: target.name}",
+                        style = AirdropType.h5,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "Your tier has been updated.",
+                        style = AirdropType.body2,
+                        color = Color.White.copy(alpha = 0.8f),
+                    )
+                    ChangeSheetPrimaryButton(
+                        label = "Done",
+                        tint = target.gradientBottom,
+                        onClick = onDone,
+                        tag = "tier-change-done",
+                    )
+                }
+                TierChangePhase.Working -> {
+                    Text(
+                        text = if (isUpgrade) "Upgrading to ${target.name}…" else "Changing to ${target.name}…",
+                        style = AirdropType.subtitle1,
+                        color = Color.White,
+                    )
+                }
+                else -> {
+                    Text(
+                        text = if (isUpgrade) "Upgrade to ${target.name}?" else "Are you sure?",
+                        style = AirdropType.h5,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = if (isUpgrade) {
+                            "Your future shipments will be processed on ${target.name}."
+                        } else {
+                            "You'll lose your current tier's benefits. Your future " +
+                                "shipments will be processed on ${target.name}."
+                        },
+                        style = AirdropType.body2,
+                        color = Color.White.copy(alpha = 0.85f),
+                        textAlign = TextAlign.Center,
+                    )
+                    if (error != null && phase == TierChangePhase.Error) {
+                        Text(
+                            text = error,
+                            style = AirdropType.body2,
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Black.copy(alpha = 0.25f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .testTag("tier-change-error"),
+                        )
+                    }
+                    if (isUpgrade) {
+                        ChangeSheetPrimaryButton(
+                            label = if (phase == TierChangePhase.Error) "Try Again" else "Upgrade Now",
+                            tint = target.gradientBottom,
+                            onClick = onConfirm,
+                            tag = "tier-change-confirm",
+                        )
+                        ChangeSheetQuietButton(label = "Cancel", onClick = onDismiss, tag = "tier-change-cancel")
+                    } else {
+                        // Downgrade: keep-my-benefits stays PRIMARY (standing ruling).
+                        ChangeSheetPrimaryButton(
+                            label = "Keep My Benefits",
+                            tint = target.gradientBottom,
+                            onClick = onDismiss,
+                            tag = "tier-change-cancel",
+                        )
+                        ChangeSheetQuietButton(
+                            label = if (phase == TierChangePhase.Error) "Try Again" else "Downgrade",
+                            onClick = onConfirm,
+                            tag = "tier-change-confirm",
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChangeSheetPrimaryButton(label: String, tint: Color, onClick: () -> Unit, tag: String) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .clickable(onClick = onClick)
+            .testTag(tag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = AirdropType.subtitle1.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+            color = tint,
+        )
+    }
+}
+
+@Composable
+private fun ChangeSheetQuietButton(label: String, onClick: () -> Unit, tag: String) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .testTag(tag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = AirdropType.subtitle1.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+            color = Color.White,
         )
     }
 }
