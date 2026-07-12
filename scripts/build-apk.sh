@@ -51,8 +51,11 @@ elif [ "${1:-}" = "--test-publish" ] && [ "${AIRDROP_INTERNAL_TESTING:-}" = "1" 
   SELF_TEST_MODE=1
   APK_DIR="${4:-}"
   [ -n "$APK_DIR" ] || { printf 'missing test publication directory\n' >&2; exit 2; }
-  case "$APK_DIR" in
-    "${TMPDIR:-/tmp}"/*) ;;
+  [ -d "$APK_DIR" ] || { printf 'test publication directory must already exist\n' >&2; exit 2; }
+  TEST_ROOT_REAL="$(cd -- "${TMPDIR:-/tmp}" >/dev/null 2>&1 && pwd -P)" || exit 2
+  TEST_DIR_REAL="$(cd -- "$APK_DIR" >/dev/null 2>&1 && pwd -P)" || exit 2
+  case "$TEST_DIR_REAL" in
+    "$TEST_ROOT_REAL"/*) APK_DIR="$TEST_DIR_REAL" ;;
     *) printf 'test publication directory must be under TMPDIR\n' >&2; exit 2 ;;
   esac
 else
@@ -85,6 +88,7 @@ resolve_variant() {
 
 next_build_number() {
   local n=0
+  [ ! -L "$COUNTER_FILE" ] || die "counter must not be a symlink: $COUNTER_FILE"
   if [ -e "$COUNTER_FILE" ]; then
     [ -f "$COUNTER_FILE" ] || die "counter is not a regular file: $COUNTER_FILE"
     n="$(cat "$COUNTER_FILE")"
@@ -174,16 +178,19 @@ validate_numeric_inputs() {
 
 validate_publication_state() {
   local current expected found="" has_apks=0
-  if [ -e "$LOG_FILE" ] && [ ! -f "$LOG_FILE" ]; then
+  if [ -L "$COUNTER_FILE" ]; then
+    die "counter must not be a symlink: $COUNTER_FILE"
+  fi
+  if [ -L "$LOG_FILE" ] || { [ -e "$LOG_FILE" ] && [ ! -f "$LOG_FILE" ]; }; then
     die "publication ledger is not a regular file: $LOG_FILE"
   fi
   if [ -e "$APK_DIR/$LATEST_LINK" ] && [ ! -L "$APK_DIR/$LATEST_LINK" ]; then
     die "latest pointer is not a symlink: $APK_DIR/$LATEST_LINK"
   fi
   for found in "$APK_DIR"/airdrop-v[0-9]*.apk; do
-    [ -e "$found" ] || continue
+    [ -e "$found" ] || [ -L "$found" ] || continue
     has_apks=1
-    [ -f "$found" ] || die "versioned APK is not a regular file: $found"
+    [ ! -L "$found" ] && [ -f "$found" ] || die "versioned APK is not a regular file: $found"
   done
   if [ -e "$COUNTER_FILE" ]; then
     current="$(cat "$COUNTER_FILE")"

@@ -91,12 +91,54 @@ if test_publish "$inconsistent" 3 >/dev/null 2>&1; then fail "inconsistent ledge
 [ ! -e "$inconsistent/.publish.lock" ] || fail "inconsistent ledger leaked its lock"
 pass "inconsistent publication state fails closed"
 
-if AIRDROP_INTERNAL_TESTING=1 "$BUILDER" --test-publish "$ROOT/fake.apk" self-test \
-  "/Users/Shared/forbidden-apk-test-store" >/dev/null 2>&1; then
-  fail "internal fake publisher escaped TMPDIR"
+allowed_root="$ROOT/allowed-root"
+outside_root="$ROOT/outside-root"
+mkdir -p "$allowed_root" "$outside_root"
+outside_before="$(snapshot "$outside_root")"
+if TMPDIR="$allowed_root" AIRDROP_INTERNAL_TESTING=1 "$BUILDER" \
+  --test-publish "$ROOT/fake.apk" self-test "$allowed_root/../outside-root" >/dev/null 2>&1; then
+  fail "internal fake publisher accepted traversal outside TMPDIR"
 fi
-[ ! -e /Users/Shared/forbidden-apk-test-store ] || fail "forbidden test store was created"
-pass "internal fake publication is confined to TMPDIR"
+ln -s "$outside_root" "$allowed_root/store-link"
+if TMPDIR="$allowed_root" AIRDROP_INTERNAL_TESTING=1 "$BUILDER" \
+  --test-publish "$ROOT/fake.apk" self-test "$allowed_root/store-link" >/dev/null 2>&1; then
+  fail "internal fake publisher followed a store symlink outside TMPDIR"
+fi
+[ "$(snapshot "$outside_root")" = "$outside_before" ] || fail "escaped test store was mutated"
+pass "internal fake publication rejects traversal and symlink escape"
+
+external="$ROOT/external targets"
+mkdir -p "$external"
+printf 'external counter\n' > "$external/counter"
+counter_hash="$(shasum -a 256 "$external/counter" | awk '{print $1}')"
+linked_counter="$ROOT/linked-counter"
+mkdir -p "$linked_counter"
+ln -s "$external/counter" "$linked_counter/.build-number"
+if test_publish "$linked_counter" 3 >/dev/null 2>&1; then fail "symlink counter was accepted"; fi
+[ "$(shasum -a 256 "$external/counter" | awk '{print $1}')" = "$counter_hash" ] || \
+  fail "symlink counter target was mutated"
+
+printf 'external ledger\n' > "$external/ledger"
+ledger_hash="$(shasum -a 256 "$external/ledger" | awk '{print $1}')"
+linked_ledger="$ROOT/linked-ledger"
+mkdir -p "$linked_ledger"
+ln -s "$external/ledger" "$linked_ledger/BUILD_LOG.txt"
+if test_publish "$linked_ledger" 3 >/dev/null 2>&1; then fail "symlink ledger was accepted"; fi
+[ "$(shasum -a 256 "$external/ledger" | awk '{print $1}')" = "$ledger_hash" ] || \
+  fail "symlink ledger target was mutated"
+
+printf 'external apk\n' > "$external/apk"
+apk_hash="$(shasum -a 256 "$external/apk" | awk '{print $1}')"
+linked_apk="$ROOT/linked-apk"
+mkdir -p "$linked_apk"
+printf '1\n' > "$linked_apk/.build-number"
+printf 'ledger\n' > "$linked_apk/BUILD_LOG.txt"
+ln -s "$external/apk" "$linked_apk/airdrop-v1.apk"
+ln -s airdrop-v1.apk "$linked_apk/airdrop-latest.apk"
+if test_publish "$linked_apk" 3 >/dev/null 2>&1; then fail "symlink versioned APK was accepted"; fi
+[ "$(shasum -a 256 "$external/apk" | awk '{print $1}')" = "$apk_hash" ] || \
+  fail "symlink APK target was mutated"
+pass "publication state rejects symlinked counter, ledger, and APK files"
 
 # One publisher owns allocation through commit; a concurrent publisher fails.
 race="$ROOT/concurrent"
