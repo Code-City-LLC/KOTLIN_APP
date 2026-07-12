@@ -240,6 +240,19 @@ internal fun isOfferedChange(
     offers.any { it.code.equals(code, ignoreCase = true) && !it.isCurrent }
 
 /**
+ * The offer's declared direction for a code — authoritative over page order
+ * for the change sheet's copy (gate #22836-3: page math must never label a
+ * backend downgrade as an upgrade). Null when the code isn't offered.
+ */
+internal fun offerDirectionIsUpgrade(
+    offers: List<com.ga.airdrop.data.model.TierChangeOption>,
+    code: String?,
+): Boolean? = code?.let { c ->
+    offers.firstOrNull { it.code.equals(c, ignoreCase = true) && !it.isCurrent }
+        ?.direction?.equals("upgrade", ignoreCase = true)
+}
+
+/**
  * Breakdown-sheet target from the BACKEND OFFER LIST — direction and
  * lane_rank are authoritative (Swift: "index math is only the fallback";
  * after #22805 there is no index fallback at all: no offer ⇒ no button).
@@ -380,8 +393,13 @@ internal fun GoldPriorityContent(
                     // breakdown — the ONE sanctioned downgrade entry.
                     TierRelation.CURRENT -> activeSheet = TierSheet.Breakdown
                     // Upgrade opens the change sheet for THIS page's tier.
-                    TierRelation.UPGRADE ->
-                        activeSheet = TierSheet.Change(activeTier, isUpgrade = true)
+                    // The OFFER's direction labels the sheet (#22836-3);
+                    // page order is only the CTA's visual state.
+                    TierRelation.UPGRADE -> activeSheet = TierSheet.Change(
+                        target = activeTier,
+                        isUpgrade = offerDirectionIsUpgrade(changeOffers, activeTier.apiCode)
+                            ?: true,
+                    )
                     // Inactive page's activation copy pops back to Home.
                     TierRelation.ACTIVATION -> onBack()
                     TierRelation.DOWNGRADE, TierRelation.PREVIEW -> Unit
@@ -401,8 +419,18 @@ internal fun GoldPriorityContent(
                 // no button (#22805; can_change=false hides both).
                 upgradeTarget = offerTargetPage(changeOffers, canChange, upward = true),
                 downgradeTarget = offerTargetPage(changeOffers, canChange, upward = false),
-                onUpgrade = { target -> activeSheet = TierSheet.Change(target, isUpgrade = true) },
-                onDowngrade = { target -> activeSheet = TierSheet.Change(target, isUpgrade = false) },
+                onUpgrade = { target ->
+                    activeSheet = TierSheet.Change(
+                        target = target,
+                        isUpgrade = offerDirectionIsUpgrade(changeOffers, target.apiCode) ?: true,
+                    )
+                },
+                onDowngrade = { target ->
+                    activeSheet = TierSheet.Change(
+                        target = target,
+                        isUpgrade = offerDirectionIsUpgrade(changeOffers, target.apiCode) ?: false,
+                    )
+                },
                 onDismiss = { activeSheet = null },
             )
         } else {

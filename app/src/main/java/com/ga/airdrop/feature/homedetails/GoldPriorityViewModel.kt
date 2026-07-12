@@ -74,25 +74,44 @@ class GoldPriorityViewModel(
         }
         _state.update { it.copy(changePhase = TierChangePhase.Working, changeError = null) }
         viewModelScope.launch {
-            tierChanger.changeTier(requestedTierCode)
-                .onSuccess {
-                    _state.update {
-                        it.copy(
-                            changePhase = TierChangePhase.Success,
-                            changeSuccessName = targetName,
-                        )
-                    }
-                    // GET confirmation: authoritative re-read of tier + catalog.
-                    loadTierData()
+            // Order is load-bearing (gate #22836-1): PATCH → AWAIT the
+            // authoritative GET → only a GET that confirms the requested tier
+            // (or a backend-scheduled effective_at) may claim Success.
+            val patch = tierChanger.changeTier(requestedTierCode)
+            if (patch.isFailure) {
+                _state.update {
+                    it.copy(
+                        changePhase = TierChangePhase.Error,
+                        changeError = patch.exceptionOrNull()?.message
+                            ?: "Unable to change tier. Please try again.",
+                    )
                 }
-                .onFailure { e ->
-                    _state.update {
-                        it.copy(
-                            changePhase = TierChangePhase.Error,
-                            changeError = e.message ?: "Unable to change tier. Please try again.",
-                        )
-                    }
+                return@launch
+            }
+            val confirmation = tierReader.customerTier()
+            val confirmed = confirmation.getOrNull()
+            val confirmedNow = confirmed?.currentTier
+                ?.equals(requestedTierCode, ignoreCase = true) == true
+            val scheduled = !confirmedNow &&
+                !patch.getOrNull()?.effectiveAt.isNullOrBlank()
+            if (confirmedNow || scheduled) {
+                _state.update {
+                    it.copy(
+                        changePhase = TierChangePhase.Success,
+                        changeSuccessName = targetName,
+                    )
                 }
+                // Refresh pager index + catalog from the confirmed state.
+                loadTierData()
+            } else {
+                _state.update {
+                    it.copy(
+                        changePhase = TierChangePhase.Error,
+                        changeError = confirmation.exceptionOrNull()?.message
+                            ?: "We couldn't confirm the change — your tier is unchanged. Please try again.",
+                    )
+                }
+            }
         }
     }
 

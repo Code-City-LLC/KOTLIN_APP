@@ -39,3 +39,18 @@ data class TierChangeOption(
 data class TierChangeRequest(
     @SerialName("requested_tier_code") val requestedTierCode: String,
 )
+
+/**
+ * PATCH /customers/me/tier RESPONSE — Laravel returns a change RESULT
+ * (requested_tier_code/effective_at/status/message), NOT the CustomerTier
+ * shape (gate #22836-2: decoding it as CustomerTier silently produced an
+ * empty tier under lenient JSON). Success is still only claimed after the
+ * authoritative GET confirmation.
+ */
+@Serializable
+data class TierChangeResult(
+    @SerialName("requested_tier_code") val requestedTierCode: String? = null,
+    @SerialName("effective_at") val effectiveAt: String? = null,
+    val status: String? = null,
+    val message: String? = null,
+)
