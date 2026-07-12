@@ -43,6 +43,27 @@ portable form (auto-discovers JDK/SDK, disk pre-flight guard, `--self-test`).
 Default output is `<repo>/apk/` (gitignored); override with `AIRDROP_APK_DIR`.
 It is the source of truth the Mini builder is derived from.
 
+`--self-test` always uses and removes its own temporary publication store. It
+ignores `AIRDROP_APK_DIR`, so fabricated bytes can never advance the real build
+counter, ledger, retention set, or `airdrop-latest.apk` link. Run the shell
+regression suite with:
+
+```bash
+scripts/test-build-apk.sh
+```
+
+Real publication validates the APK ZIP, package ID, app version, and signature
+before taking an exclusive publication lock. Number allocation, artifact
+staging, counter, ledger, latest link, and numeric retention then commit under
+that lock with rollback on a trapped failure. The ledger records app and Gradle
+versions separately.
+
+An existing artifact can be checked without publishing or changing build state:
+
+```bash
+scripts/build-apk.sh --validate-apk /path/to/app-staging-debug.apk staging
+```
+
 ## Reverting the spammer (if ever needed)
 
 The launchd job was unloaded/disabled and its plist backed up, not deleted:
