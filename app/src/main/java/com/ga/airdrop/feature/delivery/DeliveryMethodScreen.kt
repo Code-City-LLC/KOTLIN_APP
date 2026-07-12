@@ -2,6 +2,8 @@ package com.ga.airdrop.feature.delivery
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.location.Geocoder
+import java.util.Locale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -36,6 +38,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.google.android.gms.location.Priority
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -91,6 +95,25 @@ fun DeliveryMethodScreen(
     LaunchedEffect(Unit) {
         // Belt-and-braces: the currency step reads CartStore.items.
         CartStore.init(context)
+        // Device reverse-geocoder fallback (Swift CLGeocoder safety net): the
+        // screen owns Android services; the VM stays framework-free.
+        viewModel.deviceGeocoder = { lat, lng ->
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    Geocoder(context, Locale.US).getFromLocation(lat, lng, 1)
+                        ?.firstOrNull()
+                        ?.let { pm ->
+                            // Swift formatPlacemark: most specific level first —
+                            // locality → administrativeArea → country.
+                            listOfNotNull(pm.locality, pm.adminArea, pm.countryName)
+                                .distinct()
+                                .joinToString(", ")
+                                .ifBlank { null }
+                        }
+                }.getOrNull()
+            }
+        }
     }
 
     // "Use Current Location" — Swift onUseCurrentLocation via
@@ -525,7 +548,7 @@ private fun DeliverySection(
                     .background(colors.gray100, RoundedCornerShape(10.dp))
                     .border(1.dp, colors.iconShape, RoundedCornerShape(10.dp)),
             ) {
-                state.searchResults.take(6).forEachIndexed { index, place ->
+                state.searchResults.take(5).forEachIndexed { index, place ->
                     if (index > 0) {
                         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
                     }
@@ -554,7 +577,9 @@ private fun DeliverySection(
 
         // Selected-location card — hidden until validated (Swift
         // buildSelectedLocationCard, InfoNotice-styled like PromiseCard).
-        val validatedAddress = state.validatedAddress
+        // Swift looksLikeCoordPair: never display a raw "lat, lng" fallback
+        // as the place name — wait for the reverse-geocode to land.
+        val validatedAddress = state.validatedAddress?.takeUnless(::looksLikeCoordPair)
         if (validatedAddress != null && state.markerCoord != null) {
             Row(
                 Modifier
@@ -569,19 +594,21 @@ private fun DeliverySection(
                 Image(
                     painter = painterResource(R.drawable.ic_location),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(BrandPalette.BlueMain),
+                    // Swift renderSelectedLocationCard: pin + both labels are
+                    // textDarkTitle on the InfoNotice card, no blue tint.
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
                     modifier = Modifier.size(24.dp),
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = "Selected Location:",
                         style = AirdropType.subtitle2,
-                        color = BrandPalette.BlueMain,
+                        color = colors.textDarkTitle,
                     )
                     Text(
                         text = validatedAddress,
                         style = AirdropType.subtitle2,
-                        color = colors.textDescription,
+                        color = colors.textDarkTitle,
                         maxLines = 2,
                     )
                 }
@@ -596,4 +623,10 @@ private fun DeliverySection(
             color = colors.textDarkTitle,
         )
     }
+}
+
+/** Swift looksLikeCoordPair: true when a string is just "lat, long". */
+internal fun looksLikeCoordPair(s: String): Boolean {
+    val parts = s.split(",").map { it.trim() }
+    return parts.size == 2 && parts.all { it.toDoubleOrNull() != null }
 }

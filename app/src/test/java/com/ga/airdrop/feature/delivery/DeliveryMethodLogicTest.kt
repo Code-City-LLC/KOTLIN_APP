@@ -242,4 +242,37 @@ class DeliveryMethodLogicTest {
     fun `empty warehouse list selects nothing`() {
         assertNull(resolveSelectedWarehouseId(emptyList(), null, "Kingston"))
     }
+
+    // ── Swift-parity deltas 2026-07-12 (delivery audit) ─────────────────────
+
+    @Test
+    fun `packageWeightKg prefers the kg string and strips its suffix`() {
+        assertEquals(1.3, com.ga.airdrop.feature.shipments.packageWeightKg("1.30", null)!!, 1e-9)
+        assertEquals(2.5, com.ga.airdrop.feature.shipments.packageWeightKg("2.5 kg", 99.0)!!, 1e-9)
+        assertEquals(4.0, com.ga.airdrop.feature.shipments.packageWeightKg("4KG", null)!!, 1e-9)
+    }
+
+    @Test
+    fun `packageWeightKg falls back to pounds at the Swift factor`() {
+        assertEquals(0.45359237, com.ga.airdrop.feature.shipments.packageWeightKg(null, 1.0)!!, 1e-9)
+        assertEquals(0.45359237, com.ga.airdrop.feature.shipments.packageWeightKg("", 1.0)!!, 1e-9)
+        // Unparseable kg string also falls through to lbs.
+        assertEquals(0.90718474, com.ga.airdrop.feature.shipments.packageWeightKg("n/a", 2.0)!!, 1e-9)
+    }
+
+    @Test
+    fun `packageWeightKg is null for weightless and zero-weight lines`() {
+        assertNull(com.ga.airdrop.feature.shipments.packageWeightKg(null, null))
+        assertNull(com.ga.airdrop.feature.shipments.packageWeightKg("0", 0.0))
+        assertNull(com.ga.airdrop.feature.shipments.packageWeightKg(null, -1.0))
+    }
+
+    @Test
+    fun `looksLikeCoordPair matches only raw lat-lng strings`() {
+        assertTrue(looksLikeCoordPair("18.10960, -77.29750"))
+        assertTrue(looksLikeCoordPair("-18.1,77.2"))
+        assertFalse(looksLikeCoordPair("Mandeville, Manchester"))
+        assertFalse(looksLikeCoordPair("18.1"))
+        assertFalse(looksLikeCoordPair("18.1, 77.2, 3"))
+    }
 }

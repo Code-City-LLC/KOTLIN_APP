@@ -112,7 +112,13 @@ class DeliveryMethodViewModel(
     }
 
     fun onModeSelected(mode: DeliveryMode) {
-        _state.update { it.copy(mode = mode) }
+        _state.update {
+            // Swift modeChanged: switching to pickup clears any in-flight
+            // delivery-mode search artifacts so a later toggle back doesn't
+            // resurface stale suggestions.
+            if (mode == DeliveryMode.Pickup) it.copy(mode = mode, searchResults = emptyList())
+            else it.copy(mode = mode)
+        }
     }
 
     fun onWarehouseSelected(warehouse: DeliveryWarehouse) {
@@ -269,6 +275,14 @@ class DeliveryMethodViewModel(
      * reverse-geocode that commits the resolved address only if the marker
      * hasn't moved since this chain started (coord-equality guard).
      */
+    /**
+     * Device reverse-geocoder fallback, supplied by the SCREEN (which owns all
+     * Android services — same split as onUseCurrentLocation). Swift falls back
+     * to CLGeocoder when Laravel reverse-geocode fails so a human-readable
+     * place name always lands on the card instead of raw "lat, lng".
+     */
+    var deviceGeocoder: (suspend (Double, Double) -> String?)? = null
+
     fun onMapPointPicked(latitude: Double, longitude: Double) {
         val coord = latitude to longitude
         val fallback = String.format(Locale.US, "%.5f, %.5f", latitude, longitude)
@@ -289,13 +303,16 @@ class DeliveryMethodViewModel(
 
         reverseGeocodeJob?.cancel()
         reverseGeocodeJob = viewModelScope.launch {
-            repo.reverseGeocode(latitude, longitude).onSuccess { result ->
-                val address = result.address?.takeIf { it.isNotBlank() } ?: return@onSuccess
-                // Belt-and-braces alongside the cancel above: commit only if
-                // the marker coord is unchanged (Swift's final guard).
-                if (_state.value.markerCoord == coord) {
-                    _state.update { it.copy(searchQuery = address, validatedAddress = address) }
-                }
+            // Prefer Laravel (parity with the backend address store); fall back
+            // to the device geocoder so a place name lands no matter what.
+            val address = repo.reverseGeocode(latitude, longitude).getOrNull()
+                ?.address?.takeIf { it.isNotBlank() }
+                ?: deviceGeocoder?.invoke(latitude, longitude)?.takeIf { it.isNotBlank() }
+                ?: return@launch
+            // Belt-and-braces alongside the cancel above: commit only if
+            // the marker coord is unchanged (Swift's final guard).
+            if (_state.value.markerCoord == coord) {
+                _state.update { it.copy(searchQuery = address, validatedAddress = address) }
             }
         }
     }
@@ -318,12 +335,23 @@ class DeliveryMethodViewModel(
         onMapPointPicked(latLng.first, latLng.second)
     }
 
-    /** POST /delivery/validate-location — total_weight_kg=null (CartLine has no weight). */
+    /**
+     * Swift FigmaDeliveryMethodViewController.validate: sum of the cart lines'
+     * parsed kg weights; null when nothing in the cart carries a weight.
+     */
+    private fun cartTotalWeightKg(): Double? =
+        CartStore.items.value.mapNotNull { it.weightKg }.sum().takeIf { it > 0 }
+
+    /**
+     * POST /delivery/validate-location. Swift sums the cart line weights and
+     * forwards `total_weight_kg` so the server's fee preview matches the cart;
+     * a null (empty/weightless cart) is accepted by the endpoint.
+     */
     private fun validate(latitude: Double, longitude: Double, address: String?) {
         validateJob?.cancel()
         _state.update { it.copy(ctaState = DeliveryCtaState.Validating) }
         validateJob = viewModelScope.launch {
-            repo.validateLocation(latitude, longitude, address, totalWeightKg = null)
+            repo.validateLocation(latitude, longitude, address, totalWeightKg = cartTotalWeightKg())
                 .onSuccess { result ->
                     if (result.valid == true) {
                         _state.update {
@@ -416,6 +444,7 @@ class DeliveryMethodViewModel(
                         longitude = coord?.second,
                         formattedAddress = address,
                     ),
+                    totalWeightKg = cartTotalWeightKg(),
                 )
             }
             result
