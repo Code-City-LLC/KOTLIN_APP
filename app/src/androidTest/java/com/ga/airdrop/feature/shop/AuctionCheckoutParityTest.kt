@@ -30,6 +30,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -111,6 +112,49 @@ class AuctionCheckoutParityTest {
                     viewModel.totalLabel(),
                 )
             }
+        } finally {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                com.ga.airdrop.core.prefs.ExchangeRateStore.update(previousRate)
+                ShopCheckoutStore.product = previousProduct
+            }
+        }
+    }
+
+    @Test
+    fun successfulLiveRateReplacesPersistedRateAndRecalculatesJmdTotal() {
+        val previousRate = com.ga.airdrop.core.prefs.ExchangeRateStore.current
+        val previousProduct = ShopCheckoutStore.product
+        val releaseLiveRate = CompletableDeferred<Unit>()
+        lateinit var viewModel: AuctionCheckoutViewModel
+        try {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                com.ga.airdrop.core.prefs.ExchangeRateStore.update(173.25)
+                ShopCheckoutStore.product = SampleProduct
+                viewModel = AuctionCheckoutViewModel(
+                    checkout = FakeShopCheckoutRepository(
+                        checkoutFailure = null,
+                        exchangeRateBlock = {
+                            releaseLiveRate.await()
+                            Result.success(180.0)
+                        },
+                    )
+                )
+                viewModel.setCurrency("JMD")
+
+                assertEquals(
+                    "Construction must paint from the persisted rate before the live coroutine runs",
+                    " JA$7,276.50",
+                    viewModel.totalLabel(),
+                )
+            }
+
+            releaseLiveRate.complete(Unit)
+            compose.waitUntil(timeoutMillis = 5_000) {
+                viewModel.state.value.exchangeUsdToJmd == 180.0 &&
+                    com.ga.airdrop.core.prefs.ExchangeRateStore.current == 180.0
+            }
+            assertEquals(" JA$7,560.00", viewModel.totalLabel())
+            assertEquals(180.0, com.ga.airdrop.core.prefs.ExchangeRateStore.current, 0.0)
         } finally {
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 com.ga.airdrop.core.prefs.ExchangeRateStore.update(previousRate)
@@ -229,6 +273,7 @@ class AuctionCheckoutParityTest {
     private class FakeShopCheckoutRepository(
         private val checkoutFailure: Throwable?,
         private val exchangeRateResult: Result<Double> = Result.success(161.0),
+        private val exchangeRateBlock: (suspend () -> Result<Double>)? = null,
     ) : ShopCheckoutRepository {
         override suspend fun createCheckout(
             packageIds: List<Int>,
@@ -237,7 +282,8 @@ class AuctionCheckoutParityTest {
         ): Result<String> = checkoutFailure?.let { Result.failure(it) }
             ?: Result.success("https://checkout.airdropja.test/session")
 
-        override suspend fun exchangeRate(): Result<Double> = exchangeRateResult
+        override suspend fun exchangeRate(): Result<Double> =
+            exchangeRateBlock?.invoke() ?: exchangeRateResult
 
         override suspend fun billingProfile(): Result<ShopBillingProfile> =
             Result.success(ShopBillingProfile())
