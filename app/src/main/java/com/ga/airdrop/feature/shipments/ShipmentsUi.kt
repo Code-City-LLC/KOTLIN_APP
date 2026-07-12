@@ -247,7 +247,7 @@ object PackageTimelineProgression {
 fun packageStatusColor(statusName: String?): Color {
     val s = statusName.orEmpty().lowercase(Locale.US)
     return when {
-        s.contains("delivered") || s.contains("complete") || s.contains("pick") || s.contains("arrived") ->
+        s.contains("delivered") || s.contains("complete") || s.contains("pick") ->
             AlertPalette.Completed
         s.contains("hold") -> AlertPalette.OnHold
         s.contains("cancel") -> AlertPalette.Cancel
