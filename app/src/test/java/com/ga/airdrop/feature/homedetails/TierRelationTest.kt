@@ -158,5 +158,12 @@ class TierRelationTest {
         org.junit.Assert.assertFalse(isOfferedChange(offers, canChange = true, code = "RUBY"))
         // Null code (legacy pages): refused.
         org.junit.Assert.assertFalse(isOfferedChange(offers, canChange = true, code = null))
+        // Non-current offer with direction "same"/malformed: refused
+        // (#22867-6) — only explicit upgrade/downgrade offers authorize.
+        val weird = listOf(offer("PLAT", "same", 4), offer("DIAM", "sideways", 5))
+        org.junit.Assert.assertFalse(isOfferedChange(weird, canChange = true, code = "PLAT"))
+        org.junit.Assert.assertFalse(isOfferedChange(weird, canChange = true, code = "DIAM"))
+        // And such offers never label a sheet either (#22867-4).
+        assertNull(offerDirectionIsUpgrade(weird, "PLAT"))
     }
 }

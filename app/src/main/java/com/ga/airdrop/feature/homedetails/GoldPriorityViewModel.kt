@@ -7,8 +7,10 @@ import com.ga.airdrop.data.model.ServiceTier
 import com.ga.airdrop.data.repo.CustomerTierReader
 import com.ga.airdrop.data.repo.TierChanger
 import com.ga.airdrop.data.repo.TierRepository
+import com.ga.airdrop.data.model.CustomerTier
 import com.ga.airdrop.data.repo.UserRepository
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -74,9 +76,13 @@ class GoldPriorityViewModel(
         }
         _state.update { it.copy(changePhase = TierChangePhase.Working, changeError = null) }
         viewModelScope.launch {
-            // Order is load-bearing (gate #22836-1): PATCH → AWAIT the
-            // authoritative GET → only a GET that confirms the requested tier
-            // (or a backend-scheduled effective_at) may claim Success.
+            // Order is load-bearing (gates #22836-1/#22867-1): PATCH → AWAIT
+            // the authoritative GET → fold the confirmed state into the pager/
+            // offers → only THEN Success. The ONLY success condition is the
+            // GET returning the requested tier — effective_at is ignored
+            // (Laravel's applied responses always include it, so treating it
+            // as "scheduled" masked contradictory GETs; scheduled semantics
+            // do not exist in the current backend).
             val patch = tierChanger.changeTier(requestedTierCode)
             if (patch.isFailure) {
                 _state.update {
@@ -92,17 +98,17 @@ class GoldPriorityViewModel(
             val confirmed = confirmation.getOrNull()
             val confirmedNow = confirmed?.currentTier
                 ?.equals(requestedTierCode, ignoreCase = true) == true
-            val scheduled = !confirmedNow &&
-                !patch.getOrNull()?.effectiveAt.isNullOrBlank()
-            if (confirmedNow || scheduled) {
+            if (confirmedNow) {
+                // Fold the confirmed tier + offers + fresh catalog into state
+                // ATOMICALLY BEFORE announcing Success (#22867-2): the sheet's
+                // "Welcome" can never sit over a stale pager.
+                loadTierDataNow(prefetchedTier = confirmed)
                 _state.update {
                     it.copy(
                         changePhase = TierChangePhase.Success,
                         changeSuccessName = targetName,
                     )
                 }
-                // Refresh pager index + catalog from the confirmed state.
-                loadTierData()
             } else {
                 _state.update {
                     it.copy(
@@ -127,37 +133,46 @@ class GoldPriorityViewModel(
     }
 
     private fun loadTierData() {
+        viewModelScope.launch { loadTierDataNow() }
+    }
+
+    /**
+     * Suspend variant so the change flow can fold the confirmed state in
+     * BEFORE announcing Success (#22867-2). [prefetchedTier] reuses the
+     * just-confirmed GET instead of firing a redundant second one.
+     */
+    private suspend fun loadTierDataNow(prefetchedTier: CustomerTier? = null) = coroutineScope {
         _state.update { it.copy(catalogStatus = TierCatalogStatus.Loading) }
-        viewModelScope.launch {
-            val catalog = async { tierReader.serviceTiers() }
-            val customer = async { tierReader.customerTier() }
-            val fallback = async { runCatching { fallbackTierNameReader.read() }.getOrNull() }
+        val catalog = async { tierReader.serviceTiers() }
+        val customer = async {
+            prefetchedTier?.let { Result.success(it) } ?: tierReader.customerTier()
+        }
+        val fallback = async { runCatching { fallbackTierNameReader.read() }.getOrNull() }
 
-            val catalogResult = catalog.await()
-            val customerResult = customer.await()
-            val fallbackName = fallback.await()
-            val resolvedIndex = indexForTier(
-                code = customerResult.getOrNull()?.currentTier,
-                name = fallbackName,
+        val catalogResult = catalog.await()
+        val customerResult = customer.await()
+        val fallbackName = fallback.await()
+        val resolvedIndex = indexForTier(
+            code = customerResult.getOrNull()?.currentTier,
+            name = fallbackName,
+        )
+
+        val customerTier = customerResult.getOrNull()
+        _state.update { previous ->
+            previous.copy(
+                resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
+                benefitRowsByCode = catalogResult.getOrNull()
+                    ?.let(::serverBenefitRows)
+                    .orEmpty(),
+                catalogStatus = if (
+                    catalogResult.isSuccess &&
+                    !catalogResult.getOrNull().isNullOrEmpty()
+                ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
+                // Fail-closed: a failed tier fetch leaves canChange=false
+                // and no offers — the sheets then present nothing to PATCH.
+                canChange = customerTier?.canChange ?: false,
+                changeOffers = customerTier?.availableChanges.orEmpty(),
             )
-
-            val customerTier = customerResult.getOrNull()
-            _state.update { previous ->
-                previous.copy(
-                    resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
-                    benefitRowsByCode = catalogResult.getOrNull()
-                        ?.let(::serverBenefitRows)
-                        .orEmpty(),
-                    catalogStatus = if (
-                        catalogResult.isSuccess &&
-                        !catalogResult.getOrNull().isNullOrEmpty()
-                    ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
-                    // Fail-closed: a failed tier fetch leaves canChange=false
-                    // and no offers — the sheets then present nothing to PATCH.
-                    canChange = customerTier?.canChange ?: false,
-                    changeOffers = customerTier?.availableChanges.orEmpty(),
-                )
-            }
         }
     }
 
@@ -174,7 +189,10 @@ internal fun serverBenefitRows(tiers: List<ServiceTier>): Map<String, List<Strin
         val code = tier.code.trim().uppercase()
         if (code.isEmpty()) return@mapNotNull null
         val rows = buildList {
-            tier.processingCopy?.trim()?.takeIf(String::isNotEmpty)?.let(::add)
+            // benefits_summary ONLY — processing_copy is NOT prepended
+            // (Kemar #22831: Ruby must not surface "3-5 business day basic
+            // processing"; that string arrives via processing_copy, which is
+            // the processing-lane label, not a benefit row).
             addAll(tier.benefitsSummary.map(String::trim).filter(String::isNotEmpty))
         }.distinctBy(::normalizedBenefit)
         code to rows

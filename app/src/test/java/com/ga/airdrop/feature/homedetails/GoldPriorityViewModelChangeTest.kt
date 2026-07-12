@@ -131,31 +131,40 @@ class GoldPriorityViewModelChangeTest {
     }
 
     @Test
-    fun contradictingConfirmationWithoutEffectiveAtIsError() = runTest(dispatcher) {
+    fun contradictingConfirmationIsErrorEvenWithEffectiveAt() = runTest(dispatcher) {
         val vm = newViewModel()
         advanceUntilIdle()
-        // Backend said applied (no effective_at), but GET still shows RUBY.
-        patchResult = Result.success(TierChangeResult(status = "applied", effectiveAt = null))
-        tierResponses.addLast(Result.success(rubyOffersGold)) // still RUBY
+        // REAL backend shape (gate #22867-1): Laravel "applied" responses
+        // ALWAYS carry effective_at — it must never convert a contradictory
+        // GET into a success.
+        patchResult = Result.success(
+            TierChangeResult(status = "applied", effectiveAt = "2026-07-12T18:00:00Z"),
+        )
+        tierResponses.addLast(Result.success(rubyOffersGold)) // GET still RUBY
 
         vm.changeTier("GOLD", "Gold Standard")
         advanceUntilIdle()
 
         assertEquals(TierChangePhase.Error, vm.state.value.changePhase)
+        assertNull(vm.state.value.changeSuccessName)
     }
 
     @Test
-    fun scheduledChangeWithEffectiveAtIsSuccessDespiteUnchangedTier() = runTest(dispatcher) {
+    fun successFoldsConfirmedStateBeforeAnnouncing() = runTest(dispatcher) {
         val vm = newViewModel()
         advanceUntilIdle()
-        patchResult = Result.success(
-            TierChangeResult(status = "scheduled", effectiveAt = "2026-08-01T00:00:00Z"),
-        )
-        tierResponses.addLast(Result.success(rubyOffersGold)) // unchanged until effective
+        val gold = rubyOffersGold.copy(currentTier = "GOLD")
+        tierResponses.addLast(Result.success(gold)) // confirmation GET
 
         vm.changeTier("GOLD", "Gold Standard")
         advanceUntilIdle()
 
+        // Success is announced only alongside the already-folded pager state
+        // (#22867-2): resolved index moved to gold before/with Success.
         assertEquals(TierChangePhase.Success, vm.state.value.changePhase)
+        assertEquals(
+            tierPages.indexOfFirst { it.id == "gold" },
+            vm.state.value.resolvedTierIndex,
+        )
     }
 }

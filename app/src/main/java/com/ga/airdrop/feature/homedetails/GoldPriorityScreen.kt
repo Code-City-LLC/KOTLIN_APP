@@ -228,28 +228,43 @@ internal fun benefitRowsForPage(
 ): List<String>? = page.apiCode?.let(benefitRowsByCode::get) ?: page.staticBenefits
 
 /**
- * Backend-offer gate (CoralCove #22805): a change is legal ONLY when
+ * Backend-offer gate (gates #22805/#22867-6): a change is legal ONLY when
  * can_change is true AND the exact code appears in available_changes as a
- * non-current offer. Shared by the ViewModel's PATCH gate and the sheets.
+ * non-current offer whose direction is explicitly "upgrade" or "downgrade" —
+ * "same", malformed, or missing directions never authorize a PATCH. Shared
+ * by the ViewModel's PATCH gate and the sheets.
  */
 internal fun isOfferedChange(
     offers: List<com.ga.airdrop.data.model.TierChangeOption>,
     canChange: Boolean,
     code: String?,
-): Boolean = canChange && code != null &&
-    offers.any { it.code.equals(code, ignoreCase = true) && !it.isCurrent }
+): Boolean = canChange && code != null && offers.any {
+    it.code.equals(code, ignoreCase = true) && !it.isCurrent &&
+        (
+            it.direction.equals("upgrade", ignoreCase = true) ||
+                it.direction.equals("downgrade", ignoreCase = true)
+            )
+}
 
 /**
  * The offer's declared direction for a code — authoritative over page order
  * for the change sheet's copy (gate #22836-3: page math must never label a
- * backend downgrade as an upgrade). Null when the code isn't offered.
+ * backend downgrade as an upgrade). Null when the code isn't offered OR the
+ * offer's direction isn't explicitly upgrade/downgrade (#22867-4: "same"/
+ * malformed directions never open a sheet).
  */
 internal fun offerDirectionIsUpgrade(
     offers: List<com.ga.airdrop.data.model.TierChangeOption>,
     code: String?,
 ): Boolean? = code?.let { c ->
-    offers.firstOrNull { it.code.equals(c, ignoreCase = true) && !it.isCurrent }
-        ?.direction?.equals("upgrade", ignoreCase = true)
+    when (
+        offers.firstOrNull { it.code.equals(c, ignoreCase = true) && !it.isCurrent }
+            ?.direction?.lowercase()
+    ) {
+        "upgrade" -> true
+        "downgrade" -> false
+        else -> null
+    }
 }
 
 /**
@@ -392,14 +407,22 @@ internal fun GoldPriorityContent(
                     // Kemar 2026-07-11: "Your Tier" opens the benefits
                     // breakdown — the ONE sanctioned downgrade entry.
                     TierRelation.CURRENT -> activeSheet = TierSheet.Breakdown
-                    // Upgrade opens the change sheet for THIS page's tier.
-                    // The OFFER's direction labels the sheet (#22836-3);
-                    // page order is only the CTA's visual state.
-                    TierRelation.UPGRADE -> activeSheet = TierSheet.Change(
-                        target = activeTier,
-                        isUpgrade = offerDirectionIsUpgrade(changeOffers, activeTier.apiCode)
-                            ?: true,
-                    )
+                    // Upgrade opens the change sheet ONLY when this page's
+                    // tier is an actual backend offer (#22867-5) — the
+                    // OFFER's direction labels the sheet (#22836-3); page
+                    // order is only the CTA's visual state.
+                    TierRelation.UPGRADE -> {
+                        val direction =
+                            offerDirectionIsUpgrade(changeOffers, activeTier.apiCode)
+                        if (direction != null &&
+                            isOfferedChange(changeOffers, canChange, activeTier.apiCode)
+                        ) {
+                            activeSheet = TierSheet.Change(
+                                target = activeTier,
+                                isUpgrade = direction,
+                            )
+                        }
+                    }
                     // Inactive page's activation copy pops back to Home.
                     TierRelation.ACTIVATION -> onBack()
                     TierRelation.DOWNGRADE, TierRelation.PREVIEW -> Unit
@@ -419,17 +442,18 @@ internal fun GoldPriorityContent(
                 // no button (#22805; can_change=false hides both).
                 upgradeTarget = offerTargetPage(changeOffers, canChange, upward = true),
                 downgradeTarget = offerTargetPage(changeOffers, canChange, upward = false),
+                // Targets exist only as backend offers, so the direction
+                // lookup cannot miss; a null (offer vanished between renders)
+                // opens nothing (#22867-4: no default-direction guessing).
                 onUpgrade = { target ->
-                    activeSheet = TierSheet.Change(
-                        target = target,
-                        isUpgrade = offerDirectionIsUpgrade(changeOffers, target.apiCode) ?: true,
-                    )
+                    offerDirectionIsUpgrade(changeOffers, target.apiCode)?.let { dir ->
+                        activeSheet = TierSheet.Change(target = target, isUpgrade = dir)
+                    }
                 },
                 onDowngrade = { target ->
-                    activeSheet = TierSheet.Change(
-                        target = target,
-                        isUpgrade = offerDirectionIsUpgrade(changeOffers, target.apiCode) ?: false,
-                    )
+                    offerDirectionIsUpgrade(changeOffers, target.apiCode)?.let { dir ->
+                        activeSheet = TierSheet.Change(target = target, isUpgrade = dir)
+                    }
                 },
                 onDismiss = { activeSheet = null },
             )
