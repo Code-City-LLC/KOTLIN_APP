@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -115,10 +115,11 @@ fun FaqScreen(
 @Composable
 private fun FaqHeroCard() {
     val colors = AirdropTheme.colors
-    More2OuterCard {
-        Box(Modifier.fillMaxWidth()) {
+    More2OuterCard(modifier = Modifier.testTag("faq-hero")) {
+        Box(Modifier.fillMaxWidth().testTag("faq-hero-content")) {
             Box(
                 Modifier
+                    .testTag("faq-hero-accent")
                     .align(Alignment.TopEnd)
                     .offset(x = 50.dp, y = (-50).dp)
                     .size(140.dp)
@@ -130,9 +131,10 @@ private fun FaqHeroCard() {
                 color = BrandPalette.OrangeMain,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
+                    .testTag("faq-hero-monogram")
                     .align(Alignment.TopEnd)
-                    .padding(top = 12.dp, end = 18.dp)
-                    .width(64.dp),
+                    .offset(x = (-18).dp, y = 12.dp)
+                    .size(64.dp),
             )
             Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 22.dp)) {
                 Text(
@@ -140,7 +142,9 @@ private fun FaqHeroCard() {
                     style = AirdropType.h5,
                     color = colors.textDarkTitle,
                     // Keep clear of the 64dp monogram + its 18dp end inset + 12dp gap.
-                    modifier = Modifier.padding(end = 74.dp),
+                    modifier = Modifier
+                        .testTag("faq-hero-title")
+                        .padding(end = 74.dp),
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -148,6 +152,7 @@ private fun FaqHeroCard() {
                         "Tap any card to see the full answer.",
                     style = AirdropType.body2,
                     color = colors.textDescription,
+                    modifier = Modifier.testTag("faq-hero-subtitle"),
                 )
             }
         }
