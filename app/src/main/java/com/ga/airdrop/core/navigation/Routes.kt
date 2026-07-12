@@ -105,6 +105,7 @@ object Routes {
     // Shipments (unconfirmed).
     const val PAYMENT_RETURN = "paymentReturn/{sessionId}"
     const val PAYMENT_SUCCESS = "paymentSuccess?ref={ref}&amount={amount}"
+    const val PAYMENT_CANCELLED = "paymentCancelled"
 
     fun paymentReturn(sessionId: String?) = "paymentReturn/${sessionId.orEmpty()}"
 
@@ -115,6 +116,9 @@ object Routes {
         return "paymentSuccess?ref=$encodedRef&amount=$encodedAmount"
     }
 
-    /** v1: a cancelled checkout returns to the cart (contents intact). */
-    fun paymentCancelled() = CART
+    /**
+     * A cancelled checkout explains itself first (Swift "Payment cancelled"
+     * alert), then lands on the cart with its contents intact.
+     */
+    fun paymentCancelled() = PAYMENT_CANCELLED
 }

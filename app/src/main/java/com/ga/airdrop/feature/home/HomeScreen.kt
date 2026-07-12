@@ -471,6 +471,7 @@ private fun AuctionProduct.toCartLine(): CartStore.CartLine = CartStore.CartLine
     imageUrl = displayImageUrl,
     title = displayTitle,
     priceUsd = displayPriceUsd,
+    isAuction = true,
 )
 
 @Composable
