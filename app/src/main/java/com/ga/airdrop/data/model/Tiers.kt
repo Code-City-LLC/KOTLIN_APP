@@ -14,6 +14,24 @@ data class ServiceTier(
 @Serializable
 data class CustomerTier(
     @SerialName("current_tier") val currentTier: String = "",
+    /**
+     * Backend authorization for tier changes — the OFFER LIST is authoritative
+     * (Swift: "direction here is authoritative for the change sheet; index
+     * math is only the fallback"). No offer / can_change=false ⇒ the client
+     * must not PATCH (CoralCove #22805).
+     */
+    @SerialName("can_change") val canChange: Boolean = false,
+    @SerialName("available_changes") val availableChanges: List<TierChangeOption> = emptyList(),
+)
+
+@Serializable
+data class TierChangeOption(
+    val code: String = "",
+    val name: String? = null,
+    @SerialName("lane_rank") val laneRank: Int? = null,
+    @SerialName("is_current") val isCurrent: Boolean = false,
+    /** "upgrade" | "downgrade" | "same" — backend-declared, authoritative. */
+    val direction: String? = null,
 )
 
 /** PATCH /customers/me/tier body — Swift AirdropAPI.TierChangeRequest. */

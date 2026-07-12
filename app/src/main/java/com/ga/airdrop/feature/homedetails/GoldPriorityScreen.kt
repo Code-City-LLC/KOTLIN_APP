@@ -228,17 +228,41 @@ internal fun benefitRowsForPage(
 ): List<String>? = page.apiCode?.let(benefitRowsByCode::get) ?: page.staticBenefits
 
 /**
- * Nearest REAL (API-served) tier above/below the user's — the breakdown
- * sheet's Upgrade/Downgrade targets skip the presentational Inactive and
- * Corporate pages (Swift #21052). Pure/testable.
+ * Backend-offer gate (CoralCove #22805): a change is legal ONLY when
+ * can_change is true AND the exact code appears in available_changes as a
+ * non-current offer. Shared by the ViewModel's PATCH gate and the sheets.
  */
-internal fun nearestApiTier(fromIndex: Int, upward: Boolean): TierPage? {
-    val range = if (upward) (fromIndex - 1) downTo 0 else (fromIndex + 1) until tierPages.size
-    for (i in range) {
-        val page = tierPages[i]
-        if (page.apiCode != null) return page
+internal fun isOfferedChange(
+    offers: List<com.ga.airdrop.data.model.TierChangeOption>,
+    canChange: Boolean,
+    code: String?,
+): Boolean = canChange && code != null &&
+    offers.any { it.code.equals(code, ignoreCase = true) && !it.isCurrent }
+
+/**
+ * Breakdown-sheet target from the BACKEND OFFER LIST — direction and
+ * lane_rank are authoritative (Swift: "index math is only the fallback";
+ * after #22805 there is no index fallback at all: no offer ⇒ no button).
+ * Nearest upgrade = lowest lane_rank among upgrade offers; nearest
+ * downgrade = highest lane_rank among downgrade offers.
+ */
+internal fun offerTargetPage(
+    offers: List<com.ga.airdrop.data.model.TierChangeOption>,
+    canChange: Boolean,
+    upward: Boolean,
+): TierPage? {
+    if (!canChange) return null
+    val direction = if (upward) "upgrade" else "downgrade"
+    val candidates = offers.filter {
+        it.direction.equals(direction, ignoreCase = true) && !it.isCurrent && it.code.isNotBlank()
     }
-    return null
+    if (candidates.isEmpty()) return null
+    val chosen = if (upward) {
+        candidates.minByOrNull { it.laneRank ?: Int.MAX_VALUE }
+    } else {
+        candidates.maxByOrNull { it.laneRank ?: Int.MIN_VALUE }
+    } ?: return null
+    return tierPages.firstOrNull { it.apiCode?.equals(chosen.code, ignoreCase = true) == true }
 }
 
 @Composable
@@ -254,6 +278,8 @@ fun GoldPriorityScreen(
         benefitRowsByCode = state.benefitRowsByCode,
         catalogStatus = state.catalogStatus,
         onRetryBenefits = viewModel::retryBenefits,
+        canChange = state.canChange,
+        changeOffers = state.changeOffers,
         changePhase = state.changePhase,
         changeSuccessName = state.changeSuccessName,
         changeError = state.changeError,
@@ -276,6 +302,8 @@ internal fun GoldPriorityContent(
     benefitRowsByCode: Map<String, List<String>> = emptyMap(),
     catalogStatus: TierCatalogStatus = TierCatalogStatus.Loading,
     onRetryBenefits: () -> Unit = {},
+    canChange: Boolean = false,
+    changeOffers: List<com.ga.airdrop.data.model.TierChangeOption> = emptyList(),
     changePhase: TierChangePhase = TierChangePhase.Idle,
     changeSuccessName: String? = null,
     changeError: String? = null,
@@ -369,8 +397,10 @@ internal fun GoldPriorityContent(
             YourTierBreakdownSheet(
                 tier = userTier,
                 benefitRows = benefitRowsForPage(userTier, benefitRowsByCode).orEmpty(),
-                upgradeTarget = nearestApiTier(resolvedTierIndex, upward = true),
-                downgradeTarget = nearestApiTier(resolvedTierIndex, upward = false),
+                // Targets come ONLY from the backend offer list — no offer,
+                // no button (#22805; can_change=false hides both).
+                upgradeTarget = offerTargetPage(changeOffers, canChange, upward = true),
+                downgradeTarget = offerTargetPage(changeOffers, canChange, upward = false),
                 onUpgrade = { target -> activeSheet = TierSheet.Change(target, isUpgrade = true) },
                 onDowngrade = { target -> activeSheet = TierSheet.Change(target, isUpgrade = false) },
                 onDismiss = { activeSheet = null },

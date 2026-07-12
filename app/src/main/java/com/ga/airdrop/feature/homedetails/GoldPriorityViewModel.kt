@@ -23,6 +23,9 @@ data class GoldPriorityUiState(
     val resolvedTierIndex: Int? = null,
     val benefitRowsByCode: Map<String, List<String>> = emptyMap(),
     val catalogStatus: TierCatalogStatus = TierCatalogStatus.Loading,
+    /** Backend change authorization — the offer list is authoritative. */
+    val canChange: Boolean = false,
+    val changeOffers: List<com.ga.airdrop.data.model.TierChangeOption> = emptyList(),
     val changePhase: TierChangePhase = TierChangePhase.Idle,
     /** Display name of the tier the customer just changed to (Success only). */
     val changeSuccessName: String? = null,
@@ -56,6 +59,19 @@ class GoldPriorityViewModel(
      */
     fun changeTier(requestedTierCode: String, targetName: String) {
         if (_state.value.changePhase == TierChangePhase.Working) return
+        // Offer-gated (CoralCove #22805): PATCH only what the backend offered.
+        // Never trust page order for authorization. Same predicate the sheets
+        // use for target selection (single source of truth).
+        val snapshot = _state.value
+        if (!isOfferedChange(snapshot.changeOffers, snapshot.canChange, requestedTierCode)) {
+            _state.update {
+                it.copy(
+                    changePhase = TierChangePhase.Error,
+                    changeError = "This tier change isn't available for your account right now.",
+                )
+            }
+            return
+        }
         _state.update { it.copy(changePhase = TierChangePhase.Working, changeError = null) }
         viewModelScope.launch {
             tierChanger.changeTier(requestedTierCode)
@@ -106,6 +122,7 @@ class GoldPriorityViewModel(
                 name = fallbackName,
             )
 
+            val customerTier = customerResult.getOrNull()
             _state.update { previous ->
                 previous.copy(
                     resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
@@ -116,6 +133,10 @@ class GoldPriorityViewModel(
                         catalogResult.isSuccess &&
                         !catalogResult.getOrNull().isNullOrEmpty()
                     ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
+                    // Fail-closed: a failed tier fetch leaves canChange=false
+                    // and no offers — the sheets then present nothing to PATCH.
+                    canChange = customerTier?.canChange ?: false,
+                    changeOffers = customerTier?.availableChanges.orEmpty(),
                 )
             }
         }

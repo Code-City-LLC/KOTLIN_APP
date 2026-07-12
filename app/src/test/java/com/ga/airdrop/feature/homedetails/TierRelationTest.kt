@@ -102,16 +102,61 @@ class TierRelationTest {
         assertEquals(7, benefitRowsForPage(tierPages[corporate], emptyMap())?.size)
     }
 
-    // ── breakdown-sheet targets skip presentational pages ──
+    // ── offer-driven change gating (CoralCove #22805) ──
+
+    private fun offer(code: String, direction: String, rank: Int? = null, current: Boolean = false) =
+        com.ga.airdrop.data.model.TierChangeOption(
+            code = code, name = code, laneRank = rank, isCurrent = current, direction = direction,
+        )
 
     @Test
-    fun nearestApiTierSkipsInactiveAndCorporate() {
-        // Up from Ruby → Gold; down from Ruby → Sapphire.
-        assertEquals("gold", nearestApiTier(ruby, upward = true)?.id)
-        assertEquals("sapphire", nearestApiTier(ruby, upward = false)?.id)
-        // Down from Sapphire skips Inactive AND Corporate → nothing below.
-        assertNull(nearestApiTier(sapphire, upward = false))
-        // Up from Diamond → nothing above.
-        assertNull(nearestApiTier(diamond, upward = true))
+    fun canChangeFalseYieldsNoTargetsAndNoLegalPatch() {
+        val offers = listOf(offer("GOLD", "upgrade", 3))
+        assertNull(offerTargetPage(offers, canChange = false, upward = true))
+        assertNull(offerTargetPage(offers, canChange = false, upward = false))
+        org.junit.Assert.assertFalse(isOfferedChange(offers, canChange = false, code = "GOLD"))
+    }
+
+    @Test
+    fun partialOffersOnlyProduceTheOfferedDirection() {
+        // Backend offers upgrades only — no downgrade button may appear.
+        val offers = listOf(offer("GOLD", "upgrade", 3), offer("PLAT", "upgrade", 4))
+        assertEquals("gold", offerTargetPage(offers, canChange = true, upward = true)?.id)
+        assertNull(offerTargetPage(offers, canChange = true, upward = false))
+    }
+
+    @Test
+    fun nearestTargetsPickedByLaneRankNotPageOrder() {
+        // Nearest upgrade = LOWEST lane_rank among upgrades; nearest
+        // downgrade = HIGHEST lane_rank among downgrades.
+        val offers = listOf(
+            offer("DIAM", "upgrade", 5),
+            offer("GOLD", "upgrade", 3),
+            offer("SAVR", "downgrade", 1),
+        )
+        assertEquals("gold", offerTargetPage(offers, canChange = true, upward = true)?.id)
+        assertEquals("sapphire", offerTargetPage(offers, canChange = true, upward = false)?.id)
+    }
+
+    @Test
+    fun offerDirectionIsAuthoritativeOverPageOrder() {
+        // Backend can declare a code as a DOWNGRADE even if page order would
+        // call it an upgrade — the offer's direction wins.
+        val offers = listOf(offer("PLAT", "downgrade", 4))
+        assertNull(offerTargetPage(offers, canChange = true, upward = true))
+        assertEquals("platinum", offerTargetPage(offers, canChange = true, upward = false)?.id)
+    }
+
+    @Test
+    fun patchGateRefusesUnofferedAndCurrentCodes() {
+        val offers = listOf(offer("GOLD", "upgrade", 3), offer("RUBY", "same", 2, current = true))
+        // Offered, non-current: legal.
+        org.junit.Assert.assertTrue(isOfferedChange(offers, canChange = true, code = "gold"))
+        // Not in the offer list: refused (page order never authorizes).
+        org.junit.Assert.assertFalse(isOfferedChange(offers, canChange = true, code = "DIAM"))
+        // Current tier: refused.
+        org.junit.Assert.assertFalse(isOfferedChange(offers, canChange = true, code = "RUBY"))
+        // Null code (legacy pages): refused.
+        org.junit.Assert.assertFalse(isOfferedChange(offers, canChange = true, code = null))
     }
 }

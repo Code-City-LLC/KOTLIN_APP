@@ -166,6 +166,19 @@ class GoldPriorityParityTest {
                     resolvedTierIndex = rubyIndex,
                     benefitRowsByCode = mapOf("RUBY" to listOf("Server ruby row")),
                     catalogStatus = TierCatalogStatus.Ready,
+                    // Offer-driven sheets (#22805): buttons exist ONLY for
+                    // backend-offered changes.
+                    canChange = true,
+                    changeOffers = listOf(
+                        com.ga.airdrop.data.model.TierChangeOption(
+                            code = "GOLD", name = "Gold Standard",
+                            laneRank = 3, isCurrent = false, direction = "upgrade",
+                        ),
+                        com.ga.airdrop.data.model.TierChangeOption(
+                            code = "SAVR", name = "Sapphire Saver",
+                            laneRank = 1, isCurrent = false, direction = "downgrade",
+                        ),
+                    ),
                 )
             }
         }
