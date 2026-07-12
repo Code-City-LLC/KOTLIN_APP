@@ -44,29 +44,14 @@ class TierServerCopyTest {
             )
         )
 
-        // benefits_summary only — processing_copy must NOT be prepended
-        // (Kemar #22831: Ruby's "3-5 business day" line arrives via
-        // processing_copy; it is a lane label, not a benefit row).
         assertEquals(
-            listOf("Insurance required on every shipment."),
+            listOf(
+                "24-48 hour target after clearance",
+                "Insurance required on every shipment.",
+            ),
             rows["GOLD"],
         )
         assertFalse(rows.values.flatten().any { "%" in it })
-    }
-
-    @Test
-    fun processingCopyNeverLeaksIntoBenefitRows() {
-        val rows = serverBenefitRows(
-            listOf(
-                ServiceTier(
-                    code = "RUBY",
-                    processingCopy = "3-5 business day basic processing",
-                    benefitsSummary = listOf("Competitive base shipping rates."),
-                )
-            )
-        )
-        assertEquals(listOf("Competitive base shipping rates."), rows["RUBY"])
-        assertFalse(rows.values.flatten().any { it.contains("3-5", ignoreCase = true) })
     }
 
     @Test

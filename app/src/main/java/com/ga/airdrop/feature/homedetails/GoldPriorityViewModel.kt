@@ -5,12 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.ServiceTier
 import com.ga.airdrop.data.repo.CustomerTierReader
-import com.ga.airdrop.data.repo.TierChanger
 import com.ga.airdrop.data.repo.TierRepository
-import com.ga.airdrop.data.model.CustomerTier
 import com.ga.airdrop.data.repo.UserRepository
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -18,20 +15,10 @@ import kotlinx.coroutines.launch
 
 enum class TierCatalogStatus { Loading, Ready, Failed }
 
-/** Phase of the PATCH→GET tier-change flow driven from the change sheet. */
-enum class TierChangePhase { Idle, Working, Success, Error }
-
 data class GoldPriorityUiState(
     val resolvedTierIndex: Int? = null,
     val benefitRowsByCode: Map<String, List<String>> = emptyMap(),
     val catalogStatus: TierCatalogStatus = TierCatalogStatus.Loading,
-    /** Backend change authorization — the offer list is authoritative. */
-    val canChange: Boolean = false,
-    val changeOffers: List<com.ga.airdrop.data.model.TierChangeOption> = emptyList(),
-    val changePhase: TierChangePhase = TierChangePhase.Idle,
-    /** Display name of the tier the customer just changed to (Success only). */
-    val changeSuccessName: String? = null,
-    val changeError: String? = null,
 )
 
 fun interface CurrentTierNameReader {
@@ -41,7 +28,6 @@ fun interface CurrentTierNameReader {
 class GoldPriorityViewModel(
     private val tierReader: CustomerTierReader = TierRepository(ApiClient.service),
     private val fallbackTierNameReader: CurrentTierNameReader = defaultTierNameReader(),
-    private val tierChanger: TierChanger = TierRepository(ApiClient.service),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(GoldPriorityUiState())
@@ -53,126 +39,33 @@ class GoldPriorityViewModel(
 
     fun retryBenefits() = loadTierData()
 
-    /**
-     * PATCH /customers/me/tier → GET confirmation → pager/benefits refresh
-     * (Swift onConfirmTierChange: PATCH applied, then the tier resolvers
-     * re-run so the pager lands on the new tier). The backend owns the
-     * change rules; its error message surfaces verbatim.
-     */
-    fun changeTier(requestedTierCode: String, targetName: String) {
-        if (_state.value.changePhase == TierChangePhase.Working) return
-        // Offer-gated (CoralCove #22805): PATCH only what the backend offered.
-        // Never trust page order for authorization. Same predicate the sheets
-        // use for target selection (single source of truth).
-        val snapshot = _state.value
-        if (!isOfferedChange(snapshot.changeOffers, snapshot.canChange, requestedTierCode)) {
-            _state.update {
-                it.copy(
-                    changePhase = TierChangePhase.Error,
-                    changeError = "This tier change isn't available for your account right now.",
+    private fun loadTierData() {
+        _state.update { it.copy(catalogStatus = TierCatalogStatus.Loading) }
+        viewModelScope.launch {
+            val catalog = async { tierReader.serviceTiers() }
+            val customer = async { tierReader.customerTier() }
+            val fallback = async { runCatching { fallbackTierNameReader.read() }.getOrNull() }
+
+            val catalogResult = catalog.await()
+            val customerResult = customer.await()
+            val fallbackName = fallback.await()
+            val resolvedIndex = indexForTier(
+                code = customerResult.getOrNull()?.currentTier,
+                name = fallbackName,
+            )
+
+            _state.update { previous ->
+                previous.copy(
+                    resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
+                    benefitRowsByCode = catalogResult.getOrNull()
+                        ?.let(::serverBenefitRows)
+                        .orEmpty(),
+                    catalogStatus = if (
+                        catalogResult.isSuccess &&
+                        !catalogResult.getOrNull().isNullOrEmpty()
+                    ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
                 )
             }
-            return
-        }
-        _state.update { it.copy(changePhase = TierChangePhase.Working, changeError = null) }
-        viewModelScope.launch {
-            // Order is load-bearing (gates #22836-1/#22867-1): PATCH → AWAIT
-            // the authoritative GET → fold the confirmed state into the pager/
-            // offers → only THEN Success. The ONLY success condition is the
-            // GET returning the requested tier — effective_at is ignored
-            // (Laravel's applied responses always include it, so treating it
-            // as "scheduled" masked contradictory GETs; scheduled semantics
-            // do not exist in the current backend).
-            val patch = tierChanger.changeTier(requestedTierCode)
-            if (patch.isFailure) {
-                _state.update {
-                    it.copy(
-                        changePhase = TierChangePhase.Error,
-                        changeError = patch.exceptionOrNull()?.message
-                            ?: "Unable to change tier. Please try again.",
-                    )
-                }
-                return@launch
-            }
-            val confirmation = tierReader.customerTier()
-            val confirmed = confirmation.getOrNull()
-            val confirmedNow = confirmed?.currentTier
-                ?.equals(requestedTierCode, ignoreCase = true) == true
-            if (confirmedNow) {
-                // Fold the confirmed tier + offers + fresh catalog into state
-                // ATOMICALLY BEFORE announcing Success (#22867-2): the sheet's
-                // "Welcome" can never sit over a stale pager.
-                loadTierDataNow(prefetchedTier = confirmed)
-                _state.update {
-                    it.copy(
-                        changePhase = TierChangePhase.Success,
-                        changeSuccessName = targetName,
-                    )
-                }
-            } else {
-                _state.update {
-                    it.copy(
-                        changePhase = TierChangePhase.Error,
-                        changeError = confirmation.exceptionOrNull()?.message
-                            ?: "We couldn't confirm the change — your tier is unchanged. Please try again.",
-                    )
-                }
-            }
-        }
-    }
-
-    /** Change sheet dismissed — back to Idle so it can run again. */
-    fun resetChangeFlow() {
-        _state.update {
-            it.copy(
-                changePhase = TierChangePhase.Idle,
-                changeSuccessName = null,
-                changeError = null,
-            )
-        }
-    }
-
-    private fun loadTierData() {
-        viewModelScope.launch { loadTierDataNow() }
-    }
-
-    /**
-     * Suspend variant so the change flow can fold the confirmed state in
-     * BEFORE announcing Success (#22867-2). [prefetchedTier] reuses the
-     * just-confirmed GET instead of firing a redundant second one.
-     */
-    private suspend fun loadTierDataNow(prefetchedTier: CustomerTier? = null) = coroutineScope {
-        _state.update { it.copy(catalogStatus = TierCatalogStatus.Loading) }
-        val catalog = async { tierReader.serviceTiers() }
-        val customer = async {
-            prefetchedTier?.let { Result.success(it) } ?: tierReader.customerTier()
-        }
-        val fallback = async { runCatching { fallbackTierNameReader.read() }.getOrNull() }
-
-        val catalogResult = catalog.await()
-        val customerResult = customer.await()
-        val fallbackName = fallback.await()
-        val resolvedIndex = indexForTier(
-            code = customerResult.getOrNull()?.currentTier,
-            name = fallbackName,
-        )
-
-        val customerTier = customerResult.getOrNull()
-        _state.update { previous ->
-            previous.copy(
-                resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
-                benefitRowsByCode = catalogResult.getOrNull()
-                    ?.let(::serverBenefitRows)
-                    .orEmpty(),
-                catalogStatus = if (
-                    catalogResult.isSuccess &&
-                    !catalogResult.getOrNull().isNullOrEmpty()
-                ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
-                // Fail-closed: a failed tier fetch leaves canChange=false
-                // and no offers — the sheets then present nothing to PATCH.
-                canChange = customerTier?.canChange ?: false,
-                changeOffers = customerTier?.availableChanges.orEmpty(),
-            )
         }
     }
 
@@ -189,10 +82,7 @@ internal fun serverBenefitRows(tiers: List<ServiceTier>): Map<String, List<Strin
         val code = tier.code.trim().uppercase()
         if (code.isEmpty()) return@mapNotNull null
         val rows = buildList {
-            // benefits_summary ONLY — processing_copy is NOT prepended
-            // (Kemar #22831: Ruby must not surface "3-5 business day basic
-            // processing"; that string arrives via processing_copy, which is
-            // the processing-lane label, not a benefit row).
+            tier.processingCopy?.trim()?.takeIf(String::isNotEmpty)?.let(::add)
             addAll(tier.benefitsSummary.map(String::trim).filter(String::isNotEmpty))
         }.distinctBy(::normalizedBenefit)
         code to rows
