@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.homedetails
 
+import android.content.ContentValues
 import android.graphics.Bitmap
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -13,7 +15,9 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -21,8 +25,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
-import java.io.File
-import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -99,6 +101,40 @@ class GoldPriorityParityTest {
         saveRootScreenshot("gold_priority_platinum_swift_dark_360.png")
     }
 
+    @Test
+    fun goldRendersServerCopyWithoutRemovedPercentageClaim() {
+        setGoldPriorityContent(
+            mode = ThemeController.Mode.LIGHT,
+            initialPage = goldIndex,
+            widthDp = 375,
+        )
+
+        compose.onNodeWithText("Insurance required on every shipment.").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithText("3-5% discounted shipping rates.").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun missingServerRowsFailClosedAndRetry() {
+        val retries = java.util.concurrent.atomic.AtomicInteger()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                GoldPriorityContent(
+                    onBack = {},
+                    initialPage = goldIndex,
+                    catalogStatus = TierCatalogStatus.Failed,
+                    onRetryBenefits = { retries.incrementAndGet() },
+                )
+            }
+        }
+        compose.onNodeWithText("Tier benefits are unavailable.").assertIsDisplayed()
+        compose.onNodeWithTag("gold-priority-benefits-retry").performClick()
+        compose.runOnIdle { assertEquals(1, retries.get()) }
+        assertEquals(0, compose.onAllNodesWithText("3-5% discounted shipping rates.").fetchSemanticsNodes().size)
+    }
+
     private fun setGoldPriorityContent(
         mode: ThemeController.Mode,
         initialPage: Int = goldIndex,
@@ -117,6 +153,14 @@ class GoldPriorityParityTest {
                     GoldPriorityContent(
                         onBack = {},
                         initialPage = initialPage,
+                        benefitRowsByCode = mapOf(
+                            "PLAT" to listOf("Insurance required on every shipment."),
+                            "GOLD" to listOf(
+                                "24-48 hour target after clearance",
+                                "Insurance required on every shipment.",
+                            ),
+                        ),
+                        catalogStatus = TierCatalogStatus.Ready,
                     )
                 }
             }
@@ -143,15 +187,27 @@ class GoldPriorityParityTest {
 
     private fun saveRootScreenshot(filename: String) {
         val bitmap = compose.onNodeWithTag("gold-priority-root").captureToImage().asAndroidBitmap()
-        val output = File(screenshotDir(), filename)
-        FileOutputStream(output).use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-        }
-    }
-
-    private fun screenshotDir(): File {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        return File(context.getExternalFilesDir(null), "screenshots/gold_priority_swift").also { it.mkdirs() }
+        val relativePath = "Pictures/kotlin_ui_proof/tier_server_copy/"
+        context.contentResolver.delete(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?",
+            arrayOf(filename, "%kotlin_ui_proof/tier_server_copy%"),
+        )
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: return
+        context.contentResolver.openOutputStream(uri)?.use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        context.contentResolver.update(uri, values, null, null)
     }
 
     private fun statusController(activity: ComponentActivity) =

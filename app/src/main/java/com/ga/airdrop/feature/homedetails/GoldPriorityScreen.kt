@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,106 +71,44 @@ data class TierPage(
     val gradientTop: Color,
     val gradientBottom: Color,
     val inactiveDash: Color,
-    val benefits: List<String>,
+    val apiCode: String?,
 )
 
 internal val tierPages = listOf(
     TierPage(
         id = "diamond", name = "Diamond Elite",
         gradientTop = Color(0xFF6B6B6B), gradientBottom = Color(0xFF292929),
-        inactiveDash = Color.Black.copy(alpha = 0.4f),
-        benefits = listOf(
-            "Next-day shipping on all packages.",
-            "Priority logging, warehouse handling, and customs clearance.",
-            "Dedicated WhatsApp VIP line for real-time assistance.",
-            "Exclusive discounts and AirCoins multipliers on every shipment.",
-            "Unlimited free storage for all packages.",
-            "Early access to clearance events, auctions, and flash sales.",
-            "Personalized account concierge for dispute or issue resolution.",
-            "Surprise appreciation gifts for milestone achievements (e.g. 100th shipment, 1-year VIP anniversary).",
-        ),
+        inactiveDash = Color.Black.copy(alpha = 0.4f), apiCode = "DIAM",
     ),
     TierPage(
         id = "platinum", name = "Platinum Priority",
         gradientTop = Color(0xFFCACACA), gradientBottom = Color(0xFF737373),
-        inactiveDash = Color.White.copy(alpha = 0.3f),
-        benefits = listOf(
-            "Expedited 24-hour processing for all cleared packages.",
-            "Free storage for up to 60 days.",
-            "Premium customer support queue with faster handling.",
-            "Up to 10% shipping discounts and reduced handling fees.",
-            "Double AirCoins events and random loyalty gifts.",
-            "Priority in pre-auction and sales events.",
-            "Access to affiliate and referral bonuses.",
-            "Complimentary upgrade offers during seasonal promotions.",
-        ),
+        inactiveDash = Color.White.copy(alpha = 0.3f), apiCode = "PLAT",
     ),
     TierPage(
         id = "gold", name = "Gold Standard",
         gradientTop = Color(0xFFEFBF04), gradientBottom = Color(0xFF8C6F01),
-        inactiveDash = Color(0xFFEFBF04).copy(alpha = 0.6f),
-        benefits = listOf(
-            "Free storage for 30 days on all incoming packages.",
-            "Processing within 24-48 hours of package clearance.",
-            "3-5% discounted shipping rates.",
-            "Standard loyalty rewards plus double-points promotions during AirDrop events.",
-            "Early notifications for sales, warehouse auctions, and holiday offers.",
-            "General support line priority over standard-tier members.",
-            "Eligibility for seasonal upgrade offers.",
-        ),
+        inactiveDash = Color(0xFFEFBF04).copy(alpha = 0.6f), apiCode = "GOLD",
     ),
     TierPage(
         id = "ruby", name = "Ruby Starter",
         gradientTop = TierPalette.BronzeSaver2, gradientBottom = Color(0xFF5C262E),
-        inactiveDash = TierPalette.BronzeSaver2.copy(alpha = 0.6f),
-        benefits = listOf(
-            "Standard 2–3 business day processing.",
-            "No free storage included.",
-            "Competitive base shipping rates.",
-            "Access to AirCoins rewards with occasional bonus-point days.",
-            "Exclusive partner coupons and limited-time promos.",
-            "Access to standard customer support channels during business hours.",
-            "Auto-upgrade eligibility after 12 months of consistent activity.",
-        ),
+        inactiveDash = TierPalette.BronzeSaver2.copy(alpha = 0.6f), apiCode = "RUBY",
     ),
     TierPage(
         id = "sapphire", name = "Sapphire Saver",
         gradientTop = TierPalette.CorporateBulk3, gradientBottom = TierPalette.CorporateBulk2,
-        inactiveDash = TierPalette.CorporateBulk3.copy(alpha = 0.6f),
-        benefits = listOf(
-            "Basic processing (3–5 business days).",
-            "Standard shipping rates.",
-            "No free storage included.",
-            "Introductory AirCoins on their first three shipments.",
-            "Access to limited promotions and onboarding discounts.",
-            "Eligibility for early upgrade upon meeting spend thresholds.",
-            "Welcome emails and loyalty guidance to familiarize them with benefits.",
-        ),
+        inactiveDash = TierPalette.CorporateBulk3.copy(alpha = 0.6f), apiCode = "SAVR",
     ),
     TierPage(
         id = "inactive", name = "Inactive",
         gradientTop = Color(0xFFF1A88C), gradientBottom = Color(0xFF8C2F0C),
-        inactiveDash = Color(0xFF5C262E).copy(alpha = 0.6f),
-        benefits = listOf(
-            "Access to account setup and onboarding assistance.",
-            "Invitations to introductory offers or bonus AirCoins promos.",
-            "Reactivation campaigns with one-time shipping credits.",
-            "Auto-upgrade eligibility after their first paid shipment.",
-        ),
+        inactiveDash = Color(0xFF5C262E).copy(alpha = 0.6f), apiCode = null,
     ),
     TierPage(
         id = "corporate", name = "Corporate",
         gradientTop = TierPalette.PlatinumElite2, gradientBottom = Color(0xFF3A2663),
-        inactiveDash = TierPalette.PlatinumElite2.copy(alpha = 0.6f),
-        benefits = listOf(
-            "Expedited 24-hour processing for all cleared packages.",
-            "Next-day shipping on all packages.",
-            "Priority logging, warehouse handling, and customs clearance.",
-            "Customized pricing agreements.",
-            "Dedicated account manager.",
-            "Monthly reporting and analytics.",
-            "Warehouse coordination for large shipments.",
-        ),
+        inactiveDash = TierPalette.PlatinumElite2.copy(alpha = 0.6f), apiCode = null,
     ),
 )
 
@@ -185,6 +124,9 @@ fun GoldPriorityScreen(
     GoldPriorityContent(
         onBack = onBack,
         resolvedTierIndex = state.resolvedTierIndex,
+        benefitRowsByCode = state.benefitRowsByCode,
+        catalogStatus = state.catalogStatus,
+        onRetryBenefits = viewModel::retryBenefits,
     )
 }
 
@@ -193,6 +135,9 @@ internal fun GoldPriorityContent(
     onBack: () -> Unit,
     resolvedTierIndex: Int? = null,
     initialPage: Int = defaultTierIndex,
+    benefitRowsByCode: Map<String, List<String>> = emptyMap(),
+    catalogStatus: TierCatalogStatus = TierCatalogStatus.Loading,
+    onRetryBenefits: () -> Unit = {},
 ) {
     ForceLightStatusBarIcons()
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(tierPages.indices)) { tierPages.size }
@@ -233,7 +178,12 @@ internal fun GoldPriorityContent(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
             ) { page ->
-                TierPageContent(tierPages[page])
+                TierPageContent(
+                    tier = tierPages[page],
+                    benefitRows = tierPages[page].apiCode?.let(benefitRowsByCode::get),
+                    catalogStatus = catalogStatus,
+                    onRetry = onRetryBenefits,
+                )
             }
         }
     }
@@ -292,7 +242,12 @@ private fun SwipeIndicator(activeIndex: Int, activeTier: TierPage) {
 // ─── Tier page ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun TierPageContent(tier: TierPage) {
+private fun TierPageContent(
+    tier: TierPage,
+    benefitRows: List<String>?,
+    catalogStatus: TierCatalogStatus,
+    onRetry: () -> Unit,
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -327,17 +282,40 @@ private fun TierPageContent(tier: TierPage) {
             style = AirdropType.title1,
             color = Color.White,
         )
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            tier.benefits.forEach { benefit ->
+        if (!benefitRows.isNullOrEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                benefitRows.forEach { benefit ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        BenefitCheck(modifier = Modifier.padding(top = 2.dp))
+                        Text(
+                            text = benefit,
+                            style = AirdropType.body2,
+                            color = Color.White,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        } else {
+            val loading = tier.apiCode != null && catalogStatus == TierCatalogStatus.Loading
+            Text(
+                text = if (loading) "Loading benefits..." else "Tier benefits are unavailable.",
+                style = AirdropType.body2,
+                color = Color.White,
+                modifier = Modifier.testTag("gold-priority-benefits-state"),
+            )
+            if (!loading && tier.apiCode != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    BenefitCheck(
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
                     Text(
-                        text = benefit,
-                        style = AirdropType.body2,
+                        text = "Retry",
+                        style = AirdropType.subtitle2,
                         color = Color.White,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.16f))
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                            .testTag("gold-priority-benefits-retry")
+                            .clickable(onClick = onRetry),
                     )
                 }
             }
