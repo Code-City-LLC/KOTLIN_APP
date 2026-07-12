@@ -13,12 +13,11 @@ data class PackageDetailsUiState(
     val detail: ShipmentPackageDetail? = null,
     val exchangeRate: Double = DEFAULT_USD_TO_JMD,
     val uploading: Boolean = false,
+    val deletingInvoiceId: Int? = null,
     val error: String? = null,
-    val transientMessage: String? = null,
     /** Contextual alert title for [transientMessage] (Audit#5 C4). */
     val transientTitle: String? = null,
-    /** Invoice DELETE in flight — gates re-entry (Audit#5 C3). */
-    val deletingInvoiceId: Int? = null,
+    val transientMessage: String? = null,
     val showCifInfo: Boolean = false,
     val showAddedToCart: Boolean = false,
     val confirmDeleteInvoiceId: Int? = null,
@@ -51,12 +50,11 @@ data class PackageDetailsUiState(
     /**
      * Invoice trash gating — parity with Swift FigmaPackageDetailsViewController
      * .canDeleteInvoices(for:) (L1473-1485): the delete/trash action is hidden
-     * once a package is Ready for Pickup (numeric status >= 7) or later, with a
-     * statusName fallback for when the numeric `status` is missing/non-numeric.
+     * once a package reaches one of Swift's explicit terminal/locked status IDs,
+     * with a status-name fallback for missing, stale, or non-numeric values.
      * Upload stays allowed at every status. UI/action-gating parity only (QC #14710).
      *
-     * Deliberately independent of [showChargesAndCart] (which uses `== 7 || == 18`);
-     * delete keeps Swift's numeric `>= 7`. Do not fold these together.
+     * Deliberately independent of [showChargesAndCart]. Do not fold these together.
      */
     val canDeleteInvoices: Boolean
         get() {
@@ -65,9 +63,6 @@ data class PackageDetailsUiState(
             // comma-decimal and floating values accepted.
             val values = listOfNotNull(detail?.status, detail?.statusName).map { it.trim() }
             if (values.any(::statusLocksInvoiceDeletion)) return false
-            val lower = values.joinToString(" ") { it.lowercase() }
-            if (lower.contains("ready") || lower.contains("pickup") || lower.contains("pick up")) return false
-            if (lower.contains("delivered") || lower.contains("complete")) return false
             return true
         }
 
@@ -80,14 +75,37 @@ data class PackageDetailsUiState(
 
 /**
  * Swift FigmaPackageDetailsViewController.statusLocksInvoiceDeletion
- * (5496ed0): a status value locks invoice deletion when it parses to a
- * number >= 7 — integer or floating, comma decimals normalized.
+ * Package status IDs are non-contiguous. Mirror Swift's explicit lock set,
+ * integer-valued decimal/comma normalization, catalog lookup, and name fallback.
  */
 internal fun statusLocksInvoiceDeletion(value: String): Boolean {
-    val normalized = value.replace(",", ".")
-    normalized.toIntOrNull()?.let { return it >= 7 }
-    normalized.toDoubleOrNull()?.let { return it >= 7.0 }
-    return false
+    val code = normalizedInvoiceStatusCode(value)
+    if (code != null) {
+        if (code in INVOICE_DELETION_LOCKED_STATUS_IDS) return true
+        ShipmentStatusCatalog.defaults.firstOrNull { it.id == code }?.name?.let { name ->
+            if (statusNameLocksInvoiceDeletion(name)) return true
+        }
+    }
+    return statusNameLocksInvoiceDeletion(value)
+}
+
+private val INVOICE_DELETION_LOCKED_STATUS_IDS = setOf(7, 8, 14, 15, 16, 17, 18, 19, 20)
+
+private fun normalizedInvoiceStatusCode(value: String): Int? {
+    val normalized = value.trim().replace(",", ".")
+    normalized.toIntOrNull()?.let { return it }
+    val number = normalized.toDoubleOrNull() ?: return null
+    if (!number.isFinite() || number % 1.0 != 0.0) return null
+    if (number < Int.MIN_VALUE.toDouble() || number > Int.MAX_VALUE.toDouble()) return null
+    return number.toInt()
+}
+
+private fun statusNameLocksInvoiceDeletion(value: String): Boolean {
+    val lower = value.lowercase()
+    return lower.contains("ready") || lower.contains("pickup") || lower.contains("pick up") ||
+        lower.contains("delivered") || lower.contains("delivery") || lower.contains("complete") ||
+        lower.contains("returned") || lower.contains("uncollected") ||
+        lower.contains("dangerous") || lower.contains("auction")
 }
 
 internal fun reportDamageFeatureEnabled(): Boolean =
@@ -124,50 +142,32 @@ class PackageDetailsViewModel(
      */
     fun refresh(silent: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = if (silent) it.loading else true, error = null) }
-            repo.packageDetails(packageId)
-                .onSuccess { detail ->
-                    _state.update { it.copy(loading = false, detail = detail) }
-                }
-                .onFailure { e ->
-                    _state.update { it.copy(loading = false, error = e.message) }
-                }
+            loadDetails(showLoading = !silent)
         }
     }
 
     /** Multipart POST /packages/{id}/invoices — field "invoices[]", max 3 x 10MB. */
     fun uploadInvoices(files: List<InvoiceUploadFile>) {
         if (files.isEmpty()) return
-        // In-flight guard: overlapping picks must not issue parallel POSTs
-        // (Audit#5 C2 — mirrors the submitDamageReport guard).
-        if (_state.value.uploading) return
-        val existing = _state.value.detail?.invoices?.size ?: 0
+        val state = _state.value
+        if (state.loading || state.uploading || state.deletingInvoiceId != null) return
+        val existing = state.detail?.invoices?.size ?: 0
         val allowed = (3 - existing).coerceAtLeast(0)
         if (allowed == 0) {
-            _state.update {
-                it.copy(
-                    transientTitle = "Upload Invoice",
-                    transientMessage = "You're allowed to upload a maximum of 3 files.",
-                )
-            }
+            showTransient(title = "Upload Invoice", message = "You're allowed to upload a maximum of 3 files.")
             return
         }
         val oversize = files.firstOrNull { it.bytes.size > 10 * 1024 * 1024 }
         if (oversize != null) {
-            _state.update {
-                it.copy(
-                    transientTitle = "Upload Invoice",
-                    transientMessage = "Each file must be below 10 MB.",
-                )
-            }
+            showTransient(title = "Upload Invoice", message = "Each file must be below 10 MB.")
             return
         }
+        _state.update { it.copy(uploading = true) }
         viewModelScope.launch {
-            _state.update { it.copy(uploading = true) }
             repo.uploadInvoices(packageId, files.take(allowed))
                 .onSuccess {
                     _state.update { it.copy(uploading = false) }
-                    refresh(silent = true)
+                    loadDetails(showLoading = false)
                 }
                 .onFailure { e ->
                     _state.update {
@@ -189,7 +189,7 @@ class PackageDetailsViewModel(
         if (!_state.value.canDeleteInvoices) {
             _state.update {
                 it.copy(
-                    transientTitle = "Delete Invoice",
+                    transientTitle = "Delete invoice",
                     transientMessage =
                         "Invoices can still be uploaded, but they cannot be deleted " +
                             "once a package is ready for pickup.",
@@ -204,20 +204,20 @@ class PackageDetailsViewModel(
 
     fun confirmDeleteInvoice() {
         val invoiceId = _state.value.confirmDeleteInvoiceId ?: return
-        // In-flight guard (Audit#5 C3): one DELETE at a time.
-        if (_state.value.deletingInvoiceId != null) return
+        val state = _state.value
+        if (state.uploading || state.deletingInvoiceId != null) return
+        _state.update { it.copy(confirmDeleteInvoiceId = null, deletingInvoiceId = invoiceId) }
         viewModelScope.launch {
-            _state.update { it.copy(confirmDeleteInvoiceId = null, deletingInvoiceId = invoiceId) }
             repo.deleteInvoice(packageId, invoiceId)
                 .onSuccess {
                     _state.update { it.copy(deletingInvoiceId = null) }
-                    refresh(silent = true)
+                    loadDetails(showLoading = false)
                 }
                 .onFailure { e ->
                     _state.update {
                         it.copy(
                             deletingInvoiceId = null,
-                            transientTitle = "Delete Invoice",
+                            transientTitle = "Delete invoice",
                             transientMessage = e.message,
                         )
                     }
@@ -228,7 +228,7 @@ class PackageDetailsViewModel(
     fun showCifInfo(show: Boolean) = _state.update { it.copy(showCifInfo = show) }
 
     fun showTransientMessage(message: String) =
-        _state.update { it.copy(transientMessage = message) }
+        showTransient(title = "Upload Invoice", message = message)
 
     fun showReportDamageSheet(show: Boolean) =
         _state.update { it.copy(showReportDamageSheet = show, damageReportError = null) }
@@ -320,7 +320,34 @@ class PackageDetailsViewModel(
     fun dismissAddedToCart() = _state.update { it.copy(showAddedToCart = false) }
 
     fun consumeTransientMessage() =
-        _state.update { it.copy(transientMessage = null, transientTitle = null) }
+        _state.update { it.copy(transientTitle = null, transientMessage = null) }
+
+    private suspend fun loadDetails(showLoading: Boolean) {
+        if (showLoading) {
+            _state.update { it.copy(loading = true, error = null) }
+        }
+        repo.packageDetails(packageId)
+            .onSuccess { detail ->
+                _state.update { it.copy(loading = false, detail = detail) }
+            }
+            .onFailure { e ->
+                if (showLoading) {
+                    _state.update { it.copy(loading = false, error = e.message) }
+                } else {
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            transientTitle = "Invoice",
+                            transientMessage = e.message ?: "Invoice updated, but package details could not refresh.",
+                        )
+                    }
+                }
+            }
+    }
+
+    private fun showTransient(title: String, message: String) {
+        _state.update { it.copy(transientTitle = title, transientMessage = message) }
+    }
 
     private companion object {
         const val MAX_DAMAGE_DESCRIPTION_LENGTH = 5_000

@@ -283,7 +283,7 @@ fun PackageDetailsScreen(
         }
         state.transientMessage?.let { message ->
             ShipmentsAlertDialog(
-                title = state.transientTitle ?: "Upload Invoice",
+                title = state.transientTitle ?: "Invoice",
                 message = message,
                 confirmText = "OK",
                 onConfirm = viewModel::consumeTransientMessage,
@@ -434,6 +434,7 @@ private fun PackageDetailsContent(
                 InvoiceFileRow(
                     doc = doc,
                     canDelete = canDeleteInvoices,
+                    deleting = state.deletingInvoiceId == doc.id,
                     onView = { onViewInvoice(doc) },
                     onDelete = { onDeleteInvoice(doc.id) },
                 )
@@ -805,6 +806,7 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
 private fun InvoiceFileRow(
     doc: PackageInvoiceDoc,
     canDelete: Boolean,
+    deleting: Boolean,
     onView: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -838,25 +840,49 @@ private fun InvoiceFileRow(
             Text(text = "PDF File", style = AirdropType.body3, color = colors.textPlaceholder)
         }
         if (canDelete) {
-            Image(
-                painter = painterResource(R.drawable.ic_trash),
-                contentDescription = "Delete invoice",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
+            Box(
                 modifier = Modifier
-                    .testTag("package-details-invoice-delete-${doc.id}")
-                    .size(24.dp)
-                    .clickable(onClick = onDelete),
-            )
+                    .testTag(
+                        if (deleting) {
+                            "package-details-invoice-deleting-${doc.id}"
+                        } else {
+                            "package-details-invoice-delete-${doc.id}"
+                        }
+                    )
+                    .size(28.dp)
+                    .then(if (deleting) Modifier else Modifier.clickable(onClick = onDelete)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (deleting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = BrandPalette.OrangeMain,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(R.drawable.ic_trash),
+                        contentDescription = "Delete invoice",
+                        colorFilter = ColorFilter.tint(colors.iconSelected),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
         }
-        Image(
-            painter = painterResource(R.drawable.ic_eye),
-            contentDescription = "View invoice",
-            colorFilter = ColorFilter.tint(colors.iconSelected),
+        Box(
             modifier = Modifier
                 .testTag("package-details-invoice-view-${doc.id}")
-                .size(24.dp)
+                .size(28.dp)
                 .clickable(onClick = onView),
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_eye),
+                contentDescription = "View invoice",
+                colorFilter = ColorFilter.tint(colors.iconSelected),
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
 
