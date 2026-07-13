@@ -26,12 +26,6 @@ class AuthRepository(private val service: AirdropApiService) {
         response
     }
 
-    suspend fun refreshToken(): Result<LoginResponse> = apiResult {
-        val response = service.refreshToken(EmptyRequest())
-        response.token?.let(AuthTokenStore::save)
-        response
-    }
-
     suspend fun forgotPassword(email: String): Result<MutationResponse> =
         apiResult { service.forgotPassword(ForgotPasswordRequest(email)) }
 

@@ -2,8 +2,10 @@ package com.ga.airdrop.core.network
 
 import com.ga.airdrop.core.auth.AuthTokenStore
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.concurrent.thread
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Connection
@@ -53,7 +55,8 @@ class AuthInterceptorRefreshTest {
         private val script: (Request, Int) -> Response,
     ) : Interceptor.Chain {
         val proceeded = mutableListOf<Request>()
-
+        private val trackedCall = NoopCall(original)
+        val isCanceled: Boolean get() = trackedCall.isCanceled()
         override fun request(): Request = original
 
         override fun proceed(request: Request): Response {
@@ -62,7 +65,7 @@ class AuthInterceptorRefreshTest {
         }
 
         override fun connection(): Connection? = null
-        override fun call(): Call = NoopCall(original)
+        override fun call(): Call = trackedCall
         override fun connectTimeoutMillis(): Int = 0
         override fun withConnectTimeout(timeout: Int, unit: TimeUnit): Interceptor.Chain = this
         override fun readTimeoutMillis(): Int = 0
@@ -72,12 +75,15 @@ class AuthInterceptorRefreshTest {
     }
 
     private class NoopCall(private val request: Request) : Call {
+        @Volatile
+        private var canceled = false
+
         override fun request(): Request = request
         override fun execute(): Response = throw UnsupportedOperationException()
         override fun enqueue(responseCallback: Callback) = throw UnsupportedOperationException()
-        override fun cancel() {}
+        override fun cancel() { canceled = true }
         override fun isExecuted(): Boolean = false
-        override fun isCanceled(): Boolean = false
+        override fun isCanceled(): Boolean = canceled
         override fun timeout(): Timeout = Timeout.NONE
         override fun clone(): Call = NoopCall(request)
     }
@@ -275,7 +281,7 @@ class AuthInterceptorRefreshTest {
     }
 
     @Test
-    fun `fresh login after refresh result cannot change captured retry bearer`() {
+    fun `fresh login after refresh result prevents stale account retry`() {
         interceptor = AuthInterceptor(beforeRetry = {
             AuthTokenStore.save("account-b-token")
         })
@@ -289,11 +295,100 @@ class AuthInterceptorRefreshTest {
 
         val result = interceptor.intercept(chain)
 
-        assertEquals(200, result.code)
+        assertEquals(401, result.code)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertEquals(2, chain.proceeded.size)
+        assertEquals("Bearer old-token", chain.proceeded[1].header("Authorization"))
+    }
+
+    @Test
+    fun `replacement in retry dispatch gap cancels account a before proceed`() {
+        interceptor = AuthInterceptor(
+            beforeRetry = {},
+            beforeDispatch = { request ->
+                if (request.header("Authorization") == "Bearer account-a-rotated") {
+                    AuthTokenStore.save("account-b-token")
+                }
+            },
+        )
+        val chain = ScriptedChain(apiRequest()) { req, _ ->
+            if (isRefresh(req)) response(req, 200, """{"token":"account-a-rotated"}""") else response(req, 401)
+        }
+
+        val result = interceptor.intercept(chain)
+
+        assertEquals(401, result.code)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertEquals(2, chain.proceeded.size)
+        assertTrue(chain.isCanceled)
+    }
+
+    @Test
+    fun `replacement in refresh dispatch gap prevents stale refresh`() {
+        interceptor = AuthInterceptor(
+            beforeRetry = {},
+            beforeDispatch = { request ->
+                if (isRefresh(request)) AuthTokenStore.save("account-b-token")
+            },
+        )
+        val chain = ScriptedChain(apiRequest()) { req, _ -> response(req, 401) }
+
+        val result = interceptor.intercept(chain)
+
+        assertEquals(401, result.code)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertEquals(1, chain.proceeded.size)
+        assertTrue(chain.isCanceled)
+    }
+
+    @Test
+    fun `replacement in bound mutation dispatch gap prevents proceed`() {
+        val expected = AuthTokenStore.snapshot()
+        val provenance = requireNotNull(AuthTokenStore.requestProvenance(expected))
+        val request = apiRequest("/api/user/notifications/mark-read").newBuilder()
+            .header(AuthTokenStore.REQUEST_REVISION_HEADER, provenance.revision.toString())
+            .header(AuthTokenStore.REQUEST_SESSION_ID_HEADER, provenance.sessionId)
+            .build()
+        interceptor = AuthInterceptor(
+            beforeRetry = {},
+            beforeDispatch = { AuthTokenStore.save("account-b-token") },
+        )
+        val chain = ScriptedChain(request) { req, _ -> response(req, 200) }
+
+        val failure = runCatching { interceptor.intercept(chain) }.exceptionOrNull()
+
+        assertTrue(failure is StaleAuthSessionException)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertEquals(0, chain.proceeded.size)
+        assertTrue(chain.isCanceled)
+    }
+
+    @Test
+    fun `replacement during active retry cancels without blocking auth write`() {
+        val saveFinished = CountDownLatch(1)
+        lateinit var replacement: Thread
+        val chain = ScriptedChain(apiRequest()) { req, _ ->
+            when {
+                isRefresh(req) -> response(req, 200, """{"token":"account-a-rotated"}""")
+                req.header("Authorization") == "Bearer account-a-rotated" -> {
+                    replacement = thread {
+                        AuthTokenStore.save("account-b-token")
+                        saveFinished.countDown()
+                    }
+                    assertTrue(saveFinished.await(1, TimeUnit.SECONDS))
+                    response(req, 200)
+                }
+                else -> response(req, 401)
+            }
+        }
+
+        val result = interceptor.intercept(chain)
+        replacement.join(1_000)
+
+        assertEquals(401, result.code)
         assertEquals("account-b-token", AuthTokenStore.token)
         assertEquals(3, chain.proceeded.size)
-        assertEquals("Bearer old-token", chain.proceeded[1].header("Authorization"))
-        assertEquals("Bearer account-a-rotated", chain.proceeded[2].header("Authorization"))
+        assertTrue(chain.isCanceled)
     }
 
     @Test

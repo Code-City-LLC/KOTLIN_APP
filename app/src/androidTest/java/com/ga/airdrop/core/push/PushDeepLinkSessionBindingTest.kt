@@ -2,6 +2,9 @@ package com.ga.airdrop.core.push
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Process
+import android.app.ActivityManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.auth.AuthTokenStore
@@ -9,9 +12,12 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.navigation.consumePendingPushIfUnlocked
 import com.ga.airdrop.core.network.TokenRefresher
 import com.ga.airdrop.core.session.clearLocalUserSession
+import com.ga.airdrop.core.session.SessionRestoreProbeProvider
+import com.ga.airdrop.feature.shop.ShopCheckoutStore
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -58,27 +64,39 @@ class PushDeepLinkSessionBindingTest {
     }
 
     @Test
-    fun processRestoreUsesStableSessionIdWithoutPersistingRawToken() {
+    fun processRestoreUsesFreshSecondaryProcessWithStableSessionId() {
+        val killedProbePid = startAndKillProbeProcess()
         AuthTokenStore.save("account-a-secret-token")
+        val capturedSessionId = AuthTokenStore.snapshot().sessionId
         capture("PackagesView")
         val store = context.getSharedPreferences("push_deeplink", Context.MODE_PRIVATE)
 
-        PushDeepLink.init(context)
+        val restored = restoreInFreshProcess()
+        val restoredPid = restored.getInt(SessionRestoreProbeProvider.KEY_PROCESS_ID)
 
-        assertEquals(Routes.PACKAGES, PushDeepLink.consume(AuthTokenStore.snapshot()))
+        assertNotEquals(Process.myPid(), restoredPid)
+        assertNotEquals(killedProbePid, restoredPid)
+        assertTrue(restored.getBoolean(SessionRestoreProbeProvider.KEY_TOKEN_PRESENT))
+        assertEquals(capturedSessionId, restored.getString(SessionRestoreProbeProvider.KEY_SESSION_ID))
+        assertEquals(Routes.PACKAGES, restored.getString(SessionRestoreProbeProvider.KEY_ROUTE))
         assertTrue(store.all.values.none { it == "account-a-secret-token" })
+        awaitProcessExit(restoredPid)
     }
 
     @Test
     fun processRestoreUnderDifferentAccountCannotReplay() {
+        val killedProbePid = startAndKillProbeProcess()
         AuthTokenStore.save("account-a-token")
         capture("PackagesView")
         AuthTokenStore.save("account-b-token")
 
-        PushDeepLink.init(context)
+        val restored = restoreInFreshProcess()
+        val restoredPid = restored.getInt(SessionRestoreProbeProvider.KEY_PROCESS_ID)
 
-        assertNull(PushDeepLink.consume(AuthTokenStore.snapshot()))
-        assertNull(PushDeepLink.pending.value)
+        assertNotEquals(Process.myPid(), restoredPid)
+        assertNotEquals(killedProbePid, restoredPid)
+        assertNull(restored.getString(SessionRestoreProbeProvider.KEY_ROUTE))
+        awaitProcessExit(restoredPid)
     }
 
     @Test
@@ -93,6 +111,42 @@ class PushDeepLinkSessionBindingTest {
             consumePendingPushIfUnlocked(true, AuthTokenStore.snapshot()),
         )
         assertNull(consumePendingPushIfUnlocked(true, AuthTokenStore.snapshot()))
+    }
+
+    @Test
+    fun preLoginSensitiveResourceRoutesFailClosed() {
+        listOf(
+            "PackageDetailsView" to "package-a",
+            "PaymentPackageDetailsView" to "payment-a",
+            "OrderDetailsView" to "order-a",
+            "AuthorizedUserDetailView" to "user-a",
+            "AuctionProductCheckoutView" to "product-a",
+        ).forEach { (route, referenceId) ->
+            PushDeepLink.capture(
+                Intent()
+                    .putExtra(AirdropMessagingService.EXTRA_ROUTE, route)
+                    .putExtra(AirdropMessagingService.EXTRA_REFERENCE_ID, referenceId),
+            )
+            assertNull(PushDeepLink.pending.value)
+            AuthTokenStore.save("first-login-$referenceId")
+            assertNull(PushDeepLink.consume(AuthTokenStore.snapshot()))
+            AuthTokenStore.clear()
+        }
+    }
+
+    @Test
+    fun preLoginCheckoutCannotMutateGlobalCheckoutHandoff() {
+        ShopCheckoutStore.pendingRef = "existing-session-ref"
+
+        PushDeepLink.capture(
+            Intent()
+                .putExtra(AirdropMessagingService.EXTRA_ROUTE, "AuctionProductCheckoutView")
+                .putExtra(AirdropMessagingService.EXTRA_REFERENCE_ID, "unowned-product"),
+        )
+
+        assertNull(PushDeepLink.pending.value)
+        assertEquals("existing-session-ref", ShopCheckoutStore.pendingRef)
+        ShopCheckoutStore.pendingRef = null
     }
 
     @Test
@@ -155,6 +209,69 @@ class PushDeepLinkSessionBindingTest {
             Routes.paymentReturn("cs_test_90"),
             consumePendingPushIfUnlocked(true, AuthTokenStore.snapshot()),
         )
+    }
+
+    @Test
+    fun loggedOutPaymentReturnFailsClosedInsteadOfBindingToNextAccount() {
+        PushDeepLink.captureUri(
+            Intent(Intent.ACTION_VIEW, Uri.parse(
+                "airdrop://payment-success?session_id=cs_unowned",
+            )),
+        )
+
+        assertNull(PushDeepLink.pending.value)
+        AuthTokenStore.save("unrelated-later-account")
+        assertNull(PushDeepLink.consume(AuthTokenStore.snapshot()))
+    }
+
+    @Test
+    fun authenticatedPaymentCancellationRejectsReplacementAccount() {
+        AuthTokenStore.save("payment-owner-token")
+        PushDeepLink.captureUri(
+            Intent(Intent.ACTION_VIEW, Uri.parse("airdrop://payment-cancelled-by-user")),
+        )
+
+        AuthTokenStore.save("replacement-account-token")
+
+        assertNull(PushDeepLink.consume(AuthTokenStore.snapshot()))
+        assertNull(PushDeepLink.pending.value)
+    }
+
+    private fun restoreInFreshProcess() = requireNotNull(
+        context.contentResolver.call(
+            Uri.parse("content://${context.packageName}.sessionrestoreprobe"),
+            SessionRestoreProbeProvider.METHOD_RESTORE,
+            null,
+            null,
+        ),
+    )
+
+    private fun startAndKillProbeProcess(): Int {
+        val result = requireNotNull(
+            context.contentResolver.call(
+                Uri.parse("content://${context.packageName}.sessionrestoreprobe"),
+                SessionRestoreProbeProvider.METHOD_PROCESS_ID,
+                null,
+                null,
+            ),
+        )
+        val pid = result.getInt(SessionRestoreProbeProvider.KEY_PROCESS_ID)
+        assertNotEquals(Process.myPid(), pid)
+        Process.killProcess(pid)
+        awaitProcessExit(pid)
+        return pid
+    }
+
+    private fun awaitProcessExit(pid: Int) {
+        val activityManager = context.getSystemService(ActivityManager::class.java)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (
+            activityManager.runningAppProcesses.orEmpty().any { it.pid == pid } &&
+            System.currentTimeMillis() < deadline
+        ) {
+            Thread.sleep(25)
+        }
+        assertTrue(activityManager.runningAppProcesses.orEmpty().none { it.pid == pid })
     }
 
     private fun capture(route: String) {

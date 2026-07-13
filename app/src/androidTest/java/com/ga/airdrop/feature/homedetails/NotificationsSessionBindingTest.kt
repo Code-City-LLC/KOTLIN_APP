@@ -9,9 +9,11 @@ import com.ga.airdrop.feature.shop.ShopCheckoutStore
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -24,13 +26,13 @@ class NotificationsSessionBindingTest {
         val response = CompletableDeferred<Result<List<AirdropNotification>>>()
         val source = FakeNotificationsDataSource(fetchNotifications = { _, _ -> response.await() })
         val viewModel = onMain { NotificationsViewModel(source, session::get) }
-        val beforeCompletion = viewModel.state.value
-
         session.set(snapshot("account-b", 11, "session-b"))
         response.complete(Result.success(listOf(notification("late-a"))))
         waitForIdle()
 
-        assertEquals(beforeCompletion, viewModel.state.value)
+        assertFalse(viewModel.state.value.loading)
+        assertFalse(viewModel.state.value.loadingMore)
+        assertEquals(emptyList<AirdropNotification>(), viewModel.state.value.items)
     }
 
     @Test
@@ -46,39 +48,103 @@ class NotificationsSessionBindingTest {
         waitUntil { viewModel.state.value.loadedOnce }
         onMain { viewModel.loadMore() }
         waitUntil { viewModel.state.value.loadingMore }
-        val beforeCompletion = viewModel.state.value
-
         session.set(snapshot("account-b", 21, "session-b"))
         nextPage.complete(Result.success(listOf(notification("late-page"))))
         waitForIdle()
 
-        assertEquals(beforeCompletion, viewModel.state.value)
+        assertFalse(viewModel.state.value.loading)
+        assertFalse(viewModel.state.value.loadingMore)
+        assertEquals(emptyList<AirdropNotification>(), viewModel.state.value.items)
         assertFalse(viewModel.state.value.items.any { it.id == "late-page" })
+    }
+
+    @Test
+    fun staleAccountCompletionCannotClearNewerAccountRefresh() {
+        val session = AtomicReference(snapshot("account-a", 25, "session-a"))
+        val accountA = CompletableDeferred<Result<List<AirdropNotification>>>()
+        val accountB = CompletableDeferred<Result<List<AirdropNotification>>>()
+        val calls = AtomicInteger()
+        val source = FakeNotificationsDataSource(fetchNotifications = { _, _ ->
+            if (calls.incrementAndGet() == 1) accountA.await() else accountB.await()
+        })
+        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+
+        session.set(snapshot("account-b", 26, "session-b"))
+        onMain { viewModel.refresh() }
+        accountA.complete(Result.success(listOf(notification("late-a"))))
+        waitForIdle()
+
+        assertTrue(viewModel.state.value.loading)
+        accountB.complete(Result.success(listOf(notification("current-b"))))
+        waitUntil { viewModel.state.value.loadedOnce }
+        assertEquals(listOf("current-b"), viewModel.state.value.items.map { it.id })
+        assertFalse(viewModel.state.value.loading)
+    }
+
+    @Test
+    fun staleCompletionBeforeSessionEmissionCannotSuppressReplacementRefresh() {
+        val accountA = snapshot("account-a", 27, "session-a")
+        val accountB = snapshot("account-b", 28, "session-b")
+        val session = AtomicReference(accountA)
+        val sessionFlow = MutableStateFlow(accountA)
+        val firstResponse = CompletableDeferred<Result<List<AirdropNotification>>>()
+        val calls = AtomicInteger()
+        val source = FakeNotificationsDataSource(fetchNotifications = { _, _ ->
+            if (calls.incrementAndGet() == 1) firstResponse.await()
+            else Result.success(listOf(notification("current-b")))
+        })
+        val viewModel = onMain { NotificationsViewModel(source, session::get, sessionFlow) }
+
+        session.set(accountB)
+        firstResponse.complete(Result.success(listOf(notification("late-a"))))
+        waitUntil { !viewModel.state.value.loading && viewModel.state.value.items.isEmpty() }
+
+        sessionFlow.value = accountB
+        waitUntil {
+            calls.get() == 2 &&
+                viewModel.state.value.loadedOnce &&
+                viewModel.state.value.items.singleOrNull()?.id == "current-b"
+        }
+
+        assertEquals(listOf("current-b"), viewModel.state.value.items.map { it.id })
+        assertFalse(viewModel.state.value.loading)
     }
 
     @Test
     fun staleNotificationTapCannotMutateUiGlobalRouteOrServer() {
         val session = AtomicReference(snapshot("account-a", 30, "session-a"))
+        val sessionFlow = MutableStateFlow(session.get())
         val markCalls = AtomicInteger()
+        val fetchCalls = AtomicInteger()
         val item = notification(
             "account-a-row",
             route = "AuctionProductCheckoutView",
             referenceId = "account-a-product",
         )
         val source = FakeNotificationsDataSource(
-            fetchNotifications = { _, _ -> Result.success(listOf(item)) },
+            fetchNotifications = { _, _ ->
+                if (fetchCalls.incrementAndGet() == 1) Result.success(listOf(item))
+                else Result.success(emptyList())
+            },
             markReadRequest = { _, _ -> markCalls.incrementAndGet(); Result.success(Unit) },
         )
-        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+        val viewModel = onMain { NotificationsViewModel(source, session::get, sessionFlow) }
         waitUntil { viewModel.state.value.loadedOnce }
         ShopCheckoutStore.pendingRef = "account-b-existing-ref"
-        session.set(snapshot("account-b", 31, "session-b"))
+        val replacement = snapshot("account-b", 31, "session-b")
+        session.set(replacement)
+        sessionFlow.value = replacement
+        waitUntil {
+            fetchCalls.get() == 2 &&
+                viewModel.state.value.loadedOnce &&
+                viewModel.state.value.items.isEmpty()
+        }
 
         val route = onMain { viewModel.onNotificationTapped(item) }
         waitForIdle()
 
         assertNull(route)
-        assertFalse(viewModel.state.value.items.single().isRead)
+        assertEquals(emptyList<AirdropNotification>(), viewModel.state.value.items)
         assertEquals(0, markCalls.get())
         assertEquals("account-b-existing-ref", ShopCheckoutStore.pendingRef)
         ShopCheckoutStore.pendingRef = null

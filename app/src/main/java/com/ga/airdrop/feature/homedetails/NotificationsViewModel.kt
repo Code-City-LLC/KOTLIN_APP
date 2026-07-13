@@ -8,7 +8,9 @@ import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.data.repo.MiscRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -33,11 +35,13 @@ class NotificationsViewModel internal constructor(
         MiscRepository(ApiClient.service),
     ),
     private val sessionSnapshot: () -> AuthTokenStore.Snapshot = AuthTokenStore::snapshot,
+    private val sessionChanges: Flow<AuthTokenStore.Snapshot>? = null,
 ) : ViewModel() {
 
     constructor() : this(
         dataSource = RepositoryNotificationsDataSource(MiscRepository(ApiClient.service)),
         sessionSnapshot = AuthTokenStore::snapshot,
+        sessionChanges = AuthTokenStore.snapshotFlow,
     )
 
     private val _state = MutableStateFlow(NotificationsUiState())
@@ -46,19 +50,48 @@ class NotificationsViewModel internal constructor(
     private var page = 1
     private val perPage = 20
     private var contentSessionId = sessionSnapshot().sessionId
+    private var observedSessionId = contentSessionId
+    private var refreshGeneration = 0L
+    private var loadMoreGeneration = 0L
 
     init {
         refresh()
+        sessionChanges?.let { changes ->
+            viewModelScope.launch {
+                changes.collect { changed ->
+                    if (changed.sessionId == observedSessionId) return@collect
+                    observedSessionId = changed.sessionId
+                    refreshGeneration += 1
+                    loadMoreGeneration += 1
+                    contentSessionId = changed.sessionId
+                    page = 1
+                    _state.value = NotificationsUiState()
+                    if (changed.token != null) refresh()
+                }
+            }
+        }
     }
 
     fun refresh() {
         val expectedSession = sessionSnapshot()
+        val generation = ++refreshGeneration
+        loadMoreGeneration += 1
         page = 1
-        _state.update { it.copy(loading = true, error = null, endReached = false) }
+        val sessionChanged = expectedSession.sessionId != contentSessionId
+        contentSessionId = expectedSession.sessionId
+        _state.update {
+            if (sessionChanged) {
+                NotificationsUiState(loading = true)
+            } else {
+                it.copy(loading = true, loadingMore = false, error = null, endReached = false)
+            }
+        }
         viewModelScope.launch {
             dataSource.notifications(page, perPage)
                 .onSuccess { batch ->
+                    if (generation != refreshGeneration) return@onSuccess
                     if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        retireStaleSession(generation)
                         return@onSuccess
                     }
                     contentSessionId = expectedSession.sessionId
@@ -72,7 +105,9 @@ class NotificationsViewModel internal constructor(
                     }
                 }
                 .onFailure { err ->
+                    if (generation != refreshGeneration) return@onFailure
                     if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        retireStaleSession(generation)
                         return@onFailure
                     }
                     _state.update {
@@ -88,16 +123,22 @@ class NotificationsViewModel internal constructor(
 
     fun loadMore() {
         val current = _state.value
-        if (current.loading || current.loadingMore || current.endReached) return
+        if (!current.loadedOnce || current.loading || current.loadingMore || current.endReached) return
         if (sessionSnapshot().sessionId != contentSessionId || contentSessionId == null) return
         _state.update { it.copy(loadingMore = true) }
         val expectedSession = sessionSnapshot()
+        val generation = ++loadMoreGeneration
         val requestedPage = page + 1
         viewModelScope.launch {
-            if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) return@launch
+            if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                retireStalePage(generation)
+                return@launch
+            }
             dataSource.notifications(requestedPage, perPage)
                 .onSuccess { batch ->
+                    if (generation != loadMoreGeneration) return@onSuccess
                     if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        retireStalePage(generation)
                         return@onSuccess
                     }
                     page = requestedPage
@@ -110,12 +151,28 @@ class NotificationsViewModel internal constructor(
                     }
                 }
                 .onFailure {
+                    if (generation != loadMoreGeneration) return@onFailure
                     if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        retireStalePage(generation)
                         return@onFailure
                     }
                     _state.update { it.copy(loadingMore = false) }
                 }
         }
+    }
+
+    private fun retireStaleSession(generation: Long) {
+        if (generation != refreshGeneration) return
+        contentSessionId = null
+        page = 1
+        _state.value = NotificationsUiState()
+    }
+
+    private fun retireStalePage(generation: Long) {
+        if (generation != loadMoreGeneration) return
+        contentSessionId = null
+        page = 1
+        _state.value = NotificationsUiState()
     }
 
     /**
@@ -126,20 +183,22 @@ class NotificationsViewModel internal constructor(
     fun onNotificationTapped(notification: AirdropNotification): String? {
         val expectedSession = sessionSnapshot()
         if (expectedSession.token == null || expectedSession.sessionId != contentSessionId) return null
-        if (!notification.isRead) {
+        val ownedNotification = _state.value.items.firstOrNull { it.id == notification.id }
+            ?: return null
+        if (!ownedNotification.isRead) {
             _state.update { state ->
                 state.copy(
                     items = state.items.map {
-                        if (it.id == notification.id) it.copy(isRead = true) else it
+                        if (it.id == ownedNotification.id) it.copy(isRead = true) else it
                     }
                 )
             }
             viewModelScope.launch {
                 if (sessionSnapshot() != expectedSession) return@launch
-                dataSource.markNotificationRead(notification.id, expectedSession)
+                dataSource.markNotificationRead(ownedNotification.id, expectedSession)
             }
         }
-        return resolveNotificationRoute(notification)
+        return resolveNotificationRoute(ownedNotification)
     }
 }
 
