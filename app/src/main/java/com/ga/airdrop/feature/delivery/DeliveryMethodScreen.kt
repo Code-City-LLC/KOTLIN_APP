@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.delivery
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -62,6 +63,9 @@ import com.ga.airdrop.data.model.PlaceResult
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.shop.ShopInnerHeader
 import com.ga.airdrop.feature.shop.launchExternalUrl
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Delivery Method — Figma 40008740:28263, behavior from
@@ -91,6 +95,23 @@ fun DeliveryMethodScreen(
     LaunchedEffect(Unit) {
         // Belt-and-braces: the currency step reads CartStore.items.
         CartStore.init(context)
+        viewModel.deviceGeocoder = { latitude, longitude ->
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    Geocoder(context, Locale.getDefault()).getFromLocation(latitude, longitude, 1)
+                        ?.firstOrNull()
+                        ?.let { placemark ->
+                            formatDevicePlaceName(
+                                placemark.featureName,
+                                placemark.locality,
+                                placemark.adminArea,
+                                placemark.countryName,
+                            )
+                        }
+                }.getOrNull()
+            }
+        }
     }
 
     // "Use Current Location" — Swift onUseCurrentLocation via
@@ -418,7 +439,7 @@ private fun WarehouseRow(
 /* ─── Delivery section ─────────────────────────────────────────────────── */
 
 @Composable
-private fun DeliverySection(
+internal fun DeliverySection(
     state: DeliveryUiState,
     onSearchQueryChange: (String) -> Unit,
     onSubmitSearch: () -> Unit,
@@ -525,7 +546,7 @@ private fun DeliverySection(
                     .background(colors.gray100, RoundedCornerShape(10.dp))
                     .border(1.dp, colors.iconShape, RoundedCornerShape(10.dp)),
             ) {
-                state.searchResults.take(6).forEachIndexed { index, place ->
+                visibleDeliverySearchResults(state.searchResults).forEachIndexed { index, place ->
                     if (index > 0) {
                         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.divider))
                     }
@@ -569,20 +590,22 @@ private fun DeliverySection(
                 Image(
                     painter = painterResource(R.drawable.ic_location),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(BrandPalette.BlueMain),
-                    modifier = Modifier.size(24.dp),
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    modifier = Modifier.size(24.dp).testTag("delivery-selected-location-pin"),
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = "Selected Location:",
                         style = AirdropType.subtitle2,
-                        color = BrandPalette.BlueMain,
+                        color = colors.textDarkTitle,
+                        modifier = Modifier.testTag("delivery-selected-location-title"),
                     )
                     Text(
                         text = validatedAddress,
                         style = AirdropType.subtitle2,
-                        color = colors.textDescription,
+                        color = colors.textDarkTitle,
                         maxLines = 2,
+                        modifier = Modifier.testTag("delivery-selected-location-detail"),
                     )
                 }
             }
@@ -596,4 +619,16 @@ private fun DeliverySection(
             color = colors.textDarkTitle,
         )
     }
+}
+
+internal fun visibleDeliverySearchResults(results: List<PlaceResult>): List<PlaceResult> = results.take(5)
+
+/** Swift formatPlacemark: ordered fields, blank trimming, adjacent dedupe only. */
+internal fun formatDevicePlaceName(vararg fields: String?): String? {
+    val parts = fields.mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
+        .fold(mutableListOf<String>()) { result, part ->
+            if (result.lastOrNull() != part) result += part
+            result
+        }
+    return parts.joinToString(", ").ifBlank { null }
 }
