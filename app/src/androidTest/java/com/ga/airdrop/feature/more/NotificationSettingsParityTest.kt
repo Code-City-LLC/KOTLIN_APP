@@ -127,7 +127,10 @@ class NotificationSettingsParityTest {
         val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
         assertEquals(true, prefs.getBoolean(accountKey(101, "packagePush"), false))
         boundary.emitCurrent()
-        waitUntil { !viewModel.state.value.packagePush }
+        waitUntil {
+            prefs.contains(accountKey(202, "packagePush")) &&
+                !viewModel.state.value.packagePush
+        }
         assertEquals(true, prefs.getBoolean(accountKey(101, "packagePush"), false))
         assertEquals(false, prefs.getBoolean(accountKey(202, "packagePush"), true))
     }
@@ -188,8 +191,12 @@ class NotificationSettingsParityTest {
         assertEquals(true, viewModel.state.value.master)
         assertEquals(0, commands.get())
         assertTrue(boundary.rejectedApplyAttempts.get() > 0)
+        val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
         boundary.emitCurrent()
-        waitUntil { viewModel.state.value.master }
+        waitUntil {
+            prefs.contains(accountKey(202, "isNotifications")) &&
+                viewModel.state.value.master
+        }
     }
 
     @Test
@@ -213,7 +220,12 @@ class NotificationSettingsParityTest {
         assertEquals(true, prefs.getBoolean(accountKey(101, "packageEmail"), false))
 
         boundary.replace("account-b", accountId = 202)
-        waitUntil { !viewModel.state.value.packageMaster && !viewModel.state.value.packageEmail }
+        waitUntil {
+            prefs.contains(accountKey(202, "packageMaster")) &&
+                prefs.contains(accountKey(202, "packageEmail")) &&
+                !viewModel.state.value.packageMaster &&
+                !viewModel.state.value.packageEmail
+        }
 
         assertEquals(true, prefs.getBoolean(accountKey(101, "packageMaster"), false))
         assertEquals(true, prefs.getBoolean(accountKey(101, "packageEmail"), false))
@@ -270,7 +282,11 @@ class NotificationSettingsParityTest {
         waitUntil { !viewModel.state.value.master && viewModel.state.value.packageEmail }
 
         boundary.replace("account-b", accountId = 202)
-        waitUntil { viewModel.state.value.master && !viewModel.state.value.packageEmail }
+        waitUntil {
+            prefs.contains(accountKey(202, "packageEmail")) &&
+                viewModel.state.value.master &&
+                !viewModel.state.value.packageEmail
+        }
         assertEquals(true, prefs.getBoolean(accountKey(101, "packageEmail"), false))
         assertEquals(false, prefs.getBoolean(accountKey(202, "packageEmail"), true))
     }
