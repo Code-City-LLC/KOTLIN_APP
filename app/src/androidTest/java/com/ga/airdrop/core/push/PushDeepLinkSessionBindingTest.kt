@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Process
+import android.app.ActivityManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.auth.AuthTokenStore
@@ -64,30 +65,38 @@ class PushDeepLinkSessionBindingTest {
 
     @Test
     fun processRestoreUsesFreshSecondaryProcessWithStableSessionId() {
+        val killedProbePid = startAndKillProbeProcess()
         AuthTokenStore.save("account-a-secret-token")
         val capturedSessionId = AuthTokenStore.snapshot().sessionId
         capture("PackagesView")
         val store = context.getSharedPreferences("push_deeplink", Context.MODE_PRIVATE)
 
         val restored = restoreInFreshProcess()
+        val restoredPid = restored.getInt(SessionRestoreProbeProvider.KEY_PROCESS_ID)
 
-        assertNotEquals(Process.myPid(), restored.getInt(SessionRestoreProbeProvider.KEY_PROCESS_ID))
+        assertNotEquals(Process.myPid(), restoredPid)
+        assertNotEquals(killedProbePid, restoredPid)
         assertTrue(restored.getBoolean(SessionRestoreProbeProvider.KEY_TOKEN_PRESENT))
         assertEquals(capturedSessionId, restored.getString(SessionRestoreProbeProvider.KEY_SESSION_ID))
         assertEquals(Routes.PACKAGES, restored.getString(SessionRestoreProbeProvider.KEY_ROUTE))
         assertTrue(store.all.values.none { it == "account-a-secret-token" })
+        awaitProcessExit(restoredPid)
     }
 
     @Test
     fun processRestoreUnderDifferentAccountCannotReplay() {
+        val killedProbePid = startAndKillProbeProcess()
         AuthTokenStore.save("account-a-token")
         capture("PackagesView")
         AuthTokenStore.save("account-b-token")
 
         val restored = restoreInFreshProcess()
+        val restoredPid = restored.getInt(SessionRestoreProbeProvider.KEY_PROCESS_ID)
 
-        assertNotEquals(Process.myPid(), restored.getInt(SessionRestoreProbeProvider.KEY_PROCESS_ID))
+        assertNotEquals(Process.myPid(), restoredPid)
+        assertNotEquals(killedProbePid, restoredPid)
         assertNull(restored.getString(SessionRestoreProbeProvider.KEY_ROUTE))
+        awaitProcessExit(restoredPid)
     }
 
     @Test
@@ -236,6 +245,34 @@ class PushDeepLinkSessionBindingTest {
             null,
         ),
     )
+
+    private fun startAndKillProbeProcess(): Int {
+        val result = requireNotNull(
+            context.contentResolver.call(
+                Uri.parse("content://${context.packageName}.sessionrestoreprobe"),
+                SessionRestoreProbeProvider.METHOD_PROCESS_ID,
+                null,
+                null,
+            ),
+        )
+        val pid = result.getInt(SessionRestoreProbeProvider.KEY_PROCESS_ID)
+        assertNotEquals(Process.myPid(), pid)
+        Process.killProcess(pid)
+        awaitProcessExit(pid)
+        return pid
+    }
+
+    private fun awaitProcessExit(pid: Int) {
+        val activityManager = context.getSystemService(ActivityManager::class.java)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (
+            activityManager.runningAppProcesses.orEmpty().any { it.pid == pid } &&
+            System.currentTimeMillis() < deadline
+        ) {
+            Thread.sleep(25)
+        }
+        assertTrue(activityManager.runningAppProcesses.orEmpty().none { it.pid == pid })
+    }
 
     private fun capture(route: String) {
         PushDeepLink.capture(

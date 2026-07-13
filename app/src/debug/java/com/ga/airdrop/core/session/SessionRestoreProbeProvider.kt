@@ -16,6 +16,9 @@ class SessionRestoreProbeProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
+        if (method == METHOD_PROCESS_ID) {
+            return Bundle().apply { putInt(KEY_PROCESS_ID, Process.myPid()) }
+        }
         require(method == METHOD_RESTORE)
         val appContext = requireNotNull(context).applicationContext
         AuthTokenStore.init(appContext)
@@ -51,6 +54,7 @@ class SessionRestoreProbeProvider : ContentProvider() {
 
     companion object {
         const val METHOD_RESTORE = "restore"
+        const val METHOD_PROCESS_ID = "processId"
         const val KEY_SESSION_ID = "sessionId"
         const val KEY_TOKEN_PRESENT = "tokenPresent"
         const val KEY_ROUTE = "route"
