@@ -89,11 +89,11 @@ class PushRegistrarSessionBindingTest {
     fun identicalFcmTokenDoesNotDuplicateForSameAccountRelogin() {
         AuthTokenStore.save("same-bearer", authenticatedAccountId = 101)
         val accountA = requireNotNull(AuthTokenStore.requestProvenance(AuthTokenStore.snapshot()))
-        val first = CountDownLatch(1)
+        val firstComplete = CountDownLatch(1)
+        val firstResult = AtomicReference<Boolean>()
         val registrations = AtomicInteger()
         val request: suspend (String, AuthTokenStore.RequestProvenance) -> Boolean = { _, _ ->
             registrations.incrementAndGet()
-            first.countDown()
             true
         }
         PushRegistrar.registerForSessionWith(
@@ -101,8 +101,14 @@ class PushRegistrarSessionBindingTest {
             force = false,
             tokenRequester = { "same-fcm-token" },
             registerRequest = request,
+            onComplete = { result ->
+                firstResult.set(result)
+                firstComplete.countDown()
+            },
         )
-        assertTrue(first.await(5, TimeUnit.SECONDS))
+        assertTrue(firstComplete.await(5, TimeUnit.SECONDS))
+        assertEquals(true, firstResult.get())
+        assertEquals(1, registrations.get())
 
         AuthTokenStore.save("same-bearer", authenticatedAccountId = 101)
         val accountB = requireNotNull(AuthTokenStore.requestProvenance(AuthTokenStore.snapshot()))
