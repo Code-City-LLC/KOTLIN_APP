@@ -72,7 +72,7 @@ fun FeaturedProductsScreen(
 ) {
     ProductListScreen(
         title = "Feature Products",
-        searchPlaceholder = "Paste Any Amazon Product Link",
+        searchPlaceholder = "Search Products",
         emptyText = "No Products Found",
         featured = true,
         viewModel = viewModel,

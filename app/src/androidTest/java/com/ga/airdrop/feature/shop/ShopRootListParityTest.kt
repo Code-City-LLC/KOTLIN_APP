@@ -11,10 +11,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -137,6 +139,39 @@ class ShopRootListParityTest {
     }
 
     @Test
+    fun featureProductsUsesSwiftCatalogueSearchPlaceholder() {
+        val repository = RecordingShopProductsRepository()
+        lateinit var viewModel: FeaturedProductsViewModel
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            viewModel = FeaturedProductsViewModel(repository)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                FeaturedProductsScreen(
+                    onNavigate = {},
+                    onBack = {},
+                    viewModel = viewModel,
+                )
+            }
+        }
+
+        compose.onNodeWithText("Search Products").assertIsDisplayed()
+        compose.onNodeWithText("Paste Any Amazon Product Link").assertDoesNotExist()
+        compose.onNode(hasSetTextAction(), useUnmergedTree = true)
+            .performTextInput("adapter")
+        compose.waitUntil(timeoutMillis = 5_000) {
+            repository.featuredSearches.contains("adapter")
+        }
+        assertEquals(
+            "Featured Products keeps the Swift catalogue-search repository rail",
+            listOf(null, "adapter"),
+            repository.featuredSearches.take(2),
+        )
+    }
+
+    @Test
     fun fullListSearchBackspaceReloadsUnfilteredLikeSwift() {
         val repo = RecordingShopProductsRepository()
         lateinit var viewModel: ProductListViewModel
@@ -229,6 +264,7 @@ class ShopRootListParityTest {
 
     private class RecordingShopProductsRepository : ShopProductsRepository {
         val auctionSearches = Collections.synchronizedList(mutableListOf<String?>())
+        val featuredSearches = Collections.synchronizedList(mutableListOf<String?>())
 
         override suspend fun auctionProducts(
             page: Int,
@@ -243,7 +279,10 @@ class ShopRootListParityTest {
             page: Int,
             perPage: Int,
             search: String?,
-        ): Result<List<ShopProduct>> = Result.success(emptyList())
+        ): Result<List<ShopProduct>> {
+            featuredSearches += search
+            return Result.success(emptyList())
+        }
 
         override suspend fun productBySlug(slug: String, featured: Boolean): Result<ShopProduct> =
             Result.success(SampleProduct)
