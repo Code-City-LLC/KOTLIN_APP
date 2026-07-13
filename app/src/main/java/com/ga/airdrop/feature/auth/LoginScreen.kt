@@ -87,9 +87,10 @@ fun LoginScreen(
         ) {
             ThemeToggle()
         }
-        // Figma Login logo: light uses the 260x72 wordmark at y=150
-        // (40006240:26932); dark uses the 321x306 hero at y=106
-        // (40006149:75728). Keep their independent vertical geometry.
+        // Figma Login logo: light uses the wide colour wordmark at 260 of the
+        // 375-wide frame (node 40006240:26932); DARK uses the exact red/orange
+        // AirDrop mark bundled in Swift as "airdrop-logo" and shown in Figma
+        // node 40006149:75728, framed at 321x306.
         Image(
             painter = painterResource(
                 if (colors.isDark) R.drawable.img_airdrop_logo_dark
@@ -98,7 +99,7 @@ fun LoginScreen(
             contentDescription = "AirDrop",
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = if (colors.isDark) 106.dp else 150.dp)
+                .padding(top = 106.dp)
                 .fillMaxWidth(if (colors.isDark) 321f / 375f else 260f / 375f)
                 .aspectRatio(if (colors.isDark) 321f / 306f else 649f / 180f)
                 .testTag("login-logo"),
