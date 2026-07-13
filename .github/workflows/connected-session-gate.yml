@@ -83,7 +83,7 @@ jobs:
           heap-size: 512M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: |
-            set -euo pipefail
+            set -eu
             classes="com.ga.airdrop.core.session.AuthenticatedResponseSessionBindingTest,com.ga.airdrop.core.push.PushRegistrarSessionBindingTest,com.ga.airdrop.feature.more.NotificationSettingsParityTest,com.ga.airdrop.feature.homedetails.NotificationsScreenParityTest"
             proof_root="${RUNNER_TEMP}/connected-session-proof"
             results_root="app/build/outputs/androidTest-results/connected"
