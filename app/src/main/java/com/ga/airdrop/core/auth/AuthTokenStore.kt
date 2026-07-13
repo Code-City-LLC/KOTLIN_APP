@@ -5,9 +5,6 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.util.UUID
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -26,28 +23,12 @@ object AuthTokenStore {
 
     data class RequestProvenance(val revision: Long, val sessionId: String)
 
-    class DispatchLease internal constructor(
-        internal val id: Long,
-        private val cancelAction: () -> Unit,
-    ) {
-        @Volatile
-        var isValid: Boolean = true
-            private set
-
-        internal fun invalidate() {
-            isValid = false
-            runCatching(cancelAction)
-        }
-    }
-
     private const val PREFS = "airdrop_auth"
     private const val KEY_TOKEN = "api_token"
     private const val KEY_SESSION_ID = "session_id"
 
     private lateinit var prefs: SharedPreferences
-    private val stateLock = ReentrantReadWriteLock(true)
-    private val activeDispatches = mutableMapOf<Long, DispatchLease>()
-    private var nextDispatchId = 0L
+    private val stateLock = Any()
     private var revision = 0L
     private var sessionId: String? = null
 
@@ -58,8 +39,7 @@ object AuthTokenStore {
 
     val token: String? get() = _token.value
 
-    fun init(context: Context) = stateLock.write {
-        cancelActiveDispatchesLocked()
+    fun init(context: Context) = synchronized(stateLock) {
         prefs = runCatching {
             val masterKey = MasterKey.Builder(context)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -89,8 +69,7 @@ object AuthTokenStore {
         publishSnapshot()
     }
 
-    fun save(token: String) = stateLock.write {
-        cancelActiveDispatchesLocked()
+    fun save(token: String) = synchronized(stateLock) {
         // Update the in-memory flow first, then persist only if prefs is bound.
         // A background service / ContentProvider can run before
         // Application.onCreate() calls init(); touching lateinit prefs then
@@ -108,11 +87,10 @@ object AuthTokenStore {
     }
 
     /** Rotates a bearer only when the exact expected session generation is current. */
-    fun rotate(expected: Snapshot, newToken: String): Snapshot? = stateLock.write {
+    fun rotate(expected: Snapshot, newToken: String): Snapshot? = synchronized(stateLock) {
         if (newToken.isBlank() || currentSnapshot() != expected || expected.sessionId == null) {
-            return@write null
+            return null
         }
-        cancelActiveDispatchesLocked()
         _token.value = newToken
         revision += 1
         if (::prefs.isInitialized) {
@@ -124,19 +102,18 @@ object AuthTokenStore {
         currentSnapshot().also { _snapshot.value = it }
     }
 
-    fun clear() = stateLock.write {
+    fun clear() = synchronized(stateLock) {
         clearLocked()
     }
 
     /** Clears only if the exact request generation still owns the session. */
-    fun clear(expected: Snapshot): Boolean = stateLock.write {
-        if (currentSnapshot() != expected) return@write false
+    fun clear(expected: Snapshot): Boolean = synchronized(stateLock) {
+        if (currentSnapshot() != expected) return false
         clearLocked()
         true
     }
 
     private fun clearLocked() {
-        cancelActiveDispatchesLocked()
         _token.value = null
         sessionId = null
         revision += 1
@@ -146,31 +123,8 @@ object AuthTokenStore {
         publishSnapshot()
     }
 
-    fun snapshot(): Snapshot = stateLock.read {
+    fun snapshot(): Snapshot = synchronized(stateLock) {
         currentSnapshot()
-    }
-
-    /** Registers an authenticated call atomically against one exact session. */
-    fun acquireDispatch(expected: Snapshot, cancel: () -> Unit): DispatchLease? = stateLock.write {
-        if (currentSnapshot() != expected || expected.token == null) return@write null
-        DispatchLease(++nextDispatchId, cancel).also { activeDispatches[it.id] = it }
-    }
-
-    /** Atomically linearizes response completion before any later auth write. */
-    fun completeDispatch(lease: DispatchLease): Boolean = stateLock.write {
-        activeDispatches.remove(lease.id)
-        lease.isValid
-    }
-
-    fun abandonDispatch(lease: DispatchLease) = stateLock.write {
-        activeDispatches.remove(lease.id)
-        Unit
-    }
-
-    private fun cancelActiveDispatchesLocked() {
-        val leases = activeDispatches.values.toList()
-        activeDispatches.clear()
-        leases.forEach(DispatchLease::invalidate)
     }
 
     /** Non-secret session identity used to bind delayed work without exposing a bearer. */
