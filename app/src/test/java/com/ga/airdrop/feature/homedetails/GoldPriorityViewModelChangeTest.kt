@@ -10,6 +10,7 @@ import com.ga.airdrop.data.model.TierChangeOption
 import com.ga.airdrop.data.model.TierChangeResult
 import com.ga.airdrop.data.repo.CustomerTierReader
 import com.ga.airdrop.data.repo.TierChanger
+import java.util.IdentityHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -54,15 +55,18 @@ class GoldPriorityViewModelChangeTest {
     private var patchCalls = 0
     private var patchHook: () -> Unit = {}
     private var customerTierHook: () -> Unit = {}
+    private var serviceTiersHook: () -> Unit = {}
     private var capturedProvenance: AuthTokenStore.RequestProvenance? = null
     private lateinit var sessionBoundary: TestSessionBoundary
 
     private val reader = object : CustomerTierReader {
         override suspend fun serviceTiers(): Result<List<ServiceTier>> {
             callLog += "serviceTiers"
-            return Result.success(
+            val result = Result.success(
                 listOf(ServiceTier(code = "GOLD", benefitsSummary = listOf("Gold row"))),
             )
+            serviceTiersHook()
+            return result
         }
 
         override suspend fun customerTier(): Result<CustomerTier> {
@@ -96,6 +100,7 @@ class GoldPriorityViewModelChangeTest {
         patchResult = Result.success(TierChangeResult(status = "applied"))
         patchHook = {}
         customerTierHook = {}
+        serviceTiersHook = {}
         capturedProvenance = null
         tierResponses = ArrayDeque()
         sessionBoundary = TestSessionBoundary()
@@ -210,13 +215,13 @@ class GoldPriorityViewModelChangeTest {
         advanceUntilIdle()
 
         vm.changeTier("GOLD", "Gold Standard")
-        // Do not emit the owner change: this isolates the explicit
-        // pre-dispatch provenance revalidation from collector cancellation.
-        sessionBoundary.replaceCurrent("session-b")
+        sessionBoundary.replaceCurrent("session-b", emit = true)
         advanceUntilIdle()
 
         assertEquals(0, patchCalls)
         assertNotEquals(TierChangePhase.Success, vm.state.value.changePhase)
+        assertEquals(TierChangePhase.Idle, vm.state.value.changePhase)
+        assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
     }
 
     @Test
@@ -239,14 +244,21 @@ class GoldPriorityViewModelChangeTest {
         val vm = newViewModel()
         advanceUntilIdle()
         callLog.clear()
-        patchHook = { sessionBoundary.replaceCurrent("session-b") }
+        patchHook = { sessionBoundary.replaceCurrent("session-b", emit = true) }
 
         vm.changeTier("GOLD", "Gold Standard")
         advanceUntilIdle()
 
         assertEquals(1, patchCalls)
-        assertEquals(listOf("patch:GOLD"), callLog)
+        assertEquals("patch:GOLD", callLog.firstOrNull())
+        // Emitting a production-faithful replacement starts one fresh-session
+        // load. Exactly one customer/catalog read belongs to that reload; an
+        // extra read would mean the replaced mutation also ran confirmation.
+        assertEquals(1, callLog.count { it == "customerTier" })
+        assertEquals(1, callLog.count { it == "serviceTiers" })
         assertNotEquals(TierChangePhase.Success, vm.state.value.changePhase)
+        assertEquals(TierChangePhase.Idle, vm.state.value.changePhase)
+        assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
         assertNull(vm.state.value.changeSuccessName)
     }
 
@@ -287,20 +299,257 @@ class GoldPriorityViewModelChangeTest {
             assertEquals(43L, sessionBoundary.currentRevision())
         }
 
-    private class TestSessionBoundary : AuthenticatedSessionBoundary {
+    @Test
+    fun nullAccountBindingBeforeDispatchMakesZeroPatchCallsAndEndsError() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+
+            vm.changeTier("GOLD", "Gold Standard")
+            sessionBoundary.bindCurrentAccount(1)
+            advanceUntilIdle()
+
+            assertEquals(0, patchCalls)
+            assertEquals(TierChangePhase.Error, vm.state.value.changePhase)
+            assertNull(vm.state.value.changeSuccessName)
+        }
+
+    @Test
+    fun nullAccountBindingBetweenOwnerCaptureAndRequestResolutionRetriesSafely() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+
+            vm.changeTier("GOLD", "Gold Standard")
+            sessionBoundary.beforeNextRequestOwner { bindCurrentAccount(1) }
+            advanceUntilIdle()
+
+            assertEquals(0, patchCalls)
+            assertEquals(TierChangePhase.Error, vm.state.value.changePhase)
+            assertNull(vm.state.value.changeSuccessName)
+        }
+
+    @Test
+    fun nullAccountBindingBeforeInitialLoadingPublicationRetriesExactOwner() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            sessionBoundary.beforeNextApplicationAfterValidation { bindCurrentAccount(1) }
+
+            val vm = newViewModel()
+            advanceUntilIdle()
+
+            assertEquals(TierCatalogStatus.Ready, vm.state.value.catalogStatus)
+            assertEquals(TierResolutionStatus.Resolved, vm.state.value.resolutionStatus)
+            assertEquals(1, sessionBoundary.currentAccountId())
+        }
+
+    @Test
+    fun nullAccountBindingDuringPatchContinuesConfirmationAndSucceeds() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+            callLog.clear()
+            tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
+            patchHook = { sessionBoundary.bindCurrentAccount(1) }
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertEquals(1, patchCalls)
+            assertEquals(listOf("patch:GOLD", "customerTier", "serviceTiers"), callLog)
+            assertEquals(TierChangePhase.Success, vm.state.value.changePhase)
+            assertEquals("Gold Standard", vm.state.value.changeSuccessName)
+        }
+
+    @Test
+    fun nullAccountBindingDuringConfirmationStillFoldsAndSucceeds() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+            callLog.clear()
+            tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
+            customerTierHook = { sessionBoundary.bindCurrentAccount(1) }
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertEquals(listOf("patch:GOLD", "customerTier", "serviceTiers"), callLog)
+            assertEquals(TierChangePhase.Success, vm.state.value.changePhase)
+            assertEquals("Gold Standard", vm.state.value.changeSuccessName)
+        }
+
+    @Test
+    fun replacementSessionDuringConfirmationCannotPublishSuccess() =
+        runTest(dispatcher) {
+            val vm = newViewModel()
+            advanceUntilIdle()
+            callLog.clear()
+            tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
+            customerTierHook = { sessionBoundary.replaceCurrent("session-b", emit = true) }
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertEquals(1, patchCalls)
+            assertNotEquals(TierChangePhase.Success, vm.state.value.changePhase)
+            assertEquals(TierChangePhase.Idle, vm.state.value.changePhase)
+            assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
+            assertNull(vm.state.value.changeSuccessName)
+        }
+
+    @Test
+    fun nullAccountBindingImmediatelyBeforeFinalFoldRetriesAndPublishesSuccess() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+            callLog.clear()
+            tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
+            serviceTiersHook = {
+                sessionBoundary.beforeNextApplicationAfterValidation {
+                    bindCurrentAccount(1)
+                }
+            }
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertEquals(listOf("patch:GOLD", "customerTier", "serviceTiers"), callLog)
+            assertEquals(TierChangePhase.Success, vm.state.value.changePhase)
+            assertEquals("Gold Standard", vm.state.value.changeSuccessName)
+            assertEquals(1, sessionBoundary.currentAccountId())
+            assertEquals(1, sessionBoundary.maxRunWhileActionInvocations())
+        }
+
+    @Test
+    fun replacementImmediatelyBeforeFinalFoldCannotPublishOldSuccess() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+            tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
+            serviceTiersHook = {
+                sessionBoundary.beforeNextApplicationAfterValidation {
+                    replaceCurrent("session-b", emit = true)
+                }
+            }
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertNotEquals(TierChangePhase.Success, vm.state.value.changePhase)
+            assertEquals(TierChangePhase.Idle, vm.state.value.changePhase)
+            assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
+            assertNull(vm.state.value.changeSuccessName)
+        }
+
+    @Test
+    fun provisionalBindRollbackBeforeDispatchCannotStrandWorking() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+            patchResult = Result.failure(RuntimeException("patch failed"))
+
+            vm.changeTier("GOLD", "Gold Standard")
+            sessionBoundary.beginProvisionalBind(accountId = 1, persist = false)
+            advanceUntilIdle()
+
+            assertEquals(1, patchCalls)
+            assertEquals(TierChangePhase.Error, vm.state.value.changePhase)
+            assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
+            assertNull(sessionBoundary.currentAccountId())
+        }
+
+    @Test
+    fun consecutiveProvisionalBindRollbacksCannotConsumeValidationOrStrandWorking() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+            patchResult = Result.failure(RuntimeException("patch failed"))
+
+            vm.changeTier("GOLD", "Gold Standard")
+            sessionBoundary.beginConsecutiveFailedBinds(1, 2)
+            advanceUntilIdle()
+
+            assertEquals(1, patchCalls)
+            assertEquals(TierChangePhase.Error, vm.state.value.changePhase)
+            assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
+            assertNull(vm.state.value.changeSuccessName)
+            assertNull(sessionBoundary.currentAccountId())
+            assertEquals(1, sessionBoundary.maxRunWhileActionInvocations())
+        }
+
+    @Test
+    fun provisionalBindRollbackDuringPatchFailurePublishesExactError() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+            patchResult = Result.failure(RuntimeException("patch failed"))
+            patchHook = {
+                sessionBoundary.beginProvisionalBind(accountId = 1, persist = false)
+            }
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertEquals(1, patchCalls)
+            assertEquals(TierChangePhase.Error, vm.state.value.changePhase)
+            assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
+            assertNull(sessionBoundary.currentAccountId())
+        }
+
+    @Test
+    fun provisionalBindRollbackBeforeConfirmedFoldStillPublishesOnce() =
+        runTest(dispatcher) {
+            sessionBoundary = TestSessionBoundary(initialAccountId = null)
+            val vm = newViewModel()
+            advanceUntilIdle()
+            tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
+            serviceTiersHook = {
+                sessionBoundary.beginProvisionalBind(accountId = 1, persist = false)
+            }
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertEquals(TierChangePhase.Success, vm.state.value.changePhase)
+            assertEquals("Gold Standard", vm.state.value.changeSuccessName)
+            assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
+            assertNull(sessionBoundary.currentAccountId())
+            assertEquals(1, sessionBoundary.maxRunWhileActionInvocations())
+        }
+
+    private class TestSessionBoundary(initialAccountId: Int? = 1) : AuthenticatedSessionBoundary {
         private var owner: AuthenticatedSessionOwner? =
-            AuthenticatedSessionOwner(sessionId = "session-a", accountId = 1)
+            AuthenticatedSessionOwner(sessionId = "session-a", accountId = initialAccountId)
         private var revision: Long = 42L
         private val ownerFlow = MutableStateFlow(owner)
+        private var requestOwnerHook: TestSessionBoundary.() -> Unit = {}
+        private var afterValidationHook: TestSessionBoundary.() -> Unit = NoOpHook
+        private var beforeRunWhileHook: TestSessionBoundary.() -> Unit = NoOpHook
+        private var insideRunWhileAction = false
+        private var provisionalBindPersists: Boolean? = null
+        private val failedBindsAfterRunWhile = ArrayDeque<Int>()
+        private val runWhileActionInvocations = IdentityHashMap<() -> Boolean, Int>()
 
         override val changes: Flow<AuthenticatedSessionOwner?> = ownerFlow
 
         override fun capture(): AuthenticatedSessionOwner? = owner
 
-        override fun isCurrent(owner: AuthenticatedSessionOwner): Boolean = this.owner == owner
+        // Production isCurrent/apply guard only the session id. Tests must
+        // not accidentally grant them stronger full-owner semantics.
+        override fun isCurrent(owner: AuthenticatedSessionOwner): Boolean =
+            this.owner?.sessionId == owner.sessionId
 
         override fun apply(owner: AuthenticatedSessionOwner, action: () -> Unit): Boolean {
-            if (this.owner != owner) return false
+            if (this.owner?.sessionId != owner.sessionId) return false
             action()
             return true
         }
@@ -308,11 +557,42 @@ class GoldPriorityViewModelChangeTest {
         override fun runWhileCurrent(
             owner: AuthenticatedSessionOwner,
             action: () -> Boolean,
-        ): Boolean = this.owner == owner && action() && this.owner == owner
+        ): Boolean {
+            settleProvisionalBind()
+            if (beforeRunWhileHook !== NoOpHook) {
+                val hook = beforeRunWhileHook
+                beforeRunWhileHook = NoOpHook
+                hook()
+            }
+            val result = if (this.owner != owner) {
+                false
+            } else {
+                val invocationCount = (runWhileActionInvocations[action] ?: 0) + 1
+                runWhileActionInvocations[action] = invocationCount
+                check(invocationCount == 1) { "runWhileCurrent action executed more than once" }
+                insideRunWhileAction = true
+                val actionResult = try {
+                    action()
+                } finally {
+                    insideRunWhileAction = false
+                }
+                actionResult && this.owner == owner
+            }
+            // Model another caller acquiring transitionLock immediately after
+            // this exact validation releases it. The completed result remains
+            // linearized; the next call must independently survive its bind.
+            failedBindsAfterRunWhile.removeFirstOrNull()?.let { accountId ->
+                beginProvisionalBind(accountId = accountId, persist = false)
+            }
+            return result
+        }
 
         override fun requestOwner(owner: AuthenticatedSessionOwner): AuthenticatedRequestOwner? {
+            val hook = requestOwnerHook
+            requestOwnerHook = {}
+            hook()
             if (this.owner != owner) return null
-            return AuthenticatedRequestOwner(
+            val result = AuthenticatedRequestOwner(
                 session = owner,
                 provenance = AuthTokenStore.RequestProvenance(
                     revision = revision,
@@ -320,6 +600,11 @@ class GoldPriorityViewModelChangeTest {
                     accountId = owner.accountId,
                 ),
             )
+            if (insideRunWhileAction && afterValidationHook !== NoOpHook) {
+                beforeRunWhileHook = afterValidationHook
+                afterValidationHook = NoOpHook
+            }
+            return result
         }
 
         override fun bindAccountId(owner: AuthenticatedSessionOwner, accountId: Int): Boolean {
@@ -329,15 +614,61 @@ class GoldPriorityViewModelChangeTest {
             return true
         }
 
-        fun replaceCurrent(sessionId: String) {
+        fun replaceCurrent(sessionId: String, emit: Boolean = false) {
             owner = AuthenticatedSessionOwner(sessionId = sessionId, accountId = 2)
             revision += 1
+            if (emit) ownerFlow.value = owner
         }
 
         fun rotateRevision() {
             revision += 1
         }
 
+        fun bindCurrentAccount(accountId: Int) {
+            check(owner?.accountId == null)
+            owner = owner?.copy(accountId = accountId)
+            ownerFlow.value = owner
+        }
+
+        fun beforeNextRequestOwner(action: TestSessionBoundary.() -> Unit) {
+            requestOwnerHook = action
+        }
+
+        fun beforeNextApplicationAfterValidation(action: TestSessionBoundary.() -> Unit) {
+            afterValidationHook = action
+        }
+
+        fun beginProvisionalBind(accountId: Int, persist: Boolean) {
+            check(owner?.accountId == null)
+            owner = owner?.copy(accountId = accountId)
+            provisionalBindPersists = persist
+        }
+
+        fun beginConsecutiveFailedBinds(firstAccountId: Int, vararg followingAccountIds: Int) {
+            check(failedBindsAfterRunWhile.isEmpty())
+            failedBindsAfterRunWhile.addAll(followingAccountIds.toList())
+            beginProvisionalBind(accountId = firstAccountId, persist = false)
+        }
+
         fun currentRevision(): Long = revision
+
+        fun currentAccountId(): Int? = owner?.accountId
+
+        fun maxRunWhileActionInvocations(): Int =
+            runWhileActionInvocations.values.maxOrNull() ?: 0
+
+        private fun settleProvisionalBind() {
+            val persists = provisionalBindPersists ?: return
+            provisionalBindPersists = null
+            if (persists) {
+                ownerFlow.value = owner
+            } else {
+                owner = owner?.copy(accountId = null)
+            }
+        }
+
+        private companion object {
+            val NoOpHook: TestSessionBoundary.() -> Unit = {}
+        }
     }
 }

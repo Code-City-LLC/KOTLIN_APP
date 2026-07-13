@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.homedetails
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.session.AuthenticatedRequestOwner
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionJobs
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
@@ -93,7 +94,7 @@ class GoldPriorityViewModel(
         val owner = requestOwner.session
         val snapshot = _state.value
         if (!isOfferedChange(snapshot.changeOffers, snapshot.canChange, requestedTierCode)) {
-            sessionBoundary.apply(owner) {
+            applyWhileOwned(owner) {
                 _state.update {
                     it.copy(
                         changePhase = TierChangePhase.Error,
@@ -104,7 +105,7 @@ class GoldPriorityViewModel(
             return
         }
         if (
-            !sessionBoundary.apply(owner) {
+            !applyWhileOwned(owner) {
                 _state.update {
                     it.copy(
                         changePhase = TierChangePhase.Working,
@@ -119,15 +120,15 @@ class GoldPriorityViewModel(
             // Revalidate immediately before handing the mutation to Retrofit.
             // AuthInterceptor repeats this check at dispatch and cancels an
             // in-flight request if the authenticated generation changes.
-            val dispatchOwner = sessionBoundary.requestOwner(owner)
+            val dispatchOwner = continuedRequestOwner(owner)
             if (dispatchOwner?.provenance != requestOwner.provenance) {
                 // A token refresh can rotate request provenance without
                 // replacing the logical session. The session collector does
                 // not reset for that event, so a silent return here would
                 // strand the non-dismissible sheet in Working forever.
-                if (sessionBoundary.isCurrent(owner)) {
+                dispatchOwner?.session?.let {
                     finishWorkingWithError(
-                        owner,
+                        it,
                         "Your session refreshed before the change started. Please try again.",
                     )
                 }
@@ -138,14 +139,12 @@ class GoldPriorityViewModel(
                 expectedSession = requestOwner.provenance,
             )
             if (patchResult.isFailure) {
-                sessionBoundary.apply(owner) {
-                    _state.update {
-                        it.copy(
-                            changePhase = TierChangePhase.Error,
-                            changeError = patchResult.exceptionOrNull()?.message
-                                ?: "Unable to change tier. Please try again.",
-                        )
-                    }
+                continuedRequestOwner(owner)?.session?.let {
+                    finishWorkingWithError(
+                        it,
+                        patchResult.exceptionOrNull()?.message
+                            ?: "Unable to change tier. Please try again.",
+                    )
                 }
                 return@launch
             }
@@ -154,27 +153,27 @@ class GoldPriorityViewModel(
             // revision rotated inside the same logical session. The GET uses
             // the current token at dispatch. Account/session replacement is
             // still rejected before any confirmation read or publication.
-            if (!canContinueTierConfirmation(owner)) return@launch
+            val confirmationOwner = continuedRequestOwner(owner)?.session ?: return@launch
 
             val confirmation = tierReader.customerTier()
             // The confirmation response belongs only to the same logical
             // account/session. Revision-only rotations remain valid.
-            if (!canContinueTierConfirmation(owner)) return@launch
+            val publicationOwner = continuedRequestOwner(confirmationOwner)?.session ?: return@launch
             val confirmed = confirmation.getOrNull()
             if (confirmed?.currentTier?.equals(requestedTierCode, ignoreCase = true) == true) {
-                if (loadTierDataNow(owner, prefetchedTier = confirmed)) {
-                    sessionBoundary.apply(owner) {
-                        _state.update {
-                            it.copy(
-                                changePhase = TierChangePhase.Success,
-                                changeSuccessName = targetName,
-                                changeError = null,
-                            )
-                        }
-                    }
-                }
+                loadTierDataNow(
+                    owner = publicationOwner,
+                    prefetchedTier = confirmed,
+                    afterLoad = {
+                        it.copy(
+                            changePhase = TierChangePhase.Success,
+                            changeSuccessName = targetName,
+                            changeError = null,
+                        )
+                    },
+                )
             } else {
-                sessionBoundary.apply(owner) {
+                applyWhileOwned(publicationOwner) {
                     _state.update {
                         it.copy(
                             changePhase = TierChangePhase.Error,
@@ -191,7 +190,7 @@ class GoldPriorityViewModel(
         owner: AuthenticatedSessionOwner,
         message: String,
     ) {
-        sessionBoundary.apply(owner) {
+        applyWhileOwned(owner) {
             _state.update { current ->
                 if (current.changePhase != TierChangePhase.Working) current
                 else current.copy(
@@ -203,20 +202,63 @@ class GoldPriorityViewModel(
         }
     }
 
-    private fun canContinueTierConfirmation(owner: AuthenticatedSessionOwner): Boolean {
-        if (sessionBoundary.requestOwner(owner) != null) return true
-        if (sessionBoundary.isCurrent(owner)) {
-            finishWorkingWithError(
-                owner,
-                "We couldn't confirm the change after your session refreshed. Refresh your tier details before trying again.",
-            )
+    /**
+     * Account identity may refine from unknown to bound without replacing the
+     * authenticated session. A non-null captured account is immutable for
+     * that session, while null may safely adopt the current bound account.
+     */
+    private fun continuedRequestOwner(
+        captured: AuthenticatedSessionOwner,
+    ): AuthenticatedRequestOwner? {
+        // Validate the originally captured owner first. If a null -> bound
+        // bind is still persisting, runWhileCurrent waits for transitionLock:
+        // a failed bind rolls back to null and this succeeds, while a committed
+        // bind makes the exact-null check fail. Only that committed refinement
+        // may be captured and validated once; there is no retry-count race
+        // across unrelated provisional bind attempts.
+        stableRequestOwner(captured)?.let { return it }
+        if (captured.accountId != null) return null
+
+        val refined = sessionBoundary.capture() ?: return null
+        if (refined.sessionId != captured.sessionId || refined.accountId == null) return null
+        return stableRequestOwner(refined)
+    }
+
+    private fun stableRequestOwner(
+        owner: AuthenticatedSessionOwner,
+    ): AuthenticatedRequestOwner? {
+        var requestOwner: AuthenticatedRequestOwner? = null
+        val stable = sessionBoundary.runWhileCurrent(owner) {
+            requestOwner = sessionBoundary.requestOwner(owner)
+            requestOwner != null
         }
-        return false
+        return requestOwner.takeIf { stable }
+    }
+
+    private fun applyWhileOwned(
+        owner: AuthenticatedSessionOwner,
+        action: () -> Unit,
+    ): Boolean {
+        val ownedAction = {
+            action()
+            true
+        }
+        if (
+            sessionBoundary.runWhileCurrent(owner, ownedAction)
+        ) return true
+        // An exact apply can lose only the legal null -> bound refinement
+        // between owner resolution and runWhileCurrent(). Retry once on the
+        // newly resolved exact owner. Non-null mismatch and replacement
+        // sessions are never retried, and the action executes at most once.
+        if (owner.accountId != null) return false
+        val boundOwner = continuedRequestOwner(owner)?.session ?: return false
+        if (boundOwner.accountId == null) return false
+        return sessionBoundary.runWhileCurrent(boundOwner, ownedAction)
     }
 
     fun resetChangeFlow() {
         val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
-        sessionBoundary.apply(owner) {
+        applyWhileOwned(owner) {
             _state.update {
                 it.copy(
                     changePhase = TierChangePhase.Idle,
@@ -238,9 +280,11 @@ class GoldPriorityViewModel(
     private suspend fun loadTierDataNow(
         owner: AuthenticatedSessionOwner,
         prefetchedTier: CustomerTier? = null,
+        afterLoad: (GoldPriorityUiState) -> GoldPriorityUiState = { it },
     ): Boolean = coroutineScope {
+        val loadingOwner = continuedRequestOwner(owner)?.session ?: return@coroutineScope false
         if (
-            !sessionBoundary.apply(owner) {
+            !applyWhileOwned(loadingOwner) {
                 _state.update {
                     it.copy(
                         catalogStatus = TierCatalogStatus.Loading,
@@ -265,24 +309,28 @@ class GoldPriorityViewModel(
         )
         val customerTier = customerResult.getOrNull()
 
-        sessionBoundary.apply(owner) {
+        val publicationOwner = continuedRequestOwner(loadingOwner)?.session
+            ?: return@coroutineScope false
+        applyWhileOwned(publicationOwner) {
             _state.update { previous ->
-                previous.copy(
-                    resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
-                    benefitRowsByCode = catalogResult.getOrNull()
-                        ?.let(::serverBenefitRows)
-                        .orEmpty(),
-                    catalogStatus = if (
-                        catalogResult.isSuccess &&
-                        !catalogResult.getOrNull().isNullOrEmpty()
-                    ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
-                    resolutionStatus = if (resolvedIndex != null) {
-                        TierResolutionStatus.Resolved
-                    } else {
-                        TierResolutionStatus.Failed
-                    },
-                    canChange = customerTier?.canChange ?: false,
-                    changeOffers = customerTier?.availableChanges.orEmpty(),
+                afterLoad(
+                    previous.copy(
+                        resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
+                        benefitRowsByCode = catalogResult.getOrNull()
+                            ?.let(::serverBenefitRows)
+                            .orEmpty(),
+                        catalogStatus = if (
+                            catalogResult.isSuccess &&
+                            !catalogResult.getOrNull().isNullOrEmpty()
+                        ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
+                        resolutionStatus = if (resolvedIndex != null) {
+                            TierResolutionStatus.Resolved
+                        } else {
+                            TierResolutionStatus.Failed
+                        },
+                        canChange = customerTier?.canChange ?: false,
+                        changeOffers = customerTier?.availableChanges.orEmpty(),
+                    ),
                 )
             }
         }
