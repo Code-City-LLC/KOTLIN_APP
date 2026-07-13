@@ -30,7 +30,6 @@ import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
-import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
@@ -475,7 +474,9 @@ class GoldPriorityParityTest {
         compose.onNodeWithTag("tier-change-spinner").assertIsDisplayed()
         compose.onNodeWithTag("tier-change-confirm").assertIsNotEnabled()
         compose.onNodeWithTag("tier-change-cancel").assertIsNotEnabled()
-        pressBack()
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
         compose.waitForIdle()
         compose.onNodeWithTag("tier-change-sheet").assertIsDisplayed()
         compose.runOnIdle { assertEquals(0, dismissCalls) }
