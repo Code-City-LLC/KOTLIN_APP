@@ -9,6 +9,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import java.io.IOException
 
 /**
  * Adds the Sanctum bearer token to every request; on 401 it attempts ONE
@@ -16,7 +17,11 @@ import okhttp3.Response
  * AirdropAPI.makeRequestWithResponse:347 (refresh-then-retry) and
  * refreshToken() at :678 (single-flight, reject body-less 200).
  */
-class AuthInterceptor : Interceptor {
+class AuthInterceptor internal constructor(
+    private val beforeRetry: () -> Unit,
+) : Interceptor {
+
+    constructor() : this(beforeRetry = {})
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
@@ -34,16 +39,37 @@ class AuthInterceptor : Interceptor {
         // Swift `isRefreshRequest` recursion guard: a 401 from the refresh
         // endpoint itself must never trigger another refresh attempt.
         val isRefresh = path.endsWith("auth/refresh")
-        val attachedToken = if (isNoAuth || isPreAuth) null else AuthTokenStore.token
+        val boundRevision = original.header(AuthTokenStore.REQUEST_REVISION_HEADER)
+        val boundSessionId = original.header(AuthTokenStore.REQUEST_SESSION_ID_HEADER)
+        val isSessionBound = boundRevision != null || boundSessionId != null
+        val currentSnapshot = AuthTokenStore.snapshot()
+        if (isSessionBound) {
+            val expectedRevision = boundRevision?.toLongOrNull()
+            val currentProvenance = AuthTokenStore.requestProvenance(currentSnapshot)
+            if (
+                expectedRevision == null ||
+                boundSessionId == null ||
+                currentProvenance?.revision != expectedRevision ||
+                currentProvenance?.sessionId != boundSessionId
+            ) {
+                throw StaleAuthSessionException()
+            }
+        }
+        val attachedToken = if (isNoAuth || isPreAuth) null else currentSnapshot.token
         val builder = original.newBuilder()
             .removeHeader(NO_AUTH_HEADER)
+            .removeHeader(AuthTokenStore.REQUEST_REVISION_HEADER)
+            .removeHeader(AuthTokenStore.REQUEST_SESSION_ID_HEADER)
             .header("Accept", "application/json")
         attachedToken?.let { builder.header("Authorization", "Bearer $it") }
         val request = builder.build()
 
         val response = chain.proceed(request)
 
-        if (response.code != 401 || attachedToken == null || isPreAuth || isRefresh) {
+        if (
+            response.code != 401 || attachedToken == null || isPreAuth || isRefresh ||
+            isSessionBound
+        ) {
             return response
         }
 
@@ -54,41 +80,43 @@ class AuthInterceptor : Interceptor {
 
         // Swift :347 — try a single refresh + retry before tearing down the
         // session. TokenRefresher coalesces concurrent 401s onto one network
-        // refresh; callers queued behind it see the rotated bearer.
-        val refreshed = TokenRefresher.refresh(attachedToken) { performRefresh(chain) }
-        if (refreshed) {
-            AuthTokenStore.token?.let { rotated ->
-                return chain.proceed(
-                    request.newBuilder()
-                        .header("Authorization", "Bearer $rotated")
-                        .build(),
-                )
-            }
+        // refresh; callers queued behind it receive the exact rotated snapshot.
+        val refreshedSnapshot = TokenRefresher.refresh(currentSnapshot) { expectedToken ->
+            performRefresh(chain, expectedToken)
+        }
+        val retryToken = refreshedSnapshot?.token
+        if (retryToken != null) {
+            beforeRetry()
+            return chain.proceed(
+                request.newBuilder()
+                    .header("Authorization", "Bearer $retryToken")
+                    .build(),
+            )
         }
 
-        // Refresh failed: force-logout, but only if the token we sent is
-        // still the current one — a stale-request 401 must not wipe a
-        // freshly-refreshed token.
-        if (attachedToken == AuthTokenStore.token) {
-            AuthTokenStore.clear()
-        }
+        // Refresh failed: force-logout only if this exact request generation
+        // still owns the session. Matching bearer text is insufficient because
+        // a fresh login can legitimately receive the same token string.
+        AuthTokenStore.clear(currentSnapshot)
         return original401
     }
 
     /**
      * POST /auth/refresh through the remainder of the chain (does not
-     * re-enter this interceptor, so no recursion). Sends the CURRENT bearer
-     * because Laravel Sanctum's refresh requires it (Swift refreshToken()
+     * re-enter this interceptor, so no recursion). Sends the expected request
+     * generation's bearer because Laravel Sanctum's refresh requires it (Swift refreshToken()
      * doc), and rejects a 2xx without a token exactly like Swift's
      * "body-less success" hardening. Returns the new token or null.
      */
-    private fun performRefresh(chain: Interceptor.Chain): String? = runCatching {
-        val bearer = AuthTokenStore.token ?: return null
+    private fun performRefresh(
+        chain: Interceptor.Chain,
+        expectedToken: String,
+    ): String? = runCatching {
         val refreshRequest = Request.Builder()
             .url(BuildConfig.API_BASE_URL.trimEnd('/') + "/auth/refresh")
             .post("{}".toRequestBody("application/json".toMediaType()))
             .header("Accept", "application/json")
-            .header("Authorization", "Bearer $bearer")
+            .header("Authorization", "Bearer $expectedToken")
             .build()
         chain.proceed(refreshRequest).use { refreshResponse ->
             if (!refreshResponse.isSuccessful) return null
@@ -105,3 +133,5 @@ class AuthInterceptor : Interceptor {
         private const val MAX_ERROR_BODY_BYTES = 1024L * 1024L
     }
 }
+
+class StaleAuthSessionException : IOException("Authenticated session changed before request dispatch")

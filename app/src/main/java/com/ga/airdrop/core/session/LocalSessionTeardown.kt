@@ -5,6 +5,7 @@ import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
 import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.core.push.PushRegistrar
+import com.ga.airdrop.core.push.PushDeepLink
 import com.ga.airdrop.core.push.QuietHoursStore
 import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.feature.calculator.CalculatorHistory
@@ -18,6 +19,9 @@ import com.ga.airdrop.feature.shop.clearShopSessionCaches
 /** Canonical local end-of-session sweep shared by every auth boundary. */
 fun clearLocalUserSession(context: Context) {
     val appContext = context.applicationContext
+    // Clear while the old auth snapshot is still attributable. This prevents
+    // account-bound push state from surviving into the next login.
+    PushDeepLink.clear()
     AuthTokenStore.clear()
     SessionStore.clear()
     CartStore.init(appContext)

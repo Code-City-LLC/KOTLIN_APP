@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.homedetails
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.AirdropNotification
@@ -27,26 +28,40 @@ data class NotificationsUiState(
  * on tap, deep-link route resolution. Swift staging currently carries an older
  * static empty-state variant, so behavior changes here need a product decision.
  */
-class NotificationsViewModel(
-    private val miscRepository: MiscRepository = MiscRepository(ApiClient.service),
+class NotificationsViewModel internal constructor(
+    private val dataSource: NotificationsDataSource = RepositoryNotificationsDataSource(
+        MiscRepository(ApiClient.service),
+    ),
+    private val sessionSnapshot: () -> AuthTokenStore.Snapshot = AuthTokenStore::snapshot,
 ) : ViewModel() {
+
+    constructor() : this(
+        dataSource = RepositoryNotificationsDataSource(MiscRepository(ApiClient.service)),
+        sessionSnapshot = AuthTokenStore::snapshot,
+    )
 
     private val _state = MutableStateFlow(NotificationsUiState())
     val state: StateFlow<NotificationsUiState> = _state
 
     private var page = 1
     private val perPage = 20
+    private var contentSessionId = sessionSnapshot().sessionId
 
     init {
         refresh()
     }
 
     fun refresh() {
+        val expectedSession = sessionSnapshot()
         page = 1
         _state.update { it.copy(loading = true, error = null, endReached = false) }
         viewModelScope.launch {
-            miscRepository.notifications(page, perPage)
+            dataSource.notifications(page, perPage)
                 .onSuccess { batch ->
+                    if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        return@onSuccess
+                    }
+                    contentSessionId = expectedSession.sessionId
                     _state.update {
                         it.copy(
                             items = batch,
@@ -57,6 +72,9 @@ class NotificationsViewModel(
                     }
                 }
                 .onFailure { err ->
+                    if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        return@onFailure
+                    }
                     _state.update {
                         it.copy(
                             loading = false,
@@ -71,11 +89,18 @@ class NotificationsViewModel(
     fun loadMore() {
         val current = _state.value
         if (current.loading || current.loadingMore || current.endReached) return
+        if (sessionSnapshot().sessionId != contentSessionId || contentSessionId == null) return
         _state.update { it.copy(loadingMore = true) }
+        val expectedSession = sessionSnapshot()
+        val requestedPage = page + 1
         viewModelScope.launch {
-            miscRepository.notifications(page + 1, perPage)
+            if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) return@launch
+            dataSource.notifications(requestedPage, perPage)
                 .onSuccess { batch ->
-                    page += 1
+                    if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        return@onSuccess
+                    }
+                    page = requestedPage
                     _state.update {
                         it.copy(
                             items = it.items + batch,
@@ -85,6 +110,9 @@ class NotificationsViewModel(
                     }
                 }
                 .onFailure {
+                    if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        return@onFailure
+                    }
                     _state.update { it.copy(loadingMore = false) }
                 }
         }
@@ -96,6 +124,8 @@ class NotificationsViewModel(
      * Returns the resolved in-app route to navigate to, or null.
      */
     fun onNotificationTapped(notification: AirdropNotification): String? {
+        val expectedSession = sessionSnapshot()
+        if (expectedSession.token == null || expectedSession.sessionId != contentSessionId) return null
         if (!notification.isRead) {
             _state.update { state ->
                 state.copy(
@@ -105,11 +135,32 @@ class NotificationsViewModel(
                 )
             }
             viewModelScope.launch {
-                miscRepository.markNotificationRead(notification.id)
+                if (sessionSnapshot() != expectedSession) return@launch
+                dataSource.markNotificationRead(notification.id, expectedSession)
             }
         }
         return resolveNotificationRoute(notification)
     }
+}
+
+internal interface NotificationsDataSource {
+    suspend fun notifications(page: Int, limit: Int): Result<List<AirdropNotification>>
+    suspend fun markNotificationRead(
+        id: String,
+        expectedSession: AuthTokenStore.Snapshot,
+    ): Result<Unit>
+}
+
+private class RepositoryNotificationsDataSource(
+    private val repository: MiscRepository,
+) : NotificationsDataSource {
+    override suspend fun notifications(page: Int, limit: Int): Result<List<AirdropNotification>> =
+        repository.notifications(page, limit)
+
+    override suspend fun markNotificationRead(
+        id: String,
+        expectedSession: AuthTokenStore.Snapshot,
+    ): Result<Unit> = repository.markNotificationRead(id, expectedSession).map { }
 }
 
 /**

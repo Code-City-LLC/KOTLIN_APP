@@ -11,6 +11,7 @@ import com.ga.airdrop.data.model.DeviceToken
 import com.ga.airdrop.data.model.ExchangeRate
 import com.ga.airdrop.data.model.FaqItem
 import com.ga.airdrop.data.model.MarkNotificationReadRequest
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.PromotionalBanner
 import com.ga.airdrop.data.model.RegisterDeviceTokenRequest
@@ -122,8 +123,18 @@ class MiscRepository(private val service: AirdropApiService) {
     suspend fun notifications(page: Int = 1, limit: Int = 20): Result<List<AirdropNotification>> =
         apiResult { service.notifications(page = page, perPage = limit).items }
 
-    suspend fun markNotificationRead(id: String): Result<MutationResponse> =
-        apiResult { service.markNotificationRead(MarkNotificationReadRequest(id)) }
+    suspend fun markNotificationRead(
+        id: String,
+        expectedSession: AuthTokenStore.Snapshot,
+    ): Result<MutationResponse> = apiResult {
+        val provenance = AuthTokenStore.requestProvenance(expectedSession)
+            ?: error("Notification mutation requires an authenticated session")
+        service.markNotificationRead(
+            authRevision = provenance.revision.toString(),
+            sessionId = provenance.sessionId,
+            body = MarkNotificationReadRequest(id),
+        )
+    }
 
     suspend fun registerFcmToken(
         deviceToken: String,

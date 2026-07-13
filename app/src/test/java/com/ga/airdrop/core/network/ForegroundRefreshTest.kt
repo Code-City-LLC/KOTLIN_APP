@@ -38,8 +38,10 @@ class ForegroundRefreshTest {
 
     @Test
     fun `success rotates the bearer`() {
+        val sessionId = storedSession.sessionId
         TokenRefresher.applyForegroundRefresh(storedSession, httpCode = null, newToken = "rotated")
         assertEquals("rotated", AuthTokenStore.token)
+        assertEquals(sessionId, AuthTokenStore.snapshot().sessionId)
     }
 
     @Test
