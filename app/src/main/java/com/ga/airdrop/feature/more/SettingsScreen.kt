@@ -3,6 +3,8 @@ package com.ga.airdrop.feature.more
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -49,7 +51,6 @@ internal object SettingsTags {
     const val MODE = "settings-mode"
     const val MODE_TOGGLE = "settings-mode-toggle"
     const val TEXT_SIZE = "settings-text-size"
-    const val TEXT_SIZE_DIALOG = "settings-text-size-dialog"
     const val ACCOUNT_DELETION = "settings-account-deletion"
     const val CACHE_SHEET = "settings-cache-sheet"
 }
@@ -98,10 +99,16 @@ fun SettingsScreen(
                     )
                 },
             )
+            // PR92 review (#23900/#23905): the rows live in a weighted
+            // FINITE viewport whose content scrolls — at Largest text on a
+            // compact device nothing is unreachable, while the Logout bar
+            // below stays pinned. No weighted children inside the scroll
+            // axis (the old trailing weight-spacer is gone).
             Column(
                 Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .verticalScroll(rememberScrollState())
                     .padding(Spacing.md),
             ) {
                 MoreRowCard(
@@ -121,7 +128,8 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(14.dp))
                 // Kemar directive 2026-07-12 (Swift 8ce745c): "text size
-                // should be in setting" — same store both entry points share.
+                // should be in setting" — the single entry point today; a
+                // future Preferences row would reuse this same store.
                 MoreRowCard(
                     iconRes = R.drawable.ic_text_size,
                     title = "Text Size",
@@ -164,7 +172,6 @@ fun SettingsScreen(
                     onClick = { onNavigate(Routes.ACCOUNT_DELETION) },
                     testTagPrefix = SettingsTags.ACCOUNT_DELETION,
                 )
-                Spacer(Modifier.weight(1f))
             }
             MoreBottomButtonBar(
                 text = "Logout",

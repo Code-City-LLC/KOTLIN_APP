@@ -12,7 +12,8 @@ import androidx.compose.runtime.setValue
  * (DesignTokens.swift @ 8ce745c): four levels whose multiplier scales every
  * sp-sized text via the Density funnel in [AirdropTheme]. Same store/observe
  * shape as [ThemeController] so Settings reacts instantly and the value
- * survives restarts.
+ * survives restarts. Settings is the single entry point today; any future
+ * surface (e.g. a Preferences row) must reuse this store, never a second one.
  */
 object TextSizeController {
 
@@ -32,7 +33,13 @@ object TextSizeController {
         private set
 
     fun init(context: Context) {
-        prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        initWithPrefs(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
+    }
+
+    // internal seam: persistence/restart/malformed-value behavior is pinned
+    // by TextSizeControllerTest against an in-memory SharedPreferences.
+    internal fun initWithPrefs(sharedPreferences: SharedPreferences) {
+        prefs = sharedPreferences
         level = runCatching { Level.valueOf(prefs.getString(KEY_LEVEL, Level.STANDARD.name)!!) }
             .getOrDefault(Level.STANDARD)
     }
