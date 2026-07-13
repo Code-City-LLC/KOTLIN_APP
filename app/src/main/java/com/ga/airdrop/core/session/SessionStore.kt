@@ -21,6 +21,31 @@ object SessionStore {
 
     private val _header = MutableStateFlow(HeaderInfo())
     val header: StateFlow<HeaderInfo> = _header
+    private val sessionLock = Any()
+    private var sessionId: String? = null
+
+    /** Process/auth initialization always starts with an empty account cache. */
+    fun initializeAuthenticatedSession(initialSessionId: String?) = synchronized(sessionLock) {
+        sessionId = initialSessionId
+        _header.value = HeaderInfo()
+    }
+
+    /** The sole memory-only auth transition hook, called synchronously by AuthTokenStore. */
+    fun onAuthenticatedSessionChanged(newSessionId: String?) = synchronized(sessionLock) {
+        if (sessionId == newSessionId) return
+        sessionId = newSessionId
+        _header.value = HeaderInfo()
+    }
+
+    /** Applies only to the session already established by the central auth transition owner. */
+    fun updateForSession(
+        owner: AuthenticatedSessionOwner,
+        transform: (HeaderInfo) -> HeaderInfo,
+    ): Boolean = synchronized(sessionLock) {
+        if (sessionId != owner.sessionId) return false
+        _header.update(transform)
+        true
+    }
 
     // Atomic read-modify-write so concurrent header writers (cart-count,
     // profile, AirCoins refresh) can't lose each other's fields the way
@@ -30,7 +55,10 @@ object SessionStore {
     }
 
     fun clear() {
-        _header.value = HeaderInfo()
+        synchronized(sessionLock) {
+            sessionId = null
+            _header.value = HeaderInfo()
+        }
     }
 
     fun greetingLine(): String {

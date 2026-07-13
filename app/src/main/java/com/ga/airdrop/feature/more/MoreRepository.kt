@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.more
 
 import com.ga.airdrop.BuildConfig
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.flexBool
 import com.ga.airdrop.data.model.flexInt
@@ -169,22 +170,30 @@ class MoreRepositoryException(message: String) : IOException(message)
 
 interface MoreProfileRepository {
     suspend fun currentUser(): Result<MoreUser>
-    suspend fun updateProfile(fields: Map<String, String?>): Result<String?>
+    suspend fun updateProfile(
+        fields: Map<String, String?>,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<String?>
     suspend fun profileImage(): Result<ProfileAsset>
     suspend fun uploadProfileImage(
         bytes: ByteArray,
         fileName: String,
         mimeType: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<ProfileAsset>
-    suspend fun deleteProfileImage(): Result<Unit>
+    suspend fun deleteProfileImage(expectedSession: AuthTokenStore.RequestProvenance): Result<Unit>
     suspend fun fetchImage(url: String): Result<ByteArray>
+}
+
+interface MoreHubRepository : MoreProfileRepository {
+    suspend fun airCoinsBalance(): Result<Int>
 }
 
 interface MoreSettingsRepository {
     suspend fun logout(): Result<Unit>
 }
 
-class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsRepository {
+class MoreRepository : DocumentsRepository, MoreHubRepository, MoreSettingsRepository {
 
     private val client = ApiClient.okHttp
     private val json = ApiClient.json
@@ -193,7 +202,11 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
 
     // ─── User profile ───
 
-    override suspend fun currentUser(): Result<MoreUser> = request("GET", "/user/profile") { root ->
+    override suspend fun currentUser(): Result<MoreUser> = currentUser(expectedSession = null)
+
+    private suspend fun currentUser(
+        expectedSession: AuthTokenStore.RequestProvenance?,
+    ): Result<MoreUser> = request("GET", "/user/profile", expectedSession = expectedSession) { root ->
         val user = root.objectAt("data")?.objectAt("user")
             ?: root.objectAt("data")
             ?: root.objectAt("user")
@@ -205,7 +218,10 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
      * PUT /user/profile — sparse update, snake_case keys matching the Swift
      * ProfileUpdateRequest. Null values are omitted (server keeps old value).
      */
-    override suspend fun updateProfile(fields: Map<String, String?>): Result<String?> {
+    override suspend fun updateProfile(
+        fields: Map<String, String?>,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<String?> {
         // Swift AirdropAPI.completedProfileUpdateRequest (AirdropAPI.swift:1699):
         // PUT /user/profile validates user_id + email + first_name + last_name as
         // REQUIRED (Laravel UpdateUserRequest), so a sparse caller (Preferences
@@ -217,12 +233,17 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
         // incomplete current-user fetch => zero PUT, error surfaces to Save.
         return updateProfileWithBackfill(
             fields = fields,
-            fetchCurrentUser = ::currentUser,
+            fetchCurrentUser = { currentUser(expectedSession) },
         ) { completed ->
             val body = buildJsonObject {
                 completed.forEach { (key, value) -> if (value != null) put(key, value) }
             }
-            request("PUT", "/user/profile", body.toString().toRequestBody(jsonMedia)) { root ->
+            request(
+                "PUT",
+                "/user/profile",
+                body.toString().toRequestBody(jsonMedia),
+                expectedSession,
+            ) { root ->
                 root.flexString("message")
             }
         }
@@ -237,16 +258,18 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
         bytes: ByteArray,
         fileName: String,
         mimeType: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<ProfileAsset> {
         val multipart = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("image", fileName, bytes.toRequestBody(mimeType.toMediaType()))
             .build()
-        return request("POST", "/user/profile/image", multipart) { it.parseAsset() }
+        return request("POST", "/user/profile/image", multipart, expectedSession) { it.parseAsset() }
     }
 
-    override suspend fun deleteProfileImage(): Result<Unit> =
-        request("DELETE", "/user/profile/image") { }
+    override suspend fun deleteProfileImage(
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<Unit> = request("DELETE", "/user/profile/image", expectedSession = expectedSession) { }
 
     /** Raw image download with the bearer token attached (avatar URLs are protected). */
     override suspend fun fetchImage(url: String): Result<ByteArray> = withContext(Dispatchers.IO) {
@@ -306,7 +329,7 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
         request("POST", "/auth/logout", "{}".toRequestBody(jsonMedia)) { }
 
     /** GET /aircoins/status → available ?? balance, rendered as the header label. */
-    suspend fun airCoinsBalance(): Result<Int> = request("GET", "/aircoins/status") { root ->
+    override suspend fun airCoinsBalance(): Result<Int> = request("GET", "/aircoins/status") { root ->
         val payload = root.objectAt("data") ?: root
         payload.flexInt("available") ?: payload.flexInt("balance") ?: 0
     }
@@ -317,13 +340,11 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
         method: String,
         path: String,
         body: RequestBody? = null,
+        expectedSession: AuthTokenStore.RequestProvenance? = null,
         parse: (JsonObject) -> T,
     ): Result<T> = withContext(Dispatchers.IO) {
         runCatching {
-            val request = Request.Builder()
-                .url(base + path)
-                .method(method, body)
-                .build()
+            val request = buildMoreRequest(base + path, method, body, expectedSession)
             client.newCall(request).execute().use { response ->
                 val text = response.body?.string().orEmpty()
                 val root = runCatching {
@@ -377,4 +398,19 @@ class MoreRepository : DocumentsRepository, MoreProfileRepository, MoreSettingsR
             ?: obj.flexString("customer_tier"),
         profileImageUrl = obj.flexString("profile_image_url", "profile_image_remote"),
     )
+}
+
+internal fun buildMoreRequest(
+    url: String,
+    method: String,
+    body: RequestBody?,
+    expectedSession: AuthTokenStore.RequestProvenance?,
+): Request {
+    val builder = Request.Builder().url(url).method(method, body)
+    expectedSession?.let { provenance ->
+        builder
+            .header(AuthTokenStore.REQUEST_REVISION_HEADER, provenance.revision.toString())
+            .header(AuthTokenStore.REQUEST_SESSION_ID_HEADER, provenance.sessionId)
+    }
+    return builder.build()
 }

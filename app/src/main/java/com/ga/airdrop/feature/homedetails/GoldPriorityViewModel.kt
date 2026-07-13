@@ -3,13 +3,22 @@ package com.ga.airdrop.feature.homedetails
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.AuthenticatedSessionJobs
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.captureOwnedSession
+import com.ga.airdrop.core.session.AuthenticatedOwnerChange
+import com.ga.airdrop.core.session.changeTo
 import com.ga.airdrop.data.model.ServiceTier
 import com.ga.airdrop.data.repo.CustomerTierReader
 import com.ga.airdrop.data.repo.TierRepository
 import com.ga.airdrop.data.repo.UserRepository
 import kotlinx.coroutines.async
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -28,20 +37,45 @@ fun interface CurrentTierNameReader {
 class GoldPriorityViewModel(
     private val tierReader: CustomerTierReader = TierRepository(ApiClient.service),
     private val fallbackTierNameReader: CurrentTierNameReader = defaultTierNameReader(),
+    private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(GoldPriorityUiState())
     val state: StateFlow<GoldPriorityUiState> = _state
+    private val sessionJobs = AuthenticatedSessionJobs(viewModelScope)
+    private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
+    private var loadJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            sessionBoundary.changes.collect { changed ->
+                when (sessionOwner.changeTo(changed)) {
+                    AuthenticatedOwnerChange.Unchanged -> return@collect
+                    AuthenticatedOwnerChange.IdentityUpdated -> {
+                        sessionOwner = changed
+                        return@collect
+                    }
+                    AuthenticatedOwnerChange.SessionReplaced -> Unit
+                }
+                sessionJobs.replaceSession()
+                loadJob = null
+                sessionOwner = changed
+                _state.value = GoldPriorityUiState()
+                if (changed != null) loadTierData()
+            }
+        }
         loadTierData()
     }
 
     fun retryBenefits() = loadTierData()
 
     private fun loadTierData() {
-        _state.update { it.copy(catalogStatus = TierCatalogStatus.Loading) }
-        viewModelScope.launch {
+        if (loadJob?.isActive == true) return
+        val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
+        sessionBoundary.apply(owner) {
+            _state.update { it.copy(catalogStatus = TierCatalogStatus.Loading) }
+        }
+        loadJob = sessionJobs.launch {
             val catalog = async { tierReader.serviceTiers() }
             val customer = async { tierReader.customerTier() }
             val fallback = async { runCatching { fallbackTierNameReader.read() }.getOrNull() }
@@ -54,17 +88,19 @@ class GoldPriorityViewModel(
                 name = fallbackName,
             )
 
-            _state.update { previous ->
-                previous.copy(
-                    resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
-                    benefitRowsByCode = catalogResult.getOrNull()
-                        ?.let(::serverBenefitRows)
-                        .orEmpty(),
-                    catalogStatus = if (
-                        catalogResult.isSuccess &&
-                        !catalogResult.getOrNull().isNullOrEmpty()
-                    ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
-                )
+            sessionBoundary.apply(owner) {
+                _state.update { previous ->
+                    previous.copy(
+                        resolvedTierIndex = resolvedIndex ?: previous.resolvedTierIndex,
+                        benefitRowsByCode = catalogResult.getOrNull()
+                            ?.let(::serverBenefitRows)
+                            .orEmpty(),
+                        catalogStatus = if (
+                            catalogResult.isSuccess &&
+                            !catalogResult.getOrNull().isNullOrEmpty()
+                        ) TierCatalogStatus.Ready else TierCatalogStatus.Failed,
+                    )
+                }
             }
         }
     }

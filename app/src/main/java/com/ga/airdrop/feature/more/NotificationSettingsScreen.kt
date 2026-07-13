@@ -1,5 +1,11 @@
 package com.ga.airdrop.feature.more
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +30,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -40,9 +47,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
@@ -62,6 +73,10 @@ fun NotificationSettingsScreen(
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> viewModel.onPermissionResult(context, granted) }
 
     val quietViewModel: QuietHoursViewModel = viewModel()
     val quiet by quietViewModel.state.collectAsState()
@@ -69,6 +84,13 @@ fun NotificationSettingsScreen(
     LaunchedEffect(Unit) {
         viewModel.start(context)
         quietViewModel.start(context)
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshPermissionStatus(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val packageSubEnabled = state.master && state.packageMaster
@@ -96,6 +118,21 @@ fun NotificationSettingsScreen(
                     enabled = true,
                     onChange = { viewModel.setMaster(context, it) },
                     testTagPrefix = "notification-master",
+                )
+                Spacer(Modifier.height(RowGap))
+                NotificationStatusCard(
+                    status = state.deviceStatus,
+                    onRetry = {
+                        if (
+                            state.master &&
+                            state.deviceStatus == NotificationDeviceStatus.PermissionDenied &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                        ) {
+                            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            viewModel.retry(context)
+                        }
+                    },
                 )
                 Spacer(Modifier.height(SectionGap))
                 ToggleRow(
@@ -246,6 +283,87 @@ fun NotificationSettingsScreen(
                     testTagPrefix = "quiet-hours-until",
                 )
             }
+        }
+    }
+
+    if (state.permissionDialogVisible) {
+        MoreConfirmDialog(
+            title = "Notifications Disabled",
+            message = "Please enable notifications in your device settings to receive updates.",
+            confirmLabel = "Settings",
+            destructive = false,
+            onDismiss = viewModel::dismissPermissionDialog,
+            onConfirm = {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null),
+                    ),
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun NotificationStatusCard(
+    status: NotificationDeviceStatus,
+    onRetry: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    val isError = status is NotificationDeviceStatus.Failed ||
+        status == NotificationDeviceStatus.MissingAccount ||
+        status == NotificationDeviceStatus.PermissionDenied ||
+        status == NotificationDeviceStatus.PreferenceSaveFailed
+    val message = when (status) {
+        NotificationDeviceStatus.Applying -> "Applying this device's push preference..."
+        NotificationDeviceStatus.On ->
+            "Notification is ON for this device. Package, Promotions, Email, and SMS choices are saved only; the current backend does not enforce or sync them."
+        NotificationDeviceStatus.Off ->
+            "Notification is OFF for this device. Package, Promotions, Email, and SMS choices are saved only; the current backend does not enforce or sync them."
+        NotificationDeviceStatus.MissingAccount ->
+            "No signed-in account is available. Sign in again, then retry."
+        NotificationDeviceStatus.PermissionDenied ->
+            "Notification is ON here but disabled in device Settings. Tap Retry after enabling permission. Package, Promotions, Email, and SMS choices are saved only."
+        NotificationDeviceStatus.PreferenceSaveFailed ->
+            "Your notification preference was not saved. Change the setting again to retry."
+        is NotificationDeviceStatus.Failed ->
+            "Your requested setting remains saved, but device registration couldn't be applied. ${status.detail} Package, Promotions, Email, and SMS choices are saved only. Tap Retry."
+    }
+    val showRetry = status is NotificationDeviceStatus.Failed ||
+        status == NotificationDeviceStatus.MissingAccount ||
+        status == NotificationDeviceStatus.PermissionDenied
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.s))
+            .background(if (isError) AlertPalette.Light.Error else colors.gray100)
+            .border(
+                1.dp,
+                if (isError) AlertPalette.Middle.Error else colors.iconShape,
+                RoundedCornerShape(Radius.s),
+            )
+            .padding(Spacing.md)
+            .testTag("notification-sync-status"),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = message,
+            style = AirdropType.body2,
+            color = if (isError) AlertPalette.Error else colors.textDescription,
+            modifier = Modifier.testTag("notification-sync-status-message"),
+        )
+        if (showRetry) {
+            Text(
+                text = "Retry",
+                style = AirdropType.button,
+                color = colors.textDarkTitle,
+                modifier = Modifier
+                    .clickable(onClick = onRetry)
+                    .padding(vertical = Spacing.xs)
+                    .testTag("notification-sync-retry"),
+            )
         }
     }
 }

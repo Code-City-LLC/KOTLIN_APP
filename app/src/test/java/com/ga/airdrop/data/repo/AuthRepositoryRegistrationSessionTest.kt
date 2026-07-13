@@ -3,6 +3,7 @@ package com.ga.airdrop.data.repo
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.model.LoginResponse
+import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.SignUpRequest
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.runBlocking
@@ -29,6 +30,20 @@ class AuthRepositoryRegistrationSessionTest {
         assertNull(AuthTokenStore.token)
     }
 
+    @Test
+    fun `reactivation binds the authoritative response account id`() = runBlocking {
+        val repository = AuthRepository(reactivationService())
+
+        repository.reactivateAccount(
+            email = "kemar@example.com",
+            password = "password123",
+            passwordConfirmation = "password123",
+        ).getOrThrow()
+
+        assertEquals("reactivated-token", AuthTokenStore.token)
+        assertEquals(101, AuthTokenStore.snapshot().accountId)
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun registrationService(token: String): AirdropApiService =
         Proxy.newProxyInstance(
@@ -38,6 +53,22 @@ class AuthRepositoryRegistrationSessionTest {
             when (method.name) {
                 "register" -> LoginResponse(token = token)
                 "toString" -> "RegistrationService"
+                else -> throw UnsupportedOperationException("Unexpected call: ${method.name}")
+            }
+        } as AirdropApiService
+
+    @Suppress("UNCHECKED_CAST")
+    private fun reactivationService(): AirdropApiService =
+        Proxy.newProxyInstance(
+            AirdropApiService::class.java.classLoader,
+            arrayOf(AirdropApiService::class.java),
+        ) { _, method, _ ->
+            when (method.name) {
+                "reactivateAccount" -> LoginResponse(
+                    token = "reactivated-token",
+                    user = AirdropUser(id = 101),
+                )
+                "toString" -> "ReactivationService"
                 else -> throw UnsupportedOperationException("Unexpected call: ${method.name}")
             }
         } as AirdropApiService

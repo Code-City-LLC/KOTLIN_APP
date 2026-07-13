@@ -4,6 +4,16 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.AuthenticatedSessionJobs
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.captureOwnedSession
+import com.ga.airdrop.core.session.AuthenticatedOwnerChange
+import com.ga.airdrop.core.session.changeTo
+import com.ga.airdrop.core.session.captureOwnedRequest
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -43,6 +53,7 @@ data class ProfileUiState(
  */
 class ProfileViewModel(
     private val repository: MoreProfileRepository = MoreRepository(),
+    private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
     // RN canonical option lists (modules/Profile/ui/ProfileView/index.tsx).
@@ -54,40 +65,70 @@ class ProfileViewModel(
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state
 
+    private val sessionJobs = AuthenticatedSessionJobs(viewModelScope)
+    private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
+    private var loadJob: Job? = null
+    private var avatarJob: Job? = null
+    private var saveJob: Job? = null
     private var userId: Int? = null
     private var pickupLocation: String? = null
     private var paymentCurrency: String? = null
 
     init {
+        viewModelScope.launch {
+            sessionBoundary.changes.collect { changed ->
+                when (sessionOwner.changeTo(changed)) {
+                    AuthenticatedOwnerChange.Unchanged -> return@collect
+                    AuthenticatedOwnerChange.IdentityUpdated -> {
+                        sessionOwner = changed
+                        return@collect
+                    }
+                    AuthenticatedOwnerChange.SessionReplaced -> Unit
+                }
+                sessionJobs.replaceSession()
+                loadJob = null
+                avatarJob = null
+                saveJob = null
+                sessionOwner = changed
+                resetOwnedState()
+                if (changed != null) load()
+            }
+        }
         load()
     }
 
     fun load() {
-        viewModelScope.launch {
+        if (loadJob?.isActive == true) return
+        val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
+        loadJob = sessionJobs.launch {
             repository.currentUser().onSuccess { user ->
-                userId = user.id
-                pickupLocation = user.pickupLocation
-                paymentCurrency = user.paymentCurrency
-                _state.update {
-                    it.copy(
-                        firstName = user.firstName.orEmpty(),
-                        lastName = user.lastName.orEmpty(),
-                        taxId = user.trnNumber.orEmpty(),
-                        idType = user.identityType.orEmpty(),
-                        idNumber = user.identityNumber.orEmpty(),
-                        email = user.email.orEmpty(),
-                        language = user.language.orEmpty(),
-                        addressLine1 = user.addressLine1.orEmpty(),
-                        addressLine2 = user.addressLine2.orEmpty(),
-                        country = user.country.orEmpty(),
-                        state = user.state.orEmpty(),
-                        city = user.city.orEmpty(),
-                        phone = user.phone.orEmpty(),
-                        mobile = user.mobile.orEmpty(),
-                    )
+                val loadedUserId = user.id
+                if (loadedUserId != null && !sessionBoundary.bindAccountId(owner, loadedUserId)) return@onSuccess
+                sessionBoundary.apply(owner) {
+                    userId = user.id
+                    pickupLocation = user.pickupLocation
+                    paymentCurrency = user.paymentCurrency
+                    _state.update {
+                        it.copy(
+                            firstName = user.firstName.orEmpty(),
+                            lastName = user.lastName.orEmpty(),
+                            taxId = user.trnNumber.orEmpty(),
+                            idType = user.identityType.orEmpty(),
+                            idNumber = user.identityNumber.orEmpty(),
+                            email = user.email.orEmpty(),
+                            language = user.language.orEmpty(),
+                            addressLine1 = user.addressLine1.orEmpty(),
+                            addressLine2 = user.addressLine2.orEmpty(),
+                            country = user.country.orEmpty(),
+                            state = user.state.orEmpty(),
+                            city = user.city.orEmpty(),
+                            phone = user.phone.orEmpty(),
+                            mobile = user.mobile.orEmpty(),
+                        )
+                    }
                 }
             }
-            refreshAvatar()
+            if (sessionBoundary.isCurrent(owner)) refreshAvatar(owner)
         }
     }
 
@@ -103,55 +144,83 @@ class ProfileViewModel(
 
     // ─── Avatar ───
 
-    private suspend fun refreshAvatar() {
+    private suspend fun refreshAvatar(owner: AuthenticatedSessionOwner) {
         val url = repository.profileImage().getOrNull()?.resolvedUrl
+        if (!sessionBoundary.isCurrent(owner)) return
         if (url == null) {
-            _state.update { it.copy(avatar = null, avatarLoading = false) }
+            sessionBoundary.apply(owner) {
+                _state.update { it.copy(avatar = null, avatarLoading = false) }
+            }
             return
         }
         repository.fetchImage(url)
             .onSuccess { bytes ->
-                _state.update {
-                    it.copy(
-                        avatar = BitmapFactory.decodeByteArray(bytes, 0, bytes.size),
-                        avatarLoading = false,
-                    )
+                sessionBoundary.apply(owner) {
+                    _state.update {
+                        it.copy(
+                            avatar = BitmapFactory.decodeByteArray(bytes, 0, bytes.size),
+                            avatarLoading = false,
+                        )
+                    }
                 }
             }
-            .onFailure { _state.update { it.copy(avatarLoading = false) } }
+            .onFailure {
+                sessionBoundary.apply(owner) {
+                    _state.update { it.copy(avatarLoading = false) }
+                }
+            }
     }
 
     fun uploadAvatar(bitmap: Bitmap) {
-        _state.update { it.copy(avatar = bitmap, avatarLoading = true) }
-        viewModelScope.launch {
+        if (avatarJob?.isActive == true) return
+        val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
+        if (!sessionBoundary.apply(requestOwner.session) {
+                _state.update { it.copy(avatar = bitmap, avatarLoading = true) }
+            }
+        ) return
+        avatarJob = sessionJobs.launch {
             repository.uploadProfileImage(
                 bytes = bitmap.toUploadJpeg(),
                 fileName = "profile.jpg",
                 mimeType = "image/jpeg",
+                expectedSession = requestOwner.provenance,
             )
-                .onSuccess { refreshAvatar() }
+                .onSuccess { refreshAvatar(requestOwner.session) }
                 .onFailure { e ->
-                    _state.update {
-                        it.copy(
-                            avatarLoading = false,
-                            alert = "Upload failed" to (e.message ?: "Please try again."),
-                        )
+                    sessionBoundary.apply(requestOwner.session) {
+                        _state.update {
+                            it.copy(
+                                avatarLoading = false,
+                                alert = "Upload failed" to (e.message ?: "Please try again."),
+                            )
+                        }
                     }
                 }
         }
     }
 
     fun deleteAvatar() {
-        _state.update { it.copy(avatarLoading = true) }
-        viewModelScope.launch {
-            repository.deleteProfileImage()
-                .onSuccess { _state.update { it.copy(avatar = null, avatarLoading = false) } }
+        if (avatarJob?.isActive == true) return
+        val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
+        if (!sessionBoundary.apply(requestOwner.session) {
+                _state.update { it.copy(avatarLoading = true) }
+            }
+        ) return
+        avatarJob = sessionJobs.launch {
+            repository.deleteProfileImage(requestOwner.provenance)
+                .onSuccess {
+                    sessionBoundary.apply(requestOwner.session) {
+                        _state.update { it.copy(avatar = null, avatarLoading = false) }
+                    }
+                }
                 .onFailure { e ->
-                    _state.update {
-                        it.copy(
-                            avatarLoading = false,
-                            alert = "Remove failed" to (e.message ?: "Please try again."),
-                        )
+                    sessionBoundary.apply(requestOwner.session) {
+                        _state.update {
+                            it.copy(
+                                avatarLoading = false,
+                                alert = "Remove failed" to (e.message ?: "Please try again."),
+                            )
+                        }
                     }
                 }
         }
@@ -160,24 +229,37 @@ class ProfileViewModel(
     // ─── Save ───
 
     fun save() {
+        if (saveJob?.isActive == true) return
+        val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
+        val owner = requestOwner.session
         val s = _state.value
         if (s.saving) return
         if (s.firstName.isBlank() || s.lastName.isBlank() || s.email.isBlank()) {
-            _state.update {
-                it.copy(alert = "Missing fields" to "Please fill the required fields marked with *.")
+            sessionBoundary.apply(owner) {
+                _state.update {
+                    it.copy(alert = "Missing fields" to "Please fill the required fields marked with *.")
+                }
             }
             return
         }
         if (s.password.isNotEmpty() && s.password != s.confirmPassword) {
-            _state.update { it.copy(alert = "Passwords do not match" to "Confirm your password.") }
+            sessionBoundary.apply(owner) {
+                _state.update { it.copy(alert = "Passwords do not match" to "Confirm your password.") }
+            }
             return
         }
-        _state.update { it.copy(saving = true) }
-        viewModelScope.launch {
+        if (!sessionBoundary.apply(owner) {
+                _state.update { it.copy(saving = true) }
+            }
+        ) return
+        val requestUserId = userId
+        val requestPickupLocation = pickupLocation
+        val requestPaymentCurrency = paymentCurrency
+        saveJob = sessionJobs.launch {
             val mobileSource = s.mobile.ifBlank { s.phone }
             val (countryCode, mobileNumber) = mobileParts(mobileSource)
             val fields = mapOf(
-                "user_id" to userId?.toString(),
+                "user_id" to requestUserId?.toString(),
                 "email" to s.email.blankToNull(),
                 "first_name" to s.firstName.blankToNull(),
                 "last_name" to s.lastName.blankToNull(),
@@ -194,19 +276,30 @@ class ProfileViewModel(
                 "user_address_city" to s.city.blankToNull(),
                 "user_address_state" to s.state.blankToNull(),
                 "user_address_country" to s.country.blankToNull(),
-                "pickup_location" to pickupLocation?.trim()?.takeIf { it.isNotEmpty() },
-                "payment_currency" to (paymentCurrency?.trim()?.takeIf { it.isNotEmpty() } ?: "JMD"),
+                "pickup_location" to requestPickupLocation?.trim()?.takeIf { it.isNotEmpty() },
+                "payment_currency" to (requestPaymentCurrency?.trim()?.takeIf { it.isNotEmpty() } ?: "JMD"),
             )
-            repository.updateProfile(fields)
+            repository.updateProfile(fields, requestOwner.provenance)
                 .onSuccess {
-                    _state.update { it.copy(saving = false, alert = "Saved" to "Profile updated.") }
+                    sessionBoundary.apply(owner) {
+                        _state.update { it.copy(saving = false, alert = "Saved" to "Profile updated.") }
+                    }
                 }
                 .onFailure { e ->
-                    _state.update {
-                        it.copy(saving = false, alert = "Save failed" to (e.message ?: "Please try again."))
+                    sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(saving = false, alert = "Save failed" to (e.message ?: "Please try again."))
+                        }
                     }
                 }
         }
+    }
+
+    private fun resetOwnedState() {
+        userId = null
+        pickupLocation = null
+        paymentCurrency = null
+        _state.value = ProfileUiState()
     }
 
     private fun String.blankToNull(): String? = trim().takeIf { it.isNotEmpty() }
@@ -238,4 +331,3 @@ class ProfileViewModel(
         return "+1" to cleaned.filter { it.isDigit() }
     }
 }
-

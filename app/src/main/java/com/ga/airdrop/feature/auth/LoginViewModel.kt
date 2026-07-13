@@ -50,7 +50,7 @@ class LoginViewModel(
                             )
                         }
                     } else {
-                        AuthTokenStore.save(token)
+                        AuthTokenStore.save(token, response.user?.id)
                         // Swift FigmaLoginViewController:504-511 parity: the FCM
                         // token minted before login is replayed to
                         // /device-tokens/register now that a bearer exists —

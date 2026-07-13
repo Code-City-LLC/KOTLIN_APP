@@ -22,6 +22,7 @@ fun clearLocalUserSession(context: Context) {
     // Clear while the old auth snapshot is still attributable. This prevents
     // account-bound push state from surviving into the next login.
     PushDeepLink.clear()
+    // Also clears the fixed-key pickup/currency cache owned by this auth session.
     AuthTokenStore.clear()
     SessionStore.clear()
     CartStore.init(appContext)
@@ -39,9 +40,6 @@ fun clearLocalUserSession(context: Context) {
     ShopRecentSearches.clear()
     clearLegacySessionCachePrefs(appContext)
 
-    runCatching {
-        com.google.firebase.messaging.FirebaseMessaging.getInstance().deleteToken()
-    }
     PushRegistrar.onLogout()
 }
 

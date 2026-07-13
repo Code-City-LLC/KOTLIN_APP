@@ -140,9 +140,12 @@ class MiscRepository(private val service: AirdropApiService) {
         deviceToken: String,
         deviceType: String = "android",
         deviceInfo: String? = null,
+        expectedSession: AuthTokenStore.RequestProvenance? = null,
     ): Result<MutationResponse> = apiResult {
         service.registerDeviceToken(
-            RegisterDeviceTokenRequest(
+            authRevision = expectedSession?.revision?.toString(),
+            sessionId = expectedSession?.sessionId,
+            body = RegisterDeviceTokenRequest(
                 deviceToken = deviceToken,
                 deviceType = deviceType,
                 deviceInfo = deviceInfo,

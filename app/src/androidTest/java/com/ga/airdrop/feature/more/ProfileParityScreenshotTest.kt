@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Calendar
@@ -81,7 +82,12 @@ class ProfileParityScreenshotTest {
         val holder = AtomicReference<ProfileViewModel>()
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            holder.set(ProfileViewModel(repository))
+            holder.set(
+                ProfileViewModel(
+                    repository,
+                    FakeAuthenticatedSessionBoundary(initialAccountId = 77),
+                ),
+            )
         }
         val viewModel = holder.get()
 

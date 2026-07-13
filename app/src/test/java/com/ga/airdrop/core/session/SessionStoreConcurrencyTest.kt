@@ -44,4 +44,37 @@ class SessionStoreConcurrencyTest {
         }
         assertEquals(n, SessionStore.header.value.cartCount)
     }
+
+    @Test
+    fun `replacement session clears once without erasing newer session writes`() {
+        val accountA = AuthenticatedSessionOwner("account-a")
+        val accountB = AuthenticatedSessionOwner("account-b")
+        SessionStore.onAuthenticatedSessionChanged(accountA.sessionId)
+        SessionStore.updateForSession(accountA) { it.copy(firstName = "Account A") }
+
+        SessionStore.onAuthenticatedSessionChanged(accountB.sessionId)
+        SessionStore.updateForSession(accountB) { it.copy(firstName = "Account B") }
+        assertEquals("Account B", SessionStore.header.value.firstName)
+
+        SessionStore.updateForSession(accountB) { it.copy(airCoins = "22") }
+        assertEquals(
+            SessionStore.HeaderInfo(firstName = "Account B", airCoins = "22"),
+            SessionStore.header.value,
+        )
+
+        assertEquals(false, SessionStore.updateForSession(accountA) { it.copy(firstName = "late A") })
+        assertEquals("Account B", SessionStore.header.value.firstName)
+    }
+
+    @Test
+    fun `owner change classifier separates identity enrichment from replacement`() {
+        val unbound = AuthenticatedSessionOwner("session-a", accountId = null)
+        val bound = AuthenticatedSessionOwner("session-a", accountId = 101)
+        val replacement = AuthenticatedSessionOwner("session-b", accountId = 202)
+
+        assertEquals(AuthenticatedOwnerChange.Unchanged, unbound.changeTo(unbound))
+        assertEquals(AuthenticatedOwnerChange.IdentityUpdated, unbound.changeTo(bound))
+        assertEquals(AuthenticatedOwnerChange.SessionReplaced, bound.changeTo(replacement))
+        assertEquals(AuthenticatedOwnerChange.SessionReplaced, replacement.changeTo(null))
+    }
 }

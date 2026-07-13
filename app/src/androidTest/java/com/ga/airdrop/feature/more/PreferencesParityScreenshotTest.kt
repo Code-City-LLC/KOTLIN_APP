@@ -21,6 +21,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicReference
@@ -112,7 +113,13 @@ class PreferencesParityScreenshotTest {
         val holder = AtomicReference<PreferencesViewModel>()
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            holder.set(PreferencesViewModel(repository).also { it.start(context) })
+            holder.set(
+                PreferencesViewModel(
+                    repository,
+                    FakeAuthenticatedSessionBoundary(initialAccountId = 91),
+                )
+                    .also { it.start(context) },
+            )
         }
         val viewModel = holder.get()
 
@@ -135,8 +142,14 @@ class PreferencesParityScreenshotTest {
             PreferencesViewModel.PREFS,
             android.content.Context.MODE_PRIVATE,
         )
-        assertEquals("Kingston", prefs.getString(PreferencesViewModel.KEY_PICKUP, null))
-        assertEquals("USD", prefs.getString(PreferencesViewModel.KEY_CURRENCY, null))
+        assertEquals(
+            "Kingston",
+            prefs.getString(PreferencesViewModel.KEY_PICKUP, null),
+        )
+        assertEquals(
+            "USD",
+            prefs.getString(PreferencesViewModel.KEY_CURRENCY, null),
+        )
 
         val fields = repository.lastProfileUpdate.get().orEmpty()
         assertEquals("91", fields["user_id"])
