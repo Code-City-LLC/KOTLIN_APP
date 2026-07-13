@@ -40,6 +40,12 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4
 
+      - name: Verify APK publication shell contract
+        run: |
+          bash -n scripts/build-apk.sh
+          bash -n scripts/test-build-apk.sh
+          scripts/test-build-apk.sh
+
       - name: Verify Kotlin application and test sources
         run: >-
           ./gradlew --no-daemon --stacktrace
