@@ -188,8 +188,50 @@ class GoldPriorityParityTest {
     }
 
     @Test
-    fun unresolvedPageRendersWithoutCta() {
+    fun rubyCurrentRendersSwiftTopGeometry() {
+        val rubyIndex = tierPages.indexOfFirst { it.id == "ruby" }
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .height(812.dp)
+                ) {
+                    GoldPriorityContent(
+                        onBack = {},
+                        resolvedTierIndex = rubyIndex,
+                        initialPage = rubyIndex,
+                        benefitRowsByCode = mapOf(
+                            "RUBY" to listOf(
+                                "2-3 business day processing",
+                                "Free storage for up to 15 days",
+                            ),
+                        ),
+                        catalogStatus = TierCatalogStatus.Ready,
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("gold-priority-lines").assertIsDisplayed()
+        compose.onNodeWithText("Ruby Starter").assertIsDisplayed()
+        compose.onNodeWithText("Your Tier").assertIsDisplayed()
+        compose.onNodeWithText("2-3 business day processing").assertIsDisplayed()
+        compose.onNodeWithText("Free storage for up to 15 days").assertIsDisplayed()
+        val cta = compose.onNodeWithTag("gold-priority-tier-cta").getUnclippedBoundsInRoot()
+        assertClose(316f, boundsWidth(cta), "Swift tier CTA width")
+        assertClose(50f, boundsHeight(cta), "Swift tier CTA height")
+        saveRootScreenshot("kotlin_issue89_ruby_current_top.png")
+    }
+
+    @Test
+    fun unresolvedPageRendersWithoutCtaOrBottomReserve() {
         val sapphireIndex = tierPages.indexOfFirst { it.id == "sapphire" }
+        val benefitRows = (1..20).map { "No-CTA benefit row $it" }
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
@@ -204,9 +246,7 @@ class GoldPriorityParityTest {
                         onBack = {},
                         resolvedTierIndex = null,
                         initialPage = sapphireIndex,
-                        benefitRowsByCode = mapOf(
-                            "SAVR" to listOf("Rendered no-CTA benefit row")
-                        ),
+                        benefitRowsByCode = mapOf("SAVR" to benefitRows),
                         catalogStatus = TierCatalogStatus.Ready,
                     )
                 }
@@ -215,9 +255,28 @@ class GoldPriorityParityTest {
         compose.waitForIdle()
 
         compose.onNodeWithText("Sapphire Saver").assertIsDisplayed()
-        compose.onNodeWithText("Rendered no-CTA benefit row").assertIsDisplayed()
         compose.onNodeWithTag("gold-priority-tier-cta").assertDoesNotExist()
-        saveRootScreenshot("kotlin_issue89_sapphire_no_cta.png")
+        compose.onNodeWithText(benefitRows.last()).performScrollTo()
+        repeat(6) {
+            compose.onNodeWithTag("gold-priority-tier-scroll").performTouchInput {
+                swipeUp()
+            }
+            compose.waitForIdle()
+        }
+        val lastRow = compose.onNodeWithText(benefitRows.last()).getUnclippedBoundsInRoot()
+        val root = compose.onNodeWithTag("gold-priority-root").getUnclippedBoundsInRoot()
+        saveRootScreenshot("kotlin_issue89_sapphire_no_cta_bottom_v2.png")
+        assertTrue(
+            "No-CTA row should use the viewport area reserved only on CTA pages: " +
+                "row=${lastRow.bottom.value} root=${root.bottom.value}",
+            lastRow.bottom.value > root.bottom.value - TierCtaViewportInset.value,
+        )
+        assertTrue(
+            "No-CTA row should retain only normal bottom padding: " +
+                "row=${lastRow.bottom.value} root=${root.bottom.value}",
+            lastRow.bottom.value <=
+                root.bottom.value - TierNormalBottomPadding.value + 1f,
+        )
     }
 
     private fun setGoldPriorityContent(

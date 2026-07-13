@@ -131,8 +131,12 @@ internal val TierNormalBottomPadding = 24.dp
 internal val TierFadeHeight = 64.dp
 internal val TierCtaHeight = 50.dp
 internal val TierCtaBottomGap = 12.dp
+internal val TierCtaViewportGap = 12.dp
+internal val TierCtaContentClearance = 110.dp
+internal val TierCtaViewportInset =
+    TierCtaHeight + TierCtaBottomGap + TierCtaViewportGap
 internal val TierBottomPaddingWithCta =
-    TierNormalBottomPadding + TierFadeHeight + TierCtaHeight + TierCtaBottomGap
+    TierNormalBottomPadding + TierCtaContentClearance
 
 /**
  * Issue #89 is visual-only. Until the authoritative tier-change behavior lands,
@@ -303,6 +307,9 @@ private fun TierPageContent(
         Column(
             Modifier
                 .fillMaxSize()
+                .padding(
+                    bottom = if (treatment.pageHasCta) TierCtaViewportInset else 0.dp,
+                )
                 .testTag("gold-priority-tier-scroll")
                 .tierBottomFade(treatment.appliesBottomFade)
                 .verticalScroll(rememberScrollState())
@@ -390,7 +397,7 @@ private fun Modifier.tierBottomFade(enabled: Boolean): Modifier {
         compositingStrategy = CompositingStrategy.Offscreen
     }.drawWithContent {
         drawContent()
-        val fadeEnd = size.height - TierCtaHeight.toPx() - TierCtaBottomGap.toPx()
+        val fadeEnd = size.height
         if (fadeEnd <= 0f) return@drawWithContent
         val fadeStart = (fadeEnd - TierFadeHeight.toPx()).coerceAtLeast(0f)
         drawRect(

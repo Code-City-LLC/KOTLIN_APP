@@ -32,9 +32,13 @@ class TierVisualTreatmentTest {
             assertTrue(treatment.appliesBottomFade)
             assertTrue(treatment.reservesCtaSpace)
             assertEquals(TierBottomPaddingWithCta, treatment.contentBottomPadding)
-            assertTrue(
-                treatment.contentBottomPadding >=
-                    TierCtaHeight + TierCtaBottomGap + TierFadeHeight,
+            assertEquals(
+                TierNormalBottomPadding + TierCtaContentClearance,
+                treatment.contentBottomPadding,
+            )
+            assertEquals(
+                TierCtaHeight + TierCtaBottomGap + TierCtaViewportGap,
+                TierCtaViewportInset,
             )
         }
     }
