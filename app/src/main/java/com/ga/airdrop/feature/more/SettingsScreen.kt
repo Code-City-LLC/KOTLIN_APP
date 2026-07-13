@@ -3,6 +3,8 @@ package com.ga.airdrop.feature.more
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +42,7 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.TextSizeController
 
 internal object SettingsTags {
     const val CACHE = "settings-cache"
@@ -47,6 +50,9 @@ internal object SettingsTags {
     const val BACKGROUNDS = "settings-backgrounds"
     const val MODE = "settings-mode"
     const val MODE_TOGGLE = "settings-mode-toggle"
+    const val TEXT_SIZE = "settings-text-size"
+    const val ROWS = "settings-rows"
+    const val LOGOUT_BAR = "settings-logout-bar"
     const val ACCOUNT_DELETION = "settings-account-deletion"
     const val CACHE_SHEET = "settings-cache-sheet"
 }
@@ -94,11 +100,18 @@ fun SettingsScreen(
                     )
                 },
             )
+            // PR92 review (#23900/#23905): the rows live in a weighted
+            // FINITE viewport whose content scrolls — at Largest text on a
+            // compact device nothing is unreachable, while the Logout bar
+            // below stays pinned. No weighted children inside the scroll
+            // axis (the old trailing weight-spacer is gone).
             Column(
                 Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .padding(Spacing.md),
+                    .verticalScroll(rememberScrollState())
+                    .padding(Spacing.md)
+                    .testTag(SettingsTags.ROWS),
             ) {
                 MoreRowCard(
                     iconRes = R.drawable.ic_settings_notifications,
@@ -114,6 +127,25 @@ fun SettingsScreen(
                     tint = colors.iconSelected,
                     onClick = { onNavigate(Routes.BACKGROUNDS) },
                     testTagPrefix = SettingsTags.BACKGROUNDS,
+                )
+                Spacer(Modifier.height(14.dp))
+                // Kemar directive 2026-07-12 + gate #24601 routing parity:
+                // Settings' Text Size row NAVIGATES to Preferences, which
+                // owns the single controller-backed editor (current Swift
+                // routes Settings → Preferences for this control).
+                MoreRowCard(
+                    iconRes = R.drawable.ic_text_size,
+                    title = "Text Size",
+                    tint = colors.iconSelected,
+                    onClick = { onNavigate(Routes.PREFERENCES) },
+                    trailing = {
+                        Text(
+                            text = TextSizeController.level.displayName,
+                            style = AirdropType.body2,
+                            color = colors.gray500,
+                        )
+                    },
+                    testTagPrefix = SettingsTags.TEXT_SIZE,
                 )
                 Spacer(Modifier.height(14.dp))
                 MoreRowCard(
@@ -143,12 +175,12 @@ fun SettingsScreen(
                     onClick = { onNavigate(Routes.ACCOUNT_DELETION) },
                     testTagPrefix = SettingsTags.ACCOUNT_DELETION,
                 )
-                Spacer(Modifier.weight(1f))
             }
             MoreBottomButtonBar(
                 text = "Logout",
                 loading = state.loggingOut,
                 onClick = { showLogoutConfirm = true },
+                modifier = Modifier.testTag(SettingsTags.LOGOUT_BAR),
             )
         }
     }
