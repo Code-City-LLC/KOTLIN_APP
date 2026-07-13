@@ -27,14 +27,13 @@ class ShipmentsInfiniteScrollParityTest {
     @Test
     fun packagesKeepsLoadingWhileFilteredTailStaysVisible() {
         val repo = SparseExpressPackagesRepository()
-        lateinit var viewModel: PackagesViewModel
+        val viewModel = PackagesViewModel(repo = repo, hubRepo = FakeHubRepository())
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
         compose.setContent {
             AirdropThemeProvider {
-                viewModel = PackagesViewModel(repo = repo, hubRepo = FakeHubRepository())
                 Box(
                     Modifier
                         .width(375.dp)

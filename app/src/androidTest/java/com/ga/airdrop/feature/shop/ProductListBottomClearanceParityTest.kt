@@ -75,31 +75,33 @@ class ProductListBottomClearanceParityTest {
     }
 
     private fun setAuctionContent(mode: ThemeController.Mode) {
+        val viewModel = AuctionViewModel(
+            products = FakeShopProductsRepository(
+                auctionProducts = AuctionProducts,
+                featureProducts = emptyList(),
+            ),
+        )
         setContent(mode) {
             AuctionScreen(
                 onNavigate = {},
                 onBack = {},
-                viewModel = AuctionViewModel(
-                    products = FakeShopProductsRepository(
-                        auctionProducts = AuctionProducts,
-                        featureProducts = emptyList(),
-                    ),
-                ),
+                viewModel = viewModel,
             )
         }
     }
 
     private fun setFeaturedContent(mode: ThemeController.Mode) {
+        val viewModel = FeaturedProductsViewModel(
+            products = FakeShopProductsRepository(
+                auctionProducts = emptyList(),
+                featureProducts = FeatureProducts,
+            ),
+        )
         setContent(mode) {
             FeaturedProductsScreen(
                 onNavigate = {},
                 onBack = {},
-                viewModel = FeaturedProductsViewModel(
-                    products = FakeShopProductsRepository(
-                        auctionProducts = emptyList(),
-                        featureProducts = FeatureProducts,
-                    ),
-                ),
+                viewModel = viewModel,
             )
         }
     }

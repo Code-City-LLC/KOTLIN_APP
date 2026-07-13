@@ -75,11 +75,7 @@ import kotlinx.coroutines.withContext
  * Stripe hosted checkout — restore JMD→Profile / USD→Order Summary when
  * those screens land.
  *
- * LOCATION (Phase-1): play-services-location is NOT a dependency yet, so
- * "Use Current Location" reports the coordinate as unavailable —
- * `viewModel.onUseCurrentLocation(null)` → the Swift-parity "Location
- * unavailable" alert. Wire rememberLauncherForActivityResult(RequestPermission)
- * "Use Current Location" is fully wired (runtime permission +
+ * LOCATION (Phase-1): "Use Current Location" is fully wired (runtime permission +
  * FusedLocationProvider); only the interactive map remains Phase-1 static
  * pending a MAPS_API_KEY (see [DeliveryMapView]).
  */
@@ -118,6 +114,15 @@ fun DeliveryMethodScreen(
     // FusedLocationProvider (keyless play-services-location, spec §6).
     // Denied / no fix → onUseCurrentLocation(null) → the Swift-parity alert.
     fun fetchLocation() {
+        if (
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            viewModel.onUseCurrentLocation(null)
+            return
+        }
         runCatching {
             LocationServices.getFusedLocationProviderClient(context)
                 .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)

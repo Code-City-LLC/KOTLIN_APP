@@ -121,6 +121,10 @@ class PackagesFilterFlowParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
         }
+        val viewModel = PackagesViewModel(
+            repo = packagesRepo,
+            hubRepo = FakeHubRepository(),
+        )
         compose.setContent {
             AirdropThemeProvider {
                 Box(
@@ -132,10 +136,7 @@ class PackagesFilterFlowParityTest {
                     PackagesScreen(
                         onBack = {},
                         onNavigate = {},
-                        viewModel = PackagesViewModel(
-                            repo = packagesRepo,
-                            hubRepo = FakeHubRepository(),
-                        ),
+                        viewModel = viewModel,
                     )
                 }
             }

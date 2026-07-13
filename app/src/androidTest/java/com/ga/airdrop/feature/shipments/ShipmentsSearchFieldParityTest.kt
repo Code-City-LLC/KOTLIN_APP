@@ -41,6 +41,10 @@ class ShipmentsSearchFieldParityTest {
         instrumentation.runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
+        val viewModel = PackagesViewModel(
+            repo = FakePackagesRepository(),
+            hubRepo = FakeHubRepository(),
+        )
 
         compose.setContent {
             AirdropThemeProvider {
@@ -53,10 +57,7 @@ class ShipmentsSearchFieldParityTest {
                     PackagesScreen(
                         onBack = {},
                         onNavigate = {},
-                        viewModel = PackagesViewModel(
-                            repo = FakePackagesRepository(),
-                            hubRepo = FakeHubRepository(),
-                        ),
+                        viewModel = viewModel,
                     )
                 }
             }
