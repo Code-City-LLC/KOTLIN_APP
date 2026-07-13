@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.TextSizeController
 import com.ga.airdrop.core.navigation.Routes
@@ -23,7 +24,11 @@ import org.junit.runner.RunWith
  * - Settings' Text Size row must NAVIGATE to Preferences (current Swift
  *   routing) — proven on the REAL SettingsScreen, not a detached row.
  * - Preferences owns the single controller-backed editor — proven by real
- *   PreferencesScreen selection, including recreation restore.
+ *   PreferencesScreen selection, then a REAL-CONTEXT SharedPreferences
+ *   re-initialization (the durable-persistence proof) and a Compose
+ *   recreation restore (StateRestorationTester exercises saved-instance
+ *   state only — it is NOT a process-death simulation; the re-init
+ *   assertion covers durability).
  * - Test hygiene: the exact prior level is captured before and restored
  *   after EVERY test, fail-safely, so no global persisted state leaks.
  */
@@ -95,7 +100,22 @@ class TextSizeSettingsRowParityTest {
         assertEquals(TextSizeController.Level.LARGEST, TextSizeController.level)
         compose.onNodeWithText("Largest").assertIsDisplayed()
 
-        // Recreation: state restores and the field still reflects Largest.
+        // Durable persistence: the UI selection above committed synchronously,
+        // so re-initializing the controller from the REAL app SharedPreferences
+        // (a fresh disk read that overwrites the in-memory value) must yield
+        // Largest — had the commit not landed, this re-init would read the
+        // @Before Standard and fail.
+        TextSizeController.init(
+            InstrumentationRegistry.getInstrumentation().targetContext
+        )
+        assertEquals(
+            "real-context re-init must read back the committed selection",
+            TextSizeController.Level.LARGEST,
+            TextSizeController.level,
+        )
+
+        // Compose recreation (saved-instance state restore — NOT process
+        // death): the screen still reflects Largest afterwards.
         restoration.emulateSavedInstanceStateRestore()
         compose.waitForIdle()
         compose.onNodeWithText("Largest").assertIsDisplayed()

@@ -81,7 +81,7 @@ fun PreferencesScreen(
                 MoreSelectField(
                     label = "Text Size",
                     value = TextSizeController.level.displayName,
-                    placeholder = "Select a text size",
+                    placeholder = "Select text size",
                     required = false,
                     onClick = { pickerFor = "text_size" },
                 )
