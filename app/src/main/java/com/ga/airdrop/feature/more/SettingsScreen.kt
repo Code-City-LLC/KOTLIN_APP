@@ -40,6 +40,7 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.TextSizeController
 
 internal object SettingsTags {
     const val CACHE = "settings-cache"
@@ -47,6 +48,8 @@ internal object SettingsTags {
     const val BACKGROUNDS = "settings-backgrounds"
     const val MODE = "settings-mode"
     const val MODE_TOGGLE = "settings-mode-toggle"
+    const val TEXT_SIZE = "settings-text-size"
+    const val TEXT_SIZE_DIALOG = "settings-text-size-dialog"
     const val ACCOUNT_DELETION = "settings-account-deletion"
     const val CACHE_SHEET = "settings-cache-sheet"
 }
@@ -70,6 +73,7 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showTextSizePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.loggedOut) {
         if (state.loggedOut) onLoggedOut()
@@ -116,6 +120,23 @@ fun SettingsScreen(
                     testTagPrefix = SettingsTags.BACKGROUNDS,
                 )
                 Spacer(Modifier.height(14.dp))
+                // Kemar directive 2026-07-12 (Swift 8ce745c): "text size
+                // should be in setting" — same store both entry points share.
+                MoreRowCard(
+                    iconRes = R.drawable.ic_text_size,
+                    title = "Text Size",
+                    tint = colors.iconSelected,
+                    onClick = { showTextSizePicker = true },
+                    trailing = {
+                        Text(
+                            text = TextSizeController.level.displayName,
+                            style = AirdropType.body2,
+                            color = colors.gray500,
+                        )
+                    },
+                    testTagPrefix = SettingsTags.TEXT_SIZE,
+                )
+                Spacer(Modifier.height(14.dp))
                 MoreRowCard(
                     iconRes = R.drawable.ic_color_theme,
                     title = "Mode",
@@ -153,6 +174,22 @@ fun SettingsScreen(
         }
     }
 
+    if (showTextSizePicker) {
+        // Same picker surface Preferences/Profile use (Swift: the shared
+        // rect-dialog); selecting a level rescales text app-wide instantly.
+        MoreOptionSheet(
+            title = "Text Size",
+            options = TextSizeController.Level.entries.map { it.displayName },
+            selected = TextSizeController.level.displayName,
+            onSelect = { picked ->
+                TextSizeController.Level.entries
+                    .firstOrNull { it.displayName == picked }
+                    ?.let(TextSizeController::set)
+                showTextSizePicker = false
+            },
+            onDismiss = { showTextSizePicker = false },
+        )
+    }
     if (showLogoutConfirm) {
         MoreConfirmDialog(
             title = "Log Out",
