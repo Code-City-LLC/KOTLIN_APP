@@ -20,7 +20,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.TextSizeController
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,6 +43,20 @@ class SettingsCompactLargestParityTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    private lateinit var priorLevel: TextSizeController.Level
+
+    @Before
+    fun capturePriorLevel() {
+        priorLevel = TextSizeController.level
+    }
+
+    @After
+    fun restorePriorLevel() {
+        // #24601 hygiene: never leak the persisted Largest past the test —
+        // restores the exact prior level pass, fail, or throw.
+        TextSizeController.set(priorLevel)
+    }
 
     @Test
     fun largestOnCompactScrollsRowsOnlyWithHeaderAndLogoutPinned() {

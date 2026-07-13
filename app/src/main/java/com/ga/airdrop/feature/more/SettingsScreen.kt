@@ -76,7 +76,6 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     var showLogoutConfirm by remember { mutableStateOf(false) }
-    var showTextSizePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.loggedOut) {
         if (state.loggedOut) onLoggedOut()
@@ -130,14 +129,15 @@ fun SettingsScreen(
                     testTagPrefix = SettingsTags.BACKGROUNDS,
                 )
                 Spacer(Modifier.height(14.dp))
-                // Kemar directive 2026-07-12 (Swift 8ce745c): "text size
-                // should be in setting" — the single entry point today; a
-                // future Preferences row would reuse this same store.
+                // Kemar directive 2026-07-12 + gate #24601 routing parity:
+                // Settings' Text Size row NAVIGATES to Preferences, which
+                // owns the single controller-backed editor (current Swift
+                // routes Settings → Preferences for this control).
                 MoreRowCard(
                     iconRes = R.drawable.ic_text_size,
                     title = "Text Size",
                     tint = colors.iconSelected,
-                    onClick = { showTextSizePicker = true },
+                    onClick = { onNavigate(Routes.PREFERENCES) },
                     trailing = {
                         Text(
                             text = TextSizeController.level.displayName,
@@ -185,22 +185,6 @@ fun SettingsScreen(
         }
     }
 
-    if (showTextSizePicker) {
-        // Same picker surface Preferences/Profile use (Swift: the shared
-        // rect-dialog); selecting a level rescales text app-wide instantly.
-        MoreOptionSheet(
-            title = "Text Size",
-            options = TextSizeController.Level.entries.map { it.displayName },
-            selected = TextSizeController.level.displayName,
-            onSelect = { picked ->
-                TextSizeController.Level.entries
-                    .firstOrNull { it.displayName == picked }
-                    ?.let(TextSizeController::set)
-                showTextSizePicker = false
-            },
-            onDismiss = { showTextSizePicker = false },
-        )
-    }
     if (showLogoutConfirm) {
         MoreConfirmDialog(
             title = "Log Out",
