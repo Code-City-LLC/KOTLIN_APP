@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.homedetails
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.AirdropNotification
@@ -44,9 +45,14 @@ class NotificationsViewModel(
     fun refresh() {
         page = 1
         _state.update { it.copy(loading = true, error = null, endReached = false) }
+        // #90: results captured under one auth revision must not mutate state
+        // after logout/re-login — a late account-A page would otherwise
+        // render inside account B's inbox.
+        val startRevision = AuthTokenStore.snapshot().revision
         viewModelScope.launch {
             miscRepository.notifications(page, perPage)
                 .onSuccess { batch ->
+                    if (!sessionStillCurrent(startRevision)) return@onSuccess
                     _state.update {
                         it.copy(
                             items = batch,
@@ -57,6 +63,7 @@ class NotificationsViewModel(
                     }
                 }
                 .onFailure { err ->
+                    if (!sessionStillCurrent(startRevision)) return@onFailure
                     _state.update {
                         it.copy(
                             loading = false,
@@ -72,9 +79,11 @@ class NotificationsViewModel(
         val current = _state.value
         if (current.loading || current.loadingMore || current.endReached) return
         _state.update { it.copy(loadingMore = true) }
+        val startRevision = AuthTokenStore.snapshot().revision
         viewModelScope.launch {
             miscRepository.notifications(page + 1, perPage)
                 .onSuccess { batch ->
+                    if (!sessionStillCurrent(startRevision)) return@onSuccess
                     page += 1
                     _state.update {
                         it.copy(
@@ -85,6 +94,7 @@ class NotificationsViewModel(
                     }
                 }
                 .onFailure {
+                    if (!sessionStillCurrent(startRevision)) return@onFailure
                     _state.update { it.copy(loadingMore = false) }
                 }
         }
@@ -104,12 +114,35 @@ class NotificationsViewModel(
                     }
                 )
             }
+            val startRevision = AuthTokenStore.snapshot().revision
             viewModelScope.launch {
-                miscRepository.markNotificationRead(notification.id)
+                // #90: the server mutation must not fire under a different
+                // session than the one that tapped — a late mark-read after
+                // an account switch would flag another account's row.
+                guardedMarkRead(startRevision, notification.id) {
+                    miscRepository.markNotificationRead(it)
+                }
             }
         }
         return resolveNotificationRoute(notification)
     }
+}
+
+/** #90: true while the auth revision that started an operation is still live. */
+internal fun sessionStillCurrent(startRevision: Long): Boolean =
+    AuthTokenStore.snapshot().revision == startRevision
+
+/**
+ * #90: fires the mark-read server mutation only if the session that tapped
+ * is still the active one at execution time.
+ */
+internal suspend fun guardedMarkRead(
+    startRevision: Long,
+    notificationId: String,
+    mark: suspend (String) -> Unit,
+) {
+    if (!sessionStillCurrent(startRevision)) return
+    mark(notificationId)
 }
 
 /**

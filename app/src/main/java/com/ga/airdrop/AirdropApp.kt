@@ -22,6 +22,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         AuthTokenStore.init(this)
+        com.ga.airdrop.core.session.SessionIdentity.init(this)
         ThemeController.init(this)
         CartStore.init(this)
         DeliveryDefaultsStore.init(this)

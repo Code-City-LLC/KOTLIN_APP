@@ -50,7 +50,7 @@ private val AUTH_GRAPH_ROUTES = setOf(
  * glass bottom bar overlays tab-root content.
  */
 @Composable
-fun AppRoot(homeViewModel: HomeViewModel? = null) {
+fun AppRoot(homeViewModel: HomeViewModel? = null, navigationLocked: Boolean = false) {
     val navController = rememberNavController()
     val token by AuthTokenStore.tokenFlow.collectAsState()
     // Splash decides: token → Home, first run → Onboarding, else → Landing
@@ -74,8 +74,8 @@ fun AppRoot(homeViewModel: HomeViewModel? = null) {
     // Push-notification deep links (route + referenceID) land here once the
     // graph is composed — mirrors FigmaRouteResolver deep-linking.
     val pendingPush by com.ga.airdrop.core.push.PushDeepLink.pending.collectAsState()
-    androidx.compose.runtime.LaunchedEffect(pendingPush, token) {
-        if (pendingPush != null && token != null) {
+    androidx.compose.runtime.LaunchedEffect(pendingPush, token, navigationLocked) {
+        if (shouldConsumePendingPush(pendingPush, token, navigationLocked)) {
             com.ga.airdrop.core.push.PushDeepLink.consume()?.let { navController.navigate(it) }
         }
     }
@@ -289,3 +289,16 @@ internal fun PlaceholderScreen(name: String) {
         )
     }
 }
+
+/**
+ * #90: pending push navigation may be consumed only once the nav graph is up,
+ * a bearer exists, AND the biometric gate is not covering the app — otherwise
+ * navigation would occur underneath the lock overlay. Unlock re-runs the
+ * effect and releases at most one still-valid route (PushDeepLink.consume()
+ * owner-checks it).
+ */
+internal fun shouldConsumePendingPush(
+    pendingRoute: String?,
+    token: String?,
+    navigationLocked: Boolean,
+): Boolean = pendingRoute != null && token != null && !navigationLocked

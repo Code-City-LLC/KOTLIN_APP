@@ -51,6 +51,12 @@ class LoginViewModel(
                         }
                     } else {
                         AuthTokenStore.save(token)
+                        // #90: bind the durable account identity (stable
+                        // backend user id, never the token) so persisted
+                        // push routes are owner-checked across process death.
+                        com.ga.airdrop.core.session.SessionIdentity.bind(
+                            response.user?.id?.toString()
+                        )
                         // Swift FigmaLoginViewController:504-511 parity: the FCM
                         // token minted before login is replayed to
                         // /device-tokens/register now that a bearer exists —

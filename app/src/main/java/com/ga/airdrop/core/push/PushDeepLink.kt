@@ -4,7 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.session.SessionIdentity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -24,6 +26,17 @@ object PushDeepLink {
     private const val PREFS = "push_deeplink"
     private const val KEY_ROUTE = "pendingRoute"
     private const val KEY_AT = "pendingAt"
+    private const val KEY_OWNER = "pendingOwner"
+
+    /**
+     * Session provenance of the pending route (issue #90). A route is either
+     * captured logged-out (binds once to the first authenticated account),
+     * captured under a known account id, or captured under a bearer whose
+     * account id is not yet known (consumable only until the next auth
+     * boundary — teardown clears it). Never a token or token fingerprint.
+     */
+    internal const val OWNER_PRE_LOGIN = "pre_login"
+    internal const val OWNER_UNKNOWN = "unknown_session"
 
     /** Swift AppDelegate staleness window — 30 minutes. */
     private const val STALE_MS = 30L * 60 * 1000
@@ -33,16 +46,23 @@ object PushDeepLink {
     private val _pending = MutableStateFlow<String?>(null)
     val pending: StateFlow<String?> = _pending
 
+    private var pendingOwner: String? = null
+
     /** Restore a persisted (non-stale) pending route on cold start. */
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val store = prefs ?: return
         val route = store.getString(KEY_ROUTE, null) ?: return
         val at = store.getLong(KEY_AT, 0L)
-        if (System.currentTimeMillis() - at <= STALE_MS) {
+        val owner = store.getString(KEY_OWNER, null)
+        // Fail closed on routes persisted without provenance (pre-#90 rows):
+        // an ownerless authenticated capture could otherwise replay under a
+        // different account after re-login.
+        if (owner != null && System.currentTimeMillis() - at <= STALE_MS) {
+            pendingOwner = owner
             _pending.value = route
         } else {
-            store.edit().remove(KEY_ROUTE).remove(KEY_AT).apply()
+            store.edit().remove(KEY_ROUTE).remove(KEY_AT).remove(KEY_OWNER).apply()
         }
     }
 
@@ -99,16 +119,50 @@ object PushDeepLink {
         resolveUri(uri)?.let(::setPending)
     }
 
-    fun consume(): String? = _pending.value.also {
-        _pending.value = null
-        prefs?.edit()?.remove(KEY_ROUTE)?.remove(KEY_AT)?.apply()
+    /**
+     * One-shot consumption, owner-checked (issue #90): the pending route is
+     * released only to the session it belongs to. A mismatch — including a
+     * route owned by account A while account B (or no identity) is active —
+     * purges the route instead of navigating. PRE_LOGIN capture binds once
+     * to the first authenticated session that consumes it.
+     */
+    fun consume(): String? {
+        val route = _pending.value ?: return null
+        val hasBearer = !AuthTokenStore.token.isNullOrBlank()
+        return when (val owner = pendingOwner) {
+            // Provenance lost — fail closed.
+            null -> { clearAll(); null }
+            // Logged-out capture: binds once to the FIRST authenticated
+            // session. While no bearer exists it stays pending (Swift's
+            // 30-minute replay window), it is never released logged-out.
+            OWNER_PRE_LOGIN, OWNER_UNKNOWN ->
+                if (hasBearer) { clearAll(); route } else null
+            // Account-bound: released only to its own session.
+            SessionIdentity.current -> { clearAll(); route }
+            // Cross-account (or identity unknown) — purge, never navigate.
+            else -> { clearAll(); null }
+        }
     }
 
-    private fun setPending(route: String) {
+    /** Canonical wipe — every auth boundary (logout, implicit teardown). */
+    fun clearAll() {
+        pendingOwner = null
+        _pending.value = null
+        prefs?.edit()?.remove(KEY_ROUTE)?.remove(KEY_AT)?.remove(KEY_OWNER)?.apply()
+    }
+
+    // internal: the #90 owner matrix is pinned by PushSessionBindingTest.
+    internal fun setPending(route: String) {
+        val owner = when {
+            AuthTokenStore.token.isNullOrBlank() -> OWNER_PRE_LOGIN
+            else -> SessionIdentity.current ?: OWNER_UNKNOWN
+        }
+        pendingOwner = owner
         _pending.value = route
         prefs?.edit()
             ?.putString(KEY_ROUTE, route)
             ?.putLong(KEY_AT, System.currentTimeMillis())
+            ?.putString(KEY_OWNER, owner)
             ?.apply()
     }
 

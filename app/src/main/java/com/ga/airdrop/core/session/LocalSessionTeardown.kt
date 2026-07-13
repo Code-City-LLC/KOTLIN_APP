@@ -20,6 +20,11 @@ fun clearLocalUserSession(context: Context) {
     val appContext = context.applicationContext
     AuthTokenStore.clear()
     SessionStore.clear()
+    SessionIdentity.clear()
+    // #90: account-bound (and unresolved) pending push routes must not
+    // survive an auth boundary — account A's route must never replay
+    // under account B.
+    com.ga.airdrop.core.push.PushDeepLink.clearAll()
     CartStore.init(appContext)
     CartStore.clear()
     SavedForLaterStore.init(appContext)

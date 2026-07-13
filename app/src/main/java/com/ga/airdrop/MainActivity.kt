@@ -108,7 +108,9 @@ class MainActivity : FragmentActivity() {
                     }
                 }
                 var locked by rememberSaveable { mutableStateOf(lockedAtLaunch) }
-                AppRoot()
+                // #90: the lock state gates pending-push consumption inside
+                // AppRoot — navigation must not fire under the overlay.
+                AppRoot(navigationLocked = locked)
                 if (locked) {
                     BiometricLockScreen(
                         activity = this@MainActivity,
