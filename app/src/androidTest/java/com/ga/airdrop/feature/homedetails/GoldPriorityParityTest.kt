@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -135,7 +136,7 @@ class GoldPriorityParityTest {
     }
 
     @Test
-    fun lowerTierHasNoCtaAndNoFadeLane() {
+    fun lowerTierHasNoCtaButKeepsTheScreenLevelFade() {
         setGoldPriorityContent(
             mode = ThemeController.Mode.LIGHT,
             initialPage = rubyIndex,
@@ -150,11 +151,8 @@ class GoldPriorityParityTest {
 
         compose.onNodeWithTag("gold-priority-lines", useUnmergedTree = true).assertExists()
         assertEquals(0, compose.onAllNodesWithTag("gold-priority-cta").fetchSemanticsNodes().size)
-        assertEquals(
-            0,
-            compose.onAllNodesWithTag("gold-priority-fade-sapphire").fetchSemanticsNodes().size,
-        )
-        saveRootScreenshot("gold_priority_sapphire_cta_hidden_no_fade.png")
+        compose.onNodeWithTag("gold-priority-fade-sapphire").assertIsDisplayed()
+        saveRootScreenshot("gold_priority_sapphire_cta_hidden_with_fade.png")
     }
 
     private fun assertRubyCurrentFadeAndCta(
@@ -169,12 +167,59 @@ class GoldPriorityParityTest {
         )
 
         compose.onNodeWithTag("gold-priority-lines", useUnmergedTree = true).assertExists()
-        compose.onNodeWithTag("gold-priority-fade-ruby").assertIsDisplayed()
+        val root = compose.onNodeWithTag("gold-priority-root").getUnclippedBoundsInRoot()
+        val fade = compose.onNodeWithTag("gold-priority-fade-ruby")
+            .assertIsDisplayed()
+            .getUnclippedBoundsInRoot()
         val cta = compose.onNodeWithTag("gold-priority-cta").assertIsDisplayed()
             .getUnclippedBoundsInRoot()
         assertClose(316f, boundsWidth(cta), "Swift glass CTA width")
         assertClose(50f, boundsHeight(cta), "Swift glass CTA height")
+
+        // The fade is a bottom-only sibling behind the CTA. It starts well
+        // below the page top and finishes opaque at the physical screen edge.
+        assertTrue(
+            "bottom fade must not cover the page top",
+            boundsTop(fade) > boundsTop(root),
+        )
+        assertClose(boundsBottom(root), boundsBottom(fade), "fade reaches page bottom")
+        assertClose(
+            TierFadeHeight.value + 12f,
+            boundsTop(cta) - boundsTop(fade),
+            "fade starts 64dp above the CTA lane",
+        )
+        val navigationInset = boundsBottom(root) - boundsBottom(cta) - 12f
+        assertTrue("navigation inset cannot be negative", navigationInset >= -0.75f)
+        assertClose(
+            TierFadeHeight.value + TierCtaClearance.value + navigationInset.coerceAtLeast(0f),
+            boundsHeight(fade),
+            "fade covers dissolve, CTA, and navigation lanes",
+        )
+
+        val rootBitmap = compose.onNodeWithTag("gold-priority-root")
+            .captureToImage()
+            .asAndroidBitmap()
+        val expectedTop = tierPages[rubyIndex].gradientTop.toArgb()
+        val topPixel = rootBitmap.getPixel(4, 4)
+        assertTrue(
+            "tier header must not apply a top fade; " +
+                "actual=${topPixel.toUInt().toString(16)} " +
+                "expected=${expectedTop.toUInt().toString(16)}",
+            topPixel.isNear(expectedTop, tolerance = 12),
+        )
+        val expectedBottom = tierPages[rubyIndex].gradientBottom.toArgb()
+        val bottomPixel = rootBitmap.getPixel(4, rootBitmap.height - 2)
+        assertTrue(
+            "fade must finish opaque in the active tier bottom color; " +
+                "actual=${bottomPixel.toUInt().toString(16)} " +
+                "expected=${expectedBottom.toUInt().toString(16)}",
+            bottomPixel.isNear(expectedBottom),
+        )
         saveRootScreenshot(screenshot)
+
+        // The overlay must not intercept the real CTA tap.
+        compose.onNodeWithTag("gold-priority-cta").performClick()
+        compose.onNodeWithTag("tier-breakdown-sheet").assertIsDisplayed()
     }
 
     @Test
@@ -265,8 +310,8 @@ class GoldPriorityParityTest {
         )
         compose.onNodeWithTag("gold-priority-fade-gold").assertIsDisplayed()
 
-        // Swipe down to Sapphire (below the customer): current Swift hides
-        // the CTA and its bottom fade rather than exposing a pager downgrade.
+        // Swipe down to Sapphire (below the customer): accepted Swift hides
+        // the CTA but keeps the shared screen-level bottom fade.
         compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
         compose.waitForIdle()
         compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
@@ -275,10 +320,7 @@ class GoldPriorityParityTest {
             0,
             compose.onAllNodesWithTag("gold-priority-cta").fetchSemanticsNodes().size,
         )
-        assertEquals(
-            0,
-            compose.onAllNodesWithTag("gold-priority-fade-sapphire").fetchSemanticsNodes().size,
-        )
+        compose.onNodeWithTag("gold-priority-fade-sapphire").assertIsDisplayed()
     }
 
     @Test
@@ -401,12 +443,22 @@ class GoldPriorityParityTest {
 
     private fun boundsRight(rect: DpRect): Float = rect.right.value
 
+    private fun boundsTop(rect: DpRect): Float = rect.top.value
+
+    private fun boundsBottom(rect: DpRect): Float = rect.bottom.value
+
     private fun boundsWidth(rect: DpRect): Float = (rect.right - rect.left).value
 
     private fun boundsHeight(rect: DpRect): Float = (rect.bottom - rect.top).value
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
         assertEquals(label, expected, actual, 0.75f)
+    }
+
+    private fun Int.isNear(target: Int, tolerance: Int = 6): Boolean {
+        return kotlin.math.abs(((this shr 16) and 0xFF) - ((target shr 16) and 0xFF)) <= tolerance &&
+            kotlin.math.abs(((this shr 8) and 0xFF) - ((target shr 8) and 0xFF)) <= tolerance &&
+            kotlin.math.abs((this and 0xFF) - (target and 0xFF)) <= tolerance
     }
 
     private val platinumIndex: Int
