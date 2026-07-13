@@ -156,7 +156,13 @@ object AuthTokenStore {
         DispatchLease(++nextDispatchId, cancel).also { activeDispatches[it.id] = it }
     }
 
-    fun releaseDispatch(lease: DispatchLease) = stateLock.write {
+    /** Atomically linearizes response completion before any later auth write. */
+    fun completeDispatch(lease: DispatchLease): Boolean = stateLock.write {
+        activeDispatches.remove(lease.id)
+        lease.isValid
+    }
+
+    fun abandonDispatch(lease: DispatchLease) = stateLock.write {
         activeDispatches.remove(lease.id)
         Unit
     }

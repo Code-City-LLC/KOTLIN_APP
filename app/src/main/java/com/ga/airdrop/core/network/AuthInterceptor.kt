@@ -19,6 +19,7 @@ import java.io.IOException
  */
 class AuthInterceptor internal constructor(
     private val beforeRetry: () -> Unit,
+    private val beforeDispatchComplete: () -> Unit = {},
 ) : Interceptor {
 
     constructor() : this(beforeRetry = {})
@@ -143,15 +144,19 @@ class AuthInterceptor internal constructor(
     ): Response {
         val lease = AuthTokenStore.acquireDispatch(expectedSession) { chain.call().cancel() }
             ?: throw StaleAuthSessionException()
+        var finalized = false
         return try {
             val response = chain.proceed(request)
-            if (!lease.isValid) {
+            beforeDispatchComplete()
+            val valid = AuthTokenStore.completeDispatch(lease)
+            finalized = true
+            if (!valid) {
                 response.close()
                 throw StaleAuthSessionException()
             }
             response
         } finally {
-            AuthTokenStore.releaseDispatch(lease)
+            if (!finalized) AuthTokenStore.abandonDispatch(lease)
         }
     }
 

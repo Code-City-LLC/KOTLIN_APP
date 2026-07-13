@@ -387,6 +387,33 @@ class AuthInterceptorRefreshTest {
     }
 
     @Test
+    fun `replacement at response completion boundary invalidates retry atomically`() {
+        val completions = AtomicInteger()
+        interceptor = AuthInterceptor(
+            beforeRetry = {},
+            beforeDispatchComplete = {
+                if (completions.incrementAndGet() == 3) {
+                    AuthTokenStore.save("account-b-token")
+                }
+            },
+        )
+        val chain = ScriptedChain(apiRequest()) { req, _ ->
+            when {
+                isRefresh(req) -> response(req, 200, """{"token":"account-a-rotated"}""")
+                req.header("Authorization") == "Bearer account-a-rotated" -> response(req, 200)
+                else -> response(req, 401)
+            }
+        }
+
+        val result = interceptor.intercept(chain)
+
+        assertEquals(401, result.code)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertEquals(3, chain.proceeded.size)
+        assertTrue(chain.isCanceled)
+    }
+
+    @Test
     fun `refresh request uses expected bearer even when global session changes`() {
         val chain = ScriptedChain(apiRequest()) { req, _ ->
             if (isRefresh(req)) {
