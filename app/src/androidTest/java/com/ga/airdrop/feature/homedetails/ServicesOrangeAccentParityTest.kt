@@ -18,6 +18,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -32,7 +33,9 @@ class ServicesOrangeAccentParityTest {
     @Test
     fun servicesOrangeAccentsUseSwiftFigmaLightOrange() {
         setServicesContent(ThemeController.Mode.LIGHT)
+        saveRootScreenshot("services_orange_light.png")
 
+        assertServicesSwiftFigmaGeometry()
         assertTaggedNodeContainsColor(
             tag = "services-main-heading",
             target = FIGMA_ORANGE_LIGHT,
@@ -52,13 +55,14 @@ class ServicesOrangeAccentParityTest {
             target = FIGMA_ORANGE_LIGHT,
             label = "Services light tax-free heading orange accent",
         )
-        saveRootScreenshot("services_orange_light.png")
     }
 
     @Test
     fun servicesOrangeAccentsUseFigmaDarkFunctionOrange() {
         setServicesContent(ThemeController.Mode.DARK)
+        saveRootScreenshot("services_orange_dark.png")
 
+        assertServicesSwiftFigmaGeometry()
         assertTaggedNodeContainsColor(
             tag = "services-main-heading",
             target = FIGMA_DARK_FUNCTION_ORANGE,
@@ -78,7 +82,6 @@ class ServicesOrangeAccentParityTest {
             target = FIGMA_DARK_FUNCTION_ORANGE,
             label = "Services dark tax-free heading orange accent",
         )
-        saveRootScreenshot("services_orange_dark.png")
     }
 
     private fun setServicesContent(mode: ThemeController.Mode) {
@@ -100,6 +103,36 @@ class ServicesOrangeAccentParityTest {
             .captureToImage()
             .asAndroidBitmap()
         assertTrue(label, bitmap.hasPixelNear(target))
+    }
+
+    private fun assertServicesSwiftFigmaGeometry() {
+        assertClose(68f, nodeHeightDp("services-customer-pill"), "Services customer pill height")
+        assertClose(101f, nodeWidthDp("services-customer-avatars"), "Services avatar group width")
+        assertClose(27f, nodeHeightDp("services-customer-avatars"), "Services avatar group height")
+        assertClose(250.2766f, nodeHeightDp("services-hero"), "Services hero viewport height")
+        assertClose(667f, nodeWidthDp("services-hero-image"), "Services canonical hero width")
+        assertClose(253f, nodeHeightDp("services-hero-image"), "Services canonical hero height")
+
+        compose.onNodeWithTag("services-logo-marquee").performScrollTo()
+        compose.waitForIdle()
+        // Semantics reports the content inside the wrapper's 1dp vertical padding.
+        assertClose(88f, nodeHeightDp("services-logo-marquee"), "Services marquee content height")
+        assertClose(40f, nodeHeightDp("services-logo-row-top"), "Services top marquee row height")
+        assertClose(40f, nodeHeightDp("services-logo-row-bottom"), "Services bottom marquee row height")
+    }
+
+    private fun nodeWidthDp(tag: String): Float {
+        val widthPx = compose.onNodeWithTag(tag).fetchSemanticsNode().layoutInfo.coordinates.size.width
+        return widthPx / compose.activity.resources.displayMetrics.density
+    }
+
+    private fun nodeHeightDp(tag: String): Float {
+        val heightPx = compose.onNodeWithTag(tag).fetchSemanticsNode().layoutInfo.coordinates.size.height
+        return heightPx / compose.activity.resources.displayMetrics.density
+    }
+
+    private fun assertClose(expected: Float, actual: Float, label: String) {
+        assertEquals(label, expected, actual, 1f)
     }
 
     private fun assertTaggedNodeColorDominates(
