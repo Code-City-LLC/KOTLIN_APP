@@ -52,14 +52,19 @@ class TextSizeControllerTest {
         TextSizeController.set(TextSizeController.Level.LARGEST)
         assertEquals("LARGEST", store.values["level"])
 
-        // Process death: fresh init against the same backing store.
-        TextSizeController.set(TextSizeController.Level.STANDARD) // drift the memory value
-        TextSizeController.initWithPrefs(FakePrefs(store.values))
+        // Process death: snapshot the persisted store UNTOUCHED, bind the
+        // controller to a throwaway store (memory reset without writing to
+        // the snapshot), then re-init from the untouched snapshot.
+        val persistedSnapshot = store.values.toMutableMap()
+        TextSizeController.initWithPrefs(FakePrefs()) // detach + reset memory
         assertEquals(TextSizeController.Level.STANDARD, TextSizeController.level)
 
-        store.values["level"] = "LARGEST"
-        TextSizeController.initWithPrefs(FakePrefs(store.values))
-        assertEquals(TextSizeController.Level.LARGEST, TextSizeController.level)
+        TextSizeController.initWithPrefs(FakePrefs(persistedSnapshot))
+        assertEquals(
+            "the ORIGINALLY persisted Largest must survive process death",
+            TextSizeController.Level.LARGEST,
+            TextSizeController.level,
+        )
     }
 
     @Test

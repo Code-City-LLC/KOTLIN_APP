@@ -51,6 +51,8 @@ internal object SettingsTags {
     const val MODE = "settings-mode"
     const val MODE_TOGGLE = "settings-mode-toggle"
     const val TEXT_SIZE = "settings-text-size"
+    const val ROWS = "settings-rows"
+    const val LOGOUT_BAR = "settings-logout-bar"
     const val ACCOUNT_DELETION = "settings-account-deletion"
     const val CACHE_SHEET = "settings-cache-sheet"
 }
@@ -109,7 +111,8 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(Spacing.md),
+                    .padding(Spacing.md)
+                    .testTag(SettingsTags.ROWS),
             ) {
                 MoreRowCard(
                     iconRes = R.drawable.ic_settings_notifications,
@@ -177,6 +180,7 @@ fun SettingsScreen(
                 text = "Logout",
                 loading = state.loggingOut,
                 onClick = { showLogoutConfirm = true },
+                modifier = Modifier.testTag(SettingsTags.LOGOUT_BAR),
             )
         }
     }
