@@ -260,13 +260,23 @@ internal fun serverBenefitRows(tiers: List<ServiceTier>): Map<String, List<Strin
         val code = tier.code.trim().uppercase()
         if (code.isEmpty()) return@mapNotNull null
         val rows = buildList {
+            tier.processingCopy?.trim()?.takeIf(String::isNotEmpty)?.let(::add)
             addAll(tier.benefitsSummary.map(String::trim).filter(String::isNotEmpty))
+        }.filterNot { row ->
+            if (code != "RUBY") return@filterNot false
+            val key = normalizedBenefit(row)
+            key == "no free storage included" || key.contains("3-5 business day")
         }.distinctBy(::normalizedBenefit)
         code to rows
     }.toMap()
 
 private fun normalizedBenefit(value: String): String =
-    value.lowercase().trim().removeSuffix(".").replace(Regex("\\s+"), " ")
+    value.lowercase()
+        .replace('–', '-')
+        .replace('—', '-')
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .removeSuffix(".")
 
 internal fun indexForTier(code: String?, name: String?): Int? {
     val normalizedCode = code?.trim()?.uppercase().orEmpty()
