@@ -3,6 +3,8 @@ package com.ga.airdrop.core.push
 import android.content.Intent
 import android.net.Uri
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.auth.AuthTokenStore
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -11,7 +13,9 @@ class PushDeepLinkParityTest {
 
     @Before
     fun clearPendingRoute() {
-        PushDeepLink.consume()
+        AuthTokenStore.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        AuthTokenStore.save("push-route-test-token")
+        PushDeepLink.clear()
         com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
     }
 
@@ -69,6 +73,6 @@ class PushDeepLinkParityTest {
             Intent().putExtra(AirdropMessagingService.EXTRA_ROUTE, route)
                 .putExtra(AirdropMessagingService.EXTRA_REFERENCE_ID, referenceId)
         )
-        assertEquals(expected, PushDeepLink.consume())
+        assertEquals(expected, PushDeepLink.consume(AuthTokenStore.snapshot()))
     }
 }

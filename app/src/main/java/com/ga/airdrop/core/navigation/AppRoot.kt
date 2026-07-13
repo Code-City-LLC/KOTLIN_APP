@@ -50,7 +50,10 @@ private val AUTH_GRAPH_ROUTES = setOf(
  * glass bottom bar overlays tab-root content.
  */
 @Composable
-fun AppRoot(homeViewModel: HomeViewModel? = null) {
+fun AppRoot(
+    homeViewModel: HomeViewModel? = null,
+    navigationUnlocked: Boolean = true,
+) {
     val navController = rememberNavController()
     val token by AuthTokenStore.tokenFlow.collectAsState()
     // Splash decides: token → Home, first run → Onboarding, else → Landing
@@ -74,9 +77,10 @@ fun AppRoot(homeViewModel: HomeViewModel? = null) {
     // Push-notification deep links (route + referenceID) land here once the
     // graph is composed — mirrors FigmaRouteResolver deep-linking.
     val pendingPush by com.ga.airdrop.core.push.PushDeepLink.pending.collectAsState()
-    androidx.compose.runtime.LaunchedEffect(pendingPush, token) {
-        if (pendingPush != null && token != null) {
-            com.ga.airdrop.core.push.PushDeepLink.consume()?.let { navController.navigate(it) }
+    androidx.compose.runtime.LaunchedEffect(pendingPush, token, navigationUnlocked) {
+        if (pendingPush != null && navigationUnlocked) {
+            consumePendingPushIfUnlocked(navigationUnlocked, AuthTokenStore.snapshot())
+                ?.let { navController.navigate(it) }
         }
     }
 
@@ -120,6 +124,15 @@ fun AppRoot(homeViewModel: HomeViewModel? = null) {
             )
         }
     }
+}
+
+internal fun consumePendingPushIfUnlocked(
+    navigationUnlocked: Boolean,
+    snapshot: AuthTokenStore.Snapshot,
+): String? = if (navigationUnlocked) {
+    com.ga.airdrop.core.push.PushDeepLink.consume(snapshot)
+} else {
+    null
 }
 
 internal fun shouldResetToAuthLanding(token: String?, currentRoute: String?): Boolean =

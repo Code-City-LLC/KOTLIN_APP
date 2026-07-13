@@ -1,0 +1,212 @@
+package com.ga.airdrop.feature.homedetails
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.data.model.AirdropNotification
+import com.ga.airdrop.feature.shop.ShopCheckoutStore
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CompletableDeferred
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class NotificationsSessionBindingTest {
+
+    @Test
+    fun lateRefreshCannotReplaceStateAfterSessionChanges() {
+        val session = AtomicReference(snapshot("account-a", 10, "session-a"))
+        val response = CompletableDeferred<Result<List<AirdropNotification>>>()
+        val source = FakeNotificationsDataSource(fetchNotifications = { _, _ -> response.await() })
+        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+        val beforeCompletion = viewModel.state.value
+
+        session.set(snapshot("account-b", 11, "session-b"))
+        response.complete(Result.success(listOf(notification("late-a"))))
+        waitForIdle()
+
+        assertEquals(beforeCompletion, viewModel.state.value)
+    }
+
+    @Test
+    fun lateLoadMoreCannotChangeRowsOrPaginationAfterSessionChanges() {
+        val session = AtomicReference(snapshot("account-a", 20, "session-a"))
+        val nextPage = CompletableDeferred<Result<List<AirdropNotification>>>()
+        val calls = AtomicInteger()
+        val firstPage = (1..20).map { notification("a-$it") }
+        val source = FakeNotificationsDataSource(fetchNotifications = { _, _ ->
+            if (calls.incrementAndGet() == 1) Result.success(firstPage) else nextPage.await()
+        })
+        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+        waitUntil { viewModel.state.value.loadedOnce }
+        onMain { viewModel.loadMore() }
+        waitUntil { viewModel.state.value.loadingMore }
+        val beforeCompletion = viewModel.state.value
+
+        session.set(snapshot("account-b", 21, "session-b"))
+        nextPage.complete(Result.success(listOf(notification("late-page"))))
+        waitForIdle()
+
+        assertEquals(beforeCompletion, viewModel.state.value)
+        assertFalse(viewModel.state.value.items.any { it.id == "late-page" })
+    }
+
+    @Test
+    fun staleNotificationTapCannotMutateUiGlobalRouteOrServer() {
+        val session = AtomicReference(snapshot("account-a", 30, "session-a"))
+        val markCalls = AtomicInteger()
+        val item = notification(
+            "account-a-row",
+            route = "AuctionProductCheckoutView",
+            referenceId = "account-a-product",
+        )
+        val source = FakeNotificationsDataSource(
+            fetchNotifications = { _, _ -> Result.success(listOf(item)) },
+            markReadRequest = { _, _ -> markCalls.incrementAndGet(); Result.success(Unit) },
+        )
+        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+        waitUntil { viewModel.state.value.loadedOnce }
+        ShopCheckoutStore.pendingRef = "account-b-existing-ref"
+        session.set(snapshot("account-b", 31, "session-b"))
+
+        val route = onMain { viewModel.onNotificationTapped(item) }
+        waitForIdle()
+
+        assertNull(route)
+        assertFalse(viewModel.state.value.items.single().isRead)
+        assertEquals(0, markCalls.get())
+        assertEquals("account-b-existing-ref", ShopCheckoutStore.pendingRef)
+        ShopCheckoutStore.pendingRef = null
+    }
+
+    @Test
+    fun lateMarkReadCompletionCannotMutateReplacementSessionState() {
+        val session = AtomicReference(snapshot("account-a", 35, "session-a"))
+        val markResponse = CompletableDeferred<Result<Unit>>()
+        val item = notification("account-a-row", route = "PackagesView")
+        val source = FakeNotificationsDataSource(
+            fetchNotifications = { _, _ -> Result.success(listOf(item)) },
+            markReadRequest = { _, _ -> markResponse.await() },
+        )
+        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+        waitUntil { viewModel.state.value.loadedOnce }
+        onMain { viewModel.onNotificationTapped(item) }
+        val beforeCompletion = viewModel.state.value
+
+        session.set(snapshot("account-b", 36, "session-b"))
+        markResponse.complete(Result.success(Unit))
+        waitForIdle()
+
+        assertEquals(beforeCompletion, viewModel.state.value)
+    }
+
+    @Test
+    fun currentSessionTapStillMarksReadAndResolvesCanonicalRoute() {
+        val session = AtomicReference(snapshot("account-a", 40, "session-a"))
+        val markCalls = AtomicInteger()
+        val item = notification("current-row", route = "PackagesView")
+        val source = FakeNotificationsDataSource(
+            fetchNotifications = { _, _ -> Result.success(listOf(item)) },
+            markReadRequest = { _, _ -> markCalls.incrementAndGet(); Result.success(Unit) },
+        )
+        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+        waitUntil { viewModel.state.value.loadedOnce }
+
+        val route = onMain { viewModel.onNotificationTapped(item) }
+        waitUntil { markCalls.get() == 1 }
+
+        assertEquals(Routes.PACKAGES, route)
+        assertEquals(true, viewModel.state.value.items.single().isRead)
+    }
+
+    @Test
+    fun sameSessionRotationAcceptsLateRefreshWithoutStrandingLoading() {
+        val session = AtomicReference(snapshot("token-a", 50, "session-a"))
+        val response = CompletableDeferred<Result<List<AirdropNotification>>>()
+        val source = FakeNotificationsDataSource(fetchNotifications = { _, _ -> response.await() })
+        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+
+        session.set(snapshot("token-a-rotated", 51, "session-a"))
+        response.complete(Result.success(listOf(notification("same-session-refresh"))))
+        waitUntil { viewModel.state.value.loadedOnce }
+
+        assertFalse(viewModel.state.value.loading)
+        assertEquals("same-session-refresh", viewModel.state.value.items.single().id)
+    }
+
+    @Test
+    fun sameSessionRotationAcceptsLatePageWithoutStrandingPagination() {
+        val session = AtomicReference(snapshot("token-a", 60, "session-a"))
+        val nextPage = CompletableDeferred<Result<List<AirdropNotification>>>()
+        val calls = AtomicInteger()
+        val firstPage = (1..20).map { notification("a-$it") }
+        val source = FakeNotificationsDataSource(fetchNotifications = { _, _ ->
+            if (calls.incrementAndGet() == 1) Result.success(firstPage) else nextPage.await()
+        })
+        val viewModel = onMain { NotificationsViewModel(source, session::get) }
+        waitUntil { viewModel.state.value.loadedOnce }
+        onMain { viewModel.loadMore() }
+        waitUntil { viewModel.state.value.loadingMore }
+
+        session.set(snapshot("token-a-rotated", 61, "session-a"))
+        nextPage.complete(Result.success(listOf(notification("same-session-page"))))
+        waitUntil { !viewModel.state.value.loadingMore }
+
+        assertEquals(21, viewModel.state.value.items.size)
+        assertEquals("same-session-page", viewModel.state.value.items.last().id)
+    }
+
+    private fun snapshot(token: String, revision: Long, sessionId: String) =
+        AuthTokenStore.Snapshot(token, revision, sessionId)
+
+    private fun notification(
+        id: String,
+        route: String? = null,
+        referenceId: String? = null,
+    ) = AirdropNotification(
+        id = id,
+        title = id,
+        route = route,
+        referenceId = referenceId,
+    )
+
+    private fun waitForIdle() {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        Thread.sleep(50)
+    }
+
+    private fun waitUntil(predicate: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (!predicate() && System.currentTimeMillis() < deadline) {
+            waitForIdle()
+        }
+        assertEquals("Timed out waiting for asynchronous state", true, predicate())
+    }
+
+    private fun <T> onMain(block: () -> T): T {
+        val value = AtomicReference<T>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { value.set(block()) }
+        return value.get()
+    }
+}
+
+private class FakeNotificationsDataSource(
+    private val fetchNotifications: suspend (Int, Int) -> Result<List<AirdropNotification>>,
+    private val markReadRequest: suspend (String, AuthTokenStore.Snapshot) -> Result<Unit> =
+        { _, _ -> Result.success(Unit) },
+) : NotificationsDataSource {
+    override suspend fun notifications(
+        page: Int,
+        limit: Int,
+    ): Result<List<AirdropNotification>> = fetchNotifications(page, limit)
+
+    override suspend fun markNotificationRead(
+        id: String,
+        expectedSession: AuthTokenStore.Snapshot,
+    ): Result<Unit> = markReadRequest(id, expectedSession)
+}

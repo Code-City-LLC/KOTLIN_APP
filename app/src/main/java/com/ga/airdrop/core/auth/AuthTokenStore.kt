@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -14,14 +15,22 @@ import kotlinx.coroutines.flow.StateFlow
  */
 object AuthTokenStore {
 
-    data class Snapshot(val token: String?, val revision: Long)
+    data class Snapshot(
+        val token: String?,
+        val revision: Long,
+        val sessionId: String? = null,
+    )
+
+    data class RequestProvenance(val revision: Long, val sessionId: String)
 
     private const val PREFS = "airdrop_auth"
     private const val KEY_TOKEN = "api_token"
+    private const val KEY_SESSION_ID = "session_id"
 
     private lateinit var prefs: SharedPreferences
     private val stateLock = Any()
     private var revision = 0L
+    private var sessionId: String? = null
 
     private val _token = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> get() = _token
@@ -45,7 +54,15 @@ object AuthTokenStore {
             // launch; the token is re-issued at next login anyway.
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         }
-        _token.value = prefs.getString(KEY_TOKEN, null)
+        val storedToken = prefs.getString(KEY_TOKEN, null)
+        _token.value = storedToken
+        sessionId = if (storedToken == null) {
+            prefs.edit().remove(KEY_SESSION_ID).apply()
+            null
+        } else {
+            prefs.getString(KEY_SESSION_ID, null)?.takeIf { it.isNotBlank() }
+                ?: newSessionId().also { prefs.edit().putString(KEY_SESSION_ID, it).commit() }
+        }
         revision += 1
     }
 
@@ -55,21 +72,74 @@ object AuthTokenStore {
         // Application.onCreate() calls init(); touching lateinit prefs then
         // would throw UninitializedPropertyAccessException (BUG_AUDIT C8).
         _token.value = token
+        sessionId = newSessionId()
         revision += 1
         if (::prefs.isInitialized) {
-            prefs.edit().putString(KEY_TOKEN, token).apply()
+            prefs.edit()
+                .putString(KEY_TOKEN, token)
+                .putString(KEY_SESSION_ID, sessionId)
+                .apply()
         }
     }
 
-    fun clear() = synchronized(stateLock) {
-        _token.value = null
+    /** Rotates a bearer only when the exact expected session generation is current. */
+    fun rotate(expected: Snapshot, newToken: String): Snapshot? = synchronized(stateLock) {
+        if (newToken.isBlank() || currentSnapshot() != expected || expected.sessionId == null) {
+            return null
+        }
+        _token.value = newToken
         revision += 1
         if (::prefs.isInitialized) {
-            prefs.edit().remove(KEY_TOKEN).apply()
+            prefs.edit()
+                .putString(KEY_TOKEN, newToken)
+                .putString(KEY_SESSION_ID, sessionId)
+                .apply()
+        }
+        currentSnapshot()
+    }
+
+    fun clear() = synchronized(stateLock) {
+        clearLocked()
+    }
+
+    /** Clears only if the exact request generation still owns the session. */
+    fun clear(expected: Snapshot): Boolean = synchronized(stateLock) {
+        if (currentSnapshot() != expected) return false
+        clearLocked()
+        true
+    }
+
+    private fun clearLocked() {
+        _token.value = null
+        sessionId = null
+        revision += 1
+        if (::prefs.isInitialized) {
+            prefs.edit().remove(KEY_TOKEN).remove(KEY_SESSION_ID).apply()
         }
     }
 
     fun snapshot(): Snapshot = synchronized(stateLock) {
-        Snapshot(token = _token.value, revision = revision)
+        currentSnapshot()
     }
+
+    /** Non-secret session identity used to bind delayed work without exposing a bearer. */
+    fun requestProvenance(snapshot: Snapshot): RequestProvenance? {
+        if (snapshot.token == null) return null
+        val id = snapshot.sessionId?.takeIf { it.isNotBlank() } ?: return null
+        return RequestProvenance(snapshot.revision, id)
+    }
+
+    fun isSameSession(first: Snapshot, second: Snapshot): Boolean =
+        first.sessionId != null && first.sessionId == second.sessionId
+
+    private fun currentSnapshot(): Snapshot = Snapshot(
+        token = _token.value,
+        revision = revision,
+        sessionId = sessionId,
+    )
+
+    private fun newSessionId(): String = UUID.randomUUID().toString()
+
+    const val REQUEST_REVISION_HEADER = "X-Airdrop-Auth-Revision"
+    const val REQUEST_SESSION_ID_HEADER = "X-Airdrop-Auth-Session"
 }
