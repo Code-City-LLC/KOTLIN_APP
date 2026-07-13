@@ -70,7 +70,7 @@ class AuthInterceptor internal constructor(
         attachedToken?.let { builder.header("Authorization", "Bearer $it") }
         val request = builder.build()
 
-        val response = if (attachedToken != null) {
+        val response = if (isSessionBound) {
             proceedForSession(chain, request, currentSnapshot)
         } else {
             chain.proceed(request)

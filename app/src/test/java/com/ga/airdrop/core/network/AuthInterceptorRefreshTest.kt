@@ -101,6 +101,14 @@ class AuthInterceptorRefreshTest {
     private fun apiRequest(path: String = "/api/user/packages"): Request =
         Request.Builder().url("https://example.test$path").get().build()
 
+    private fun sessionBoundRequest(): Request {
+        val provenance = requireNotNull(AuthTokenStore.requestProvenance(AuthTokenStore.snapshot()))
+        return apiRequest("/api/user/notifications/mark-read").newBuilder()
+            .header(AuthTokenStore.REQUEST_REVISION_HEADER, provenance.revision.toString())
+            .header(AuthTokenStore.REQUEST_SESSION_ID_HEADER, provenance.sessionId)
+            .build()
+    }
+
     private val isRefresh: (Request) -> Boolean =
         { it.url.encodedPath.endsWith("auth/refresh") }
 
@@ -366,27 +374,6 @@ class AuthInterceptorRefreshTest {
     }
 
     @Test
-    fun `ordinary authenticated dispatch is canceled by replacement session`() {
-        val saveFinished = CountDownLatch(1)
-        lateinit var replacement: Thread
-        val chain = ScriptedChain(apiRequest()) { req, _ ->
-            replacement = thread {
-                AuthTokenStore.save("account-b-token")
-                saveFinished.countDown()
-            }
-            assertTrue(saveFinished.await(1, TimeUnit.SECONDS))
-            response(req, 200)
-        }
-
-        val failure = runCatching { interceptor.intercept(chain) }.exceptionOrNull()
-        replacement.join(1_000)
-
-        assertTrue(failure is StaleAuthSessionException)
-        assertEquals("account-b-token", AuthTokenStore.token)
-        assertTrue(chain.isCanceled)
-    }
-
-    @Test
     fun `replacement at response completion boundary invalidates retry atomically`() {
         interceptor = AuthInterceptor(
             beforeRetry = {},
@@ -415,7 +402,7 @@ class AuthInterceptorRefreshTest {
 
     @Test
     fun `replacement after headers cancels lazy body before account a data is consumed`() {
-        val chain = ScriptedChain(apiRequest()) { req, _ ->
+        val chain = ScriptedChain(sessionBoundRequest()) { req, _ ->
             response(req, 200, """{"account":"a"}""")
         }
         val result = interceptor.intercept(chain)
@@ -431,7 +418,7 @@ class AuthInterceptorRefreshTest {
     @Test
     fun `replacement after exact length read is rejected when body closes`() {
         val payload = """{"account":"a"}"""
-        val chain = ScriptedChain(apiRequest()) { req, _ -> response(req, 200, payload) }
+        val chain = ScriptedChain(sessionBoundRequest()) { req, _ -> response(req, 200, payload) }
         val result = interceptor.intercept(chain)
         val source = requireNotNull(result.body).source()
 
