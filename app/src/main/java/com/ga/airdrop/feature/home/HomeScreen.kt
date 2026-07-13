@@ -57,6 +57,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.frostedGlassCardSurface
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.model.AuctionProduct
@@ -278,10 +279,11 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     .width(238.dp)
                     .height(326.dp)
                     .testTag("home-warehouse-${card.type}")
-                    // Current Swift corrective + Figma 40001464:28907-28909:
-                    // solid gray150 cards with the shared 1dp hairline.
+                    // Swift uses blur + glassOverlay62. Compose has no backdrop
+                    // blur here, so use the shared high-opacity fallback instead
+                    // of exposing the hero through a flat 62% tint.
                     .clip(cardShape)
-                    .background(colors.gray150)
+                    .background(colors.frostedGlassCardSurface)
                     .border(1.dp, colors.cardHairline, cardShape)
                     // Swift: the WHOLE card is a tap target → WarehouseView.
                     .clickable { onOpen(card.type) }
@@ -625,7 +627,7 @@ private fun ReferAFriendCard(onClick: () -> Unit) {
             .height(59.dp)
             .testTag("home-refer-friend")
             .clip(RoundedCornerShape(Spacing.sm1)) // radius 15 (Figma 2xs)
-            .background(colors.gray100)
+            .background(colors.frostedGlassCardSurface)
             .border(1.dp, colors.cardHairline, RoundedCornerShape(Spacing.sm1))
             .clickable(onClick = onClick)
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),

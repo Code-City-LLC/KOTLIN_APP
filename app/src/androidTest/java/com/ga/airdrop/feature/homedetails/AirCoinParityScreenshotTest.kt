@@ -184,13 +184,23 @@ class AirCoinParityScreenshotTest {
     }
 
     private fun assertHistoryFigmaGeometryAndCopy() {
+        val heroBounds = compose.onNodeWithTag("aircoin-history-hero-wrap", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        val cardBounds = compose.onNodeWithTag("aircoin-history-table-card", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
         assertClose(332f, boundsHeight("aircoin-history-hero-wrap"), "History hero wrap height")
         assertClose(375f, boundsWidth("aircoin-history-hero-image"), "History hero image width")
         assertClose(332f, boundsHeight("aircoin-history-hero-image"), "History hero image height")
-        assertClose(335f, boundsWidth("aircoin-history-table-card"), "History table card width")
-        assertClose(240f, boundsHeight("aircoin-history-table-card"), "History table card height")
-        assertClose(48f, boundsHeight("aircoin-history-header-row"), "History header row height")
-        assertClose(48f, boundsHeight("aircoin-history-row-0"), "History body row height")
+        assertClose(345f, boundsWidth("aircoin-history-table-card"), "History table card width")
+        assertClose(206f, boundsHeight("aircoin-history-table-card"), "History table card height")
+        assertClose(43f, boundsHeight("aircoin-history-header-row"), "History header row height")
+        assertClose(40f, boundsHeight("aircoin-history-row-0"), "History body row height")
+        assertClose(1f, boundsHeight("aircoin-history-divider-1"), "History body divider height")
+        assertClose(
+            -55f,
+            (cardBounds.top - heroBounds.bottom).value,
+            "Swift History hero/table overlap",
+        )
 
         compose.onNodeWithText("Invoice No.").assertIsDisplayed()
         compose.onNodeWithText("Air Coin Used").assertIsDisplayed()

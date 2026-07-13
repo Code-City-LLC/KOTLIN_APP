@@ -164,7 +164,7 @@ val lightAirdropColors = AirdropColorScheme(
     textWhiteTitle = Color(0xFFFFFFFF),
     textDescription = Color(0xFF5C5C5C),
     textPlaceholder = Color(0xFF999999),
-    divider = Color(0xFFD9D9D9),
+    divider = Color(0xFFE5E5E5),
     iconShape = Color(0xFFE5E5E5),
     cardHairline = Color(0xFFE5E5E5),
     iconWhite = Color(0xFFFFFFFF),
@@ -205,5 +205,23 @@ val darkAirdropColors = AirdropColorScheme(
     glassOverlay70 = Color(0xB3292929),
     signInBackground = GradientPalette.SignInBackgroundDark,
 )
+
+/**
+ * Android fallback for Figma and Swift glass surfaces. Swift combines a
+ * 62/70% tint with a real backdrop blur; applying that tint alone in Compose
+ * leaves imagery sharply visible through the surface. Keep the source overlay
+ * tokens unchanged and raise only the flat fallback's perceived opacity. The
+ * 97% value keeps bright hero detail from reading sharply through an unblurred
+ * Android panel while preserving a small backdrop contribution.
+ */
+const val FROSTED_GLASS_FALLBACK_ALPHA = 0.97f
+
+val AirdropColorScheme.frostedGlassSurface: Color
+    get() = (if (isDark) Color(0xFF292929) else Color.White)
+        .copy(alpha = FROSTED_GLASS_FALLBACK_ALPHA)
+
+/** Home card glass resolves visually to Figma's opaque gray150 after Swift blur. */
+val AirdropColorScheme.frostedGlassCardSurface: Color
+    get() = gray150
 
 val LocalAirdropColors = staticCompositionLocalOf { lightAirdropColors }

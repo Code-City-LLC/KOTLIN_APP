@@ -35,8 +35,7 @@ class HomeHairlineParityTest {
         assertHomeHairlines(
             mode = ThemeController.Mode.LIGHT,
             expectedArgb = lightAirdropColors.cardHairline.toArgb(),
-            expectedWarehouseArgb = lightAirdropColors.gray150.toArgb(),
-            expectedReferArgb = lightAirdropColors.gray100.toArgb(),
+            expectedSurfaceArgb = lightAirdropColors.gray150.toArgb(),
         )
     }
 
@@ -45,16 +44,14 @@ class HomeHairlineParityTest {
         assertHomeHairlines(
             mode = ThemeController.Mode.DARK,
             expectedArgb = darkAirdropColors.cardHairline.toArgb(),
-            expectedWarehouseArgb = darkAirdropColors.gray150.toArgb(),
-            expectedReferArgb = darkAirdropColors.gray100.toArgb(),
+            expectedSurfaceArgb = darkAirdropColors.gray150.toArgb(),
         )
     }
 
     private fun assertHomeHairlines(
         mode: ThemeController.Mode,
         expectedArgb: Int,
-        expectedWarehouseArgb: Int,
-        expectedReferArgb: Int,
+        expectedSurfaceArgb: Int,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -78,10 +75,10 @@ class HomeHairlineParityTest {
                 bitmap = bitmap,
                 expectedArgb = expectedArgb,
             )
-            assertSolidSurface(
+            assertOpaqueSurface(
                 label = "$mode $type warehouse card",
                 bitmap = bitmap,
-                expectedArgb = expectedWarehouseArgb,
+                expectedArgb = expectedSurfaceArgb,
                 horizontalInsetDp = 12f,
             )
             saveProof(bitmap, mode, type)
@@ -97,10 +94,10 @@ class HomeHairlineParityTest {
             bitmap = referBitmap,
             expectedArgb = expectedArgb,
         )
-        assertSolidSurface(
+        assertOpaqueSurface(
             label = "$mode Refer a friend card",
             bitmap = referBitmap,
-            expectedArgb = expectedReferArgb,
+            expectedArgb = expectedSurfaceArgb,
             horizontalInsetDp = 8f,
         )
         saveProof(referBitmap, mode, "refer")
@@ -139,7 +136,7 @@ class HomeHairlineParityTest {
             abs((this and 0xFF) - (target and 0xFF)) <= tolerance
     }
 
-    private fun assertSolidSurface(
+    private fun assertOpaqueSurface(
         label: String,
         bitmap: Bitmap,
         expectedArgb: Int,
@@ -151,11 +148,11 @@ class HomeHairlineParityTest {
             .displayMetrics
             .density
         val x = (horizontalInsetDp * density).toInt().coerceIn(0, bitmap.width - 1)
-        val y = bitmap.height / 2
-        val actual = bitmap.getPixel(x, y)
+        val actual = bitmap.getPixel(x, bitmap.height / 2)
         assertTrue(
-            "$label must use its canonical solid surface; " +
-                "expected=${expectedArgb.toUInt().toString(16)} actual=${actual.toUInt().toString(16)}",
+            "$label must render the opaque Swift/Figma post-blur surface; " +
+                "expected=${expectedArgb.toUInt().toString(16)} " +
+                "actual=${actual.toUInt().toString(16)}",
             actual.isNear(expectedArgb),
         )
     }

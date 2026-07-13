@@ -73,6 +73,7 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -161,7 +162,7 @@ fun InviteFriendScreen(
             title = "Send Invitation",
             onBack = onBack,
             modifier = Modifier.testTag("invite-friend-glass-header"),
-            surfaceColor = colors.glassOverlay70,
+            surfaceColor = colors.frostedGlassSurface,
             dividerColor = colors.cardHairline,
         )
 
