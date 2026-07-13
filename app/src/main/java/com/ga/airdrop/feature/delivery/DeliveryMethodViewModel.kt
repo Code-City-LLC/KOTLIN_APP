@@ -7,6 +7,7 @@ import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.data.model.DeliveryLocation
 import com.ga.airdrop.data.model.DeliveryWarehouse
 import com.ga.airdrop.data.model.PlaceResult
+import com.ga.airdrop.data.repo.DeliveryGateway
 import com.ga.airdrop.data.repo.DeliveryRepository
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.shop.ShopCheckoutRepository
@@ -38,7 +39,7 @@ import kotlinx.coroutines.launch
  * Tab. restore JMD→Profile / USD→Order Summary when those screens land.
  */
 class DeliveryMethodViewModel(
-    private val repo: DeliveryRepository = DeliveryRepository(ApiClient.service),
+    private val repo: DeliveryGateway = DeliveryRepository(ApiClient.service),
     private val checkout: ShopCheckoutRepository = ShopRepoProvider.checkout,
 ) : ViewModel() {
 
@@ -112,7 +113,13 @@ class DeliveryMethodViewModel(
     }
 
     fun onModeSelected(mode: DeliveryMode) {
-        _state.update { it.copy(mode = mode) }
+        if (mode == DeliveryMode.Pickup) {
+            searchJob?.cancel()
+            latestQuery = ""
+            _state.update { it.copy(mode = mode, searchResults = emptyList()) }
+        } else {
+            _state.update { it.copy(mode = mode) }
+        }
     }
 
     fun onWarehouseSelected(warehouse: DeliveryWarehouse) {
@@ -168,7 +175,9 @@ class DeliveryMethodViewModel(
             repo.searchPlaces(trimmed).onSuccess { results ->
                 // Stale guard (Swift does BOTH checks): only apply when this
                 // is still the latest request AND the field text is unchanged.
-                if (shouldApplySearchResults(latestQuery, trimmed, _state.value.searchQuery)) {
+                if (_state.value.mode == DeliveryMode.Delivery &&
+                    shouldApplySearchResults(latestQuery, trimmed, _state.value.searchQuery)
+                ) {
                     _state.update { it.copy(searchResults = results) }
                 }
             }
@@ -289,16 +298,18 @@ class DeliveryMethodViewModel(
 
         reverseGeocodeJob?.cancel()
         reverseGeocodeJob = viewModelScope.launch {
-            repo.reverseGeocode(latitude, longitude).onSuccess { result ->
-                val address = result.address?.takeIf { it.isNotBlank() } ?: return@onSuccess
-                // Belt-and-braces alongside the cancel above: commit only if
-                // the marker coord is unchanged (Swift's final guard).
-                if (_state.value.markerCoord == coord) {
-                    _state.update { it.copy(searchQuery = address, validatedAddress = address) }
-                }
+            val address = resolveGeocodedAddress(repo, deviceGeocoder, latitude, longitude)
+                ?: return@launch
+            // PR47 lineage: cancellation is cooperative, so coordinate ownership
+            // is checked again immediately before committing the place name.
+            if (geocodeCommitAllowed(_state.value.markerCoord, coord)) {
+                _state.update { it.copy(searchQuery = address, validatedAddress = address) }
             }
         }
     }
+
+    /** Android service fallback supplied by the screen; Laravel remains first. */
+    var deviceGeocoder: (suspend (Double, Double) -> String?)? = null
 
     /**
      * "Use Current Location". The SCREEN owns permission + the location
@@ -633,6 +644,21 @@ internal fun shouldApplySearchResults(
     requestQuery: String,
     currentFieldText: String,
 ): Boolean = latestQuery == requestQuery && currentFieldText.trim() == requestQuery
+
+/** PR47 recovery: Laravel address first, then the platform geocoder. */
+internal suspend fun resolveGeocodedAddress(
+    gateway: DeliveryGateway,
+    deviceGeocoder: (suspend (Double, Double) -> String?)?,
+    latitude: Double,
+    longitude: Double,
+): String? = gateway.reverseGeocode(latitude, longitude).getOrNull()?.address
+    ?.takeIf { it.isNotBlank() }
+    ?: deviceGeocoder?.invoke(latitude, longitude)?.takeIf { it.isNotBlank() }
+
+internal fun geocodeCommitAllowed(
+    currentMarker: Pair<Double, Double>?,
+    requestedMarker: Pair<Double, Double>,
+): Boolean = currentMarker == requestedMarker
 
 /** What tapping the CTA should do — Swift onContinue, decision extracted pure. */
 internal sealed interface ContinueDecision {
