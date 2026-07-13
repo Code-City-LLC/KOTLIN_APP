@@ -65,6 +65,7 @@ import com.ga.airdrop.data.model.SignUpRequest
 import com.ga.airdrop.data.model.UserDocuments
 import com.ga.airdrop.data.model.ValidateLocationRequest
 import com.ga.airdrop.data.model.Warehouse
+import com.ga.airdrop.core.auth.AuthTokenStore
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
@@ -72,6 +73,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Headers
+import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -206,7 +208,11 @@ interface AirdropApiService {
     ): Paginated<AirdropNotification>
 
     @POST("user/notifications/mark-read")
-    suspend fun markNotificationRead(@Body body: MarkNotificationReadRequest): MutationResponse
+    suspend fun markNotificationRead(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+        @Body body: MarkNotificationReadRequest,
+    ): MutationResponse
 
     @POST("device-tokens/register")
     suspend fun registerDeviceToken(@Body body: RegisterDeviceTokenRequest): MutationResponse

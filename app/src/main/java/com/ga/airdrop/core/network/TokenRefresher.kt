@@ -19,20 +19,26 @@ object TokenRefresher {
     private val lock = Any()
 
     /**
-     * [failedToken] is the bearer that just 401'd; [performRefresh] runs the
-     * actual network call and returns the new token (null on any failure —
+     * [expectedSession] is the exact generation that just 401'd;
+     * [performRefresh] receives that generation's bearer and runs the actual
+     * network call, returning the new token (null on any failure —
      * Swift also rejects a body-less 200, so "no token" is "failed").
-     * Returns true when the caller should retry with [AuthTokenStore.token].
+     * Returns the exact same-session snapshot the caller may safely retry with.
      */
-    fun refresh(failedToken: String, performRefresh: () -> String?): Boolean =
+    fun refresh(
+        expectedSession: AuthTokenStore.Snapshot,
+        performRefresh: (expectedToken: String) -> String?,
+    ): AuthTokenStore.Snapshot? =
         synchronized(lock) {
-            val current = AuthTokenStore.token
+            val current = AuthTokenStore.snapshot()
             // Rotated while we waited on the lock — Swift's "await the
             // existing task" arm. No second network round-trip.
-            if (current != null && current != failedToken) return true
-            val newToken = performRefresh()?.takeIf { it.isNotBlank() } ?: return false
-            AuthTokenStore.save(newToken)
-            true
+            if (current != expectedSession) {
+                return current.takeIf { AuthTokenStore.isSameSession(it, expectedSession) }
+            }
+            val expectedToken = expectedSession.token ?: return null
+            val newToken = performRefresh(expectedToken)?.takeIf { it.isNotBlank() } ?: return null
+            AuthTokenStore.rotate(expectedSession, newToken)
         }
 
     /**
@@ -48,14 +54,15 @@ object TokenRefresher {
         expectedSession: AuthTokenStore.Snapshot,
         httpCode: Int?,
         newToken: String?,
+        beforeApply: () -> Unit = {},
     ) {
         synchronized(lock) {
-            // The request may finish after login or another refresh installs a
-            // newer bearer. A stale outcome must neither clear nor overwrite it.
-            if (AuthTokenStore.snapshot() != expectedSession) return
+            beforeApply()
             when {
-                httpCode == 401 -> AuthTokenStore.clear()
-                !newToken.isNullOrBlank() -> AuthTokenStore.save(newToken)
+                // Both operations compare and mutate under AuthTokenStore's
+                // own lock, closing the check-then-clear/rotate race.
+                httpCode == 401 -> AuthTokenStore.clear(expectedSession)
+                !newToken.isNullOrBlank() -> AuthTokenStore.rotate(expectedSession, newToken)
                 else -> Unit
             }
         }

@@ -2,12 +2,15 @@ package com.ga.airdrop.feature.homedetails
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.data.repo.MiscRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -27,26 +30,71 @@ data class NotificationsUiState(
  * on tap, deep-link route resolution. Swift staging currently carries an older
  * static empty-state variant, so behavior changes here need a product decision.
  */
-class NotificationsViewModel(
-    private val miscRepository: MiscRepository = MiscRepository(ApiClient.service),
+class NotificationsViewModel internal constructor(
+    private val dataSource: NotificationsDataSource = RepositoryNotificationsDataSource(
+        MiscRepository(ApiClient.service),
+    ),
+    private val sessionSnapshot: () -> AuthTokenStore.Snapshot = AuthTokenStore::snapshot,
+    private val sessionChanges: Flow<AuthTokenStore.Snapshot>? = null,
 ) : ViewModel() {
+
+    constructor() : this(
+        dataSource = RepositoryNotificationsDataSource(MiscRepository(ApiClient.service)),
+        sessionSnapshot = AuthTokenStore::snapshot,
+        sessionChanges = AuthTokenStore.snapshotFlow,
+    )
 
     private val _state = MutableStateFlow(NotificationsUiState())
     val state: StateFlow<NotificationsUiState> = _state
 
     private var page = 1
     private val perPage = 20
+    private var contentSessionId = sessionSnapshot().sessionId
+    private var observedSessionId = contentSessionId
+    private var refreshGeneration = 0L
+    private var loadMoreGeneration = 0L
 
     init {
         refresh()
+        sessionChanges?.let { changes ->
+            viewModelScope.launch {
+                changes.collect { changed ->
+                    if (changed.sessionId == observedSessionId) return@collect
+                    observedSessionId = changed.sessionId
+                    refreshGeneration += 1
+                    loadMoreGeneration += 1
+                    contentSessionId = changed.sessionId
+                    page = 1
+                    _state.value = NotificationsUiState()
+                    if (changed.token != null) refresh()
+                }
+            }
+        }
     }
 
     fun refresh() {
+        val expectedSession = sessionSnapshot()
+        val generation = ++refreshGeneration
+        loadMoreGeneration += 1
         page = 1
-        _state.update { it.copy(loading = true, error = null, endReached = false) }
+        val sessionChanged = expectedSession.sessionId != contentSessionId
+        contentSessionId = expectedSession.sessionId
+        _state.update {
+            if (sessionChanged) {
+                NotificationsUiState(loading = true)
+            } else {
+                it.copy(loading = true, loadingMore = false, error = null, endReached = false)
+            }
+        }
         viewModelScope.launch {
-            miscRepository.notifications(page, perPage)
+            dataSource.notifications(page, perPage)
                 .onSuccess { batch ->
+                    if (generation != refreshGeneration) return@onSuccess
+                    if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        retireStaleSession(generation)
+                        return@onSuccess
+                    }
+                    contentSessionId = expectedSession.sessionId
                     _state.update {
                         it.copy(
                             items = batch,
@@ -57,6 +105,11 @@ class NotificationsViewModel(
                     }
                 }
                 .onFailure { err ->
+                    if (generation != refreshGeneration) return@onFailure
+                    if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        retireStaleSession(generation)
+                        return@onFailure
+                    }
                     _state.update {
                         it.copy(
                             loading = false,
@@ -70,12 +123,25 @@ class NotificationsViewModel(
 
     fun loadMore() {
         val current = _state.value
-        if (current.loading || current.loadingMore || current.endReached) return
+        if (!current.loadedOnce || current.loading || current.loadingMore || current.endReached) return
+        if (sessionSnapshot().sessionId != contentSessionId || contentSessionId == null) return
         _state.update { it.copy(loadingMore = true) }
+        val expectedSession = sessionSnapshot()
+        val generation = ++loadMoreGeneration
+        val requestedPage = page + 1
         viewModelScope.launch {
-            miscRepository.notifications(page + 1, perPage)
+            if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                retireStalePage(generation)
+                return@launch
+            }
+            dataSource.notifications(requestedPage, perPage)
                 .onSuccess { batch ->
-                    page += 1
+                    if (generation != loadMoreGeneration) return@onSuccess
+                    if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        retireStalePage(generation)
+                        return@onSuccess
+                    }
+                    page = requestedPage
                     _state.update {
                         it.copy(
                             items = it.items + batch,
@@ -85,9 +151,28 @@ class NotificationsViewModel(
                     }
                 }
                 .onFailure {
+                    if (generation != loadMoreGeneration) return@onFailure
+                    if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
+                        retireStalePage(generation)
+                        return@onFailure
+                    }
                     _state.update { it.copy(loadingMore = false) }
                 }
         }
+    }
+
+    private fun retireStaleSession(generation: Long) {
+        if (generation != refreshGeneration) return
+        contentSessionId = null
+        page = 1
+        _state.value = NotificationsUiState()
+    }
+
+    private fun retireStalePage(generation: Long) {
+        if (generation != loadMoreGeneration) return
+        contentSessionId = null
+        page = 1
+        _state.value = NotificationsUiState()
     }
 
     /**
@@ -96,20 +181,45 @@ class NotificationsViewModel(
      * Returns the resolved in-app route to navigate to, or null.
      */
     fun onNotificationTapped(notification: AirdropNotification): String? {
-        if (!notification.isRead) {
+        val expectedSession = sessionSnapshot()
+        if (expectedSession.token == null || expectedSession.sessionId != contentSessionId) return null
+        val ownedNotification = _state.value.items.firstOrNull { it.id == notification.id }
+            ?: return null
+        if (!ownedNotification.isRead) {
             _state.update { state ->
                 state.copy(
                     items = state.items.map {
-                        if (it.id == notification.id) it.copy(isRead = true) else it
+                        if (it.id == ownedNotification.id) it.copy(isRead = true) else it
                     }
                 )
             }
             viewModelScope.launch {
-                miscRepository.markNotificationRead(notification.id)
+                if (sessionSnapshot() != expectedSession) return@launch
+                dataSource.markNotificationRead(ownedNotification.id, expectedSession)
             }
         }
-        return resolveNotificationRoute(notification)
+        return resolveNotificationRoute(ownedNotification)
     }
+}
+
+internal interface NotificationsDataSource {
+    suspend fun notifications(page: Int, limit: Int): Result<List<AirdropNotification>>
+    suspend fun markNotificationRead(
+        id: String,
+        expectedSession: AuthTokenStore.Snapshot,
+    ): Result<Unit>
+}
+
+private class RepositoryNotificationsDataSource(
+    private val repository: MiscRepository,
+) : NotificationsDataSource {
+    override suspend fun notifications(page: Int, limit: Int): Result<List<AirdropNotification>> =
+        repository.notifications(page, limit)
+
+    override suspend fun markNotificationRead(
+        id: String,
+        expectedSession: AuthTokenStore.Snapshot,
+    ): Result<Unit> = repository.markNotificationRead(id, expectedSession).map { }
 }
 
 /**

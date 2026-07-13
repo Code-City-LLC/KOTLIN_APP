@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.navigation.Routes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,26 +25,37 @@ object PushDeepLink {
     private const val PREFS = "push_deeplink"
     private const val KEY_ROUTE = "pendingRoute"
     private const val KEY_AT = "pendingAt"
+    private const val KEY_PROVENANCE = "pendingProvenance"
+    private const val KEY_SESSION_ID = "pendingSessionId"
+
+    private const val PROVENANCE_PRE_LOGIN = "preLogin"
+    private const val PROVENANCE_AUTHENTICATED = "authenticated"
 
     /** Swift AppDelegate staleness window — 30 minutes. */
     private const val STALE_MS = 30L * 60 * 1000
 
     private var prefs: SharedPreferences? = null
 
-    private val _pending = MutableStateFlow<String?>(null)
-    val pending: StateFlow<String?> = _pending
+    internal sealed interface Provenance {
+        data object PreLogin : Provenance
+        data class Authenticated(val sessionId: String) : Provenance
+    }
+
+    internal data class PendingRoute(
+        val route: String,
+        val capturedAt: Long,
+        val provenance: Provenance,
+    )
+
+    private val _pending = MutableStateFlow<PendingRoute?>(null)
+    internal val pending: StateFlow<PendingRoute?> = _pending
 
     /** Restore a persisted (non-stale) pending route on cold start. */
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val store = prefs ?: return
-        val route = store.getString(KEY_ROUTE, null) ?: return
-        val at = store.getLong(KEY_AT, 0L)
-        if (System.currentTimeMillis() - at <= STALE_MS) {
-            _pending.value = route
-        } else {
-            store.edit().remove(KEY_ROUTE).remove(KEY_AT).apply()
-        }
+        val restored = restore(store)
+        if (restored == null) clear() else _pending.value = restored
     }
 
     fun capture(intent: Intent?) {
@@ -65,6 +77,7 @@ object PushDeepLink {
         // deep_link is the FIRST priority in both references' resolution order.
         raw("deep_link")?.let { link ->
             runCatching { Uri.parse(link) }.getOrNull()?.let { uri ->
+                if (AuthTokenStore.token == null && !isSafePreLoginDeepLink(uri)) return
                 resolveDeepLink(uri)?.let { setPending(it); return }
             }
         }
@@ -86,6 +99,7 @@ object PushDeepLink {
             "package_id", "packageId",
             "tracking_code", "courier_number",
         )
+        if (AuthTokenStore.token == null && isSensitivePreLoginRouteName(route)) return
         setPending(resolve(route, referenceId))
     }
 
@@ -99,17 +113,146 @@ object PushDeepLink {
         resolveUri(uri)?.let(::setPending)
     }
 
-    fun consume(): String? = _pending.value.also {
+    fun consume(snapshot: AuthTokenStore.Snapshot = AuthTokenStore.snapshot()): String? {
+        val candidate = _pending.value ?: return null
+        if (isExpired(candidate)) {
+            clear()
+            return null
+        }
+        return when (val provenance = candidate.provenance) {
+            Provenance.PreLogin -> {
+                if (snapshot.token == null) null else candidate.route.also { clear() }
+            }
+            is Provenance.Authenticated -> {
+                if (snapshot.sessionId != provenance.sessionId) {
+                    // A route bound to one authenticated account must never wait
+                    // around to replay after a different account signs in.
+                    if (snapshot.token != null) clear()
+                    null
+                } else {
+                    candidate.route.also { clear() }
+                }
+            }
+        }
+    }
+
+    fun clear() {
         _pending.value = null
-        prefs?.edit()?.remove(KEY_ROUTE)?.remove(KEY_AT)?.apply()
+        prefs?.edit()?.remove(KEY_ROUTE)?.remove(KEY_AT)
+            ?.remove(KEY_PROVENANCE)?.remove(KEY_SESSION_ID)?.commit()
     }
 
     private fun setPending(route: String) {
-        _pending.value = route
-        prefs?.edit()
+        val snapshot = AuthTokenStore.snapshot()
+        val requestProvenance = AuthTokenStore.requestProvenance(snapshot)
+        val provenance = requestProvenance?.let {
+            Provenance.Authenticated(it.sessionId)
+        } ?: if (isSafePreLoginRoute(route)) Provenance.PreLogin else return
+        val candidate = PendingRoute(route, System.currentTimeMillis(), provenance)
+        _pending.value = candidate
+        val editor = prefs?.edit()
             ?.putString(KEY_ROUTE, route)
-            ?.putLong(KEY_AT, System.currentTimeMillis())
-            ?.apply()
+            ?.putLong(KEY_AT, candidate.capturedAt)
+        when (provenance) {
+            Provenance.PreLogin -> editor
+                ?.putString(KEY_PROVENANCE, PROVENANCE_PRE_LOGIN)
+                ?.remove(KEY_SESSION_ID)
+            is Provenance.Authenticated -> editor
+                ?.putString(KEY_PROVENANCE, PROVENANCE_AUTHENTICATED)
+                ?.putString(KEY_SESSION_ID, provenance.sessionId)
+        }
+        editor?.commit()
+    }
+
+    private fun restore(store: SharedPreferences): PendingRoute? {
+        val route = store.getString(KEY_ROUTE, null) ?: return null
+        val capturedAt = store.getLong(KEY_AT, 0L)
+        if (isExpired(capturedAt)) return null
+        val provenance = when (store.getString(KEY_PROVENANCE, null)) {
+            PROVENANCE_PRE_LOGIN ->
+                Provenance.PreLogin.takeIf { isSafePreLoginRoute(route) } ?: return null
+            PROVENANCE_AUTHENTICATED -> {
+                val persistedSessionId = store.getString(KEY_SESSION_ID, null) ?: return null
+                val snapshot = AuthTokenStore.snapshot()
+                // The encrypted auth store preserves this ID through process
+                // restarts and token rotation, but fresh login replaces it.
+                Provenance.Authenticated(persistedSessionId).takeIf {
+                    snapshot.token == null || snapshot.sessionId == persistedSessionId
+                } ?: return null
+            }
+            // Legacy route-only entries have no safe account provenance.
+            else -> return null
+        }
+        return PendingRoute(route, capturedAt, provenance)
+    }
+
+    /**
+     * Logged-out push payloads have no authoritative account owner. Only
+     * static destinations may bind to the first later session; resource IDs,
+     * carts/checkouts, and account-management surfaces fail closed.
+     */
+    internal fun isSafePreLoginRoute(route: String): Boolean = route in setOf(
+        Routes.HOME,
+        Routes.SHIPMENTS,
+        Routes.SHOP,
+        Routes.CONTACTS,
+        Routes.MORE,
+        Routes.PACKAGES,
+        Routes.PAYMENTS,
+        Routes.ORDERS,
+        Routes.AUCTION,
+        Routes.FEATURED_PRODUCTS,
+        Routes.NOTIFICATIONS,
+        Routes.NOTIFICATION_SETTINGS,
+        Routes.GOLD_PRIORITY,
+        Routes.AIRCOIN_HISTORY,
+        Routes.WAREHOUSES,
+        Routes.SERVICES,
+        Routes.SALES_TAXES,
+        Routes.CALCULATOR,
+        Routes.DROP_ALERT,
+        Routes.REFER_A_FRIEND,
+        Routes.REFERRED_FRIENDS,
+        Routes.INVITE_FRIEND,
+        Routes.PROMOTIONS,
+        Routes.DOCUMENTS,
+        Routes.SHIPPING_RATES,
+        Routes.RESTRICTED_ITEMS,
+        Routes.FAQ,
+        Routes.TERMS,
+        Routes.PRIVACY,
+    )
+
+    private fun isSensitivePreLoginRouteName(route: String): Boolean =
+        route.trim().lowercase() in setOf(
+            "packagedetailsview",
+            "paymentpackagedetailsview",
+            "productpaymentdetailsview",
+            "orderdetailsview",
+            "authorizeduserdetailview",
+            "auctionproductcheckoutview",
+            "checkoutview",
+            "addtocart",
+        )
+
+    private fun isSafePreLoginDeepLink(uri: Uri): Boolean =
+        uri.scheme?.lowercase() in setOf("airdrop", "airdropexpress") &&
+            uri.host?.lowercase() in setOf(
+                "packages",
+                "payments",
+                "promotions",
+                "refer",
+                "referral",
+                "support",
+                "contact",
+                "contacts",
+            )
+
+    private fun isExpired(candidate: PendingRoute): Boolean = isExpired(candidate.capturedAt)
+
+    private fun isExpired(capturedAt: Long): Boolean {
+        val age = System.currentTimeMillis() - capturedAt
+        return capturedAt <= 0L || age < 0L || age > STALE_MS
     }
 
     /** airdrop://payment-success?session_id=… → nav route, else null. */

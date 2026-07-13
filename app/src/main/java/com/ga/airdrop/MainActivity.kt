@@ -108,7 +108,7 @@ class MainActivity : FragmentActivity() {
                     }
                 }
                 var locked by rememberSaveable { mutableStateOf(lockedAtLaunch) }
-                AppRoot()
+                AppRoot(navigationUnlocked = !locked)
                 if (locked) {
                     BiometricLockScreen(
                         activity = this@MainActivity,

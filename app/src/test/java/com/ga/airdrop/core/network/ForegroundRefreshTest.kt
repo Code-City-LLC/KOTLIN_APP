@@ -38,8 +38,10 @@ class ForegroundRefreshTest {
 
     @Test
     fun `success rotates the bearer`() {
+        val sessionId = storedSession.sessionId
         TokenRefresher.applyForegroundRefresh(storedSession, httpCode = null, newToken = "rotated")
         assertEquals("rotated", AuthTokenStore.token)
+        assertEquals(sessionId, AuthTokenStore.snapshot().sessionId)
     }
 
     @Test
@@ -67,6 +69,18 @@ class ForegroundRefreshTest {
         TokenRefresher.applyForegroundRefresh(storedSession, httpCode = 401, newToken = null)
 
         assertEquals("newer-token", AuthTokenStore.token)
+    }
+
+    @Test
+    fun `replacement installed at apply boundary survives stale 401`() {
+        TokenRefresher.applyForegroundRefresh(
+            storedSession,
+            httpCode = 401,
+            newToken = null,
+            beforeApply = { AuthTokenStore.save("replacement-login-token") },
+        )
+
+        assertEquals("replacement-login-token", AuthTokenStore.token)
     }
 
     @Test

@@ -2,6 +2,8 @@ package com.ga.airdrop.core.auth
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 /**
@@ -30,5 +32,35 @@ class AuthTokenStoreCrashGuardTest {
         AuthTokenStore.save("tok-xyz")
         AuthTokenStore.clear()
         assertNull(AuthTokenStore.token)
+        assertNull(AuthTokenStore.snapshot().sessionId)
+    }
+
+    @Test
+    fun `fresh save replaces session while rotate preserves it`() {
+        AuthTokenStore.save("first-token")
+        val first = AuthTokenStore.snapshot()
+        assertNotNull(first.sessionId)
+
+        val rotated = requireNotNull(AuthTokenStore.rotate(first, "rotated-token"))
+        assertEquals(first.sessionId, rotated.sessionId)
+        assertNotEquals(first.revision, rotated.revision)
+
+        AuthTokenStore.save("fresh-login-token")
+        assertNotEquals(rotated.sessionId, AuthTokenStore.snapshot().sessionId)
+        AuthTokenStore.clear()
+    }
+
+    @Test
+    fun `snapshot flow publishes replacement sessions even for identical bearer text`() {
+        AuthTokenStore.save("same-token")
+        val first = AuthTokenStore.snapshotFlow.value
+
+        AuthTokenStore.save("same-token")
+        val replacement = AuthTokenStore.snapshotFlow.value
+
+        assertEquals(AuthTokenStore.snapshot(), replacement)
+        assertNotEquals(first.sessionId, replacement.sessionId)
+        assertNotEquals(first.revision, replacement.revision)
+        AuthTokenStore.clear()
     }
 }
