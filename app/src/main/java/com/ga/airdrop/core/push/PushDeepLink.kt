@@ -77,6 +77,7 @@ object PushDeepLink {
         // deep_link is the FIRST priority in both references' resolution order.
         raw("deep_link")?.let { link ->
             runCatching { Uri.parse(link) }.getOrNull()?.let { uri ->
+                if (AuthTokenStore.token == null && !isSafePreLoginDeepLink(uri)) return
                 resolveDeepLink(uri)?.let { setPending(it); return }
             }
         }
@@ -98,6 +99,7 @@ object PushDeepLink {
             "package_id", "packageId",
             "tracking_code", "courier_number",
         )
+        if (AuthTokenStore.token == null && isSensitivePreLoginRouteName(route)) return
         setPending(resolve(route, referenceId))
     }
 
@@ -137,7 +139,7 @@ object PushDeepLink {
     fun clear() {
         _pending.value = null
         prefs?.edit()?.remove(KEY_ROUTE)?.remove(KEY_AT)
-            ?.remove(KEY_PROVENANCE)?.remove(KEY_SESSION_ID)?.apply()
+            ?.remove(KEY_PROVENANCE)?.remove(KEY_SESSION_ID)?.commit()
     }
 
     private fun setPending(route: String) {
@@ -145,7 +147,7 @@ object PushDeepLink {
         val requestProvenance = AuthTokenStore.requestProvenance(snapshot)
         val provenance = requestProvenance?.let {
             Provenance.Authenticated(it.sessionId)
-        } ?: Provenance.PreLogin
+        } ?: if (isSafePreLoginRoute(route)) Provenance.PreLogin else return
         val candidate = PendingRoute(route, System.currentTimeMillis(), provenance)
         _pending.value = candidate
         val editor = prefs?.edit()
@@ -159,7 +161,7 @@ object PushDeepLink {
                 ?.putString(KEY_PROVENANCE, PROVENANCE_AUTHENTICATED)
                 ?.putString(KEY_SESSION_ID, provenance.sessionId)
         }
-        editor?.apply()
+        editor?.commit()
     }
 
     private fun restore(store: SharedPreferences): PendingRoute? {
@@ -167,7 +169,8 @@ object PushDeepLink {
         val capturedAt = store.getLong(KEY_AT, 0L)
         if (isExpired(capturedAt)) return null
         val provenance = when (store.getString(KEY_PROVENANCE, null)) {
-            PROVENANCE_PRE_LOGIN -> Provenance.PreLogin
+            PROVENANCE_PRE_LOGIN ->
+                Provenance.PreLogin.takeIf { isSafePreLoginRoute(route) } ?: return null
             PROVENANCE_AUTHENTICATED -> {
                 val persistedSessionId = store.getString(KEY_SESSION_ID, null) ?: return null
                 val snapshot = AuthTokenStore.snapshot()
@@ -182,6 +185,68 @@ object PushDeepLink {
         }
         return PendingRoute(route, capturedAt, provenance)
     }
+
+    /**
+     * Logged-out push payloads have no authoritative account owner. Only
+     * static destinations may bind to the first later session; resource IDs,
+     * carts/checkouts, and account-management surfaces fail closed.
+     */
+    internal fun isSafePreLoginRoute(route: String): Boolean = route in setOf(
+        Routes.HOME,
+        Routes.SHIPMENTS,
+        Routes.SHOP,
+        Routes.CONTACTS,
+        Routes.MORE,
+        Routes.PACKAGES,
+        Routes.PAYMENTS,
+        Routes.ORDERS,
+        Routes.AUCTION,
+        Routes.FEATURED_PRODUCTS,
+        Routes.NOTIFICATIONS,
+        Routes.NOTIFICATION_SETTINGS,
+        Routes.GOLD_PRIORITY,
+        Routes.AIRCOIN_HISTORY,
+        Routes.WAREHOUSES,
+        Routes.SERVICES,
+        Routes.SALES_TAXES,
+        Routes.CALCULATOR,
+        Routes.DROP_ALERT,
+        Routes.REFER_A_FRIEND,
+        Routes.REFERRED_FRIENDS,
+        Routes.INVITE_FRIEND,
+        Routes.PROMOTIONS,
+        Routes.DOCUMENTS,
+        Routes.SHIPPING_RATES,
+        Routes.RESTRICTED_ITEMS,
+        Routes.FAQ,
+        Routes.TERMS,
+        Routes.PRIVACY,
+    )
+
+    private fun isSensitivePreLoginRouteName(route: String): Boolean =
+        route.trim().lowercase() in setOf(
+            "packagedetailsview",
+            "paymentpackagedetailsview",
+            "productpaymentdetailsview",
+            "orderdetailsview",
+            "authorizeduserdetailview",
+            "auctionproductcheckoutview",
+            "checkoutview",
+            "addtocart",
+        )
+
+    private fun isSafePreLoginDeepLink(uri: Uri): Boolean =
+        uri.scheme?.lowercase() in setOf("airdrop", "airdropexpress") &&
+            uri.host?.lowercase() in setOf(
+                "packages",
+                "payments",
+                "promotions",
+                "refer",
+                "referral",
+                "support",
+                "contact",
+                "contacts",
+            )
 
     private fun isExpired(candidate: PendingRoute): Boolean = isExpired(candidate.capturedAt)
 

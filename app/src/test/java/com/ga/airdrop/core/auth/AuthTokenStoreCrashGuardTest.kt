@@ -49,4 +49,18 @@ class AuthTokenStoreCrashGuardTest {
         assertNotEquals(rotated.sessionId, AuthTokenStore.snapshot().sessionId)
         AuthTokenStore.clear()
     }
+
+    @Test
+    fun `snapshot flow publishes replacement sessions even for identical bearer text`() {
+        AuthTokenStore.save("same-token")
+        val first = AuthTokenStore.snapshotFlow.value
+
+        AuthTokenStore.save("same-token")
+        val replacement = AuthTokenStore.snapshotFlow.value
+
+        assertEquals(AuthTokenStore.snapshot(), replacement)
+        assertNotEquals(first.sessionId, replacement.sessionId)
+        assertNotEquals(first.revision, replacement.revision)
+        AuthTokenStore.clear()
+    }
 }

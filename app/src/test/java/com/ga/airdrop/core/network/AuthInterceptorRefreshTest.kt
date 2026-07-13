@@ -275,7 +275,7 @@ class AuthInterceptorRefreshTest {
     }
 
     @Test
-    fun `fresh login after refresh result cannot change captured retry bearer`() {
+    fun `fresh login after refresh result prevents stale account retry`() {
         interceptor = AuthInterceptor(beforeRetry = {
             AuthTokenStore.save("account-b-token")
         })
@@ -289,11 +289,10 @@ class AuthInterceptorRefreshTest {
 
         val result = interceptor.intercept(chain)
 
-        assertEquals(200, result.code)
+        assertEquals(401, result.code)
         assertEquals("account-b-token", AuthTokenStore.token)
-        assertEquals(3, chain.proceeded.size)
+        assertEquals(2, chain.proceeded.size)
         assertEquals("Bearer old-token", chain.proceeded[1].header("Authorization"))
-        assertEquals("Bearer account-a-rotated", chain.proceeded[2].header("Authorization"))
     }
 
     @Test

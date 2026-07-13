@@ -87,6 +87,10 @@ class AuthInterceptor internal constructor(
         val retryToken = refreshedSnapshot?.token
         if (retryToken != null) {
             beforeRetry()
+            // The refresh belongs to the request's original session. A fresh
+            // login can replace that session after refresh completes but
+            // before retry dispatch; never send the old account's bearer then.
+            if (AuthTokenStore.snapshot() != refreshedSnapshot) return original401
             return chain.proceed(
                 request.newBuilder()
                     .header("Authorization", "Bearer $retryToken")

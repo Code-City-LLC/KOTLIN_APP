@@ -54,13 +54,14 @@ object TokenRefresher {
         expectedSession: AuthTokenStore.Snapshot,
         httpCode: Int?,
         newToken: String?,
+        beforeApply: () -> Unit = {},
     ) {
         synchronized(lock) {
-            // The request may finish after login or another refresh installs a
-            // newer bearer. A stale outcome must neither clear nor overwrite it.
-            if (AuthTokenStore.snapshot() != expectedSession) return
+            beforeApply()
             when {
-                httpCode == 401 -> AuthTokenStore.clear()
+                // Both operations compare and mutate under AuthTokenStore's
+                // own lock, closing the check-then-clear/rotate race.
+                httpCode == 401 -> AuthTokenStore.clear(expectedSession)
                 !newToken.isNullOrBlank() -> AuthTokenStore.rotate(expectedSession, newToken)
                 else -> Unit
             }

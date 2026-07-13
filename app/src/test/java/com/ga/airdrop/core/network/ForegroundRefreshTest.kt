@@ -72,6 +72,18 @@ class ForegroundRefreshTest {
     }
 
     @Test
+    fun `replacement installed at apply boundary survives stale 401`() {
+        TokenRefresher.applyForegroundRefresh(
+            storedSession,
+            httpCode = 401,
+            newToken = null,
+            beforeApply = { AuthTokenStore.save("replacement-login-token") },
+        )
+
+        assertEquals("replacement-login-token", AuthTokenStore.token)
+    }
+
+    @Test
     fun `stale success cannot overwrite a newer bearer`() {
         AuthTokenStore.save("newer-token")
 

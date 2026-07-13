@@ -34,6 +34,8 @@ object AuthTokenStore {
 
     private val _token = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> get() = _token
+    private val _snapshot = MutableStateFlow(Snapshot(null, 0L, null))
+    val snapshotFlow: StateFlow<Snapshot> get() = _snapshot
 
     val token: String? get() = _token.value
 
@@ -64,6 +66,7 @@ object AuthTokenStore {
                 ?: newSessionId().also { prefs.edit().putString(KEY_SESSION_ID, it).commit() }
         }
         revision += 1
+        publishSnapshot()
     }
 
     fun save(token: String) = synchronized(stateLock) {
@@ -78,8 +81,9 @@ object AuthTokenStore {
             prefs.edit()
                 .putString(KEY_TOKEN, token)
                 .putString(KEY_SESSION_ID, sessionId)
-                .apply()
+                .commit()
         }
+        publishSnapshot()
     }
 
     /** Rotates a bearer only when the exact expected session generation is current. */
@@ -93,9 +97,9 @@ object AuthTokenStore {
             prefs.edit()
                 .putString(KEY_TOKEN, newToken)
                 .putString(KEY_SESSION_ID, sessionId)
-                .apply()
+                .commit()
         }
-        currentSnapshot()
+        currentSnapshot().also { _snapshot.value = it }
     }
 
     fun clear() = synchronized(stateLock) {
@@ -114,8 +118,9 @@ object AuthTokenStore {
         sessionId = null
         revision += 1
         if (::prefs.isInitialized) {
-            prefs.edit().remove(KEY_TOKEN).remove(KEY_SESSION_ID).apply()
+            prefs.edit().remove(KEY_TOKEN).remove(KEY_SESSION_ID).commit()
         }
+        publishSnapshot()
     }
 
     fun snapshot(): Snapshot = synchronized(stateLock) {
@@ -137,6 +142,10 @@ object AuthTokenStore {
         revision = revision,
         sessionId = sessionId,
     )
+
+    private fun publishSnapshot() {
+        _snapshot.value = currentSnapshot()
+    }
 
     private fun newSessionId(): String = UUID.randomUUID().toString()
 
