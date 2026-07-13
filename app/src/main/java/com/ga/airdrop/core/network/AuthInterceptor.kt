@@ -64,9 +64,8 @@ class AuthInterceptor internal constructor(
         attachedToken?.let { builder.header("Authorization", "Bearer $it") }
         val request = builder.build()
 
-        val response = if (isSessionBound) {
-            AuthTokenStore.withCurrentSnapshot(currentSnapshot) { chain.proceed(request) }
-                ?: throw StaleAuthSessionException()
+        val response = if (attachedToken != null) {
+            proceedForSession(chain, request, currentSnapshot)
         } else {
             chain.proceed(request)
         }
@@ -87,7 +86,7 @@ class AuthInterceptor internal constructor(
         // session. TokenRefresher coalesces concurrent 401s onto one network
         // refresh; callers queued behind it receive the exact rotated snapshot.
         val refreshedSnapshot = TokenRefresher.refresh(currentSnapshot) { expectedToken ->
-            performRefresh(chain, expectedToken)
+            performRefresh(chain, currentSnapshot, expectedToken)
         }
         val retryToken = refreshedSnapshot?.token
         if (retryToken != null) {
@@ -95,9 +94,11 @@ class AuthInterceptor internal constructor(
             val retry = request.newBuilder()
                 .header("Authorization", "Bearer $retryToken")
                 .build()
-            return AuthTokenStore.withCurrentSnapshot(refreshedSnapshot) {
-                chain.proceed(retry)
-            } ?: original401
+            return try {
+                proceedForSession(chain, retry, refreshedSnapshot)
+            } catch (_: StaleAuthSessionException) {
+                original401
+            }
         }
 
         // Refresh failed: force-logout only if this exact request generation
@@ -116,6 +117,7 @@ class AuthInterceptor internal constructor(
      */
     private fun performRefresh(
         chain: Interceptor.Chain,
+        expectedSession: AuthTokenStore.Snapshot,
         expectedToken: String,
     ): String? = runCatching {
         val refreshRequest = Request.Builder()
@@ -124,7 +126,7 @@ class AuthInterceptor internal constructor(
             .header("Accept", "application/json")
             .header("Authorization", "Bearer $expectedToken")
             .build()
-        chain.proceed(refreshRequest).use { refreshResponse ->
+        proceedForSession(chain, refreshRequest, expectedSession).use { refreshResponse ->
             if (!refreshResponse.isSuccessful) return null
             val body = refreshResponse.body?.string().orEmpty()
             if (body.isBlank()) return null
@@ -133,6 +135,25 @@ class AuthInterceptor internal constructor(
                 ?.takeIf { it.isNotBlank() }
         }
     }.getOrNull()
+
+    private fun proceedForSession(
+        chain: Interceptor.Chain,
+        request: Request,
+        expectedSession: AuthTokenStore.Snapshot,
+    ): Response {
+        val lease = AuthTokenStore.acquireDispatch(expectedSession) { chain.call().cancel() }
+            ?: throw StaleAuthSessionException()
+        return try {
+            val response = chain.proceed(request)
+            if (!lease.isValid) {
+                response.close()
+                throw StaleAuthSessionException()
+            }
+            response
+        } finally {
+            AuthTokenStore.releaseDispatch(lease)
+        }
+    }
 
     companion object {
         const val NO_AUTH_HEADER = "X-Airdrop-No-Auth"

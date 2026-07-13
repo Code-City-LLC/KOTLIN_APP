@@ -55,6 +55,8 @@ class AuthInterceptorRefreshTest {
         private val script: (Request, Int) -> Response,
     ) : Interceptor.Chain {
         val proceeded = mutableListOf<Request>()
+        private val trackedCall = NoopCall(original)
+        val isCanceled: Boolean get() = trackedCall.isCanceled()
 
         override fun request(): Request = original
 
@@ -64,7 +66,7 @@ class AuthInterceptorRefreshTest {
         }
 
         override fun connection(): Connection? = null
-        override fun call(): Call = NoopCall(original)
+        override fun call(): Call = trackedCall
         override fun connectTimeoutMillis(): Int = 0
         override fun withConnectTimeout(timeout: Int, unit: TimeUnit): Interceptor.Chain = this
         override fun readTimeoutMillis(): Int = 0
@@ -74,12 +76,15 @@ class AuthInterceptorRefreshTest {
     }
 
     private class NoopCall(private val request: Request) : Call {
+        @Volatile
+        private var canceled = false
+
         override fun request(): Request = request
         override fun execute(): Response = throw UnsupportedOperationException()
         override fun enqueue(responseCallback: Callback) = throw UnsupportedOperationException()
-        override fun cancel() {}
+        override fun cancel() { canceled = true }
         override fun isExecuted(): Boolean = false
-        override fun isCanceled(): Boolean = false
+        override fun isCanceled(): Boolean = canceled
         override fun timeout(): Timeout = Timeout.NONE
         override fun clone(): Call = NoopCall(request)
     }
@@ -298,7 +303,7 @@ class AuthInterceptorRefreshTest {
     }
 
     @Test
-    fun `replacement save cannot interleave with retry dispatch`() {
+    fun `replacement save cancels active retry without blocking auth write`() {
         val saveStarted = CountDownLatch(1)
         val saveFinished = CountDownLatch(1)
         var replacement: Thread? = null
@@ -312,7 +317,7 @@ class AuthInterceptorRefreshTest {
                         saveFinished.countDown()
                     }
                     assertTrue(saveStarted.await(1, TimeUnit.SECONDS))
-                    assertTrue("session write must wait for request dispatch", !saveFinished.await(100, TimeUnit.MILLISECONDS))
+                    assertTrue("replacement auth write must not wait on network", saveFinished.await(1, TimeUnit.SECONDS))
                     response(req, 200)
                 }
                 else -> response(req, 401)
@@ -322,14 +327,15 @@ class AuthInterceptorRefreshTest {
         val result = interceptor.intercept(chain)
         replacement?.join(1_000)
 
-        assertEquals(200, result.code)
+        assertEquals(401, result.code)
         assertEquals("account-b-token", AuthTokenStore.token)
         assertEquals(3, chain.proceeded.size)
         assertEquals(0, saveFinished.count)
+        assertTrue(chain.isCanceled)
     }
 
     @Test
-    fun `session-bound dispatch holds replacement write until proceed returns`() {
+    fun `session-bound dispatch is canceled by replacement without blocking auth write`() {
         val expected = AuthTokenStore.snapshot()
         val provenance = requireNotNull(AuthTokenStore.requestProvenance(expected))
         val request = apiRequest("/api/user/notifications/mark-read").newBuilder()
@@ -346,16 +352,38 @@ class AuthInterceptorRefreshTest {
                 saveFinished.countDown()
             }
             assertTrue(saveStarted.await(1, TimeUnit.SECONDS))
-            assertTrue("session write must wait for bound dispatch", !saveFinished.await(100, TimeUnit.MILLISECONDS))
+            assertTrue("replacement auth write must not wait on bound network", saveFinished.await(1, TimeUnit.SECONDS))
             response(req, 200)
         }
 
-        val result = interceptor.intercept(chain)
+        val failure = runCatching { interceptor.intercept(chain) }.exceptionOrNull()
         replacement.join(1_000)
 
-        assertEquals(200, result.code)
+        assertTrue(failure is StaleAuthSessionException)
         assertEquals("account-b-token", AuthTokenStore.token)
         assertEquals(0, saveFinished.count)
+        assertTrue(chain.isCanceled)
+    }
+
+    @Test
+    fun `ordinary authenticated dispatch is canceled by replacement session`() {
+        val saveFinished = CountDownLatch(1)
+        lateinit var replacement: Thread
+        val chain = ScriptedChain(apiRequest()) { req, _ ->
+            replacement = thread {
+                AuthTokenStore.save("account-b-token")
+                saveFinished.countDown()
+            }
+            assertTrue(saveFinished.await(1, TimeUnit.SECONDS))
+            response(req, 200)
+        }
+
+        val failure = runCatching { interceptor.intercept(chain) }.exceptionOrNull()
+        replacement.join(1_000)
+
+        assertTrue(failure is StaleAuthSessionException)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertTrue(chain.isCanceled)
     }
 
     @Test
