@@ -23,12 +23,28 @@ object AuthTokenStore {
 
     data class RequestProvenance(val revision: Long, val sessionId: String)
 
+    class RequestDispatch internal constructor(
+        internal val id: Long,
+        private val cancelAction: () -> Unit,
+    ) {
+        @Volatile
+        var isValid: Boolean = true
+            private set
+
+        internal fun invalidate() {
+            isValid = false
+            runCatching(cancelAction)
+        }
+    }
+
     private const val PREFS = "airdrop_auth"
     private const val KEY_TOKEN = "api_token"
     private const val KEY_SESSION_ID = "session_id"
 
     private lateinit var prefs: SharedPreferences
     private val stateLock = Any()
+    private val activeRequests = mutableMapOf<Long, RequestDispatch>()
+    private var nextRequestId = 0L
     private var revision = 0L
     private var sessionId: String? = null
 
@@ -40,6 +56,7 @@ object AuthTokenStore {
     val token: String? get() = _token.value
 
     fun init(context: Context) = synchronized(stateLock) {
+        invalidateActiveRequestsLocked()
         prefs = runCatching {
             val masterKey = MasterKey.Builder(context)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -70,6 +87,7 @@ object AuthTokenStore {
     }
 
     fun save(token: String) = synchronized(stateLock) {
+        invalidateActiveRequestsLocked()
         // Update the in-memory flow first, then persist only if prefs is bound.
         // A background service / ContentProvider can run before
         // Application.onCreate() calls init(); touching lateinit prefs then
@@ -91,6 +109,7 @@ object AuthTokenStore {
         if (newToken.isBlank() || currentSnapshot() != expected || expected.sessionId == null) {
             return null
         }
+        invalidateActiveRequestsLocked()
         _token.value = newToken
         revision += 1
         if (::prefs.isInitialized) {
@@ -114,6 +133,7 @@ object AuthTokenStore {
     }
 
     private fun clearLocked() {
+        invalidateActiveRequestsLocked()
         _token.value = null
         sessionId = null
         revision += 1
@@ -125,6 +145,28 @@ object AuthTokenStore {
 
     fun snapshot(): Snapshot = synchronized(stateLock) {
         currentSnapshot()
+    }
+
+    /** Binds request dispatch to one session without extending into response-body handling. */
+    fun acquireRequest(expected: Snapshot, cancel: () -> Unit): RequestDispatch? = synchronized(stateLock) {
+        if (currentSnapshot() != expected || expected.token == null) return null
+        RequestDispatch(++nextRequestId, cancel).also { activeRequests[it.id] = it }
+    }
+
+    fun finishRequest(request: RequestDispatch): Boolean = synchronized(stateLock) {
+        activeRequests.remove(request.id)
+        request.isValid
+    }
+
+    fun abandonRequest(request: RequestDispatch) = synchronized(stateLock) {
+        activeRequests.remove(request.id)
+        Unit
+    }
+
+    private fun invalidateActiveRequestsLocked() {
+        val requests = activeRequests.values.toList()
+        activeRequests.clear()
+        requests.forEach(RequestDispatch::invalidate)
     }
 
     /** Non-secret session identity used to bind delayed work without exposing a bearer. */
