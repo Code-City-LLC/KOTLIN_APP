@@ -278,9 +278,10 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     .width(238.dp)
                     .height(326.dp)
                     .testTag("home-warehouse-${card.type}")
-                    // Swift: clear card + blur stack tinted with glassOverlay62.
+                    // Current Swift corrective + Figma 40001464:28907-28909:
+                    // solid gray150 cards with the shared 1dp hairline.
                     .clip(cardShape)
-                    .background(colors.glassOverlay62)
+                    .background(colors.gray150)
                     .border(1.dp, colors.cardHairline, cardShape)
                     // Swift: the WHOLE card is a tap target → WarehouseView.
                     .clickable { onOpen(card.type) }

@@ -314,7 +314,7 @@ class ShopRootScreenParityTest {
         val lightGray200Rgb = intArrayOf(245, 245, 245)
         val darkGray200Rgb = intArrayOf(51, 51, 51)
         val lightIconShapeRgb = intArrayOf(229, 229, 229)
-        val darkIconShapeRgb = intArrayOf(89, 89, 89)
+        val darkIconShapeRgb = intArrayOf(77, 77, 77)
 
         val AuctionProducts = listOf(
             sampleProduct(1001, "swift-root-auction-one", "Auction One"),
