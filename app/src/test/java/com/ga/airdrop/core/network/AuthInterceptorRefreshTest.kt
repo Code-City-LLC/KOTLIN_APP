@@ -241,7 +241,7 @@ class AuthInterceptorRefreshTest {
         AuthTokenStore.save("replacement-account-token")
         val failure = runCatching { interceptor.intercept(chain) }.exceptionOrNull()
 
-        assertTrue(failure is StaleAuthSessionException)
+        assertTrue("Expected stale-session body failure, got $failure", failure is StaleAuthSessionException)
         assertEquals(0, chain.proceeded.size)
     }
 
@@ -388,11 +388,10 @@ class AuthInterceptorRefreshTest {
 
     @Test
     fun `replacement at response completion boundary invalidates retry atomically`() {
-        val completions = AtomicInteger()
         interceptor = AuthInterceptor(
             beforeRetry = {},
-            beforeDispatchComplete = {
-                if (completions.incrementAndGet() == 3) {
+            beforeDispatchComplete = { request ->
+                if (request.header("Authorization") == "Bearer account-a-rotated") {
                     AuthTokenStore.save("account-b-token")
                 }
             },
@@ -406,10 +405,42 @@ class AuthInterceptorRefreshTest {
         }
 
         val result = interceptor.intercept(chain)
+        val failure = runCatching { result.body?.string() }.exceptionOrNull()
 
-        assertEquals(401, result.code)
+        assertTrue("Expected completion-boundary stale failure, got $failure", failure is StaleAuthSessionException)
         assertEquals("account-b-token", AuthTokenStore.token)
         assertEquals(3, chain.proceeded.size)
+        assertTrue(chain.isCanceled)
+    }
+
+    @Test
+    fun `replacement after headers cancels lazy body before account a data is consumed`() {
+        val chain = ScriptedChain(apiRequest()) { req, _ ->
+            response(req, 200, """{"account":"a"}""")
+        }
+        val result = interceptor.intercept(chain)
+
+        AuthTokenStore.save("account-b-token")
+        val failure = runCatching { result.body?.string() }.exceptionOrNull()
+
+        assertTrue(failure is StaleAuthSessionException)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertTrue(chain.isCanceled)
+    }
+
+    @Test
+    fun `replacement after exact length read is rejected when body closes`() {
+        val payload = """{"account":"a"}"""
+        val chain = ScriptedChain(apiRequest()) { req, _ -> response(req, 200, payload) }
+        val result = interceptor.intercept(chain)
+        val source = requireNotNull(result.body).source()
+
+        assertEquals(payload, source.readByteArray(payload.toByteArray().size.toLong()).decodeToString())
+        AuthTokenStore.save("account-b-token")
+        val failure = runCatching { source.close() }.exceptionOrNull()
+
+        assertTrue(failure is StaleAuthSessionException)
+        assertEquals("account-b-token", AuthTokenStore.token)
         assertTrue(chain.isCanceled)
     }
 

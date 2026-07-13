@@ -9,7 +9,12 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okhttp3.ResponseBody
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
+import okio.BufferedSource
+import okio.ForwardingSource
+import okio.buffer
 
 /**
  * Adds the Sanctum bearer token to every request; on 401 it attempts ONE
@@ -19,7 +24,7 @@ import java.io.IOException
  */
 class AuthInterceptor internal constructor(
     private val beforeRetry: () -> Unit,
-    private val beforeDispatchComplete: () -> Unit = {},
+    private val beforeDispatchComplete: (Request) -> Unit = {},
 ) : Interceptor {
 
     constructor() : this(beforeRetry = {})
@@ -144,19 +149,92 @@ class AuthInterceptor internal constructor(
     ): Response {
         val lease = AuthTokenStore.acquireDispatch(expectedSession) { chain.call().cancel() }
             ?: throw StaleAuthSessionException()
-        var finalized = false
+        var handedOff = false
         return try {
             val response = chain.proceed(request)
-            beforeDispatchComplete()
-            val valid = AuthTokenStore.completeDispatch(lease)
-            finalized = true
-            if (!valid) {
+            if (!lease.isValid) {
                 response.close()
                 throw StaleAuthSessionException()
             }
-            response
+            val body = response.body
+            if (body == null) {
+                beforeDispatchComplete(request)
+                if (!AuthTokenStore.completeDispatch(lease)) {
+                    response.close()
+                    throw StaleAuthSessionException()
+                }
+                handedOff = true
+                response
+            } else {
+                handedOff = true
+                response.newBuilder()
+                    .body(SessionBoundResponseBody(body, lease) { beforeDispatchComplete(request) })
+                    .build()
+            }
         } finally {
-            if (!finalized) AuthTokenStore.abandonDispatch(lease)
+            if (!handedOff) AuthTokenStore.abandonDispatch(lease)
+        }
+    }
+
+    private class SessionBoundResponseBody(
+        private val delegate: ResponseBody,
+        private val lease: AuthTokenStore.DispatchLease,
+        private val beforeComplete: () -> Unit,
+    ) : ResponseBody() {
+        private val finalized = AtomicBoolean(false)
+        private val boundSource: BufferedSource = object : ForwardingSource(delegate.source()) {
+            override fun read(sink: okio.Buffer, byteCount: Long): Long {
+                if (!lease.isValid) failStale()
+                val read = try {
+                    super.read(sink, byteCount)
+                } catch (error: Throwable) {
+                    abandon()
+                    throw error
+                }
+                if (!lease.isValid) failStale()
+                if (read == -1L) completeOrFail()
+                return read
+            }
+
+            override fun close() {
+                try {
+                    super.close()
+                } catch (error: Throwable) {
+                    abandon()
+                    throw error
+                }
+                completeOrFail()
+            }
+        }.buffer()
+
+        override fun contentType() = delegate.contentType()
+        override fun contentLength() = delegate.contentLength()
+        override fun source(): BufferedSource = boundSource
+
+        private fun completeOrFail() {
+            if (!finalized.compareAndSet(false, true)) return
+            try {
+                beforeComplete()
+            } catch (error: Throwable) {
+                AuthTokenStore.abandonDispatch(lease)
+                throw error
+            }
+            if (!AuthTokenStore.completeDispatch(lease)) {
+                runCatching { delegate.close() }
+                throw StaleAuthSessionException()
+            }
+        }
+
+        private fun abandon() {
+            if (finalized.compareAndSet(false, true)) {
+                AuthTokenStore.abandonDispatch(lease)
+            }
+        }
+
+        private fun failStale(): Nothing {
+            abandon()
+            runCatching { delegate.close() }
+            throw StaleAuthSessionException()
         }
     }
 
