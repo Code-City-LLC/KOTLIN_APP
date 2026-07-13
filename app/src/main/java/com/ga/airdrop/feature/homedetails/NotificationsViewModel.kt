@@ -50,6 +50,7 @@ class NotificationsViewModel internal constructor(
     private var page = 1
     private val perPage = 20
     private var contentSessionId = sessionSnapshot().sessionId
+    private var observedSessionId = contentSessionId
     private var refreshGeneration = 0L
     private var loadMoreGeneration = 0L
 
@@ -58,7 +59,8 @@ class NotificationsViewModel internal constructor(
         sessionChanges?.let { changes ->
             viewModelScope.launch {
                 changes.collect { changed ->
-                    if (changed.sessionId == contentSessionId) return@collect
+                    if (changed.sessionId == observedSessionId) return@collect
+                    observedSessionId = changed.sessionId
                     refreshGeneration += 1
                     loadMoreGeneration += 1
                     contentSessionId = changed.sessionId
@@ -161,14 +163,14 @@ class NotificationsViewModel internal constructor(
 
     private fun retireStaleSession(generation: Long) {
         if (generation != refreshGeneration) return
-        contentSessionId = sessionSnapshot().sessionId
+        contentSessionId = null
         page = 1
         _state.value = NotificationsUiState()
     }
 
     private fun retireStalePage(generation: Long) {
         if (generation != loadMoreGeneration) return
-        contentSessionId = sessionSnapshot().sessionId
+        contentSessionId = null
         page = 1
         _state.value = NotificationsUiState()
     }

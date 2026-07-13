@@ -5,6 +5,9 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -28,7 +31,7 @@ object AuthTokenStore {
     private const val KEY_SESSION_ID = "session_id"
 
     private lateinit var prefs: SharedPreferences
-    private val stateLock = Any()
+    private val stateLock = ReentrantReadWriteLock()
     private var revision = 0L
     private var sessionId: String? = null
 
@@ -39,7 +42,7 @@ object AuthTokenStore {
 
     val token: String? get() = _token.value
 
-    fun init(context: Context) = synchronized(stateLock) {
+    fun init(context: Context) = stateLock.write {
         prefs = runCatching {
             val masterKey = MasterKey.Builder(context)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -69,7 +72,7 @@ object AuthTokenStore {
         publishSnapshot()
     }
 
-    fun save(token: String) = synchronized(stateLock) {
+    fun save(token: String) = stateLock.write {
         // Update the in-memory flow first, then persist only if prefs is bound.
         // A background service / ContentProvider can run before
         // Application.onCreate() calls init(); touching lateinit prefs then
@@ -87,9 +90,9 @@ object AuthTokenStore {
     }
 
     /** Rotates a bearer only when the exact expected session generation is current. */
-    fun rotate(expected: Snapshot, newToken: String): Snapshot? = synchronized(stateLock) {
+    fun rotate(expected: Snapshot, newToken: String): Snapshot? = stateLock.write {
         if (newToken.isBlank() || currentSnapshot() != expected || expected.sessionId == null) {
-            return null
+            return@write null
         }
         _token.value = newToken
         revision += 1
@@ -102,13 +105,13 @@ object AuthTokenStore {
         currentSnapshot().also { _snapshot.value = it }
     }
 
-    fun clear() = synchronized(stateLock) {
+    fun clear() = stateLock.write {
         clearLocked()
     }
 
     /** Clears only if the exact request generation still owns the session. */
-    fun clear(expected: Snapshot): Boolean = synchronized(stateLock) {
-        if (currentSnapshot() != expected) return false
+    fun clear(expected: Snapshot): Boolean = stateLock.write {
+        if (currentSnapshot() != expected) return@write false
         clearLocked()
         true
     }
@@ -123,8 +126,17 @@ object AuthTokenStore {
         publishSnapshot()
     }
 
-    fun snapshot(): Snapshot = synchronized(stateLock) {
+    fun snapshot(): Snapshot = stateLock.read {
         currentSnapshot()
+    }
+
+    /**
+     * Revalidates and dispatches under a shared read lock. Concurrent requests
+     * remain concurrent, while login/logout/rotation (write operations) cannot
+     * replace the session between validation and request dispatch.
+     */
+    fun <T> withCurrentSnapshot(expected: Snapshot, block: () -> T): T? = stateLock.read {
+        if (currentSnapshot() != expected) null else block()
     }
 
     /** Non-secret session identity used to bind delayed work without exposing a bearer. */

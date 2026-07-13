@@ -82,6 +82,35 @@ class NotificationsSessionBindingTest {
     }
 
     @Test
+    fun staleCompletionBeforeSessionEmissionCannotSuppressReplacementRefresh() {
+        val accountA = snapshot("account-a", 27, "session-a")
+        val accountB = snapshot("account-b", 28, "session-b")
+        val session = AtomicReference(accountA)
+        val sessionFlow = MutableStateFlow(accountA)
+        val firstResponse = CompletableDeferred<Result<List<AirdropNotification>>>()
+        val calls = AtomicInteger()
+        val source = FakeNotificationsDataSource(fetchNotifications = { _, _ ->
+            if (calls.incrementAndGet() == 1) firstResponse.await()
+            else Result.success(listOf(notification("current-b")))
+        })
+        val viewModel = onMain { NotificationsViewModel(source, session::get, sessionFlow) }
+
+        session.set(accountB)
+        firstResponse.complete(Result.success(listOf(notification("late-a"))))
+        waitUntil { !viewModel.state.value.loading && viewModel.state.value.items.isEmpty() }
+
+        sessionFlow.value = accountB
+        waitUntil {
+            calls.get() == 2 &&
+                viewModel.state.value.loadedOnce &&
+                viewModel.state.value.items.singleOrNull()?.id == "current-b"
+        }
+
+        assertEquals(listOf("current-b"), viewModel.state.value.items.map { it.id })
+        assertFalse(viewModel.state.value.loading)
+    }
+
+    @Test
     fun staleNotificationTapCannotMutateUiGlobalRouteOrServer() {
         val session = AtomicReference(snapshot("account-a", 30, "session-a"))
         val sessionFlow = MutableStateFlow(session.get())

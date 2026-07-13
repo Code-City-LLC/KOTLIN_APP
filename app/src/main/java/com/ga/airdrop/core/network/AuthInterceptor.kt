@@ -64,7 +64,12 @@ class AuthInterceptor internal constructor(
         attachedToken?.let { builder.header("Authorization", "Bearer $it") }
         val request = builder.build()
 
-        val response = chain.proceed(request)
+        val response = if (isSessionBound) {
+            AuthTokenStore.withCurrentSnapshot(currentSnapshot) { chain.proceed(request) }
+                ?: throw StaleAuthSessionException()
+        } else {
+            chain.proceed(request)
+        }
 
         if (
             response.code != 401 || attachedToken == null || isPreAuth || isRefresh ||
@@ -87,15 +92,12 @@ class AuthInterceptor internal constructor(
         val retryToken = refreshedSnapshot?.token
         if (retryToken != null) {
             beforeRetry()
-            // The refresh belongs to the request's original session. A fresh
-            // login can replace that session after refresh completes but
-            // before retry dispatch; never send the old account's bearer then.
-            if (AuthTokenStore.snapshot() != refreshedSnapshot) return original401
-            return chain.proceed(
-                request.newBuilder()
-                    .header("Authorization", "Bearer $retryToken")
-                    .build(),
-            )
+            val retry = request.newBuilder()
+                .header("Authorization", "Bearer $retryToken")
+                .build()
+            return AuthTokenStore.withCurrentSnapshot(refreshedSnapshot) {
+                chain.proceed(retry)
+            } ?: original401
         }
 
         // Refresh failed: force-logout only if this exact request generation

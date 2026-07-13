@@ -2,8 +2,10 @@ package com.ga.airdrop.core.network
 
 import com.ga.airdrop.core.auth.AuthTokenStore
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.concurrent.thread
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Connection
@@ -293,6 +295,67 @@ class AuthInterceptorRefreshTest {
         assertEquals("account-b-token", AuthTokenStore.token)
         assertEquals(2, chain.proceeded.size)
         assertEquals("Bearer old-token", chain.proceeded[1].header("Authorization"))
+    }
+
+    @Test
+    fun `replacement save cannot interleave with retry dispatch`() {
+        val saveStarted = CountDownLatch(1)
+        val saveFinished = CountDownLatch(1)
+        var replacement: Thread? = null
+        val chain = ScriptedChain(apiRequest()) { req, _ ->
+            when {
+                isRefresh(req) -> response(req, 200, """{"token":"account-a-rotated"}""")
+                req.header("Authorization") == "Bearer account-a-rotated" -> {
+                    replacement = thread {
+                        saveStarted.countDown()
+                        AuthTokenStore.save("account-b-token")
+                        saveFinished.countDown()
+                    }
+                    assertTrue(saveStarted.await(1, TimeUnit.SECONDS))
+                    assertTrue("session write must wait for request dispatch", !saveFinished.await(100, TimeUnit.MILLISECONDS))
+                    response(req, 200)
+                }
+                else -> response(req, 401)
+            }
+        }
+
+        val result = interceptor.intercept(chain)
+        replacement?.join(1_000)
+
+        assertEquals(200, result.code)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertEquals(3, chain.proceeded.size)
+        assertEquals(0, saveFinished.count)
+    }
+
+    @Test
+    fun `session-bound dispatch holds replacement write until proceed returns`() {
+        val expected = AuthTokenStore.snapshot()
+        val provenance = requireNotNull(AuthTokenStore.requestProvenance(expected))
+        val request = apiRequest("/api/user/notifications/mark-read").newBuilder()
+            .header(AuthTokenStore.REQUEST_REVISION_HEADER, provenance.revision.toString())
+            .header(AuthTokenStore.REQUEST_SESSION_ID_HEADER, provenance.sessionId)
+            .build()
+        val saveStarted = CountDownLatch(1)
+        val saveFinished = CountDownLatch(1)
+        lateinit var replacement: Thread
+        val chain = ScriptedChain(request) { req, _ ->
+            replacement = thread {
+                saveStarted.countDown()
+                AuthTokenStore.save("account-b-token")
+                saveFinished.countDown()
+            }
+            assertTrue(saveStarted.await(1, TimeUnit.SECONDS))
+            assertTrue("session write must wait for bound dispatch", !saveFinished.await(100, TimeUnit.MILLISECONDS))
+            response(req, 200)
+        }
+
+        val result = interceptor.intercept(chain)
+        replacement.join(1_000)
+
+        assertEquals(200, result.code)
+        assertEquals("account-b-token", AuthTokenStore.token)
+        assertEquals(0, saveFinished.count)
     }
 
     @Test
