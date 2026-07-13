@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.homedetails
 
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -20,12 +21,16 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.designsystem.theme.darkAirdropColors
+import com.ga.airdrop.core.designsystem.theme.lightAirdropColors
 import com.ga.airdrop.data.model.AirCoinTransaction
 import com.ga.airdrop.data.model.AirCoinsStatus
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,6 +67,7 @@ class AirCoinParityScreenshotTest {
         setHistoryContent(ThemeController.Mode.LIGHT)
 
         assertHistoryFigmaGeometryAndCopy()
+        assertHistoryRenderedColors(ThemeController.Mode.LIGHT)
         saveNodeScreenshot("aircoin-history-root", "aircoin_history_figma_light.png")
     }
 
@@ -70,6 +76,7 @@ class AirCoinParityScreenshotTest {
         setHistoryContent(ThemeController.Mode.DARK)
 
         assertHistoryFigmaGeometryAndCopy()
+        assertHistoryRenderedColors(ThemeController.Mode.DARK)
         saveNodeScreenshot("aircoin-history-root", "aircoin_history_figma_dark.png")
     }
 
@@ -177,25 +184,99 @@ class AirCoinParityScreenshotTest {
     }
 
     private fun assertHistoryFigmaGeometryAndCopy() {
-        assertClose(297f, boundsHeight("aircoin-history-hero-wrap"), "History hero wrap height")
-        assertClose(287f, boundsWidth("aircoin-history-hero-image"), "History hero image width")
-        assertClose(287f, boundsHeight("aircoin-history-hero-image"), "History hero image height")
-        assertClose(345f, boundsWidth("aircoin-history-table-card"), "History table card width")
-        assertClose(206f, boundsHeight("aircoin-history-table-card"), "History table card height")
-        assertClose(43f, boundsHeight("aircoin-history-header-row"), "History header row height")
-        assertClose(40f, boundsHeight("aircoin-history-row-0"), "History body row height")
+        assertClose(332f, boundsHeight("aircoin-history-hero-wrap"), "History hero wrap height")
+        assertClose(375f, boundsWidth("aircoin-history-hero-image"), "History hero image width")
+        assertClose(332f, boundsHeight("aircoin-history-hero-image"), "History hero image height")
+        assertClose(335f, boundsWidth("aircoin-history-table-card"), "History table card width")
+        assertClose(240f, boundsHeight("aircoin-history-table-card"), "History table card height")
+        assertClose(48f, boundsHeight("aircoin-history-header-row"), "History header row height")
+        assertClose(48f, boundsHeight("aircoin-history-row-0"), "History body row height")
 
         compose.onNodeWithText("Invoice No.").assertIsDisplayed()
         compose.onNodeWithText("Air Coin Used").assertIsDisplayed()
         compose.onNodeWithText("Date").assertIsDisplayed()
-        assertEquals(4, compose.onAllNodesWithText("25Oct 2025").fetchSemanticsNodes().size)
+        assertEquals(4, compose.onAllNodesWithText("25 Oct 2025").fetchSemanticsNodes().size)
         assertEquals(4, compose.onAllNodesWithText("25").fetchSemanticsNodes().size)
         assertAbsent("Invoice No")
         assertAbsent("Used Date")
-        assertAbsent("25 Oct 2025")
+        assertAbsent("25Oct 2025")
         assertEquals(0, compose.onAllNodesWithText("+25").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithText("-25").fetchSemanticsNodes().size)
     }
+
+    private fun assertHistoryRenderedColors(mode: ThemeController.Mode) {
+        val colors = if (mode == ThemeController.Mode.DARK) darkAirdropColors else lightAirdropColors
+        val root = compose.onNodeWithTag("aircoin-history-root").captureToImage().asAndroidBitmap()
+        val card = compose.onNodeWithTag("aircoin-history-table-card").captureToImage().asAndroidBitmap()
+
+        assertPixelNear(
+            bitmap = root,
+            xDp = 8f,
+            yDp = 790f,
+            expectedArgb = colors.gray100.toArgb(),
+            label = "$mode History lower page surface",
+        )
+        assertPixelNear(
+            bitmap = card,
+            xDp = 8f,
+            yDp = 24f,
+            expectedArgb = colors.gray200.toArgb(),
+            label = "$mode History ledger header fill",
+        )
+        assertPixelNear(
+            bitmap = card,
+            xDp = 8f,
+            yDp = 72f,
+            expectedArgb = colors.gray100.toArgb(),
+            label = "$mode History ledger body fill",
+        )
+        assertHairlineEdge(
+            bitmap = card,
+            expectedArgb = colors.cardHairline.toArgb(),
+            label = "$mode History ledger hairline",
+        )
+    }
+
+    private fun assertPixelNear(
+        bitmap: Bitmap,
+        xDp: Float,
+        yDp: Float,
+        expectedArgb: Int,
+        label: String,
+    ) {
+        val density = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .resources
+            .displayMetrics
+            .density
+        val x = (xDp * density).toInt().coerceIn(0, bitmap.width - 1)
+        val y = (yDp * density).toInt().coerceIn(0, bitmap.height - 1)
+        val actual = bitmap.getPixel(x, y)
+        assertTrue(
+            "$label expected=${expectedArgb.toUInt().toString(16)} " +
+                "actual=${actual.toUInt().toString(16)} at=($x,$y)",
+            actual.isNear(expectedArgb),
+        )
+    }
+
+    private fun assertHairlineEdge(bitmap: Bitmap, expectedArgb: Int, label: String) {
+        val inset = bitmap.height / 5
+        val edgeBand = minOf(2, bitmap.width / 4).coerceAtLeast(1)
+        var matches = 0
+        for (y in inset until bitmap.height - inset) {
+            for (x in 0 until edgeBand) {
+                if (bitmap.getPixel(x, y).isNear(expectedArgb)) matches += 1
+                if (bitmap.getPixel(bitmap.width - 1 - x, y).isNear(expectedArgb)) matches += 1
+            }
+        }
+        assertTrue("$label must render on both straight edges; matches=$matches", matches >= 20)
+    }
+
+    private fun Int.isNear(target: Int, tolerance: Int = 4): Boolean =
+        abs(((this shr 24) and 0xFF) - ((target shr 24) and 0xFF)) <= tolerance &&
+            abs(((this shr 16) and 0xFF) - ((target shr 16) and 0xFF)) <= tolerance &&
+            abs(((this shr 8) and 0xFF) - ((target shr 8) and 0xFF)) <= tolerance &&
+            abs((this and 0xFF) - (target and 0xFF)) <= tolerance
 
     private fun saveNodeScreenshot(tag: String, filename: String) {
         val bitmap = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
