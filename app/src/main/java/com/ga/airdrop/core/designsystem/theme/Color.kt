@@ -164,7 +164,10 @@ val lightAirdropColors = AirdropColorScheme(
     textWhiteTitle = Color(0xFFFFFFFF),
     textDescription = Color(0xFF5C5C5C),
     textPlaceholder = Color(0xFF999999),
-    divider = Color(0xFFD9D9D9),
+    // Swift DesignTokens.swift:298 divider = #E5E5E5 light. Kotlin had
+    // #D9D9D9 (one step darker) → separator lines read heavier than Figma
+    // app-wide; aligned to Swift/Figma. Dark (#404040 below) already matches.
+    divider = Color(0xFFE5E5E5),
     iconShape = Color(0xFFE5E5E5),
     cardHairline = Color(0xFFE5E5E5),
     iconWhite = Color(0xFFFFFFFF),
