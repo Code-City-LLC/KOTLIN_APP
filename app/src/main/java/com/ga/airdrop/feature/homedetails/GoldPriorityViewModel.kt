@@ -119,7 +119,18 @@ class GoldPriorityViewModel(
             // Revalidate immediately before handing the mutation to Retrofit.
             // AuthInterceptor repeats this check at dispatch and cancels an
             // in-flight request if the authenticated generation changes.
-            if (sessionBoundary.requestOwner(owner)?.provenance != requestOwner.provenance) {
+            val dispatchOwner = sessionBoundary.requestOwner(owner)
+            if (dispatchOwner?.provenance != requestOwner.provenance) {
+                // A token refresh can rotate request provenance without
+                // replacing the logical session. The session collector does
+                // not reset for that event, so a silent return here would
+                // strand the non-dismissible sheet in Working forever.
+                if (sessionBoundary.isCurrent(owner)) {
+                    finishWorkingWithError(
+                        owner,
+                        "Your session refreshed before the change started. Please try again.",
+                    )
+                }
                 return@launch
             }
             val patchResult = tierChanger.changeTier(
@@ -139,13 +150,16 @@ class GoldPriorityViewModel(
                 return@launch
             }
 
-            // Never issue the confirmation read for a replacement session,
-            // and never let an old request publish success into the new one.
-            if (sessionBoundary.requestOwner(owner)?.provenance != requestOwner.provenance) {
-                return@launch
-            }
+            // A successful PATCH must still be confirmed when only the token
+            // revision rotated inside the same logical session. The GET uses
+            // the current token at dispatch. Account/session replacement is
+            // still rejected before any confirmation read or publication.
+            if (!canContinueTierConfirmation(owner)) return@launch
 
             val confirmation = tierReader.customerTier()
+            // The confirmation response belongs only to the same logical
+            // account/session. Revision-only rotations remain valid.
+            if (!canContinueTierConfirmation(owner)) return@launch
             val confirmed = confirmation.getOrNull()
             if (confirmed?.currentTier?.equals(requestedTierCode, ignoreCase = true) == true) {
                 if (loadTierDataNow(owner, prefetchedTier = confirmed)) {
@@ -171,6 +185,33 @@ class GoldPriorityViewModel(
                 }
             }
         }
+    }
+
+    private fun finishWorkingWithError(
+        owner: AuthenticatedSessionOwner,
+        message: String,
+    ) {
+        sessionBoundary.apply(owner) {
+            _state.update { current ->
+                if (current.changePhase != TierChangePhase.Working) current
+                else current.copy(
+                    changePhase = TierChangePhase.Error,
+                    changeSuccessName = null,
+                    changeError = message,
+                )
+            }
+        }
+    }
+
+    private fun canContinueTierConfirmation(owner: AuthenticatedSessionOwner): Boolean {
+        if (sessionBoundary.requestOwner(owner) != null) return true
+        if (sessionBoundary.isCurrent(owner)) {
+            finishWorkingWithError(
+                owner,
+                "We couldn't confirm the change after your session refreshed. Refresh your tier details before trying again.",
+            )
+        }
+        return false
     }
 
     fun resetChangeFlow() {

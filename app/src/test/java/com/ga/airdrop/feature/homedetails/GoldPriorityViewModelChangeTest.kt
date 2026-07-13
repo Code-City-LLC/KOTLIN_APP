@@ -53,6 +53,7 @@ class GoldPriorityViewModelChangeTest {
     private var patchResult: Result<TierChangeResult> = Result.success(TierChangeResult(status = "applied"))
     private var patchCalls = 0
     private var patchHook: () -> Unit = {}
+    private var customerTierHook: () -> Unit = {}
     private var capturedProvenance: AuthTokenStore.RequestProvenance? = null
     private lateinit var sessionBoundary: TestSessionBoundary
 
@@ -66,7 +67,9 @@ class GoldPriorityViewModelChangeTest {
 
         override suspend fun customerTier(): Result<CustomerTier> {
             callLog += "customerTier"
-            return tierResponses.removeFirstOrNull() ?: Result.success(rubyOffersGold)
+            val result = tierResponses.removeFirstOrNull() ?: Result.success(rubyOffersGold)
+            customerTierHook()
+            return result
         }
     }
 
@@ -92,6 +95,7 @@ class GoldPriorityViewModelChangeTest {
         patchCalls = 0
         patchResult = Result.success(TierChangeResult(status = "applied"))
         patchHook = {}
+        customerTierHook = {}
         capturedProvenance = null
         tierResponses = ArrayDeque()
         sessionBoundary = TestSessionBoundary()
@@ -216,6 +220,21 @@ class GoldPriorityViewModelChangeTest {
     }
 
     @Test
+    fun sameSessionRevisionRotationBeforeDispatchMakesZeroPatchCallsAndEndsError() =
+        runTest(dispatcher) {
+            val vm = newViewModel()
+            advanceUntilIdle()
+
+            vm.changeTier("GOLD", "Gold Standard")
+            sessionBoundary.rotateRevision()
+            advanceUntilIdle()
+
+            assertEquals(0, patchCalls)
+            assertEquals(TierChangePhase.Error, vm.state.value.changePhase)
+            assertNull(vm.state.value.changeSuccessName)
+        }
+
+    @Test
     fun replacementDuringPatchCannotPublishSuccessOrRunConfirmationGet() = runTest(dispatcher) {
         val vm = newViewModel()
         advanceUntilIdle()
@@ -230,6 +249,43 @@ class GoldPriorityViewModelChangeTest {
         assertNotEquals(TierChangePhase.Success, vm.state.value.changePhase)
         assertNull(vm.state.value.changeSuccessName)
     }
+
+    @Test
+    fun sameSessionRevisionRotationDuringPatchStillConfirmsAndEndsSuccess() =
+        runTest(dispatcher) {
+            val vm = newViewModel()
+            advanceUntilIdle()
+            callLog.clear()
+            tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
+            patchHook = sessionBoundary::rotateRevision
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertEquals(listOf("patch:GOLD", "customerTier", "serviceTiers"), callLog)
+            assertEquals(TierChangePhase.Success, vm.state.value.changePhase)
+            assertEquals("Gold Standard", vm.state.value.changeSuccessName)
+            assertEquals(42L, capturedProvenance?.revision)
+            assertEquals(43L, sessionBoundary.currentRevision())
+        }
+
+    @Test
+    fun sameSessionRevisionRotationDuringConfirmationCannotStrandWorking() =
+        runTest(dispatcher) {
+            val vm = newViewModel()
+            advanceUntilIdle()
+            callLog.clear()
+            tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
+            customerTierHook = sessionBoundary::rotateRevision
+
+            vm.changeTier("GOLD", "Gold Standard")
+            advanceUntilIdle()
+
+            assertEquals(listOf("patch:GOLD", "customerTier", "serviceTiers"), callLog)
+            assertEquals(TierChangePhase.Success, vm.state.value.changePhase)
+            assertNotEquals(TierChangePhase.Working, vm.state.value.changePhase)
+            assertEquals(43L, sessionBoundary.currentRevision())
+        }
 
     private class TestSessionBoundary : AuthenticatedSessionBoundary {
         private var owner: AuthenticatedSessionOwner? =
@@ -277,5 +333,11 @@ class GoldPriorityViewModelChangeTest {
             owner = AuthenticatedSessionOwner(sessionId = sessionId, accountId = 2)
             revision += 1
         }
+
+        fun rotateRevision() {
+            revision += 1
+        }
+
+        fun currentRevision(): Long = revision
     }
 }
