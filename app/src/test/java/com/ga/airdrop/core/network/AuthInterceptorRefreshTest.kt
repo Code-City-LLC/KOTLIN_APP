@@ -13,6 +13,7 @@ import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Timeout
@@ -242,6 +243,28 @@ class AuthInterceptorRefreshTest {
 
         assertTrue(failure is StaleAuthSessionException)
         assertEquals(0, chain.proceeded.size)
+    }
+
+    @Test
+    fun `tier mutation switched before dispatch sends zero patch requests`() {
+        val expected = AuthTokenStore.snapshot()
+        val provenance = requireNotNull(AuthTokenStore.requestProvenance(expected))
+        val request = apiRequest("/api/v1/customers/me/tier").newBuilder()
+            .patch("{}".toRequestBody("application/json".toMediaType()))
+            .header(AuthTokenStore.REQUEST_REVISION_HEADER, provenance.revision.toString())
+            .header(AuthTokenStore.REQUEST_SESSION_ID_HEADER, provenance.sessionId)
+            .build()
+        interceptor = AuthInterceptor(
+            beforeRetry = {},
+            beforeDispatch = { AuthTokenStore.save("account-b-token") },
+        )
+        val chain = ScriptedChain(request) { req, _ -> response(req, 200) }
+
+        val failure = runCatching { interceptor.intercept(chain) }.exceptionOrNull()
+
+        assertTrue(failure is StaleAuthSessionException)
+        assertEquals(0, chain.proceeded.size)
+        assertTrue(chain.isCanceled)
     }
 
     @Test
