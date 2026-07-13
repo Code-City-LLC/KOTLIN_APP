@@ -14,10 +14,15 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -114,6 +119,65 @@ class GoldPriorityParityTest {
     }
 
     @Test
+    fun rubyCurrentRendersTheSwiftFadeAndLightOutlineCtaLight() {
+        assertRubyCurrentFadeAndCta(
+            mode = ThemeController.Mode.LIGHT,
+            screenshot = "gold_priority_ruby_current_fade_cta_light.png",
+        )
+    }
+
+    @Test
+    fun rubyCurrentRendersTheSwiftFadeAndLightOutlineCtaDark() {
+        assertRubyCurrentFadeAndCta(
+            mode = ThemeController.Mode.DARK,
+            screenshot = "gold_priority_ruby_current_fade_cta_dark.png",
+        )
+    }
+
+    @Test
+    fun lowerTierHasNoCtaAndNoFadeLane() {
+        setGoldPriorityContent(
+            mode = ThemeController.Mode.LIGHT,
+            initialPage = rubyIndex,
+            resolvedTierIndex = rubyIndex,
+            widthDp = 375,
+        )
+        // The real screen intentionally pre-scrolls to the resolved customer
+        // tier. Navigate one page lower exactly as the customer does.
+        compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        compose.onNodeWithText("Sapphire Saver").assertIsDisplayed()
+
+        compose.onNodeWithTag("gold-priority-lines", useUnmergedTree = true).assertExists()
+        assertEquals(0, compose.onAllNodesWithTag("gold-priority-cta").fetchSemanticsNodes().size)
+        assertEquals(
+            0,
+            compose.onAllNodesWithTag("gold-priority-fade-sapphire").fetchSemanticsNodes().size,
+        )
+        saveRootScreenshot("gold_priority_sapphire_cta_hidden_no_fade.png")
+    }
+
+    private fun assertRubyCurrentFadeAndCta(
+        mode: ThemeController.Mode,
+        screenshot: String,
+    ) {
+        setGoldPriorityContent(
+            mode = mode,
+            initialPage = rubyIndex,
+            resolvedTierIndex = rubyIndex,
+            widthDp = 375,
+        )
+
+        compose.onNodeWithTag("gold-priority-lines", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("gold-priority-fade-ruby").assertIsDisplayed()
+        val cta = compose.onNodeWithTag("gold-priority-cta").assertIsDisplayed()
+            .getUnclippedBoundsInRoot()
+        assertClose(316f, boundsWidth(cta), "Swift glass CTA width")
+        assertClose(50f, boundsHeight(cta), "Swift glass CTA height")
+        saveRootScreenshot(screenshot)
+    }
+
+    @Test
     fun missingServerRowsFailClosedAndRetry() {
         val retries = java.util.concurrent.atomic.AtomicInteger()
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -135,10 +199,109 @@ class GoldPriorityParityTest {
         assertEquals(0, compose.onAllNodesWithText("3-5% discounted shipping rates.").fetchSemanticsNodes().size)
     }
 
+    // ── Canon coverage (CoralCove #22431 blocker 3) ──
+
+    @Test
+    fun contourLinesRenderFullBleedOnEveryPage() {
+        setGoldPriorityContent(
+            mode = ThemeController.Mode.LIGHT,
+            initialPage = goldIndex,
+            widthDp = 375,
+        )
+        compose.onNodeWithTag("gold-priority-lines", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun ctaFollowsTierRelationAcrossPages() {
+        // Full-window content (the CTA is bottom-anchored — a fixed 812dp
+        // wrapper can push it below the emulator's real viewport).
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                GoldPriorityContent(
+                    onBack = {},
+                    initialPage = rubyIndex,
+                    resolvedTierIndex = rubyIndex,
+                    benefitRowsByCode = mapOf("RUBY" to listOf("Server ruby row")),
+                    catalogStatus = TierCatalogStatus.Ready,
+                    // Offer-driven sheets (#22805): buttons exist ONLY for
+                    // backend-offered changes.
+                    canChange = true,
+                    changeOffers = listOf(
+                        com.ga.airdrop.data.model.TierChangeOption(
+                            code = "GOLD", name = "Gold Standard",
+                            laneRank = 3, isCurrent = false, direction = "upgrade",
+                        ),
+                        com.ga.airdrop.data.model.TierChangeOption(
+                            code = "SAVR", name = "Sapphire Saver",
+                            laneRank = 1, isCurrent = false, direction = "downgrade",
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.waitForIdle()
+
+        // Own page: "Your Tier" CTA visible; tapping opens the breakdown —
+        // the ONE sanctioned downgrade entry (standing ruling).
+        compose.onNodeWithTag("gold-priority-cta").assertIsDisplayed()
+        compose.onNodeWithTag("gold-priority-fade-ruby").assertIsDisplayed()
+        compose.onNodeWithTag("gold-priority-cta").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("tier-breakdown-sheet").assertIsDisplayed()
+        compose.onNodeWithTag("tier-breakdown-upgrade").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("tier-breakdown-downgrade").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("tier-breakdown-close").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        // Swipe to Gold (one tier above): CTA flips to "Upgrade to <tier>".
+        compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        assertEquals(
+            1,
+            compose.onAllNodesWithText("Upgrade to Gold Standard").fetchSemanticsNodes().size,
+        )
+        compose.onNodeWithTag("gold-priority-fade-gold").assertIsDisplayed()
+
+        // Swipe down to Sapphire (below the customer): current Swift hides
+        // the CTA and its bottom fade rather than exposing a pager downgrade.
+        compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+        assertEquals(
+            0,
+            compose.onAllNodesWithTag("gold-priority-cta").fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            0,
+            compose.onAllNodesWithTag("gold-priority-fade-sapphire").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun corporatePageShowsStaticInfoRows() {
+        // Kemar ruling #22424: Inactive/Corporate MUST display their info
+        // even though the API does not serve them.
+        setGoldPriorityContent(
+            mode = ThemeController.Mode.LIGHT,
+            initialPage = corporateIndex,
+            widthDp = 375,
+        )
+        compose.onNodeWithText("Dedicated account manager.").assertIsDisplayed()
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("Tier benefits are unavailable.").fetchSemanticsNodes().size,
+        )
+    }
+
     private fun setGoldPriorityContent(
         mode: ThemeController.Mode,
         initialPage: Int = goldIndex,
         widthDp: Int,
+        resolvedTierIndex: Int? = null,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -153,11 +316,30 @@ class GoldPriorityParityTest {
                     GoldPriorityContent(
                         onBack = {},
                         initialPage = initialPage,
+                        resolvedTierIndex = resolvedTierIndex,
                         benefitRowsByCode = mapOf(
                             "PLAT" to listOf("Insurance required on every shipment."),
                             "GOLD" to listOf(
                                 "24-48 hour target after clearance",
                                 "Insurance required on every shipment.",
+                            ),
+                            "RUBY" to listOf(
+                                "Packages processed within 48-72 hours after customs clearance.",
+                                "Access to standard customer support during business hours.",
+                                "Auto-upgrade eligibility after consistent activity.",
+                                "Account support for shipment questions and delivery updates.",
+                                "Clear tracking updates across each package milestone.",
+                                "Eligibility for seasonal account offers.",
+                                "Access to standard warehouse processing lanes.",
+                                "Guidance for customs and invoice requirements.",
+                            ),
+                            "SAVR" to listOf(
+                                "Basic processing (3-5 business days).",
+                                "Standard shipping rates.",
+                                "Free storage for up to 7 days.",
+                                "Access to limited promotions and onboarding discounts.",
+                                "Eligibility for early upgrade upon meeting spend thresholds.",
+                                "Welcome emails and loyalty guidance to explain tier benefits.",
                             ),
                         ),
                         catalogStatus = TierCatalogStatus.Ready,
@@ -176,9 +358,11 @@ class GoldPriorityParityTest {
         val name = compose.onNodeWithTag("gold-priority-tier-name", useUnmergedTree = true)
             .getUnclippedBoundsInRoot()
 
-        assertClose(64f, boundsWidth(badge), "Swift tier badge width")
-        assertClose(64f, boundsHeight(badge), "Swift tier badge height")
-        assertClose(12f, boundsLeft(name) - boundsRight(badge), "Swift badge/name gap")
+        // Canon staging b5e9a6f: iconImageView 70×70, titleRow.spacing = 15
+        // (CoralCove #22425 anchors; was 64/12 in the pre-canon port).
+        assertClose(70f, boundsWidth(badge), "Swift tier badge width")
+        assertClose(70f, boundsHeight(badge), "Swift tier badge height")
+        assertClose(15f, boundsLeft(name) - boundsRight(badge), "Swift badge/name gap")
         assertTrue(
             "Tier name should fit inside title row, nameRight=${boundsRight(name)} rowRight=${boundsRight(row)}",
             boundsRight(name) <= boundsRight(row) + 0.75f,
@@ -230,4 +414,13 @@ class GoldPriorityParityTest {
 
     private val goldIndex: Int
         get() = tierPages.indexOfFirst { it.id == "gold" }
+
+    private val rubyIndex: Int
+        get() = tierPages.indexOfFirst { it.id == "ruby" }
+
+    private val sapphireIndex: Int
+        get() = tierPages.indexOfFirst { it.id == "sapphire" }
+
+    private val corporateIndex: Int
+        get() = tierPages.indexOfFirst { it.id == "corporate" }
 }

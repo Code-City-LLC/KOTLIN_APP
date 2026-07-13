@@ -4,6 +4,7 @@ import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.designsystem.theme.TextSizeController
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.network.HttpsImageInterceptor
 import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
@@ -23,6 +24,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
         super.onCreate()
         AuthTokenStore.init(this)
         ThemeController.init(this)
+        TextSizeController.init(this)
         CartStore.init(this)
         DeliveryDefaultsStore.init(this)
         BiometricGate.init(this)

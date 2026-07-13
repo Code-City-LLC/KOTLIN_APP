@@ -7,6 +7,8 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 
 object AirdropTheme {
     val colors: AirdropColorScheme
@@ -40,7 +42,19 @@ fun AirdropTheme(content: @Composable () -> Unit) {
         )
     }
 
-    CompositionLocalProvider(LocalAirdropColors provides colors) {
+    // Text-size funnel (Kemar 2026-07-12, Swift DesignTokens parity): the
+    // preference multiplies fontScale only, so every sp text scales app-wide
+    // while dp layout metrics stay untouched.
+    val density = LocalDensity.current
+    val scaledDensity = Density(
+        density = density.density,
+        fontScale = density.fontScale * TextSizeController.level.fontMultiplier,
+    )
+
+    CompositionLocalProvider(
+        LocalAirdropColors provides colors,
+        LocalDensity provides scaledDensity,
+    ) {
         MaterialTheme(colorScheme = material, content = content)
     }
 }

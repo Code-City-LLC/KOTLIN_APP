@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.TextSizeController
 
 /**
  * Preferences — Figma node 40000994:19044, behavior from
@@ -74,6 +75,16 @@ fun PreferencesScreen(
                     required = false, // Swift Preferences rows show no asterisk
                     onClick = { pickerFor = "currency" },
                 )
+                // Text Size — device preference, not part of the profile
+                // PUT: the ONE controller-backed editor (Settings' row
+                // routes here; gate #24601). Applies app-wide instantly.
+                MoreSelectField(
+                    label = "Text Size",
+                    value = TextSizeController.level.displayName,
+                    placeholder = "Select text size",
+                    required = false,
+                    onClick = { pickerFor = "text_size" },
+                )
             }
             MoreBottomButtonBar(
                 text = "Save",
@@ -96,6 +107,18 @@ fun PreferencesScreen(
             options = viewModel.paymentCurrencies,
             selected = state.paymentCurrency,
             onSelect = { viewModel.applyCurrency(context, it) },
+            onDismiss = { pickerFor = null },
+        )
+        "text_size" -> MoreOptionSheet(
+            title = "Text Size",
+            options = TextSizeController.Level.entries.map { it.displayName },
+            selected = TextSizeController.level.displayName,
+            onSelect = { picked ->
+                TextSizeController.Level.entries
+                    .firstOrNull { it.displayName == picked }
+                    ?.let(TextSizeController::set)
+                pickerFor = null
+            },
             onDismiss = { pickerFor = null },
         )
     }
