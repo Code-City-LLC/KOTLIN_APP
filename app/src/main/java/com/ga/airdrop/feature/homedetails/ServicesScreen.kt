@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,12 +65,9 @@ private val SERVICE_COPY_TEXT = listOf(
 ).joinToString("\n")
 
 /**
- * Services — behavior/copy from FigmaServicesViewController (RN ServicesView
- * canonical; no exact Figma frame exists for this marketing page — the node
- * referenced in planning, 40000798:7711 "Sales - Option 1", is a Shop-tab
- * auction layout, not this screen). Layout: satisfaction pill, mixed-color
- * heading, tagline, hero block, paragraphs, tax-free heading + logo rows,
- * "We Offer You" benefits card.
+ * Services — Swift FigmaServicesViewController and Figma 40005190:30624.
+ * Reuses the canonical hero, customer pill, two-row logo marquee, and benefits
+ * card instead of the former placeholder hero.
  */
 
 private val benefits = listOf(
@@ -128,6 +127,7 @@ fun ServicesScreen(onBack: () -> Unit) {
         HomeDetailsHeader(
             title = "Services",
             onBack = onBack,
+            showDivider = false,
             // Swift figma.services.copy — copies the 3-line service info block.
             trailingIconRes = R.drawable.ic_copy,
             trailingContentDescription = "Copy service information",
@@ -136,34 +136,44 @@ fun ServicesScreen(onBack: () -> Unit) {
                 toast = "Content Copied"
             },
         )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(colors.divider)
+        )
 
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.md)
-                .padding(top = Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                .padding(top = Spacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             CustomerSatisfactionPill()
-            Spacer(Modifier.height(Spacing.sm)) // md gap after the pill
+            Spacer(Modifier.height(Spacing.lg))
             MainHeading()
-            CenteredParagraph("Fast, secure, and reliable delivery services across Jamaica and beyond.")
+            Spacer(Modifier.height(Spacing.sm))
+            CenteredParagraph(
+                text = "Fast, secure, and reliable delivery services across Jamaica and beyond",
+                modifier = Modifier.width(293.dp),
+            )
+            Spacer(Modifier.height(Spacing.sm1))
             ServicesHero()
+            Spacer(Modifier.height(Spacing.sm1))
             CenteredParagraph(
                 "Order online anytime with AirDrop and skip the long drives to the store. " +
                     "Sit back while we take care of the forwarding, customs clearance, and " +
-                    "processing on your behalf."
-            )
-            CenteredParagraph(
-                "We make shipping your favorite U.S. products fast, reliable, and affordable. " +
+                    "processing on your behalf.\n\n" +
+                    "We make shipping your favorite U.S. products fast, reliable, and affordable. " +
                     "Central to our ethos is a dedication to customer service excellence."
             )
-            Spacer(Modifier.height(Spacing.md)) // lg gap before the tax-free block
+            Spacer(Modifier.height(Spacing.lg))
             TaxFreeHeading()
-            LogoRow(storeLogos)
-            LogoRow(storeLogos.reversed())
-            Spacer(Modifier.height(Spacing.md)) // lg gap before the benefits card
+            Spacer(Modifier.height(Spacing.md))
+            LogoMarquee(storeLogos)
+            Spacer(Modifier.height(25.dp))
             BenefitsCard()
             Spacer(Modifier.height(Spacing.xxxl))
         }
@@ -188,37 +198,44 @@ private fun CustomerSatisfactionPill() {
     Row(
         Modifier
             .fillMaxWidth()
-            .height(66.dp)
-            .shadow(4.dp, RoundedCornerShape(33.dp))
-            .clip(RoundedCornerShape(33.dp))
+            .height(68.dp)
+            .testTag("services-customer-pill")
+            .clip(RoundedCornerShape(34.dp))
             .background(colors.gray150)
-            .padding(horizontal = Spacing.md),
+            .border(1.dp, colors.cardHairline, RoundedCornerShape(34.dp))
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Overlapping 37dp avatars, -12dp overlap, 2dp gray700 ring.
-        Box(Modifier.width((37 + 4 * 25).dp).height(37.dp)) {
+        // Swift/Figma: five 27dp avatars with 8.44dp overlap.
+        Box(
+            Modifier
+                .width(101.dp)
+                .height(27.dp)
+                .testTag("services-customer-avatars")
+        ) {
             customerPhotos.forEachIndexed { index, res ->
                 Image(
                     painter = painterResource(res),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .offset(x = (25 * index).dp)
-                        .size(37.dp)
+                        .offset(x = (18.56f * index).dp)
+                        .size(27.dp)
                         .clip(CircleShape)
-                        .border(2.dp, colors.gray700, CircleShape),
+                        .border(1.dp, colors.gray700, CircleShape),
                 )
             }
         }
-        Spacer(Modifier.width(16.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Spacer(Modifier.width(20.dp))
+        Column {
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 repeat(5) {
                     Image(
                         painter = painterResource(R.drawable.ic_star),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(colors.orangeDark),
-                        modifier = Modifier.size(14.dp),
+                        colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                        modifier = Modifier.size(16.dp),
                     )
                 }
             }
@@ -243,7 +260,7 @@ private fun MainHeading() {
             append(" & Ship To ")
             withStyle(SpanStyle(color = BrandPalette.BlueAccentMain)) { append("Jamaica") }
         },
-        style = AirdropType.title1,
+        style = AirdropType.h4,
         color = colors.textDarkTitle,
         textAlign = TextAlign.Center,
         modifier = Modifier
@@ -253,13 +270,13 @@ private fun MainHeading() {
 }
 
 @Composable
-private fun CenteredParagraph(text: String) {
+private fun CenteredParagraph(text: String, modifier: Modifier = Modifier.fillMaxWidth()) {
     Text(
         text = text,
         style = AirdropType.body2,
         color = AirdropTheme.colors.textDarkTitle,
         textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
     )
 }
 
@@ -271,7 +288,7 @@ private fun TaxFreeHeading() {
             append("Shop Tax Free in ")
             withStyle(SpanStyle(color = colors.orangeDark)) { append("Thousands of Stores") }
         },
-        style = AirdropType.title2,
+        style = AirdropType.h4,
         color = colors.textDarkTitle,
         textAlign = TextAlign.Center,
         modifier = Modifier
@@ -283,44 +300,134 @@ private fun TaxFreeHeading() {
 // ─── Hero block ────────────────────────────────────────────────────────────
 
 /**
- * RN renders an animated flame PNG here (assets/AnimationIcons/animated.png)
- * that is bundled in neither repo; Swift ships an SF-Symbol flame stand-in.
- * Until the real asset lands, an orange-tinted block anchors the same slot
- * with the brand logo (no invented vector art, per the icon policy).
+ * Swift's ServicesHeroAnimated asset is the API-exported Figma
+ * 40005190:30632 artwork. Its 667x253 canvas is centered inside the 335x250
+ * viewport so the waves bleed to the screen edges exactly like iOS.
  */
 @Composable
 private fun ServicesHero() {
+    val colors = AirdropTheme.colors
     Box(
         Modifier
             .fillMaxWidth()
-            .height(180.dp)
-            .clip(RoundedCornerShape(Radius.s))
-            .background(BrandPalette.OrangeTertiary5),
+            .height(250.2766f.dp)
+            .testTag("services-hero"),
         contentAlignment = Alignment.Center,
     ) {
         Image(
-            painter = painterResource(R.drawable.img_airdrop_logo),
+            painter = painterResource(
+                if (colors.isDark) {
+                    R.drawable.img_homedet_services_hero_dark
+                } else {
+                    R.drawable.img_homedet_services_hero_light
+                }
+            ),
             contentDescription = null,
-            modifier = Modifier.size(96.dp),
-            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .requiredSize(width = 667.dp, height = 253.dp)
+                .testTag("services-hero-image"),
+            contentScale = ContentScale.FillBounds,
         )
+        if (colors.isDark) {
+            Box(
+                Modifier
+                    .size(82.dp)
+                    .clip(CircleShape)
+                    .background(colors.gray150),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.img_airdrop_logo_dark),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.requiredSize(width = 70.dp, height = 72.dp),
+                )
+            }
+        }
     }
 }
 
 // ─── Store logo rows ───────────────────────────────────────────────────────
 
 @Composable
-private fun LogoRow(logos: List<Int>) {
+private fun LogoMarquee(logos: List<Int>) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .height(90.dp)
+            .testTag("services-logo-marquee")
+            .padding(vertical = 1.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        LogoMarqueeRow(
+            logos = logos,
+            movesForward = true,
+            initialIndex = 0,
+            initialDelayMillis = 350,
+            intervalMillis = 2_000,
+            tag = "services-logo-row-top",
+        )
+        LogoMarqueeRow(
+            logos = logos,
+            movesForward = false,
+            initialIndex = logos.size,
+            initialDelayMillis = 600,
+            intervalMillis = 2_200,
+            tag = "services-logo-row-bottom",
+        )
+    }
+}
+
+@Composable
+private fun LogoMarqueeRow(
+    logos: List<Int>,
+    movesForward: Boolean,
+    initialIndex: Int,
+    initialDelayMillis: Long,
+    intervalMillis: Long,
+    tag: String,
+) {
     val colors = AirdropTheme.colors
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(logos) { res ->
+    val displayLogos = remember(logos) { logos + logos + logos }
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+
+    LaunchedEffect(logos, movesForward) {
+        var index = initialIndex
+        delay(initialDelayMillis)
+        while (true) {
+            index += if (movesForward) 1 else -1
+            when {
+                movesForward && index >= logos.size * 2 -> {
+                    index = logos.size
+                    state.scrollToItem(index)
+                }
+                !movesForward && index <= 0 -> {
+                    index = logos.size
+                    state.scrollToItem(index)
+                }
+                else -> state.animateScrollToItem(index)
+            }
+            delay(intervalMillis)
+        }
+    }
+
+    LazyRow(
+        state = state,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .testTag(tag),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        userScrollEnabled = false,
+    ) {
+        items(displayLogos) { res ->
             Box(
                 Modifier
-                    .size(width = 100.dp, height = 60.dp)
+                    .size(width = 100.dp, height = 40.dp)
                     .shadow(2.dp, RoundedCornerShape(12.dp))
                     .clip(RoundedCornerShape(12.dp))
                     .background(colors.gray300)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
@@ -344,7 +451,7 @@ private fun BenefitsCard() {
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.xs))
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs)),
+            .border(1.dp, colors.cardHairline, RoundedCornerShape(Radius.xs)),
     ) {
         // Header strip.
         Row(
@@ -373,7 +480,7 @@ private fun BenefitsCard() {
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(colors.iconShape)
+                .background(colors.divider)
         )
         Column(
             Modifier
