@@ -68,6 +68,7 @@ class ForgotPasswordParityTest {
             ThemeController.init(compose.activity.applicationContext)
             ThemeController.set(mode)
         }
+        val viewModel = ForgotPasswordViewModel()
         compose.setContent {
             AirdropThemeProvider {
                 Box(
@@ -77,7 +78,7 @@ class ForgotPasswordParityTest {
                 ) {
                     ForgotPasswordScreen(
                         onBackToLogin = {},
-                        viewModel = ForgotPasswordViewModel(),
+                        viewModel = viewModel,
                     )
                 }
             }

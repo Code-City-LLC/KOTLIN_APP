@@ -465,15 +465,16 @@ class NotificationSettingsParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
         }
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> },
+            hasNotificationPermission = { true },
+            sessionBoundary = boundary,
+        )
         compose.setContent {
             AirdropTheme {
                 NotificationSettingsScreen(
                     onBack = {},
-                    viewModel = NotificationSettingsViewModel(
-                        setDevicePush = { _, _, _ -> },
-                        hasNotificationPermission = { true },
-                        sessionBoundary = boundary,
-                    ),
+                    viewModel = viewModel,
                 )
             }
         }

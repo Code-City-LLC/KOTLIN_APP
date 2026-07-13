@@ -25,13 +25,14 @@ class SignUpScreenIdentityParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
+        val viewModel = SignUpViewModel()
 
         compose.setContent {
             AirdropTheme {
                 SignUpScreen(
                     onBack = {},
                     onRegistered = {},
-                    viewModel = SignUpViewModel(),
+                    viewModel = viewModel,
                 )
             }
         }

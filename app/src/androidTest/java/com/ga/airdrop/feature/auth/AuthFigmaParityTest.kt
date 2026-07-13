@@ -97,6 +97,7 @@ class AuthFigmaParityTest {
 
     private fun setLoginContent(mode: ThemeController.Mode) {
         setTheme(mode)
+        val viewModel = LoginViewModel()
         compose.setContent {
             AirdropThemeProvider {
                 Box(
@@ -108,7 +109,7 @@ class AuthFigmaParityTest {
                         onLoggedIn = {},
                         onRegister = {},
                         onForgotPassword = {},
-                        viewModel = LoginViewModel(),
+                        viewModel = viewModel,
                     )
                 }
             }
