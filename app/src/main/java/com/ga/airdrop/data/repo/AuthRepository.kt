@@ -60,7 +60,7 @@ class AuthRepository(private val service: AirdropApiService) {
                 passwordConfirmation = passwordConfirmation,
             ),
         )
-        response.token?.let(AuthTokenStore::save)
+        response.token?.let { token -> AuthTokenStore.save(token, response.user?.id) }
         response
     }
 }

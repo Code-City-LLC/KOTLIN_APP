@@ -7,16 +7,22 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.prefs.NotificationAccountPreferences
+import com.ga.airdrop.core.push.PushRegistrar
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -62,40 +68,399 @@ class NotificationSettingsParityTest {
     fun enablingPushReregistersFcmTokenLikeSwift() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         clearNotificationPrefs(context)
-        val profileUpdates = mutableListOf<Map<String, String?>>()
-        val registration = AtomicReference<Pair<String, String?>>()
+        val registration = AtomicReference<Pair<AuthTokenStore.RequestProvenance, Boolean>>()
         val registerLatch = CountDownLatch(1)
+        val boundary = FakeAuthenticatedSessionBoundary("session-a", initialAccountId = 101)
 
         val viewModel = NotificationSettingsViewModel(
-            updateProfile = { fields ->
-                synchronized(profileUpdates) {
-                    profileUpdates.add(fields)
-                }
-            },
-            requestFcmToken = { onToken -> onToken(" test-fcm-token ") },
-            registerFcmToken = { token, deviceInfo ->
-                registration.set(token to deviceInfo)
+            setDevicePush = { expected, enabled, onComplete ->
+                registration.set(expected to enabled)
+                onComplete(
+                    Result.success(
+                        if (enabled) PushRegistrar.DevicePushOutcome.RegistrationRequested
+                        else PushRegistrar.DevicePushOutcome.Disabled,
+                    ),
+                )
                 registerLatch.countDown()
             },
-            deviceInfoProvider = { "ID: android-test, OS: 35" },
+            hasNotificationPermission = { true },
+            sessionBoundary = boundary,
         )
 
-        viewModel.setPackageMaster(context, true)
-        viewModel.setChannel(context, { state, on -> state.copy(packagePush = on) }, true)
+        viewModel.start(context)
+        viewModel.setMaster(context, false)
+        viewModel.setMaster(context, true)
 
         assertTrue("Push enable should register the current FCM token", registerLatch.await(5, TimeUnit.SECONDS))
         val registered = registration.get()
         assertNotNull(registered)
-        assertEquals("test-fcm-token", registered.first)
-        assertEquals("ID: android-test, OS: 35", registered.second)
-        val finalProfileUpdate = synchronized(profileUpdates) { profileUpdates.last() }
-        assertEquals("0", finalProfileUpdate["email_notification"])
-        assertEquals("0", finalProfileUpdate["sms_notification"])
-        assertEquals("0", finalProfileUpdate["offers_notification"])
+        assertEquals("session-a", registered.first.sessionId)
+        assertEquals(101, registered.first.accountId)
+        assertEquals(true, registered.second)
+    }
+
+    @Test
+    fun accountAEventCannotMutateOrRegisterUnderAccountBAfterReplacement() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val boundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101)
+        val deviceCommands = AtomicInteger()
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> deviceCommands.incrementAndGet() },
+            hasNotificationPermission = { true },
+            sessionBoundary = boundary,
+        )
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.start(context)
+            viewModel.setPackageMaster(context, true)
+            viewModel.setChannel(context, { state, on -> state.copy(packagePush = on) }, true)
+        }
+        val accountACommands = deviceCommands.get()
+
+        boundary.replaceCurrent("account-b", accountId = 202)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.setChannel(context, { state, on -> state.copy(promosPush = on) }, true)
+        }
+
+        assertEquals(accountACommands, deviceCommands.get())
+        val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packagePush"), false))
+        boundary.emitCurrent()
+        waitUntil {
+            prefs.contains(accountKey(202, "packagePush")) &&
+                !viewModel.state.value.packagePush
+        }
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packagePush"), false))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packagePush"), true))
+    }
+
+    @Test
+    fun replacementDuringCandidateComputationPersistsNoStaleTrueForEitherAccount() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val boundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101)
+        val commands = AtomicInteger()
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> commands.incrementAndGet() },
+            hasNotificationPermission = { true },
+            sessionBoundary = boundary,
+        )
+        viewModel.start(context)
+
+        viewModel.setChannel(
+            context = context,
+            transform = { state, on ->
+                boundary.replaceCurrent("account-b", accountId = 202)
+                state.copy(packagePush = on)
+            },
+            on = true,
+        )
+
+        val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
+        assertEquals(false, prefs.getBoolean(accountKey(101, "packagePush"), true))
+        assertEquals(0, commands.get())
+
+        boundary.emitCurrent()
+        waitUntil {
+            prefs.contains(accountKey(202, "packagePush")) &&
+                !viewModel.state.value.packagePush
+        }
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packagePush"), true))
+    }
+
+    @Test
+    fun replacementInsideSuccessfulCommitCallbackAppliesNoStaleUiOrDeviceCommand() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val boundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101)
+        val commands = AtomicInteger()
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> commands.incrementAndGet() },
+            hasNotificationPermission = { true },
+            commitPreferences = { _, _ ->
+                boundary.replaceCurrent("account-b", accountId = 202)
+                true
+            },
+            sessionBoundary = boundary,
+        )
+        viewModel.start(context)
+
+        viewModel.setMaster(context, false)
+
+        assertEquals(true, viewModel.state.value.master)
+        assertEquals(0, commands.get())
+        assertTrue(boundary.rejectedApplyAttempts.get() > 0)
+        val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
+        boundary.emitCurrent()
+        waitUntil {
+            prefs.contains(accountKey(202, "isNotifications")) &&
+                viewModel.state.value.master
+        }
+    }
+
+    @Test
+    fun replacementSessionPreservesAccountASettingsAndLoadsAccountBDefaults() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val boundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101)
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> },
+            hasNotificationPermission = { true },
+            sessionBoundary = boundary,
+        )
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.start(context)
+            viewModel.setPackageMaster(context, true)
+            viewModel.setChannel(context, { state, on -> state.copy(packageEmail = on) }, true)
+        }
+        waitUntil { viewModel.state.value.packageEmail }
+        val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packageMaster"), false))
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packageEmail"), false))
+
+        boundary.replace("account-b", accountId = 202)
+        waitUntil {
+            prefs.contains(accountKey(202, "packageMaster")) &&
+                prefs.contains(accountKey(202, "packageEmail")) &&
+                !viewModel.state.value.packageMaster &&
+                !viewModel.state.value.packageEmail
+        }
+
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packageMaster"), false))
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packageEmail"), false))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packageMaster"), true))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packageEmail"), true))
+    }
+
+    @Test
+    fun categoryPushCannotEnableDevicePushWhileMasterIsOff() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val boundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101)
+        val commands = mutableListOf<Boolean>()
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, enabled, onComplete ->
+                commands.add(enabled)
+                onComplete(Result.success(PushRegistrar.DevicePushOutcome.Disabled))
+            },
+            hasNotificationPermission = { true },
+            sessionBoundary = boundary,
+        )
+        viewModel.start(context)
+
+        viewModel.setMaster(context, false)
+        viewModel.setPackageMaster(context, true)
+        viewModel.setChannel(context, { state, on -> state.copy(packagePush = on) }, true)
+
+        assertEquals(listOf(false), commands)
+        assertEquals(false, viewModel.state.value.pushWanted())
+    }
+
+    @Test
+    fun legacyValuesAreClaimedOnceAndSameAccountReloginRestoresThem() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .clear()
+            .putBoolean("isNotifications", false)
+            .putBoolean("packageMaster", true)
+            .putBoolean("packageEmail", true)
+            .commit()
+        val boundary = FakeAuthenticatedSessionBoundary("account-a-1", initialAccountId = 101)
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> },
+            hasNotificationPermission = { true },
+            sessionBoundary = boundary,
+        )
+        viewModel.start(context)
+        assertEquals(false, viewModel.state.value.master)
+        assertEquals(true, viewModel.state.value.packageEmail)
+        assertEquals(false, prefs.contains("packageEmail"))
+
+        boundary.replace("account-a-2", accountId = 101)
+        waitUntil { !viewModel.state.value.master && viewModel.state.value.packageEmail }
+
+        boundary.replace("account-b", accountId = 202)
+        waitUntil {
+            prefs.contains(accountKey(202, "packageEmail")) &&
+                viewModel.state.value.master &&
+                !viewModel.state.value.packageEmail
+        }
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packageEmail"), false))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packageEmail"), true))
+    }
+
+    @Test
+    fun categoryEditsWhileMasterUnchangedSendZeroDeviceCommands() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val commands = AtomicInteger()
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> commands.incrementAndGet() },
+            hasNotificationPermission = { true },
+            sessionBoundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101),
+        )
+
+        viewModel.start(context)
+        viewModel.setPackageMaster(context, true)
+        viewModel.setChannel(context, { state, on -> state.copy(packageEmail = on) }, true)
+        viewModel.setChannel(context, { state, on -> state.copy(packagePush = on) }, true)
+        viewModel.setPromosMaster(context, true)
+        viewModel.setChannel(context, { state, on -> state.copy(promosSms = on) }, true)
+
+        assertEquals(0, commands.get())
+        assertEquals(NotificationDeviceStatus.On, viewModel.state.value.deviceStatus)
+    }
+
+    @Test
+    fun failedApplyPreservesRequestedIntentAndRetryCanRecover() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val attempts = AtomicInteger()
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, enabled, onComplete ->
+                if (attempts.incrementAndGet() == 1) {
+                    onComplete(Result.failure(IllegalStateException("simulated failure")))
+                } else {
+                    onComplete(
+                        Result.success(
+                            if (enabled) PushRegistrar.DevicePushOutcome.RegistrationRequested
+                            else PushRegistrar.DevicePushOutcome.Disabled,
+                        ),
+                    )
+                }
+            },
+            hasNotificationPermission = { true },
+            sessionBoundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101),
+        )
+
+        viewModel.start(context)
+        viewModel.setMaster(context, false)
+        assertEquals(false, viewModel.state.value.master)
+        assertTrue(viewModel.state.value.deviceStatus is NotificationDeviceStatus.Failed)
+
+        viewModel.retry(context)
+        assertEquals(NotificationDeviceStatus.Off, viewModel.state.value.deviceStatus)
+        assertEquals(false, viewModel.state.value.master)
+        assertEquals(2, attempts.get())
+    }
+
+    @Test
+    fun commitFailurePreservesPriorMatrixAndSendsZeroDeviceCommands() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val commands = AtomicInteger()
+        val commitAttempts = AtomicInteger()
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, enabled, onComplete ->
+                commands.incrementAndGet()
+                onComplete(
+                    Result.success(
+                        if (enabled) PushRegistrar.DevicePushOutcome.RegistrationRequested
+                        else PushRegistrar.DevicePushOutcome.Disabled,
+                    ),
+                )
+            },
+            hasNotificationPermission = { true },
+            commitPreferences = { accountId, matrix ->
+                if (commitAttempts.incrementAndGet() == 1) false
+                else NotificationAccountPreferences.commit(accountId, matrix)
+            },
+            sessionBoundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101),
+        )
+        viewModel.start(context)
+        compose.setContent {
+            AirdropTheme { NotificationSettingsScreen(onBack = {}, viewModel = viewModel) }
+        }
+        compose.waitForIdle()
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.setMaster(context, false)
+        }
+        compose.waitForIdle()
+
+        assertEquals(true, viewModel.state.value.master)
+        assertEquals(NotificationDeviceStatus.PreferenceSaveFailed, viewModel.state.value.deviceStatus)
+        assertEquals(0, commands.get())
+        compose.onNodeWithText("Your notification preference was not saved. Change the setting again to retry.")
+            .assertExists()
+        compose.onNodeWithText("Retry").assertDoesNotExist()
+        val stored = NotificationAccountPreferences.load(101)
+        assertEquals(true, stored?.master)
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.setMaster(context, false)
+        }
+        compose.waitForIdle()
+
+        assertEquals(false, viewModel.state.value.master)
+        assertEquals(NotificationDeviceStatus.Off, viewModel.state.value.deviceStatus)
+        assertEquals(1, commands.get())
+        assertEquals(false, NotificationAccountPreferences.load(101)?.master)
+    }
+
+    @Test
+    fun committedMatrixSurvivesStoreReinitializationAndSameAccountRelogin() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val first = NotificationSettingsViewModel(
+            setDevicePush = { _, _, onComplete ->
+                onComplete(Result.success(PushRegistrar.DevicePushOutcome.Disabled))
+            },
+            hasNotificationPermission = { true },
+            sessionBoundary = FakeAuthenticatedSessionBoundary("account-a-1", initialAccountId = 101),
+        )
+        first.start(context)
+        first.setMaster(context, false)
+        assertEquals(false, first.state.value.master)
+
+        NotificationAccountPreferences.init(context)
+        val restored = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> },
+            hasNotificationPermission = { true },
+            sessionBoundary = FakeAuthenticatedSessionBoundary("account-a-2", initialAccountId = 101),
+        )
+        restored.start(context)
+
+        assertEquals(false, restored.state.value.master)
+        assertEquals(NotificationDeviceStatus.Off, restored.state.value.deviceStatus)
+    }
+
+    @Test
+    fun deniedPermissionShowsExistingAirdropDialogAndKeepsMasterIntent() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        clearNotificationPrefs(context)
+        val commands = AtomicInteger()
+        val viewModel = NotificationSettingsViewModel(
+            setDevicePush = { _, _, _ -> commands.incrementAndGet() },
+            hasNotificationPermission = { false },
+            sessionBoundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101),
+        )
+
+        compose.setContent {
+            AirdropTheme {
+                NotificationSettingsScreen(onBack = {}, viewModel = viewModel)
+            }
+        }
+        compose.waitForIdle()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.setMaster(context, false)
+            viewModel.setMaster(context, true)
+        }
+        compose.waitForIdle()
+
+        assertEquals(true, viewModel.state.value.master)
+        assertEquals(NotificationDeviceStatus.PermissionDenied, viewModel.state.value.deviceStatus)
+        assertEquals(1, commands.get())
+        compose.onNodeWithText("Notifications Disabled").assertExists()
+        compose.onNodeWithText("Settings").assertExists()
+        compose.onNodeWithText("Cancel").assertExists()
     }
 
     private fun setNotificationSettings(mode: ThemeController.Mode) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val boundary = FakeAuthenticatedSessionBoundary("session-a", initialAccountId = 101)
         seedEnabledNotificationPrefs(context)
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -105,9 +470,9 @@ class NotificationSettingsParityTest {
                 NotificationSettingsScreen(
                     onBack = {},
                     viewModel = NotificationSettingsViewModel(
-                        updateProfile = {},
-                        requestFcmToken = {},
-                        registerFcmToken = { _, _ -> },
+                        setDevicePush = { _, _, _ -> },
+                        hasNotificationPermission = { true },
+                        sessionBoundary = boundary,
                     ),
                 )
             }
@@ -116,24 +481,37 @@ class NotificationSettingsParityTest {
     }
 
     private fun seedEnabledNotificationPrefs(context: Context) {
-        context.getSharedPreferences(NotificationSettingsViewModel.PREFS, Context.MODE_PRIVATE)
+        context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
             .edit()
             .clear()
             .putBoolean("isNotifications", true)
             .putBoolean("packageMaster", true)
             .putBoolean("promosMaster", true)
-            .apply()
+            .commit()
     }
 
     private fun clearNotificationPrefs(context: Context) {
-        context.getSharedPreferences(NotificationSettingsViewModel.PREFS, Context.MODE_PRIVATE)
+        context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
             .edit()
             .clear()
-            .apply()
+            .commit()
+    }
+
+    private fun accountKey(accountId: Int, key: String): String =
+        NotificationAccountPreferences.accountKey(accountId, key)
+
+    private fun waitUntil(predicate: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (!predicate() && System.currentTimeMillis() < deadline) {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            Thread.sleep(50)
+        }
+        assertTrue("Timed out waiting for asynchronous state", predicate())
     }
 
     private fun assertSwiftRowGeometry() {
         val master = bounds("notification-master-row")
+        val status = bounds("notification-sync-status")
         val packageSection = bounds("notification-package-section-row")
         val packageEmail = bounds("notification-package-email-row")
         val packageSms = bounds("notification-package-sms-row")
@@ -147,7 +525,8 @@ class NotificationSettingsParityTest {
         assertClose(56f, boundsHeight(packagePush), "Package Push row height")
         assertClose(60f, boundsHeight(promosSection), "Promotions section row height")
 
-        assertClose(20f, verticalGap(master, packageSection), "Master-to-package gap")
+        assertClose(12f, verticalGap(master, status), "Master-to-status gap")
+        assertClose(20f, verticalGap(status, packageSection), "Status-to-package gap")
         assertClose(12f, verticalGap(packageSection, packageEmail), "Package section-to-email gap")
         assertClose(12f, verticalGap(packageEmail, packageSms), "Package email-to-sms gap")
         assertClose(12f, verticalGap(packageSms, packagePush), "Package sms-to-push gap")

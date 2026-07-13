@@ -215,7 +215,11 @@ interface AirdropApiService {
     ): MutationResponse
 
     @POST("device-tokens/register")
-    suspend fun registerDeviceToken(@Body body: RegisterDeviceTokenRequest): MutationResponse
+    suspend fun registerDeviceToken(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String? = null,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String? = null,
+        @Body body: RegisterDeviceTokenRequest,
+    ): MutationResponse
 
     @GET("device-tokens")
     suspend fun deviceTokens(): Paginated<DeviceToken>

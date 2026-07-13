@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
 import com.ga.airdrop.data.model.AirCoinsStatus
 import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuctionProduct
@@ -32,7 +33,7 @@ class HomeLiveDataParityTest {
     @Test
     fun homeScreenRefreshesLiveDataOnResumeLikeSwiftViewDidAppear() {
         val repository = FakeHomeRepository()
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeAuthenticatedSessionBoundary())
 
         compose.waitUntil(timeoutMillis = 5_000) {
             repository.currentUserCalls.get() == 1 &&
@@ -75,7 +76,7 @@ class HomeLiveDataParityTest {
     @Test
     fun pullToRefreshReloadsLiveDataLikeSwiftHomeRefreshControl() {
         val repository = FakeHomeRepository()
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeAuthenticatedSessionBoundary())
 
         // Let the init{} cold load settle so the pull isn't a no-op behind an
         // active refresh job.
@@ -117,7 +118,7 @@ class HomeLiveDataParityTest {
     @Test
     fun auctionReloadFailureClearsStaleHighlightsLikeSwiftEmptyCard() {
         val repository = FakeHomeRepository()
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeAuthenticatedSessionBoundary())
 
         compose.waitUntil(timeoutMillis = 5_000) {
             viewModel.state.value.auctionHighlights.size == 1 &&

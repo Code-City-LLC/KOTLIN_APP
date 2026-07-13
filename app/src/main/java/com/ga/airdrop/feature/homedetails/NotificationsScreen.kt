@@ -347,17 +347,18 @@ private fun EmptyState(onOpenSettings: () -> Unit) {
     // flips to the "You're all set!" variant and drops the settings link.
     // Re-read on every resume so returning from Settings updates the copy.
     val context = androidx.compose.ui.platform.LocalContext.current
-    var notificationsOn by remember { mutableStateOf(false) }
+    var notificationsOn by remember(context) {
+        com.ga.airdrop.core.prefs.NotificationAccountPreferences.init(context)
+        mutableStateOf(
+            com.ga.airdrop.core.prefs.NotificationAccountPreferences.currentMasterEnabled(),
+        )
+    }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                notificationsOn = context
-                    .getSharedPreferences(
-                        com.ga.airdrop.feature.more.NotificationSettingsViewModel.PREFS,
-                        android.content.Context.MODE_PRIVATE,
-                    )
-                    .getBoolean("isNotifications", false)
+                notificationsOn =
+                    com.ga.airdrop.core.prefs.NotificationAccountPreferences.currentMasterEnabled()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

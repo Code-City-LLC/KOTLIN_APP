@@ -3,7 +3,14 @@ package com.ga.airdrop.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.AuthenticatedSessionJobs
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.SessionStore
+import com.ga.airdrop.core.session.captureOwnedSession
+import com.ga.airdrop.core.session.AuthenticatedOwnerChange
+import com.ga.airdrop.core.session.changeTo
 import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.data.repo.MiscRepository
 import com.ga.airdrop.data.repo.ProductsRepository
@@ -13,6 +20,7 @@ import com.ga.airdrop.data.model.AirdropUser
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -54,13 +62,33 @@ private class DefaultHomeRepository(
 
 class HomeViewModel(
     private val repository: HomeRepository = DefaultHomeRepository(),
+    private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState(greeting = greetingForNow()))
     val state: StateFlow<HomeUiState> = _state
+    private val sessionJobs = AuthenticatedSessionJobs(viewModelScope)
+    private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
     private var refreshJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            sessionBoundary.changes.collect { changed ->
+                when (sessionOwner.changeTo(changed)) {
+                    AuthenticatedOwnerChange.Unchanged -> return@collect
+                    AuthenticatedOwnerChange.IdentityUpdated -> {
+                        sessionOwner = changed
+                        return@collect
+                    }
+                    AuthenticatedOwnerChange.SessionReplaced -> Unit
+                }
+                sessionJobs.replaceSession()
+                refreshJob = null
+                sessionOwner = changed
+                _state.value = HomeUiState(greeting = greetingForNow())
+                if (changed != null) refresh()
+            }
+        }
         refresh()
     }
 
@@ -71,36 +99,53 @@ class HomeViewModel(
      */
     fun refresh(isPull: Boolean = false) {
         if (refreshJob?.isActive == true) return
-        refreshJob = viewModelScope.launch {
-            _state.update { if (isPull) it.copy(refreshing = true) else it.copy(loading = true) }
+        val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
+        refreshJob = sessionJobs.launch {
+            sessionBoundary.apply(owner) {
+                _state.update { if (isPull) it.copy(refreshing = true) else it.copy(loading = true) }
+            }
             repository.currentUser().onSuccess { user ->
-                _state.update {
-                    it.copy(
-                        firstName = user.firstName.orEmpty(),
-                        tierName = user.customerTierName.orEmpty(),
-                    )
-                }
-                SessionStore.update {
-                    it.copy(
-                        greeting = _state.value.greeting,
-                        firstName = user.firstName.orEmpty(),
-                        tierName = user.customerTierName.orEmpty(),
-                    )
+                val userId = user.id
+                if (userId != null && !sessionBoundary.bindAccountId(owner, userId)) return@onSuccess
+                sessionBoundary.apply(owner) {
+                    _state.update {
+                        it.copy(
+                            firstName = user.firstName.orEmpty(),
+                            tierName = user.customerTierName.orEmpty(),
+                        )
+                    }
+                    SessionStore.updateForSession(owner) {
+                        it.copy(
+                            greeting = _state.value.greeting,
+                            firstName = user.firstName.orEmpty(),
+                            tierName = user.customerTierName.orEmpty(),
+                        )
+                    }
                 }
             }
+            if (!sessionBoundary.isCurrent(owner)) return@launch
             repository.airCoinsStatus().onSuccess { status ->
                 val label = (status.available ?: status.balance)?.toString().orEmpty()
-                _state.update { it.copy(airCoins = label) }
-                SessionStore.update { it.copy(airCoins = label) }
+                sessionBoundary.apply(owner) {
+                    _state.update { it.copy(airCoins = label) }
+                    SessionStore.updateForSession(owner) { it.copy(airCoins = label) }
+                }
             }
+            if (!sessionBoundary.isCurrent(owner)) return@launch
             repository.auctionProductsShortlist()
                 .onSuccess { products ->
-                    _state.update { it.copy(auctionHighlights = products) }
+                    sessionBoundary.apply(owner) {
+                        _state.update { it.copy(auctionHighlights = products) }
+                    }
                 }
                 .onFailure {
-                    _state.update { it.copy(auctionHighlights = emptyList()) }
+                    sessionBoundary.apply(owner) {
+                        _state.update { it.copy(auctionHighlights = emptyList()) }
+                    }
                 }
-            _state.update { it.copy(loading = false, refreshing = false) }
+            sessionBoundary.apply(owner) {
+                _state.update { it.copy(loading = false, refreshing = false) }
+            }
         }
     }
 

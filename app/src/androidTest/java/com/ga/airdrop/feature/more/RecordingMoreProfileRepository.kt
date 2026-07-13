@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.more
 
+import com.ga.airdrop.core.auth.AuthTokenStore
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -19,7 +20,10 @@ internal class RecordingMoreProfileRepository(
         return Result.success(user)
     }
 
-    override suspend fun updateProfile(fields: Map<String, String?>): Result<String?> {
+    override suspend fun updateProfile(
+        fields: Map<String, String?>,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<String?> {
         updateProfileCalls.incrementAndGet()
         lastProfileUpdate.set(fields)
         return updateResult
@@ -34,9 +38,12 @@ internal class RecordingMoreProfileRepository(
         bytes: ByteArray,
         fileName: String,
         mimeType: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<ProfileAsset> = Result.success(ProfileAsset(url = null, path = null))
 
-    override suspend fun deleteProfileImage(): Result<Unit> = Result.success(Unit)
+    override suspend fun deleteProfileImage(
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<Unit> = Result.success(Unit)
 
     override suspend fun fetchImage(url: String): Result<ByteArray> =
         Result.failure(IOException("Unexpected image fetch in payload test"))
