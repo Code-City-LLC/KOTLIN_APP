@@ -71,6 +71,18 @@ class AuthFigmaParityTest {
     }
 
     @Test
+    fun lightLoginUsesFigmaWordmarkGeometryAndPosition() {
+        setLoginContent(ThemeController.Mode.LIGHT)
+
+        val logo = compose.onNodeWithTag("login-logo").getUnclippedBoundsInRoot()
+
+        assertClose(260f, boundsWidth(logo), "Figma light login logo width")
+        assertClose(72f, boundsHeight(logo), "Figma light login logo height")
+        assertClose(150f, logo.top.value, "Figma light login logo top")
+        saveRootScreenshot("auth_login_light_figma.png")
+    }
+
+    @Test
     fun onboardingStartsWithChooseYourLookBeforeIntroSlides() {
         setOnboardingContent(ThemeController.Mode.LIGHT)
 

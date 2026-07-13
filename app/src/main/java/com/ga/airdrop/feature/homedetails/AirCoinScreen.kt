@@ -369,32 +369,39 @@ internal fun AirCoinHistoryDetailContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(20.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(375f / 332f)
-                        .testTag("aircoin-history-hero-wrap"),
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    // Swift edf2573: place the ledger 55pt into the hero instead
+                    // of leaving the stale positive 20pt gap.
+                    verticalArrangement = Arrangement.spacedBy((-55).dp),
                 ) {
-                    Image(
-                        painter = painterResource(
-                            if (colors.isDark) {
-                                R.drawable.img_homedet_history_hero_band_dark
-                            } else {
-                                R.drawable.img_homedet_history_hero_band_light
-                            }
-                        ),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("aircoin-history-hero-image"),
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(375f / 332f)
+                            .testTag("aircoin-history-hero-wrap"),
+                    ) {
+                        Image(
+                            painter = painterResource(
+                                if (colors.isDark) {
+                                    R.drawable.img_homedet_history_hero_band_dark
+                                } else {
+                                    R.drawable.img_homedet_history_hero_band_light
+                                }
+                            ),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("aircoin-history-hero-image"),
+                        )
+                    }
+                    LedgerCard(
+                        state = state,
+                        modifier = Modifier.padding(horizontal = 15.dp),
                     )
                 }
-                Spacer(Modifier.height(20.dp))
-                LedgerCard(
-                    state = state,
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
                 Spacer(Modifier.height(24.dp))
             }
         }
@@ -420,6 +427,15 @@ private fun LedgerCard(state: AirCoinHistoryUiState, modifier: Modifier = Modifi
             modifier = Modifier.testTag("aircoin-history-header-row"),
         )
         ledgerRows(state).forEachIndexed { index, row ->
+            if (index > 0) {
+                Spacer(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(colors.divider)
+                        .testTag("aircoin-history-divider-$index")
+                )
+            }
             LedgerRow(
                 invoice = row.invoice,
                 amount = row.amount,
@@ -442,9 +458,9 @@ private fun LedgerRow(
     Row(
         modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(if (isHeader) 43.dp else 40.dp)
             .background(if (isHeader) colors.gray200 else colors.gray100)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val style = if (isHeader) AirdropType.subtitle2 else AirdropType.body3

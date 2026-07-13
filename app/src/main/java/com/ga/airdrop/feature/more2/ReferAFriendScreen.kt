@@ -42,6 +42,7 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
 
 /**
  * Refer a Friend landing.
@@ -75,7 +76,7 @@ fun ReferAFriendScreen(
                 title = "Refer a Friend",
                 onBack = onBack,
                 modifier = Modifier.testTag("refer-glass-header"),
-                surfaceColor = colors.glassOverlay70,
+                surfaceColor = colors.frostedGlassSurface,
                 dividerColor = colors.cardHairline,
                 contentHeight = 62.dp,
                 backTargetSize = 44.dp,
@@ -99,7 +100,7 @@ fun ReferAFriendScreen(
             More2BottomBar(
                 modifier = Modifier.testTag("refer-glass-footer"),
                 verticalPadding = 20.dp,
-                surfaceColor = colors.glassOverlay70,
+                surfaceColor = colors.frostedGlassSurface,
                 dividerColor = colors.cardHairline,
             ) {
                 More2PrimaryButton(

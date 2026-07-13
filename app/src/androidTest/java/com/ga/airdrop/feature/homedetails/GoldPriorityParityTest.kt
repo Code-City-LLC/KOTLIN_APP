@@ -11,7 +11,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -27,6 +30,7 @@ import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
@@ -269,7 +273,31 @@ class GoldPriorityParityTest {
                     onBack = {},
                     initialPage = rubyIndex,
                     resolvedTierIndex = rubyIndex,
-                    benefitRowsByCode = mapOf("RUBY" to listOf("Server ruby row")),
+                    benefitRowsByCode = mapOf(
+                        "RUBY" to listOf(
+                            "Shared benefit",
+                            "Ruby-only priority support",
+                            "Ruby account support for shipment questions and delivery updates.",
+                            "Ruby tracking updates across each package milestone.",
+                            "Ruby eligibility for seasonal account offers.",
+                            "Ruby warehouse processing guidance.",
+                        ),
+                        "GOLD" to listOf(
+                            "Shared benefit",
+                            "Gold faster processing",
+                            "Gold storage for all incoming packages.",
+                            "Gold loyalty rewards during AirDrop events.",
+                            "Gold early sale and auction notifications.",
+                            "Gold support-line priority over standard tiers.",
+                        ),
+                        "SAVR" to listOf(
+                            "Shared benefit",
+                            "Sapphire basic processing",
+                            "Sapphire standard shipping rates.",
+                            "Sapphire limited promotions and onboarding discounts.",
+                            "Sapphire loyalty guidance for tier benefits.",
+                        ),
+                    ),
                     catalogStatus = TierCatalogStatus.Ready,
                     // Offer-driven sheets (#22805): buttons exist ONLY for
                     // backend-offered changes.
@@ -298,8 +326,41 @@ class GoldPriorityParityTest {
         compose.onNodeWithTag("tier-breakdown-sheet").assertIsDisplayed()
         compose.onNodeWithTag("tier-breakdown-upgrade").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("tier-breakdown-downgrade").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("tier-breakdown-close").performScrollTo().performClick()
+        compose.onNodeWithTag("tier-breakdown-downgrade").performClick()
         compose.waitForIdle()
+
+        // Swift downgrade confirmation: explicit loss disclosure, safe choice
+        // first, destructive action second, both pinned outside the scroll.
+        val keepTopBeforeScroll = boundsTop(
+            compose.onNodeWithTag("tier-change-cancel").assertIsDisplayed()
+                .getUnclippedBoundsInRoot(),
+        )
+        val downgradeTopBeforeScroll = boundsTop(
+            compose.onNodeWithTag("tier-change-confirm").assertIsDisplayed()
+                .getUnclippedBoundsInRoot(),
+        )
+        compose.onNodeWithText("Downgrade to Sapphire Saver?").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Are you sure? Here's what you'd be giving up:")
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("tier-change-lost-benefits").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("tier-change-lost-benefits-row-0")
+            .assertTextEquals("Ruby-only priority support")
+        compose.onNodeWithText("What you'll have on Sapphire Saver")
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Sapphire basic processing").performScrollTo().assertIsDisplayed()
+        val keep = compose.onNodeWithTag("tier-change-cancel")
+            .assertIsDisplayed().getUnclippedBoundsInRoot()
+        val downgrade = compose.onNodeWithTag("tier-change-confirm")
+            .assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertClose(52f, boundsHeight(keep), "Swift safe downgrade button height")
+        assertClose(52f, boundsHeight(downgrade), "Swift destructive button height")
+        assertClose(keepTopBeforeScroll, boundsTop(keep), "Pinned safe action top")
+        assertClose(downgradeTopBeforeScroll, boundsTop(downgrade), "Pinned destructive action top")
+        assertTrue("Safe action must precede destructive action", boundsTop(keep) < boundsTop(downgrade))
+        compose.onNodeWithTag("tier-change-cancel").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("tier-change-sheet").fetchSemanticsNodes().isEmpty()
+        }
 
         // Swipe to Gold (one tier above): CTA flips to "Upgrade to <tier>".
         compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeRight() }
@@ -309,6 +370,51 @@ class GoldPriorityParityTest {
             compose.onAllNodesWithText("Upgrade to Gold Standard").fetchSemanticsNodes().size,
         )
         compose.onNodeWithTag("gold-priority-fade-gold").assertIsDisplayed()
+        compose.onNodeWithTag("gold-priority-cta").performClick()
+        compose.waitForIdle()
+
+        // Swift upgrade confirmation: no question mark, exact copy, frosted
+        // benefit panel, and actions pinned outside the scrolling content.
+        val upgradeTopBeforeScroll = boundsTop(
+            compose.onNodeWithTag("tier-change-confirm").assertIsDisplayed()
+                .getUnclippedBoundsInRoot(),
+        )
+        val notNowTopBeforeScroll = boundsTop(
+            compose.onNodeWithTag("tier-change-cancel").assertIsDisplayed()
+                .getUnclippedBoundsInRoot(),
+        )
+        compose.onNodeWithTag("tier-change-title").performScrollTo().assertIsDisplayed()
+            .assertTextEquals("Upgrade to Gold Standard")
+        compose.onNodeWithText("Upgrade to Gold Standard?").assertDoesNotExist()
+        compose.onNodeWithTag("tier-change-subtitle").performScrollTo().assertIsDisplayed()
+            .assertTextEquals("Changes apply immediately. Here's what you'll get:")
+        compose.onNodeWithText("What you'll get").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("tier-change-benefits-row-1")
+            .assertTextEquals("Gold faster processing")
+        compose.onNodeWithTag("tier-change-footnote").performScrollTo().assertIsDisplayed()
+            .assertTextEquals(
+                "Tier changes are applied by AirDrop and take effect immediately. " +
+                    "Any open shipment quote must be refreshed.",
+            )
+        compose.onNodeWithText("Cancel").assertDoesNotExist()
+        assertClose(
+            64f,
+            boundsHeight(compose.onNodeWithTag("tier-change-glyph").getUnclippedBoundsInRoot()),
+            "Swift tier glyph height",
+        )
+        val upgrade = compose.onNodeWithTag("tier-change-confirm")
+            .assertIsDisplayed().getUnclippedBoundsInRoot()
+        val notNow = compose.onNodeWithTag("tier-change-cancel")
+            .assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertClose(52f, boundsHeight(upgrade), "Swift upgrade button height")
+        assertClose(44f, boundsHeight(notNow), "Swift Not Now button height")
+        assertClose(upgradeTopBeforeScroll, boundsTop(upgrade), "Pinned upgrade action top")
+        assertClose(notNowTopBeforeScroll, boundsTop(notNow), "Pinned Not Now action top")
+        assertTrue("Upgrade action must precede Not Now", boundsTop(upgrade) < boundsTop(notNow))
+        compose.onNodeWithTag("tier-change-cancel").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("tier-change-sheet").fetchSemanticsNodes().isEmpty()
+        }
 
         // Swipe down to Sapphire (below the customer): accepted Swift hides
         // the CTA but keeps the shared screen-level bottom fade.
@@ -321,6 +427,160 @@ class GoldPriorityParityTest {
             compose.onAllNodesWithTag("gold-priority-cta").fetchSemanticsNodes().size,
         )
         compose.onNodeWithTag("gold-priority-fade-sapphire").assertIsDisplayed()
+    }
+
+    @Test
+    fun tierChangeErrorWorkingAndSuccessMatchSwiftStateMachine() {
+        val phase = mutableStateOf(TierChangePhase.Error)
+        var confirmCalls = 0
+        var doneCalls = 0
+        var dismissCalls = 0
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                TierChangeSheet(
+                    target = tierPages[goldIndex],
+                    current = tierPages[rubyIndex],
+                    targetBenefits = listOf("Gold faster processing"),
+                    currentBenefits = listOf("Ruby standard processing"),
+                    isUpgrade = true,
+                    phase = phase.value,
+                    successName = "Gold Standard",
+                    successMessage = "Gold Standard is now active.",
+                    error = "We couldn't confirm the change.",
+                    onConfirm = {
+                        confirmCalls++
+                        phase.value = TierChangePhase.Working
+                    },
+                    onDone = { doneCalls++ },
+                    onDismiss = { dismissCalls++ },
+                )
+            }
+        }
+        compose.waitForIdle()
+
+        val confirmationFrameHeight = boundsHeight(
+            compose.onNodeWithTag("tier-change-sheet-content").getUnclippedBoundsInRoot(),
+        )
+        compose.onNodeWithTag("tier-change-error").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Upgrade Now").assertIsDisplayed()
+        compose.onNodeWithText("Not Now").assertIsDisplayed()
+        compose.onNodeWithText("Try Again").assertDoesNotExist()
+        compose.onNodeWithTag("tier-change-confirm").performClick()
+        compose.waitForIdle()
+
+        compose.runOnIdle { assertEquals(1, confirmCalls) }
+        compose.onNodeWithTag("tier-change-spinner").assertIsDisplayed()
+        compose.onNodeWithTag("tier-change-confirm").assertIsNotEnabled()
+        compose.onNodeWithTag("tier-change-cancel").assertIsNotEnabled()
+        pressBack()
+        compose.waitForIdle()
+        compose.onNodeWithTag("tier-change-sheet").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(0, dismissCalls) }
+
+        compose.runOnIdle { phase.value = TierChangePhase.Success }
+        compose.waitForIdle()
+        compose.onNodeWithTag("tier-change-success-icon").assertIsDisplayed()
+        compose.onNodeWithText("Welcome to Gold Standard").assertIsDisplayed()
+        compose.onNodeWithText("Gold Standard is now active.").assertIsDisplayed()
+        val successFrame = compose.onNodeWithTag("tier-change-success-frame")
+            .getUnclippedBoundsInRoot()
+        val successContent = compose.onNodeWithTag("tier-change-success-content")
+            .getUnclippedBoundsInRoot()
+        assertClose(
+            confirmationFrameHeight,
+            boundsHeight(compose.onNodeWithTag("tier-change-sheet-content").getUnclippedBoundsInRoot()),
+            "Swift success preserves confirmation card height",
+        )
+        assertClose(
+            boundsCenterY(successFrame),
+            boundsCenterY(successContent),
+            "Swift success content is vertically centered",
+        )
+        val done = compose.onNodeWithTag("tier-change-done").assertIsDisplayed()
+            .getUnclippedBoundsInRoot()
+        assertClose(200f, boundsWidth(done), "Swift Done button width")
+        assertClose(52f, boundsHeight(done), "Swift Done button height")
+        compose.onNodeWithTag("tier-change-done").performClick()
+        compose.runOnIdle { assertEquals(1, doneCalls) }
+    }
+
+    @Test
+    fun downgradeFailsClosedWhenBenefitDisclosureIsMissing() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                TierChangeSheet(
+                    target = tierPages[rubyIndex],
+                    current = tierPages[goldIndex],
+                    targetBenefits = null,
+                    currentBenefits = listOf("Gold faster processing"),
+                    isUpgrade = false,
+                    phase = TierChangePhase.Idle,
+                    successName = null,
+                    successMessage = null,
+                    error = null,
+                    onConfirm = {},
+                    onDone = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Tier benefits are unavailable.").assertIsDisplayed()
+        compose.onNodeWithTag("tier-change-lost-benefits").assertDoesNotExist()
+        compose.onNodeWithTag("tier-change-benefits").assertDoesNotExist()
+        compose.onNodeWithTag("tier-change-confirm").assertIsDisplayed().assertIsNotEnabled()
+        compose.onNodeWithTag("tier-change-cancel").assertIsDisplayed().assertIsEnabled()
+    }
+
+    @Test
+    fun authenticatedSessionReplacementClosesOpenChangeSheet() {
+        val sessionEpoch = mutableStateOf(0L)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                GoldPriorityContent(
+                    onBack = {},
+                    sessionEpoch = sessionEpoch.value,
+                    initialPage = rubyIndex,
+                    resolvedTierIndex = rubyIndex,
+                    benefitRowsByCode = mapOf(
+                        "RUBY" to listOf("Ruby processing"),
+                        "GOLD" to listOf("Gold processing"),
+                    ),
+                    catalogStatus = TierCatalogStatus.Ready,
+                    canChange = true,
+                    changeOffers = listOf(
+                        com.ga.airdrop.data.model.TierChangeOption(
+                            code = "GOLD",
+                            name = "Gold Standard",
+                            laneRank = 3,
+                            isCurrent = false,
+                            direction = "upgrade",
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        compose.onNodeWithTag("gold-priority-cta").performClick()
+        compose.onNodeWithTag("tier-change-sheet").assertIsDisplayed()
+
+        compose.runOnIdle { sessionEpoch.value++ }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("tier-change-sheet").fetchSemanticsNodes().isEmpty()
+        }
+        compose.onNodeWithTag("tier-change-sheet").assertDoesNotExist()
     }
 
     @Test
@@ -414,11 +674,12 @@ class GoldPriorityParityTest {
     private fun saveRootScreenshot(filename: String) {
         val bitmap = compose.onNodeWithTag("gold-priority-root").captureToImage().asAndroidBitmap()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val relativePath = "Pictures/kotlin_ui_proof/tier_server_copy/"
+        // Staging and production cannot replace each other's scoped MediaStore rows.
+        val relativePath = "Pictures/kotlin_ui_proof/tier_server_copy/${context.packageName}/"
         context.contentResolver.delete(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?",
-            arrayOf(filename, "%kotlin_ui_proof/tier_server_copy%"),
+            "${MediaStore.Images.Media.DISPLAY_NAME}=? AND ${MediaStore.Images.Media.RELATIVE_PATH}=?",
+            arrayOf(filename, relativePath),
         )
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
@@ -450,6 +711,8 @@ class GoldPriorityParityTest {
     private fun boundsWidth(rect: DpRect): Float = (rect.right - rect.left).value
 
     private fun boundsHeight(rect: DpRect): Float = (rect.bottom - rect.top).value
+
+    private fun boundsCenterY(rect: DpRect): Float = ((rect.top + rect.bottom) / 2f).value
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
         assertEquals(label, expected, actual, 0.75f)

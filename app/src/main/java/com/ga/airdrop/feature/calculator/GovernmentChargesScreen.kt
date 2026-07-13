@@ -30,6 +30,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
 
 /**
  * Government Charges — Figma 40001817:20681, reached from the results
@@ -104,7 +105,7 @@ fun GovernmentChargesScreen(
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(colors.glassOverlay70)
+                .background(colors.frostedGlassSurface)
         ) {
             Box(
                 Modifier

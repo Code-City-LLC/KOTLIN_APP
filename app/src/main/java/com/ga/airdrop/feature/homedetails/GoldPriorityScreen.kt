@@ -326,6 +326,7 @@ fun GoldPriorityScreen(
 
     GoldPriorityContent(
         onBack = onBack,
+        sessionEpoch = state.sessionEpoch,
         resolvedTierIndex = state.resolvedTierIndex,
         benefitRowsByCode = state.benefitRowsByCode,
         catalogStatus = state.catalogStatus,
@@ -335,6 +336,7 @@ fun GoldPriorityScreen(
         changeOffers = state.changeOffers,
         changePhase = state.changePhase,
         changeSuccessName = state.changeSuccessName,
+        changeSuccessMessage = state.changeSuccessMessage,
         changeError = state.changeError,
         onChangeTier = viewModel::changeTier,
         onResetChangeFlow = viewModel::resetChangeFlow,
@@ -350,6 +352,7 @@ private sealed interface TierSheet {
 @Composable
 internal fun GoldPriorityContent(
     onBack: () -> Unit,
+    sessionEpoch: Long = 0L,
     resolvedTierIndex: Int? = null,
     initialPage: Int = defaultTierIndex,
     benefitRowsByCode: Map<String, List<String>> = emptyMap(),
@@ -360,6 +363,7 @@ internal fun GoldPriorityContent(
     changeOffers: List<com.ga.airdrop.data.model.TierChangeOption> = emptyList(),
     changePhase: TierChangePhase = TierChangePhase.Idle,
     changeSuccessName: String? = null,
+    changeSuccessMessage: String? = null,
     changeError: String? = null,
     onChangeTier: (code: String, name: String) -> Unit = { _, _ -> },
     onResetChangeFlow: () -> Unit = {},
@@ -372,7 +376,9 @@ internal fun GoldPriorityContent(
         resolvedTierIndex?.let { pagerState.scrollToPage(it) }
     }
 
-    var activeSheet by remember { mutableStateOf<TierSheet?>(null) }
+    // A sheet belongs to the authenticated owner that opened it. A replaced
+    // session gets a fresh local modal state before any new offer can act.
+    var activeSheet by remember(sessionEpoch) { mutableStateOf<TierSheet?>(null) }
 
     val activeIndex = pagerState.currentPage
     val activeTier = tierPages[activeIndex]
@@ -512,9 +518,15 @@ internal fun GoldPriorityContent(
         }
         is TierSheet.Change -> TierChangeSheet(
             target = sheet.target,
+            current = userTier,
+            targetBenefits = benefitRowsForPage(sheet.target, benefitRowsByCode),
+            currentBenefits = userTier?.let {
+                benefitRowsForPage(it, benefitRowsByCode)
+            }.orEmpty(),
             isUpgrade = sheet.isUpgrade,
             phase = changePhase,
             successName = changeSuccessName,
+            successMessage = changeSuccessMessage,
             error = changeError,
             onConfirm = { onChangeTier(sheet.target.apiCode.orEmpty(), sheet.target.name) },
             onDone = {
@@ -1049,184 +1061,6 @@ private fun YourTierBreakdownSheet(
                     .testTag("tier-breakdown-close"),
             )
         }
-    }
-}
-
-// ─── Tier change sheet (PATCH → GET confirmation) ──────────────────────────
-
-/**
- * Confirm → Working → Success/Error over the target tier's gradient. The
- * downgrade confirm keeps the explicit "you'll lose" disclosure with Keep My
- * Benefits as the PRIMARY action (Swift change-sheet ruling).
- */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun TierChangeSheet(
-    target: TierPage,
-    isUpgrade: Boolean,
-    phase: TierChangePhase,
-    successName: String?,
-    error: String?,
-    onConfirm: () -> Unit,
-    onDone: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val maxSheetHeight = (LocalConfiguration.current.screenHeightDp - 24).coerceAtLeast(320).dp
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-    )
-    androidx.compose.material3.ModalBottomSheet(
-        sheetState = sheetState,
-        onDismissRequest = { if (phase != TierChangePhase.Working) onDismiss() },
-        containerColor = Color.Transparent,
-        dragHandle = null,
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .heightIn(max = maxSheetHeight)
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(target.gradientTop, target.gradientBottom),
-                    )
-                )
-                .testTag("tier-change-sheet")
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp)
-                .windowInsetsPadding(WindowInsets.navigationBars),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Image(
-                painter = painterResource(target.iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-            )
-            when (phase) {
-                TierChangePhase.Success -> {
-                    Text(
-                        text = "Welcome to ${successName ?: target.name}",
-                        style = AirdropType.h5,
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        text = "Your tier has been updated.",
-                        style = AirdropType.body2,
-                        color = Color.White.copy(alpha = 0.8f),
-                    )
-                    ChangeSheetPrimaryButton(
-                        label = "Done",
-                        tint = target.gradientBottom,
-                        onClick = onDone,
-                        tag = "tier-change-done",
-                    )
-                }
-                TierChangePhase.Working -> {
-                    Text(
-                        text = if (isUpgrade) "Upgrading to ${target.name}…" else "Changing to ${target.name}…",
-                        style = AirdropType.subtitle1,
-                        color = Color.White,
-                    )
-                }
-                else -> {
-                    Text(
-                        text = if (isUpgrade) "Upgrade to ${target.name}?" else "Are you sure?",
-                        style = AirdropType.h5,
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        text = if (isUpgrade) {
-                            "Your future shipments will be processed on ${target.name}."
-                        } else {
-                            "You'll lose your current tier's benefits. Your future " +
-                                "shipments will be processed on ${target.name}."
-                        },
-                        style = AirdropType.body2,
-                        color = Color.White.copy(alpha = 0.85f),
-                        textAlign = TextAlign.Center,
-                    )
-                    if (error != null && phase == TierChangePhase.Error) {
-                        Text(
-                            text = error,
-                            style = AirdropType.body2,
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.Black.copy(alpha = 0.25f))
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                                .testTag("tier-change-error"),
-                        )
-                    }
-                    if (isUpgrade) {
-                        ChangeSheetPrimaryButton(
-                            label = if (phase == TierChangePhase.Error) "Try Again" else "Upgrade Now",
-                            tint = target.gradientBottom,
-                            onClick = onConfirm,
-                            tag = "tier-change-confirm",
-                        )
-                        ChangeSheetQuietButton(label = "Cancel", onClick = onDismiss, tag = "tier-change-cancel")
-                    } else {
-                        // Downgrade: keep-my-benefits stays PRIMARY (standing ruling).
-                        ChangeSheetPrimaryButton(
-                            label = "Keep My Benefits",
-                            tint = target.gradientBottom,
-                            onClick = onDismiss,
-                            tag = "tier-change-cancel",
-                        )
-                        ChangeSheetQuietButton(
-                            label = if (phase == TierChangePhase.Error) "Try Again" else "Downgrade",
-                            onClick = onConfirm,
-                            tag = "tier-change-confirm",
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChangeSheetPrimaryButton(label: String, tint: Color, onClick: () -> Unit, tag: String) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .clickable(onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = AirdropType.subtitle1.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
-            color = tint,
-        )
-    }
-}
-
-@Composable
-private fun ChangeSheetQuietButton(label: String, onClick: () -> Unit, tag: String) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = AirdropType.subtitle1.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
-            color = Color.White,
-        )
     }
 }
 

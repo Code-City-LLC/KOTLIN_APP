@@ -138,10 +138,29 @@ class GoldPriorityViewModelChangeTest {
     }
 
     @Test
+    fun emittedSessionReplacementAdvancesUiEpoch() = runTest(dispatcher) {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        val priorEpoch = vm.state.value.sessionEpoch
+
+        sessionBoundary.replaceCurrent("session-b", emit = true)
+        advanceUntilIdle()
+
+        assertEquals(priorEpoch + 1, vm.state.value.sessionEpoch)
+        assertEquals(TierChangePhase.Idle, vm.state.value.changePhase)
+    }
+
+    @Test
     fun successOnlyAfterGetConfirmsRequestedTier_patchThenGetOrder() = runTest(dispatcher) {
         val vm = newViewModel()
         advanceUntilIdle()
         callLog.clear()
+        patchResult = Result.success(
+            TierChangeResult(
+                status = "applied",
+                message = "Gold Standard is now active.",
+            ),
+        )
         // Confirmation GET returns the NEW tier; subsequent refresh GETs too.
         tierResponses.addLast(Result.success(rubyOffersGold.copy(currentTier = "GOLD")))
 
@@ -153,8 +172,15 @@ class GoldPriorityViewModelChangeTest {
         assertEquals("customerTier", callLog.getOrNull(1))
         assertEquals(TierChangePhase.Success, vm.state.value.changePhase)
         assertEquals("Gold Standard", vm.state.value.changeSuccessName)
+        assertEquals("Gold Standard is now active.", vm.state.value.changeSuccessMessage)
         assertEquals(42L, capturedProvenance?.revision)
         assertEquals("session-a", capturedProvenance?.sessionId)
+
+        vm.resetChangeFlow()
+
+        assertEquals(TierChangePhase.Idle, vm.state.value.changePhase)
+        assertNull(vm.state.value.changeSuccessName)
+        assertNull(vm.state.value.changeSuccessMessage)
     }
 
     @Test
@@ -169,6 +195,7 @@ class GoldPriorityViewModelChangeTest {
         assertEquals(1, patchCalls) // PATCH fired…
         assertEquals(TierChangePhase.Error, vm.state.value.changePhase) // …but no false success.
         assertNull(vm.state.value.changeSuccessName)
+        assertNull(vm.state.value.changeSuccessMessage)
     }
 
     @Test

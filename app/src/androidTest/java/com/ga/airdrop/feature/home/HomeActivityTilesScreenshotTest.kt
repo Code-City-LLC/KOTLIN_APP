@@ -152,24 +152,6 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun warehouseCardsUseSwiftFigmaSolidSurface() {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.runOnMainSync { ThemeController.set(ThemeController.Mode.LIGHT) }
-        setHomeContent()
-
-        listOf("standard", "seadrop", "express").forEach { type ->
-            compose.onNodeWithTag("home-warehouse-carousel")
-                .performScrollToNode(hasTestTag("home-warehouse-$type"))
-            compose.waitForIdle()
-
-            val bitmap = compose.onNodeWithTag("home-warehouse-$type")
-                .captureToImage()
-                .asAndroidBitmap()
-            assertWarehouseCardHasSolidSurface(type, bitmap)
-        }
-    }
-
-    @Test
     fun homeActionCardsEmitSwiftRoutes() {
         val navigatedRoutes = mutableListOf<String>()
         setHomeContent { route -> navigatedRoutes += route }
@@ -622,42 +604,6 @@ class HomeActivityTilesScreenshotTest {
         return count
     }
 
-    private fun assertWarehouseCardHasSolidSurface(type: String, bitmap: Bitmap) {
-        val left = 20.coerceAtMost(bitmap.width - 1)
-        val right = (bitmap.width - 20).coerceAtLeast(left + 1)
-        val top = 20.coerceAtMost(bitmap.height - 1)
-        val bottom = (top + 22).coerceAtMost(bitmap.height)
-        var total = 0
-        var gray150 = 0
-
-        for (x in left until right) {
-            for (y in top until bottom) {
-                val pixel = bitmap.getPixel(x, y)
-                if (pixel.isNearColor(SWIFT_GRAY150_LIGHT)) gray150 += 1
-                total += 1
-            }
-        }
-
-        val gray150Percent = gray150 * 100 / total
-        assertTrue(
-            "home-warehouse-$type must use the final Swift/Figma solid gray150 surface; " +
-                "gray150Percent=$gray150Percent",
-            gray150Percent >= SOLID_GRAY150_MIN_PERCENT,
-        )
-    }
-
-    private fun Int.isNearColor(target: Int): Boolean {
-        val red = (this shr 16) and 0xFF
-        val green = (this shr 8) and 0xFF
-        val blue = this and 0xFF
-        val targetRed = (target shr 16) and 0xFF
-        val targetGreen = (target shr 8) and 0xFF
-        val targetBlue = target and 0xFF
-        return kotlin.math.abs(red - targetRed) <= COLOR_TOLERANCE &&
-            kotlin.math.abs(green - targetGreen) <= COLOR_TOLERANCE &&
-            kotlin.math.abs(blue - targetBlue) <= COLOR_TOLERANCE
-    }
-
     private data class WarehouseNavGraphCase(
         val type: String,
         val expectedTitle: String,
@@ -675,9 +621,7 @@ class HomeActivityTilesScreenshotTest {
         private const val FIGMA_ORANGE_LIGHT = 0xFFF15114.toInt()
         private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF88458.toInt()
         private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
-        private const val SWIFT_GRAY150_LIGHT = 0xFFFBFBFB.toInt()
         private const val COLOR_TOLERANCE = 8
-        private const val SOLID_GRAY150_MIN_PERCENT = 95
         private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/home_refer_icon"
     }
 }

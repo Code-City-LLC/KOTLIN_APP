@@ -43,6 +43,7 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
 
 /*
  * Building blocks for the auth/onboarding screens — Figma "Header Type"
@@ -66,7 +67,7 @@ fun AuthDetailHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.glassOverlay70)
+            .background(colors.frostedGlassSurface)
             .windowInsetsPadding(WindowInsets.statusBars),
     ) {
         Box(
@@ -118,7 +119,7 @@ fun AuthBottomButtonBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.glassOverlay70),
+            .background(colors.frostedGlassSurface),
     ) {
         Box(
             Modifier
@@ -347,7 +348,7 @@ fun AuthSuccessSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    colors.glassOverlay70,
+                    colors.frostedGlassSurface,
                     RoundedCornerShape(topStart = 31.dp, topEnd = 31.dp),
                 )
                 .padding(horizontal = 31.dp, vertical = Spacing.sm),
@@ -399,7 +400,7 @@ fun AuthSuccessSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.glassOverlay70)
+                .background(colors.frostedGlassSurface)
                 .padding(horizontal = 31.dp)
                 .padding(top = 21.dp, bottom = Spacing.sm),
         ) {

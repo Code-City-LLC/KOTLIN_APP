@@ -35,6 +35,7 @@ enum class TierResolutionStatus { Loading, Resolved, Failed }
 enum class TierChangePhase { Idle, Working, Success, Error }
 
 data class GoldPriorityUiState(
+    val sessionEpoch: Long = 0L,
     val resolvedTierIndex: Int? = null,
     val benefitRowsByCode: Map<String, List<String>> = emptyMap(),
     val catalogStatus: TierCatalogStatus = TierCatalogStatus.Loading,
@@ -43,6 +44,7 @@ data class GoldPriorityUiState(
     val changeOffers: List<TierChangeOption> = emptyList(),
     val changePhase: TierChangePhase = TierChangePhase.Idle,
     val changeSuccessName: String? = null,
+    val changeSuccessMessage: String? = null,
     val changeError: String? = null,
 )
 
@@ -61,6 +63,7 @@ class GoldPriorityViewModel(
     val state: StateFlow<GoldPriorityUiState> = _state
     private val sessionJobs = AuthenticatedSessionJobs(viewModelScope)
     private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
+    private var sessionEpoch = 0L
     private var loadJob: Job? = null
     private var changeJob: Job? = null
 
@@ -79,7 +82,8 @@ class GoldPriorityViewModel(
                 loadJob = null
                 changeJob = null
                 sessionOwner = changed
-                _state.value = GoldPriorityUiState()
+                sessionEpoch++
+                _state.value = GoldPriorityUiState(sessionEpoch = sessionEpoch)
                 if (changed != null) loadTierData()
             }
         }
@@ -98,6 +102,8 @@ class GoldPriorityViewModel(
                 _state.update {
                     it.copy(
                         changePhase = TierChangePhase.Error,
+                        changeSuccessName = null,
+                        changeSuccessMessage = null,
                         changeError = "This tier change isn't available for your account right now.",
                     )
                 }
@@ -110,6 +116,7 @@ class GoldPriorityViewModel(
                     it.copy(
                         changePhase = TierChangePhase.Working,
                         changeSuccessName = null,
+                        changeSuccessMessage = null,
                         changeError = null,
                     )
                 }
@@ -148,6 +155,7 @@ class GoldPriorityViewModel(
                 }
                 return@launch
             }
+            val patchMessage = patchResult.getOrNull()?.message?.takeIf { it.isNotBlank() }
 
             // A successful PATCH must still be confirmed when only the token
             // revision rotated inside the same logical session. The GET uses
@@ -168,6 +176,7 @@ class GoldPriorityViewModel(
                         it.copy(
                             changePhase = TierChangePhase.Success,
                             changeSuccessName = targetName,
+                            changeSuccessMessage = patchMessage,
                             changeError = null,
                         )
                     },
@@ -177,6 +186,8 @@ class GoldPriorityViewModel(
                     _state.update {
                         it.copy(
                             changePhase = TierChangePhase.Error,
+                            changeSuccessName = null,
+                            changeSuccessMessage = null,
                             changeError = confirmation.exceptionOrNull()?.message
                                 ?: "We couldn't confirm the change — your tier is unchanged. Please try again.",
                         )
@@ -196,6 +207,7 @@ class GoldPriorityViewModel(
                 else current.copy(
                     changePhase = TierChangePhase.Error,
                     changeSuccessName = null,
+                    changeSuccessMessage = null,
                     changeError = message,
                 )
             }
@@ -263,6 +275,7 @@ class GoldPriorityViewModel(
                 it.copy(
                     changePhase = TierChangePhase.Idle,
                     changeSuccessName = null,
+                    changeSuccessMessage = null,
                     changeError = null,
                 )
             }

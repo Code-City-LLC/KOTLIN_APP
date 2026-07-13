@@ -41,6 +41,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
 
 /**
  * Forgot password — Figma "Forget Password?" node 40006240:23942: wave
@@ -94,7 +95,7 @@ fun ForgotPasswordScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            colors.glassOverlay70,
+                            colors.frostedGlassSurface,
                             RoundedCornerShape(topStart = 31.dp, topEnd = 31.dp),
                         )
                         .padding(horizontal = 31.dp)
