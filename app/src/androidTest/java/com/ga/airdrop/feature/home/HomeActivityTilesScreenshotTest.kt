@@ -170,6 +170,24 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
+    fun intendedHomeCardsUseSharedCardHairlineLight() {
+        assertIntendedHomeCardHairlines(
+            mode = ThemeController.Mode.LIGHT,
+            expected = CARD_HAIRLINE_LIGHT,
+            rejectedHeavy = ICON_SHAPE_LIGHT,
+        )
+    }
+
+    @Test
+    fun intendedHomeCardsUseSharedCardHairlineDark() {
+        assertIntendedHomeCardHairlines(
+            mode = ThemeController.Mode.DARK,
+            expected = CARD_HAIRLINE_DARK,
+            rejectedHeavy = ICON_SHAPE_DARK,
+        )
+    }
+
+    @Test
     fun homeActionCardsEmitSwiftRoutes() {
         val navigatedRoutes = mutableListOf<String>()
         setHomeContent { route -> navigatedRoutes += route }
@@ -477,6 +495,73 @@ class HomeActivityTilesScreenshotTest {
         saveRootScreenshot(screenshot)
     }
 
+    private fun assertIntendedHomeCardHairlines(
+        mode: ThemeController.Mode,
+        expected: Int,
+        rejectedHeavy: Int,
+    ) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync { ThemeController.set(mode) }
+        setHomeContent()
+
+        listOf("standard", "seadrop", "express").forEach { type ->
+            compose.onNodeWithTag("home-warehouse-carousel")
+                .performScrollToNode(hasTestTag("home-warehouse-$type"))
+            compose.waitForIdle()
+            assertCardUsesHairline(
+                tag = "home-warehouse-$type",
+                expected = expected,
+                rejectedHeavy = rejectedHeavy,
+                proofName = "kotlin_issue89_${type}_${mode.name.lowercase()}_hairline.png",
+            )
+        }
+
+        compose.onNodeWithTag("home-refer-friend-card").performScrollTo()
+        compose.waitForIdle()
+        assertCardUsesHairline(
+            tag = "home-refer-friend-card",
+            expected = expected,
+            rejectedHeavy = rejectedHeavy,
+            proofName = "kotlin_issue89_refer_${mode.name.lowercase()}_hairline.png",
+        )
+    }
+
+    private fun assertCardUsesHairline(
+        tag: String,
+        expected: Int,
+        rejectedHeavy: Int,
+        proofName: String,
+    ) {
+        val bitmap = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+        val expectedCount = bitmap.borderPixelCountNear(expected)
+        val rejectedCount = bitmap.borderPixelCountNear(rejectedHeavy)
+        assertTrue("$tag should render cardHairline; count=$expectedCount", expectedCount > 0)
+        assertTrue(
+            "$tag cardHairline should dominate the rejected heavy border; " +
+                "hairline=$expectedCount heavy=$rejectedCount",
+            expectedCount > rejectedCount,
+        )
+        saveProofScreenshot(bitmap, proofName)
+    }
+
+    private fun Bitmap.borderPixelCountNear(target: Int): Int {
+        val band = 6.coerceAtMost((minOf(width, height) / 2).coerceAtLeast(1))
+        var count = 0
+        for (x in 0 until width) {
+            for (y in 0 until band) {
+                if (getPixel(x, y).isNearColor(target)) count += 1
+                if (getPixel(x, height - 1 - y).isNearColor(target)) count += 1
+            }
+        }
+        for (y in band until height - band) {
+            for (x in 0 until band) {
+                if (getPixel(x, y).isNearColor(target)) count += 1
+                if (getPixel(width - 1 - x, y).isNearColor(target)) count += 1
+            }
+        }
+        return count
+    }
+
     private fun assertHomeLinkAccent(
         mode: ThemeController.Mode,
         targetColor: Int,
@@ -682,6 +767,10 @@ class HomeActivityTilesScreenshotTest {
     )
 
     private companion object {
+        private const val CARD_HAIRLINE_LIGHT = 0xFFEFEFEF.toInt()
+        private const val CARD_HAIRLINE_DARK = 0xFF2A2A2A.toInt()
+        private const val ICON_SHAPE_LIGHT = 0xFFE5E5E5.toInt()
+        private const val ICON_SHAPE_DARK = 0xFF595959.toInt()
         private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
         private const val FIGMA_ORANGE_LIGHT = 0xFFF15114.toInt()

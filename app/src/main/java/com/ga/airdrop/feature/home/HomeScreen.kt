@@ -281,7 +281,7 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     // Swift: clear card + blur stack tinted with glassOverlay62.
                     .clip(cardShape)
                     .background(colors.glassOverlay62)
-                    .border(1.dp, warehouseGlassBorderColor(colors.isDark), cardShape)
+                    .border(1.dp, colors.cardHairline, cardShape)
                     // Swift: the WHOLE card is a tap target → WarehouseView.
                     .clickable { onOpen(card.type) }
                     // Swift: px 20, top pinned 30, bottom ≤ (stack bottom is a
@@ -336,9 +336,6 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
         }
     }
 }
-
-private fun warehouseGlassBorderColor(isDark: Boolean): Color =
-    if (isDark) Color.White.copy(alpha = 0.13f) else Color.Black.copy(alpha = 0.18f)
 
 // ─── Activity grid — Swift makeActivitiesGrid (Figma 40000770:6493) ───────
 
@@ -625,9 +622,10 @@ private fun ReferAFriendCard(onClick: () -> Unit) {
             // Swift: 335x59 card inset 20, padding px 20 / py 10.
             .padding(horizontal = Spacing.md)
             .height(59.dp)
+            .testTag("home-refer-friend-card")
             .clip(RoundedCornerShape(Spacing.sm1)) // radius 15 (Figma 2xs)
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+            .border(1.dp, colors.cardHairline, RoundedCornerShape(Spacing.sm1))
             .clickable(onClick = onClick)
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,

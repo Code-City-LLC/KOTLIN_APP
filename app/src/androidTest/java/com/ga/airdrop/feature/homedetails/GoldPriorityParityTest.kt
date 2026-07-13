@@ -18,6 +18,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -135,6 +138,88 @@ class GoldPriorityParityTest {
         assertEquals(0, compose.onAllNodesWithText("3-5% discounted shipping rates.").fetchSemanticsNodes().size)
     }
 
+    @Test
+    fun currentTierUsesGlyphLinesAndLastRowClearsVisualCta() {
+        val benefitRows = (1..20).map { "Visual benefit row $it" }
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .height(812.dp)
+                ) {
+                    GoldPriorityContent(
+                        onBack = {},
+                        resolvedTierIndex = goldIndex,
+                        initialPage = goldIndex,
+                        benefitRowsByCode = mapOf("GOLD" to benefitRows),
+                        catalogStatus = TierCatalogStatus.Ready,
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("gold-priority-lines").assertIsDisplayed()
+        compose.onNodeWithText("Your Tier").assertIsDisplayed()
+        compose.onNodeWithText(benefitRows.last()).performScrollTo()
+        compose.waitForIdle()
+        saveRootScreenshot("kotlin_issue89_gold_fade_dissolve.png")
+        repeat(6) {
+            compose.onNodeWithTag("gold-priority-tier-scroll").performTouchInput {
+                swipeUp()
+            }
+            compose.waitForIdle()
+        }
+
+        val lastRow = compose.onNodeWithText(benefitRows.last()).getUnclippedBoundsInRoot()
+        val cta = compose.onNodeWithTag("gold-priority-tier-cta").getUnclippedBoundsInRoot()
+        assertClose(316f, boundsWidth(cta), "Swift tier CTA width")
+        assertClose(50f, boundsHeight(cta), "Swift tier CTA height")
+        assertTrue(
+            "Last benefit row must clear the CTA: " +
+                "rowBottom=${lastRow.bottom.value} ctaTop=${cta.top.value}",
+            lastRow.bottom.value <= cta.top.value + 0.75f,
+        )
+        saveRootScreenshot("kotlin_issue89_gold_current_bottom.png")
+    }
+
+    @Test
+    fun unresolvedPageRendersWithoutCta() {
+        val sapphireIndex = tierPages.indexOfFirst { it.id == "sapphire" }
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .height(812.dp)
+                ) {
+                    GoldPriorityContent(
+                        onBack = {},
+                        resolvedTierIndex = null,
+                        initialPage = sapphireIndex,
+                        benefitRowsByCode = mapOf(
+                            "SAVR" to listOf("Rendered no-CTA benefit row")
+                        ),
+                        catalogStatus = TierCatalogStatus.Ready,
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Sapphire Saver").assertIsDisplayed()
+        compose.onNodeWithText("Rendered no-CTA benefit row").assertIsDisplayed()
+        compose.onNodeWithTag("gold-priority-tier-cta").assertDoesNotExist()
+        saveRootScreenshot("kotlin_issue89_sapphire_no_cta.png")
+    }
+
     private fun setGoldPriorityContent(
         mode: ThemeController.Mode,
         initialPage: Int = goldIndex,
@@ -176,9 +261,9 @@ class GoldPriorityParityTest {
         val name = compose.onNodeWithTag("gold-priority-tier-name", useUnmergedTree = true)
             .getUnclippedBoundsInRoot()
 
-        assertClose(64f, boundsWidth(badge), "Swift tier badge width")
-        assertClose(64f, boundsHeight(badge), "Swift tier badge height")
-        assertClose(12f, boundsLeft(name) - boundsRight(badge), "Swift badge/name gap")
+        assertClose(70f, boundsWidth(badge), "Swift tier glyph width")
+        assertClose(70f, boundsHeight(badge), "Swift tier glyph height")
+        assertClose(15f, boundsLeft(name) - boundsRight(badge), "Swift glyph/name gap")
         assertTrue(
             "Tier name should fit inside title row, nameRight=${boundsRight(name)} rowRight=${boundsRight(row)}",
             boundsRight(name) <= boundsRight(row) + 0.75f,
