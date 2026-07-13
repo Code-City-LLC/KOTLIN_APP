@@ -129,11 +129,11 @@ class NotificationSettingsParityTest {
         boundary.emitCurrent()
         waitUntil { !viewModel.state.value.packagePush }
         assertEquals(true, prefs.getBoolean(accountKey(101, "packagePush"), false))
-        assertEquals(false, prefs.contains(accountKey(202, "packagePush")))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packagePush"), true))
     }
 
     @Test
-    fun replacementDuringCandidateComputationPersistsNeitherAccount() {
+    fun replacementDuringCandidateComputationPersistsNoStaleTrueForEitherAccount() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         clearNotificationPrefs(context)
         val boundary = FakeAuthenticatedSessionBoundary("account-a", initialAccountId = 101)
@@ -155,12 +155,15 @@ class NotificationSettingsParityTest {
         )
 
         val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
-        assertEquals(false, prefs.contains(accountKey(101, "packagePush")))
-        assertEquals(false, prefs.contains(accountKey(202, "packagePush")))
+        assertEquals(false, prefs.getBoolean(accountKey(101, "packagePush"), true))
         assertEquals(0, commands.get())
 
         boundary.emitCurrent()
-        waitUntil { !viewModel.state.value.packagePush }
+        waitUntil {
+            prefs.contains(accountKey(202, "packagePush")) &&
+                !viewModel.state.value.packagePush
+        }
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packagePush"), true))
     }
 
     @Test
@@ -214,8 +217,8 @@ class NotificationSettingsParityTest {
 
         assertEquals(true, prefs.getBoolean(accountKey(101, "packageMaster"), false))
         assertEquals(true, prefs.getBoolean(accountKey(101, "packageEmail"), false))
-        assertEquals(false, prefs.contains(accountKey(202, "packageMaster")))
-        assertEquals(false, prefs.contains(accountKey(202, "packageEmail")))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packageMaster"), true))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packageEmail"), true))
     }
 
     @Test
@@ -269,7 +272,7 @@ class NotificationSettingsParityTest {
         boundary.replace("account-b", accountId = 202)
         waitUntil { viewModel.state.value.master && !viewModel.state.value.packageEmail }
         assertEquals(true, prefs.getBoolean(accountKey(101, "packageEmail"), false))
-        assertEquals(false, prefs.contains(accountKey(202, "packageEmail")))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packageEmail"), true))
     }
 
     @Test
@@ -468,14 +471,14 @@ class NotificationSettingsParityTest {
             .putBoolean("isNotifications", true)
             .putBoolean("packageMaster", true)
             .putBoolean("promosMaster", true)
-            .apply()
+            .commit()
     }
 
     private fun clearNotificationPrefs(context: Context) {
         context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
             .edit()
             .clear()
-            .apply()
+            .commit()
     }
 
     private fun accountKey(accountId: Int, key: String): String =

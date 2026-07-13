@@ -28,11 +28,12 @@ class FakeAuthenticatedSessionBoundary(
     override fun capture(): AuthenticatedSessionOwner? = currentOwner.get()
 
     @Synchronized
-    override fun isCurrent(owner: AuthenticatedSessionOwner): Boolean = currentOwner.get() == owner
+    override fun isCurrent(owner: AuthenticatedSessionOwner): Boolean =
+        currentOwner.get()?.sessionId == owner.sessionId
 
     @Synchronized
     override fun apply(owner: AuthenticatedSessionOwner, action: () -> Unit): Boolean {
-        if (currentOwner.get() != owner) {
+        if (currentOwner.get()?.sessionId != owner.sessionId) {
             rejectedApplyAttempts.incrementAndGet()
             return false
         }

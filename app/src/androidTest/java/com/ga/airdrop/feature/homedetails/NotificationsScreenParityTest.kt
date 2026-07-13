@@ -15,6 +15,7 @@ import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.prefs.NotificationAccountPreferences
 import com.ga.airdrop.core.prefs.NotificationPreferenceMatrix
+import org.junit.Assert.assertEquals
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -60,14 +61,15 @@ class NotificationsScreenParityTest {
     }
 
     @Test
-    fun differentAccountDoesNotReuseFirstAccountsMasterSetting() {
+    fun differentAccountUsesDefaultMasterInsteadOfFirstAccountsOffSetting() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         AuthTokenStore.init(context)
         AuthTokenStore.clear()
         context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
             .edit().clear().commit()
         NotificationAccountPreferences.init(context)
-        NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = true))
+        AuthTokenStore.save("account-a-token", authenticatedAccountId = 101)
+        NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = false))
         AuthTokenStore.save("account-b-token", authenticatedAccountId = 202)
 
         compose.setContent {
@@ -83,8 +85,9 @@ class NotificationsScreenParityTest {
             }
         }
 
-        compose.onNodeWithText("You’re all caught up.").assertIsDisplayed()
-        compose.onNodeWithText("You’re all set!").assertDoesNotExist()
+        compose.onNodeWithText("You’re all set!").assertIsDisplayed()
+        compose.onNodeWithText("You’re all caught up.").assertDoesNotExist()
+        assertEquals(false, NotificationAccountPreferences.load(101)?.master)
     }
 
     @Test

@@ -344,8 +344,8 @@ private fun NotificationStatusCard(
                 if (isError) AlertPalette.Middle.Error else colors.iconShape,
                 RoundedCornerShape(Radius.s),
             )
-            .padding(Spacing.md)
-            .testTag("notification-sync-status"),
+            .testTag("notification-sync-status")
+            .padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Text(
