@@ -6,11 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Kemar directive 2026-07-12 (room #23392/#23407): the tier benefits scroll
- * dissolves into the tier gradient above the glass CTA. The mask must NEVER
- * permanently hide text — the scroll's bottom padding has to let the last
- * benefit row come to rest fully ABOVE the fade band. These proofs pin that
- * arithmetic so a future padding "cleanup" can't reintroduce hidden text.
+ * Accepted Swift contract: one screen-level fade is visible on every active
+ * tier page. CTA pages include the 74dp control lane; CTA-less pages retain
+ * the 64dp dissolve instead of removing it.
  */
 class TierFadeContractTest {
 
@@ -26,10 +24,8 @@ class TierFadeContractTest {
     }
 
     @Test
-    fun ctaLessPagesDoNotReserveOrRenderTheFadeLane() {
-        // Current Swift applies its fixed viewport mask only while the CTA is
-        // visible. CTA-less pages retain ordinary breathing room and no mask.
-        assertEquals(32.dp, TierBottomPaddingNoCta)
-        assertTrue(TierBottomPaddingNoCta < TierFadeHeight)
+    fun ctaLessPagesStillReserveTheScreenLevelFade() {
+        assertEquals(64.dp, TierBottomPaddingNoCta)
+        assertTrue(TierBottomPaddingNoCta >= TierFadeHeight)
     }
 }

@@ -44,14 +44,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -93,16 +89,16 @@ import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
  *    design. Never a cell-clipped redraw.
  *  - Radial ellipse 284×284 at (-93, 151) behind the icon (Figma Ellipse
  *    3413, overlay-blend look approximated with the tier's own gradient).
- *  - Header on a rgba(41,41,41,.8)→0 gradient + per-tier 1px hairline;
- *    title is PAGE-RELATIVE: "Your Tier" only on the customer's own page,
- *    "Tier" everywhere else (recorded Kemar ruling — overrides the static
- *    "Customer Tier" frame label in raw Figma).
+ *  - Header has no scrim or fade (direct Kemar ruling 2026-07-13), so the
+ *    tier page gradient remains uninterrupted behind it. The per-tier 1px
+ *    hairline remains; title is PAGE-RELATIVE: "Your Tier" only on the
+ *    customer's own page, "Tier" everywhere else.
  *  - Component-36 dash strip: 35dp strip, 5dp dashes r2.5, 20dp sides,
  *    #292929 @ 10% wash.
- *  - Bottom glass fade (Kemar 2026-07-12, #23392): the benefits scroll
- *    dissolves into the tier gradient over the 64dp above the CTA (alpha
- *    DstIn mask pinned to the viewport, transparent across the CTA strip) —
- *    no hard cutoff, no text colliding with the glass button.
+ *  - Bottom glass fade (Kemar 2026-07-12/13): one screen-level overlay starts
+ *    64dp inside the benefits viewport and continues through the CTA/safe-area
+ *    lane to the real page bottom. It remains visible on CTA-less pages, as in
+ *    the accepted Swift implementation; no content mask or hard cutoff.
  *  - Glass "light outline" CTA (Kemar): 316×50 r12, white 7% fill, 1px
  *    white 18% border, Cairo SemiBold 17 — TierRelation states verbatim
  *    from Swift (current / upgrade / activation / hidden).
@@ -446,6 +442,12 @@ internal fun GoldPriorityContent(
                 isOfferedChange(changeOffers, canChange, activeTier.apiCode)
             else -> true
         }
+        TierBottomFadeOverlay(
+            tierId = activeTier.id,
+            bottomColor = gradientBottom,
+            reservesCta = ctaLabel != null,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
         TierCtaButton(
             label = ctaLabel,
             enabled = ctaEnabled,
@@ -565,23 +567,14 @@ private fun TierLinesBackdrop() {
     }
 }
 
-// ─── Header (gradient chrome + per-tier hairline, page-relative title) ─────
+// ─── Header (transparent chrome + per-tier hairline, page-relative title) ─
 
 @Composable
 private fun TierHeader(title: String, hairline: Color, onBack: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            // Figma Header Type: vertical gradient rgba(41,41,41,0.8) → 0
-            // spanning the status bar + header row (Swift headerGradient).
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF292929).copy(alpha = 0.8f),
-                        Color(0xFF292929).copy(alpha = 0f),
-                    )
-                )
-            )
+            .testTag("gold-priority-header")
     ) {
         HomeDetailsHeader(
             title = title,
@@ -630,21 +623,52 @@ private fun SwipeIndicator(activeIndex: Int, activeTier: TierPage) {
 
 // ─── Tier page ─────────────────────────────────────────────────────────────
 
-// Bottom glass fade (Kemar directive 2026-07-12, room #23392/#23407): the
-// scrolling benefit text DISSOLVES into the tier gradient above the glass
-// CTA — never a hard cutoff or a collision with the button. Mirrors Swift's
-// CAGradientLayer alpha mask (opaque→clear over the 64pt above the CTA,
-// pinned to the fixed frame; content scrolls through it).
-/** Height of the dissolve band. */
+// Screen-level bottom fade (Swift TierBottomFadeView). The overlay begins
+// 64dp inside the benefits viewport, then continues through the bottom-control
+// and navigation-bar lane. It belongs to the active page and is always shown.
 internal val TierFadeHeight = 64.dp
-/** Fully-transparent strip under the fade — the CTA's 50dp + its 12dp bottom
- *  gap. Nav-bar insets are added at runtime on top of this. */
-internal val TierCtaClearance = 62.dp
+/** Swift constrains the benefits viewport 12dp above a 50dp CTA whose bottom
+ * is 12dp above the safe area: 12 + 50 + 12 = 74dp. */
+internal val TierCtaClearance = 74.dp
 /** Scroll-content bottom padding: the last benefit row must come to rest
- *  fully ABOVE the fade band (clearance + fade + breathing room), so no text
- *  is ever permanently hidden by the mask. Pinned by TierFadeContractTest. */
-internal val TierBottomPaddingWithCta = 130.dp
-internal val TierBottomPaddingNoCta = 32.dp
+ *  fully above the screen-level overlay. Navigation insets are added by the
+ *  scroll container. Pinned by TierFadeContractTest. */
+internal val TierBottomPaddingWithCta = 142.dp
+internal val TierBottomPaddingNoCta = 64.dp
+
+@Composable
+private fun TierBottomFadeOverlay(
+    tierId: String,
+    bottomColor: Color,
+    reservesCta: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val navigationBarInset = with(density) {
+        WindowInsets.navigationBars.getBottom(density).toDp()
+    }
+    val controlLane = if (reservesCta) TierCtaClearance else 0.dp
+    val overlayHeight = TierFadeHeight + controlLane + navigationBarInset
+    val middleStop = with(density) {
+        TierFadeHeight.toPx() / overlayHeight.toPx().coerceAtLeast(1f)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(overlayHeight)
+            .background(
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0f to bottomColor.copy(alpha = 0f),
+                        middleStop.coerceIn(0f, 1f) to bottomColor.copy(alpha = 0.62f),
+                        1f to bottomColor,
+                    )
+                )
+            )
+            .testTag("gold-priority-fade-$tierId")
+    )
+}
 
 @Composable
 private fun TierPageContent(
@@ -654,27 +678,6 @@ private fun TierPageContent(
     onRetry: () -> Unit,
     reserveCtaSpace: Boolean = true,
 ) {
-    val navBarPx = WindowInsets.navigationBars.getBottom(LocalDensity.current)
-    val fadeMask = if (reserveCtaSpace) {
-        Modifier
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                val fadeEnd = size.height - navBarPx - TierCtaClearance.toPx()
-                if (fadeEnd <= 0f) return@drawWithContent
-                val fadeStart = (fadeEnd - TierFadeHeight.toPx()).coerceAtLeast(0f)
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        fadeStart / size.height to Color.Black,
-                        (fadeEnd / size.height).coerceAtMost(1f) to Color.Transparent,
-                    ),
-                    blendMode = BlendMode.DstIn,
-                )
-            }
-            .testTag("gold-priority-fade-${tier.id}")
-    } else {
-        Modifier
-    }
     Box(Modifier.fillMaxSize()) {
         // Figma Ellipse 3413 — 284×284 at (-93, 151): soft radial glow from
         // the tier's own light color (RN EllipseBackground / Swift
@@ -696,13 +699,9 @@ private fun TierPageContent(
         Column(
             Modifier
                 .fillMaxSize()
-                // Swift applies this fixed viewport mask only while its glass
-                // CTA is visible. CTA-less pages keep their full-height body.
-                .then(fadeMask)
                 .verticalScroll(rememberScrollState())
-                // Figma: 30dp sides (Spaceing-s), 20 top. Bottom reserves the
-                // CTA strip + fade band ONLY when this page actually shows a
-                // CTA — a hidden CTA must not leave a dead field (#22989).
+                // Figma: 30dp sides (Spaceing-s), 20 top. Bottom padding lets
+                // the final row scroll above the shared screen-level fade.
                 .padding(horizontal = 30.dp)
                 .padding(top = 20.dp)
                 .windowInsetsPadding(WindowInsets.navigationBars)
