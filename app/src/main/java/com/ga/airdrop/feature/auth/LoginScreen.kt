@@ -55,6 +55,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 internal object LoginTags {
     const val LOGIN_BUTTON = "login-submit-button"
     const val REGISTER_PROMPT = "login-register-prompt"
+    const val REGISTER_LABEL = "login-register-label"
 }
 
 /**
@@ -204,29 +205,35 @@ fun LoginScreen(
                 loading = state.loading,
                 enabled = !state.loading,
             )
-            // Swift FigmaLoginViewController.swift:218 — 16 after Log In.
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text = buildAnnotatedString {
-                    append("Don't have an account? ")
-                    withStyle(
-                        SpanStyle(
-                            fontWeight = FontWeight.SemiBold,
-                            textDecoration = TextDecoration.Underline,
-                        ),
-                    ) {
-                        append("Register")
-                    }
-                },
-                style = AirdropType.body2.copy(textAlign = TextAlign.Center),
-                color = colors.textDarkTitle,
+            // Swift FigmaLoginViewController.swift:218 — exactly 16 after Log In.
+            // Keep that gap inside the full-width click target so it is not
+            // accidentally doubled by a separate Spacer.
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 30.dp)
                     .testTag(LoginTags.REGISTER_PROMPT)
                     .clickable(onClick = onRegister)
                     .padding(top = 16.dp, bottom = 16.dp),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = buildAnnotatedString {
+                        append("Don't have an account? ")
+                        withStyle(
+                            SpanStyle(
+                                fontWeight = FontWeight.SemiBold,
+                                textDecoration = TextDecoration.Underline,
+                            ),
+                        ) {
+                            append("Register")
+                        }
+                    },
+                    style = AirdropType.body2.copy(textAlign = TextAlign.Center),
+                    color = colors.textDarkTitle,
+                    modifier = Modifier.testTag(LoginTags.REGISTER_LABEL),
+                )
+            }
         }
     }
 }
