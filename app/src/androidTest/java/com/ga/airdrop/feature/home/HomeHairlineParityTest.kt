@@ -51,37 +51,6 @@ class HomeHairlineParityTest {
         )
     }
 
-    @Test
-    fun warehousePressUsesOrangeOutlineAndKeepsNavigation() {
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.set(ThemeController.Mode.LIGHT)
-        }
-        var destination = ""
-        compose.setContent {
-            AirdropTheme {
-                HomeScreen(onNavigate = { destination = it })
-            }
-        }
-        compose.waitForIdle()
-
-        val standard = compose.onNodeWithTag("home-warehouse-standard")
-        standard.performTouchInput {
-            down(center)
-            advanceEventTime(120)
-        }
-        compose.waitForIdle()
-        val pressedBitmap = standard.captureToImage().asAndroidBitmap()
-        assertEdgeUsesOrangeOutline("Pressed Standard warehouse card", pressedBitmap)
-        saveProof(pressedBitmap, ThemeController.Mode.LIGHT, "standard_pressed")
-
-        standard.performTouchInput { up() }
-        compose.waitForIdle()
-        assertTrue(
-            "Releasing the pressed warehouse card must preserve its Standard route",
-            destination.endsWith("?type=standard"),
-        )
-    }
-
     private fun assertHomeHairlines(
         mode: ThemeController.Mode,
         expectedArgb: Int,
@@ -90,9 +59,10 @@ class HomeHairlineParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
         }
+        var destination = ""
         compose.setContent {
             AirdropTheme {
-                HomeScreen(onNavigate = {})
+                HomeScreen(onNavigate = { destination = it })
             }
         }
         compose.waitForIdle()
@@ -110,6 +80,25 @@ class HomeHairlineParityTest {
                 expectedArgb = expectedArgb,
             )
             saveProof(bitmap, mode, type)
+
+            if (mode == ThemeController.Mode.LIGHT && type == "standard") {
+                val standard = compose.onNodeWithTag("home-warehouse-standard")
+                standard.performTouchInput {
+                    down(center)
+                    advanceEventTime(120)
+                }
+                compose.waitForIdle()
+                val pressedBitmap = standard.captureToImage().asAndroidBitmap()
+                assertEdgeUsesOrangeOutline("Pressed Standard warehouse card", pressedBitmap)
+                saveProof(pressedBitmap, mode, "standard_pressed")
+
+                standard.performTouchInput { up() }
+                compose.waitForIdle()
+                assertTrue(
+                    "Releasing the pressed warehouse card must preserve its Standard route",
+                    destination.endsWith("?type=standard"),
+                )
+            }
         }
 
         compose.onNodeWithTag("home-refer-friend").performScrollTo()
