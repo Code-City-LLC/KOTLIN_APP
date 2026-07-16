@@ -1,9 +1,12 @@
 package com.ga.airdrop.feature.more2
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,12 +16,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,12 +33,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -45,6 +55,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
 import com.ga.airdrop.core.security.BiometricGate
+import com.ga.airdrop.feature.more.QuietHoursViewModel
 import com.ga.airdrop.feature.security.BiometricSecuritySheet
 
 /**
@@ -56,15 +67,24 @@ import com.ga.airdrop.feature.security.BiometricSecuritySheet
  * SCOPE (per ORC #15406, amended by Kemar's D/A/C/F/G/H ruling): the stable
  * core (app identity + Terms, Privacy, Contact Support → Help, "Visit
  * airdropja.com") PLUS the Swift deep-audit preference rows Kemar greenlit —
- * "Default delivery method" (D) and the biometric "Lock with {type}" row (A,
- * shown only when biometric hardware is enrolled). The remaining Swift rows
- * (active sessions, download-your-data) stay excluded until ruled in.
+ * "Quiet hours" (D.6), "Default delivery method" (D), and the biometric
+ * "Lock with {type}" row (A, shown only when biometric hardware is enrolled).
+ * The remaining Swift rows (active sessions, download-your-data) stay excluded
+ * until ruled in.
  */
 @Composable
-fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit) {
+fun AboutScreen(
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit,
+    quietHoursViewModel: QuietHoursViewModel = viewModel(),
+) {
     val colors = AirdropTheme.colors
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
+
+    LaunchedEffect(quietHoursViewModel, context) {
+        quietHoursViewModel.start(context)
+    }
 
     // Feature D — default delivery method (Swift DeliveryDefaultsStore). Held in
     // local state so the picker reflects the write immediately (the store is
@@ -77,6 +97,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit) {
     val biometricAvailable = remember { BiometricGate.isAvailable(context) }
     val biometricTypeName = remember { BiometricGate.biometricTypeName(context) }
     var showSecuritySheet by remember { mutableStateOf(false) }
+    var showQuietHoursSheet by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -115,7 +136,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit) {
             )
             Spacer(Modifier.height(Spacing.lg))
 
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm1)) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 AboutRow(
                     title = "Terms & Conditions",
                     testTag = "about-row-terms",
@@ -137,6 +158,13 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                     onClick = { runCatching { uriHandler.openUri("https://airdropja.com") } },
                 )
                 AboutRow(
+                    title = "Quiet hours",
+                    testTag = "about-row-quiet-hours",
+                    leadingIcon = { AboutClockIcon("about-row-quiet-hours-icon") },
+                    pressHighlight = true,
+                    onClick = { showQuietHoursSheet = true },
+                )
+                AboutRow(
                     title = "Default delivery method",
                     testTag = "about-row-delivery",
                     onClick = { showDeliveryDialog = true },
@@ -155,6 +183,13 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit) {
 
     if (showSecuritySheet) {
         BiometricSecuritySheet(onDismiss = { showSecuritySheet = false })
+    }
+
+    if (showQuietHoursSheet) {
+        QuietHoursSheet(
+            onDismiss = { showQuietHoursSheet = false },
+            viewModel = quietHoursViewModel,
+        )
     }
 
     if (showDeliveryDialog) {
@@ -251,8 +286,32 @@ private fun DeliveryMethodDialog(
 }
 
 @Composable
-private fun AboutRow(title: String, testTag: String, onClick: () -> Unit) {
+private fun AboutRow(
+    title: String,
+    testTag: String,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    pressHighlight: Boolean = false,
+    onClick: () -> Unit,
+) {
     val colors = AirdropTheme.colors
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val borderColor = when {
+        pressHighlight && isPressed -> colors.orangeMain.copy(
+            alpha = if (colors.isDark) 0.48f else 0.42f,
+        )
+        leadingIcon != null -> colors.cardHairline
+        else -> colors.iconShape
+    }
+    val clickModifier = if (pressHighlight) {
+        Modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+        )
+    } else {
+        Modifier.clickable(onClick = onClick)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -260,24 +319,65 @@ private fun AboutRow(title: String, testTag: String, onClick: () -> Unit) {
             .testTag(testTag)
             .clip(RoundedCornerShape(Radius.s))
             .background(colors.gray100)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.md),
+            .border(1.dp, borderColor, RoundedCornerShape(Radius.s))
+            .then(clickModifier)
+            .padding(
+                start = if (leadingIcon == null) Spacing.md else 18.dp,
+                end = if (leadingIcon == null) Spacing.md else 16.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (leadingIcon != null) {
+            leadingIcon()
+            Spacer(Modifier.width(14.dp))
+        }
         Text(
             text = title,
             style = AirdropType.subtitle1,
             color = colors.textDarkTitle,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .testTag("$testTag-label"),
         )
         Image(
             painter = painterResource(R.drawable.ic_chevron),
             contentDescription = null,
             colorFilter = ColorFilter.tint(colors.gray500),
             modifier = Modifier
-                .size(13.dp)
+                .size(if (leadingIcon == null) 13.dp else 16.dp)
                 .rotate(-90f),
+        )
+    }
+}
+
+@Composable
+private fun AboutClockIcon(testTag: String) {
+    val colors = AirdropTheme.colors
+    Canvas(
+        modifier = Modifier
+            .size(24.dp)
+            .testTag(testTag),
+    ) {
+        val scale = size.minDimension / 24f
+        drawCircle(
+            color = colors.textDarkTitle,
+            radius = 9.25f * scale,
+            center = androidx.compose.ui.geometry.Offset(12f * scale, 12f * scale),
+            style = Stroke(width = 1.5f * scale),
+        )
+        val hands = Path().apply {
+            moveTo(15.39f * scale, 14.018f * scale)
+            lineTo(12f * scale, 11.995f * scale)
+            lineTo(12f * scale, 7.635f * scale)
+        }
+        drawPath(
+            path = hands,
+            color = colors.orangeMain,
+            style = Stroke(
+                width = 1.5f * scale,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+            ),
         )
     }
 }
