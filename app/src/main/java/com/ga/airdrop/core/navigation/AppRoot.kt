@@ -80,8 +80,16 @@ fun AppRoot(
     // Push-notification deep links (route + referenceID) land here once the
     // graph is composed — mirrors FigmaRouteResolver deep-linking.
     val pendingPush by com.ga.airdrop.core.push.PushDeepLink.pending.collectAsState()
-    androidx.compose.runtime.LaunchedEffect(pendingPush, token, navigationUnlocked) {
-        if (pendingPush != null && navigationUnlocked) {
+    androidx.compose.runtime.LaunchedEffect(
+        pendingPush,
+        token,
+        navigationUnlocked,
+        currentRoute,
+    ) {
+        if (
+            pendingPush != null &&
+            canConsumePendingPush(navigationUnlocked, token, currentRoute)
+        ) {
             consumePendingPushIfUnlocked(navigationUnlocked, AuthTokenStore.snapshot())
                 ?.let { navController.navigate(it) }
         }
@@ -137,6 +145,20 @@ internal fun consumePendingPushIfUnlocked(
 } else {
     null
 }
+
+/**
+ * Swift defers a pre-login push until Home is restored after any required
+ * onboarding. Including [currentRoute] in the caller's effect key makes the
+ * pending route replay as soon as navigation enters the authenticated graph.
+ */
+internal fun canConsumePendingPush(
+    navigationUnlocked: Boolean,
+    token: String?,
+    currentRoute: String?,
+): Boolean = navigationUnlocked &&
+    token != null &&
+    currentRoute != null &&
+    currentRoute !in AUTH_GRAPH_ROUTES
 
 internal fun shouldResetToAuthLanding(token: String?, currentRoute: String?): Boolean =
     token == null && currentRoute != null && currentRoute !in AUTH_GRAPH_ROUTES

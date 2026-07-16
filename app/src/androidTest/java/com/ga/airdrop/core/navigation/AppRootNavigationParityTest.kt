@@ -142,6 +142,55 @@ class AppRootNavigationParityTest {
     }
 
     @Test
+    fun pendingPushWaitsForPostLoginOnboardingBeforeReplaying() {
+        listOf(
+            null,
+            Routes.SPLASH,
+            Routes.AUTH_LANDING,
+            Routes.LOGIN,
+            Routes.ONBOARDING,
+        ).forEach { route ->
+            assertFalse(
+                "Pending push must remain deferred on auth route: $route",
+                canConsumePendingPush(
+                    navigationUnlocked = true,
+                    token = "ui-proof-token",
+                    currentRoute = route,
+                ),
+            )
+        }
+
+        assertFalse(
+            canConsumePendingPush(
+                navigationUnlocked = false,
+                token = "ui-proof-token",
+                currentRoute = Routes.HOME,
+            ),
+        )
+        assertFalse(
+            canConsumePendingPush(
+                navigationUnlocked = true,
+                token = null,
+                currentRoute = Routes.HOME,
+            ),
+        )
+        assertTrue(
+            canConsumePendingPush(
+                navigationUnlocked = true,
+                token = "ui-proof-token",
+                currentRoute = Routes.HOME,
+            ),
+        )
+        assertTrue(
+            canConsumePendingPush(
+                navigationUnlocked = true,
+                token = "ui-proof-token",
+                currentRoute = Routes.SHIPMENTS,
+            ),
+        )
+    }
+
+    @Test
     fun packageProofRoutesReturnToAuthLandingWhenBearerIsMissing() {
         packageProofRoutes.forEach { route ->
             assertEquals(
