@@ -47,8 +47,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ga.airdrop.R
@@ -592,7 +594,7 @@ private fun CartSaleItemCard(
         Modifier
             .fillMaxWidth()
             .background(colors.gray100, cardShape)
-            .border(1.dp, colors.iconShape, cardShape)
+            .border(1.dp, colors.cardHairline, cardShape)
             .combinedClickable(
                 onClick = {},
                 onLongClick = onOpenActions,
@@ -605,7 +607,8 @@ private fun CartSaleItemCard(
         Box(
             Modifier
                 .size(84.dp)
-                .background(colors.gray200, RoundedCornerShape(10.dp)),
+                .background(colors.gray200, RoundedCornerShape(10.dp))
+                .testTag("cart-sale-image-${line.id}"),
             contentAlignment = Alignment.Center,
         ) {
             if (imageUrl != null) {
@@ -613,9 +616,18 @@ private fun CartSaleItemCard(
                     model = imageUrl,
                     contentDescription = line.title,
                     contentScale = ContentScale.Fit,
+                    error = painterResource(R.drawable.ic_package),
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(6.dp),
+                        .padding(7.dp),
+                )
+            } else {
+                Image(
+                    painter = painterResource(R.drawable.ic_package),
+                    contentDescription = "Product image unavailable",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(7.dp),
                 )
             }
         }
@@ -625,20 +637,27 @@ private fun CartSaleItemCard(
         ) {
             Text(
                 text = line.title,
-                style = AirdropType.body2,
+                style = AirdropType.body2.copy(
+                    fontSize = 15.sp,
+                    lineHeight = 24.sp,
+                ),
                 color = colors.textDarkTitle,
                 maxLines = 2,
+                modifier = Modifier.testTag("cart-sale-title-${line.id}"),
             )
             Text(
                 text = formatUsdPlain(line.priceUsd * line.qty),
-                style = AirdropType.subtitle1,
+                style = AirdropType.subtitle2.copy(fontWeight = FontWeight.Bold),
                 color = BrandPalette.OrangeMain,
+                modifier = Modifier.testTag("cart-sale-price-${line.id}"),
             )
         }
         Box(
             Modifier
                 .size(24.dp)
-                .clickable(onClick = onRemove),
+                .align(Alignment.Top)
+                .clickable(onClick = onRemove)
+                .testTag("cart-sale-remove-${line.id}"),
             contentAlignment = Alignment.Center,
         ) {
             Image(
