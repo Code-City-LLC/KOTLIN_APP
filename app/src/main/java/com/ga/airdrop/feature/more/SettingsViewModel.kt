@@ -72,7 +72,7 @@ class SettingsViewModel(
     private fun finishLocalLogout(context: Context) {
         // Full hygiene: bearer token, shared header cache, cart store, cached
         // cart/package blobs. FCM token deregistration joins once push lands.
-        com.ga.airdrop.core.session.clearLocalUserSession(context)
+        com.ga.airdrop.core.session.clearLocalUserSessionAfterCustomerLogout(context)
         _state.update { it.copy(loggingOut = false, loggedOut = true) }
     }
 
