@@ -1,0 +1,22 @@
+<!--
+  Exact Arrow - Right vector pulled through the official Figma MCP from
+  AIRDROP node 40008798:29430 (asset ba93d7cc-92ac-4789-8445-66f9d9aef095).
+  Figma rotates the original 15x18 down-arrow 90 degrees into an 18x15
+  left-facing glyph and centers it inside a separate 24dp control frame.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp"
+    android:height="15dp"
+    android:viewportWidth="18"
+    android:viewportHeight="15">
+    <group
+        android:rotation="90"
+        android:pivotX="0"
+        android:pivotY="0"
+        android:translateX="18">
+        <path
+            android:fillColor="#FF292929"
+            android:fillType="evenOdd"
+            android:pathData="M8.32285,0.707159C8.26787,0.307804 7.92047,0 7.50011,0C7.04154,0 6.66979,0.366312 6.66979,0.818182V15.1999L1.41866,10.0047L1.3257,9.92528C1.00114,9.68696 0.539803,9.71243 0.244412,10.0023C-0.0805188,10.3212 -0.0816073,10.8392 0.241981,11.1594L6.90045,17.7477C6.93858,17.787 6.98063,17.8224 7.02599,17.8536C7.35024,18.0766 7.80006,18.0452 8.08894,17.7593L14.7581,11.1593L14.8383,11.0674C15.0787,10.7466 15.051,10.2921 14.7555,10.0023C14.4306,9.68342 13.9049,9.68454 13.5813,10.0047L8.33043,15.2012V0.818182L8.32285,0.707159Z" />
+    </group>
+</vector>
