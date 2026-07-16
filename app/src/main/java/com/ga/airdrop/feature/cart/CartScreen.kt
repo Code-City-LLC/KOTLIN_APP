@@ -145,9 +145,10 @@ fun CartScreen(
             // Lift the billing form + payment bar above the keyboard.
             .imePadding()
     ) {
-        // Swift keeps "My Cart" (Title1) so the empty cart never reads
-        // "Order Summary".
-        ShopInnerHeader(title = "My Cart", onBack = onBack, titleStyle = AirdropType.title1)
+        // Live Figma My Cart Header Type 40008798:29447 uses Subtitle1:
+        // Cairo 16sp SemiBold / 26sp. Keep "My Cart" in every state so the
+        // empty cart never reads "Order Summary".
+        ShopInnerHeader(title = "My Cart", onBack = onBack, titleStyle = CartHeaderTitleStyle)
 
         Column(
             Modifier
@@ -378,6 +379,8 @@ fun CartScreen(
         )
     }
 }
+
+internal val CartHeaderTitleStyle = AirdropType.subtitle1
 
 /* ─── Section header — Figma "Header Section" with info icon ───────────── */
 
