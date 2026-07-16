@@ -43,6 +43,7 @@ import com.ga.airdrop.core.session.clearLocalUserSessionAfterCustomerLogout
 import com.ga.airdrop.feature.auth.OnboardingStore
 import com.ga.airdrop.feature.auth.authenticatedEntryDestination
 import com.ga.airdrop.feature.auth.onboardingCompletionDestination
+import com.ga.airdrop.feature.auth.splashDestination
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -119,6 +120,30 @@ class AppRootNavigationParityTest {
 
             assertTrue(OnboardingStore.isRequiredAfterLogin(context))
             assertEquals(
+                Routes.AUTH_LANDING,
+                splashDestination(
+                    isAuthenticated = false,
+                    onboardingSeen = false,
+                    onboardingRequiredAfterLogin = true,
+                ),
+            )
+            assertEquals(
+                Routes.AUTH_LANDING,
+                splashDestination(
+                    isAuthenticated = false,
+                    onboardingSeen = true,
+                    onboardingRequiredAfterLogin = true,
+                ),
+            )
+            assertEquals(
+                Routes.ONBOARDING,
+                splashDestination(
+                    isAuthenticated = true,
+                    onboardingSeen = true,
+                    onboardingRequiredAfterLogin = true,
+                ),
+            )
+            assertEquals(
                 Routes.ONBOARDING,
                 authenticatedEntryDestination(
                     onboardingRequired = OnboardingStore.isRequiredAfterLogin(context),
@@ -128,6 +153,22 @@ class AppRootNavigationParityTest {
             OnboardingStore.markSeen(context)
 
             assertFalse(OnboardingStore.isRequiredAfterLogin(context))
+            assertEquals(
+                Routes.ONBOARDING,
+                splashDestination(
+                    isAuthenticated = false,
+                    onboardingSeen = false,
+                    onboardingRequiredAfterLogin = false,
+                ),
+            )
+            assertEquals(
+                Routes.AUTH_LANDING,
+                splashDestination(
+                    isAuthenticated = false,
+                    onboardingSeen = true,
+                    onboardingRequiredAfterLogin = false,
+                ),
+            )
             assertEquals(
                 Routes.HOME,
                 onboardingCompletionDestination(isAuthenticated = true),

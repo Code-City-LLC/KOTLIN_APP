@@ -32,14 +32,11 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
         val context = LocalContext.current
         SplashScreen(
             onFinished = {
-                val target = when {
-                    AuthTokenStore.tokenFlow.value != null ->
-                        authenticatedEntryDestination(
-                            OnboardingStore.isRequiredAfterLogin(context),
-                        )
-                    !OnboardingStore.hasSeen(context) -> Routes.ONBOARDING
-                    else -> Routes.AUTH_LANDING
-                }
+                val target = splashDestination(
+                    isAuthenticated = AuthTokenStore.tokenFlow.value != null,
+                    onboardingSeen = OnboardingStore.hasSeen(context),
+                    onboardingRequiredAfterLogin = OnboardingStore.isRequiredAfterLogin(context),
+                )
                 navController.navigate(target) {
                     popUpTo(Routes.SPLASH) { inclusive = true }
                 }
@@ -88,6 +85,21 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
             },
         )
     }
+}
+
+/**
+ * Explicit-logout onboarding is a post-authentication gate. While signed out,
+ * keep that flag armed and route to login even if the first-run flag is false.
+ */
+internal fun splashDestination(
+    isAuthenticated: Boolean,
+    onboardingSeen: Boolean,
+    onboardingRequiredAfterLogin: Boolean,
+): String = when {
+    isAuthenticated -> authenticatedEntryDestination(onboardingRequiredAfterLogin)
+    onboardingRequiredAfterLogin -> Routes.AUTH_LANDING
+    !onboardingSeen -> Routes.ONBOARDING
+    else -> Routes.AUTH_LANDING
 }
 
 /** One route policy shared by cold-start restore and successful login. */
