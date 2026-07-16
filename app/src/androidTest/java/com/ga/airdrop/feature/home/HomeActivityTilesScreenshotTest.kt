@@ -677,7 +677,7 @@ class HomeActivityTilesScreenshotTest {
         private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
         private const val FIGMA_ORANGE_LIGHT = 0xFFF15114.toInt()
-        private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF88458.toInt()
+        private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF46427.toInt()
         private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
         private const val COLOR_TOLERANCE = 8
         private const val CAPTURE_ATTEMPTS = 3

@@ -221,7 +221,7 @@ class ServicesOrangeAccentParityTest {
 
     private companion object {
         private const val FIGMA_ORANGE_LIGHT = 0xFFF15114.toInt()
-        private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF88458.toInt()
+        private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF46427.toInt()
         private const val COLOR_TOLERANCE = 8
         private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/services_orange"
     }
