@@ -1,8 +1,6 @@
 package com.ga.airdrop.feature.home
 
-import android.content.ContentValues
 import android.graphics.Bitmap
-import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
@@ -79,8 +77,6 @@ class HomeHairlineParityTest {
                 bitmap = bitmap,
                 expectedArgb = expectedArgb,
             )
-            saveProof(bitmap, mode, type)
-
             if (mode == ThemeController.Mode.LIGHT && type == "standard") {
                 val standard = compose.onNodeWithTag("home-warehouse-standard")
                 standard.performTouchInput {
@@ -90,7 +86,6 @@ class HomeHairlineParityTest {
                 compose.waitForIdle()
                 val pressedBitmap = standard.captureToImage().asAndroidBitmap()
                 assertEdgeUsesOrangeOutline("Pressed Standard warehouse card", pressedBitmap)
-                saveProof(pressedBitmap, mode, "standard_pressed")
 
                 standard.performTouchInput { up() }
                 compose.waitForIdle()
@@ -117,8 +112,6 @@ class HomeHairlineParityTest {
             expectedArgb = expectedSurfaceArgb,
             horizontalInsetDp = 8f,
         )
-        saveProof(referBitmap, mode, "refer")
-
         compose.onNodeWithTag("home-bottom-clearance")
             .assertHeightIsEqualTo(HOME_BOTTOM_CLEARANCE_DP.dp)
     }
@@ -206,33 +199,4 @@ class HomeHairlineParityTest {
         )
     }
 
-    @Suppress("InlinedApi")
-    private fun saveProof(bitmap: Bitmap, mode: ThemeController.Mode, surface: String) {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val values = ContentValues().apply {
-            put(
-                MediaStore.MediaColumns.DISPLAY_NAME,
-                "home_hairline_${mode.name.lowercase()}_$surface.png",
-            )
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, PROOF_DIRECTORY)
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
-        val uri = requireNotNull(
-            context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values),
-        ) { "Unable to create $mode $surface hairline proof" }
-        context.contentResolver.openOutputStream(uri).use { output ->
-            requireNotNull(output) { "Unable to open $mode $surface hairline proof" }
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
-                "Unable to encode $mode $surface hairline proof"
-            }
-        }
-        values.clear()
-        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-        context.contentResolver.update(uri, values, null, null)
-    }
-
-    private companion object {
-        const val PROOF_DIRECTORY = "Pictures/AirdropProofs/HomeHairlines"
-    }
 }
