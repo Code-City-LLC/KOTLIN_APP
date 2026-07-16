@@ -1,6 +1,7 @@
 package com.ga.airdrop.core.designsystem.components
 
 import androidx.compose.ui.graphics.Color
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,6 +26,12 @@ class AirdropChromeTest {
         assertTrue(
             "$name must not be too see-through (Kemar 2026-07-06: 0.70 flat was too transparent)",
             alpha >= 0.80f,
+        )
+        assertEquals(
+            "$name must retain the approved subtle 0.95 translucency",
+            0.95f,
+            alpha,
+            0.001f,
         )
     }
 

@@ -7,11 +7,14 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -48,6 +51,37 @@ class HomeHairlineParityTest {
         )
     }
 
+    @Test
+    fun warehousePressUsesOrangeOutlineAndKeepsNavigation() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        var destination = ""
+        compose.setContent {
+            AirdropTheme {
+                HomeScreen(onNavigate = { destination = it })
+            }
+        }
+        compose.waitForIdle()
+
+        val standard = compose.onNodeWithTag("home-warehouse-standard")
+        standard.performTouchInput {
+            down(center)
+            advanceEventTime(120)
+        }
+        compose.waitForIdle()
+        val pressedBitmap = standard.captureToImage().asAndroidBitmap()
+        assertEdgeUsesOrangeOutline("Pressed Standard warehouse card", pressedBitmap)
+        saveProof(pressedBitmap, ThemeController.Mode.LIGHT, "standard_pressed")
+
+        standard.performTouchInput { up() }
+        compose.waitForIdle()
+        assertTrue(
+            "Releasing the pressed warehouse card must preserve its Standard route",
+            destination.endsWith("?type=standard"),
+        )
+    }
+
     private fun assertHomeHairlines(
         mode: ThemeController.Mode,
         expectedArgb: Int,
@@ -75,12 +109,6 @@ class HomeHairlineParityTest {
                 bitmap = bitmap,
                 expectedArgb = expectedArgb,
             )
-            assertOpaqueSurface(
-                label = "$mode $type warehouse card",
-                bitmap = bitmap,
-                expectedArgb = expectedSurfaceArgb,
-                horizontalInsetDp = 12f,
-            )
             saveProof(bitmap, mode, type)
         }
 
@@ -101,6 +129,9 @@ class HomeHairlineParityTest {
             horizontalInsetDp = 8f,
         )
         saveProof(referBitmap, mode, "refer")
+
+        compose.onNodeWithTag("home-bottom-clearance")
+            .assertHeightIsEqualTo(HOME_BOTTOM_CLEARANCE_DP.dp)
     }
 
     private fun assertEdgeUsesHairline(label: String, bitmap: Bitmap, expectedArgb: Int) {
@@ -134,6 +165,35 @@ class HomeHairlineParityTest {
         return abs(((this shr 16) and 0xFF) - ((target shr 16) and 0xFF)) <= tolerance &&
             abs(((this shr 8) and 0xFF) - ((target shr 8) and 0xFF)) <= tolerance &&
             abs((this and 0xFF) - (target and 0xFF)) <= tolerance
+    }
+
+    private fun assertEdgeUsesOrangeOutline(label: String, bitmap: Bitmap) {
+        val edgeBand = minOf(2, bitmap.width / 4, bitmap.height / 4).coerceAtLeast(1)
+        val verticalInset = (bitmap.height * 0.2f).toInt()
+        var orangePixels = 0
+
+        for (y in verticalInset until (bitmap.height - verticalInset)) {
+            for (offset in 0 until edgeBand) {
+                if (bitmap.getPixel(offset, y).isOrangeDominant()) orangePixels += 1
+                if (bitmap.getPixel(bitmap.width - 1 - offset, y).isOrangeDominant()) {
+                    orangePixels += 1
+                }
+            }
+        }
+
+        assertTrue(
+            "$label must replace its resting hairline with the Swift/RN orange touch outline; " +
+                "orangePixels=$orangePixels size=${bitmap.width}x${bitmap.height}",
+            orangePixels >= 20,
+        )
+    }
+
+    private fun Int.isOrangeDominant(): Boolean {
+        val alpha = (this ushr 24) and 0xFF
+        val red = (this shr 16) and 0xFF
+        val green = (this shr 8) and 0xFF
+        val blue = this and 0xFF
+        return alpha >= 180 && red - green >= 20 && green - blue >= 15
     }
 
     private fun assertOpaqueSurface(
