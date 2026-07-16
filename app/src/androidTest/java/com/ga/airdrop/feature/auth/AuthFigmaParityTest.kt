@@ -7,8 +7,10 @@ import android.provider.MediaStore
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
@@ -20,10 +22,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
+import com.ga.airdrop.core.designsystem.theme.TextSizeController
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
@@ -67,7 +71,7 @@ class AuthFigmaParityTest {
         compose.onNodeWithText("Login to AirDrop").assertIsDisplayed()
         compose.onNodeWithText("Log In").assertIsDisplayed().assertHasClickAction()
         saveRootScreenshot("auth_login_dark_figma.png")
-        compose.onNodeWithText("Register").assertIsDisplayed()
+        compose.onNodeWithTag(LoginTags.REGISTER_PROMPT).assertIsDisplayed()
     }
 
     @Test
@@ -80,6 +84,46 @@ class AuthFigmaParityTest {
         assertClose(72f, boundsHeight(logo), "Figma light login logo height")
         assertClose(150f, logo.top.value, "Figma light login logo top")
         saveRootScreenshot("auth_login_light_figma.png")
+    }
+
+    @Test
+    fun loginRegisterPromptRemainsFullyVisibleAtLargestLiveTextScale() {
+        var registerTapped = false
+        try {
+            setLoginContent(
+                mode = ThemeController.Mode.LIGHT,
+                systemFontScale = 1.30f,
+                textSize = TextSizeController.Level.LARGEST,
+                onRegister = { registerTapped = true },
+            )
+
+            val panel = compose.onNodeWithTag("login-bottom-panel").getUnclippedBoundsInRoot()
+            val submit = compose.onNodeWithTag(LoginTags.LOGIN_BUTTON)
+                .assertIsDisplayed()
+                .assertHasClickAction()
+                .getUnclippedBoundsInRoot()
+            val promptNode = compose.onNodeWithTag(LoginTags.REGISTER_PROMPT)
+                .assertIsDisplayed()
+                .assertHasClickAction()
+            val prompt = promptNode
+                .assertIsDisplayed()
+                .getUnclippedBoundsInRoot()
+
+            assertTrue(
+                "Log In must remain inside the visible login panel: submit=$submit panel=$panel",
+                submit.top >= panel.top && submit.bottom <= panel.bottom,
+            )
+            assertTrue(
+                "Register prompt must remain inside the visible login panel: prompt=$prompt panel=$panel",
+                prompt.top >= panel.top && prompt.bottom <= panel.bottom,
+            )
+            compose.onNodeWithText("Register", substring = true).assertIsDisplayed()
+            promptNode.performClick()
+            assertTrue("Visible Register link must still invoke registration", registerTapped)
+            saveRootScreenshot("auth_login_register_largest_text.png")
+        } finally {
+            setTheme(ThemeController.Mode.LIGHT, TextSizeController.Level.STANDARD)
+        }
     }
 
     @Test
@@ -107,22 +151,35 @@ class AuthFigmaParityTest {
         saveRootScreenshot("auth_onboarding_first_intro.png")
     }
 
-    private fun setLoginContent(mode: ThemeController.Mode) {
-        setTheme(mode)
+    private fun setLoginContent(
+        mode: ThemeController.Mode,
+        systemFontScale: Float = 1.0f,
+        textSize: TextSizeController.Level = TextSizeController.Level.STANDARD,
+        onRegister: () -> Unit = {},
+    ) {
+        setTheme(mode, textSize)
         val viewModel = LoginViewModel()
         compose.setContent {
-            AirdropThemeProvider {
-                Box(
-                    Modifier
-                        .width(375.dp)
-                        .height(812.dp),
-                ) {
-                    LoginScreen(
-                        onLoggedIn = {},
-                        onRegister = {},
-                        onForgotPassword = {},
-                        viewModel = viewModel,
-                    )
+            val deviceDensity = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(
+                    density = deviceDensity.density,
+                    fontScale = systemFontScale,
+                ),
+            ) {
+                AirdropThemeProvider {
+                    Box(
+                        Modifier
+                            .width(375.dp)
+                            .height(812.dp),
+                    ) {
+                        LoginScreen(
+                            onLoggedIn = {},
+                            onRegister = onRegister,
+                            onForgotPassword = {},
+                            viewModel = viewModel,
+                        )
+                    }
                 }
             }
         }
@@ -161,10 +218,16 @@ class AuthFigmaParityTest {
         compose.waitForIdle()
     }
 
-    private fun setTheme(mode: ThemeController.Mode) {
+    private fun setTheme(
+        mode: ThemeController.Mode,
+        textSize: TextSizeController.Level = TextSizeController.Level.STANDARD,
+    ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.init(InstrumentationRegistry.getInstrumentation().targetContext)
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            ThemeController.init(context)
+            TextSizeController.init(context)
             ThemeController.set(mode)
+            TextSizeController.set(textSize)
         }
     }
 

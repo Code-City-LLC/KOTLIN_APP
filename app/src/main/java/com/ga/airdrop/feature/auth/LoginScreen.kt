@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,8 +34,13 @@ import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
@@ -45,6 +51,11 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+
+internal object LoginTags {
+    const val LOGIN_BUTTON = "login-submit-button"
+    const val REGISTER_PROMPT = "login-register-prompt"
+}
 
 /**
  * Login form — Figma "Log in" node 40006240:24005 (light) /
@@ -105,102 +116,123 @@ fun LoginScreen(
             contentScale = ContentScale.Fit,
         )
         // Bottom panel — Figma 40006149:75739 / Swift LoginVC: rounded-top
-        // auth sheet with 30 horizontal padding and dark #2e2e2e fill.
+        // auth sheet at 65% of the viewport with dark #2e2e2e fill. The form
+        // scrolls independently while the registration prompt remains pinned;
+        // otherwise live devices with enlarged text lay the prompt below the
+        // initial viewport even though the tall emulator happens to show it.
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(524.dp)
+                .fillMaxHeight(0.65f)
                 .background(
                     if (colors.isDark) colors.gray150 else colors.gray100,
                     RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
                 )
                 .testTag("login-bottom-panel")
-                .padding(horizontal = 30.dp)
-                .padding(top = 36.dp)
                 // Lift the form above the keyboard (edge-to-edge means the
                 // window doesn't resize on its own): pad by whichever is
-                // larger — the nav bar or the IME. The focused field then
-                // scrolls into view above the keyboard.
-                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
-                .padding(bottom = 16.dp)
-                .verticalScroll(rememberScrollState()),
+                // larger — the nav bar or the IME. The footer stays visible
+                // and the weighted form viewport remains scrollable.
+                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
         ) {
-            Text(
-                text = "Welcome Back!",
-                style = AirdropType.h4,
-                color = colors.textDarkTitle,
-            )
-            Spacer(Modifier.height(Spacing.xs))
-            Text(
-                text = "Login to AirDrop",
-                style = AirdropType.body1,
-                color = colors.textDarkTitle,
-            )
-            Spacer(Modifier.height(30.dp))
-            TypeInputField(
-                label = "Email Address",
-                required = true,
-                value = state.email,
-                onValueChange = viewModel::onEmailChange,
-                placeholder = "e.g. username@email.com",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                autofillContentType = ContentType.EmailAddress + ContentType.Username,
-            )
-            Spacer(Modifier.height(Spacing.md))
-            TypeInputField(
-                label = "Password",
-                required = true,
-                value = state.password,
-                onValueChange = viewModel::onPasswordChange,
-                isPassword = true,
-                passwordVisible = state.passwordVisible,
-                onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                autofillContentType = ContentType.Password,
-            )
-            // Swift FigmaLoginViewController.swift:213 — 10 after password;
-            // :171-179 — Body2 underline in textDarkTitle.
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = "Forget Password?",
-                style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
-                color = colors.textDarkTitle,
-                modifier = Modifier.clickable(onClick = onForgotPassword),
-            )
-            if (state.error != null) {
-                Spacer(Modifier.height(Spacing.sm))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 30.dp)
+                    .padding(top = 36.dp, bottom = 8.dp),
+            ) {
                 Text(
-                    text = state.error ?: "",
-                    style = AirdropType.body2,
-                    color = AlertPalette.Error,
+                    text = "Welcome Back!",
+                    style = AirdropType.h4,
+                    color = colors.textDarkTitle,
                 )
+                Spacer(Modifier.height(Spacing.xs))
+                Text(
+                    text = "Login to AirDrop",
+                    style = AirdropType.body1,
+                    color = colors.textDarkTitle,
+                )
+                Spacer(Modifier.height(30.dp))
+                TypeInputField(
+                    label = "Email Address",
+                    required = true,
+                    value = state.email,
+                    onValueChange = viewModel::onEmailChange,
+                    placeholder = "e.g. username@email.com",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    autofillContentType = ContentType.EmailAddress + ContentType.Username,
+                )
+                Spacer(Modifier.height(Spacing.md))
+                TypeInputField(
+                    label = "Password",
+                    required = true,
+                    value = state.password,
+                    onValueChange = viewModel::onPasswordChange,
+                    isPassword = true,
+                    passwordVisible = state.passwordVisible,
+                    onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    autofillContentType = ContentType.Password,
+                )
+                // Swift FigmaLoginViewController.swift:213 — 10 after password;
+                // :171-179 — Body2 underline in textDarkTitle.
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Forget Password?",
+                    style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
+                    color = colors.textDarkTitle,
+                    modifier = Modifier.clickable(onClick = onForgotPassword),
+                )
+                if (state.error != null) {
+                    Spacer(Modifier.height(Spacing.sm))
+                    Text(
+                        text = state.error ?: "",
+                        style = AirdropType.body2,
+                        color = AlertPalette.Error,
+                    )
+                }
             }
-            Spacer(Modifier.height(Spacing.md))
+            // Keep both auth actions available at accessibility font sizes.
+            // The fields and recovery link may scroll, but the primary CTA
+            // and registration prompt stay together at the bottom as Swift's
+            // 16dp-spaced action group.
             GradientButton(
                 text = "Log In",
                 onClick = viewModel::login,
+                modifier = Modifier
+                    .padding(horizontal = 30.dp)
+                    .testTag(LoginTags.LOGIN_BUTTON),
                 loading = state.loading,
                 enabled = !state.loading,
             )
-            // Swift FigmaLoginViewController.swift:218 — 16 after Log In.
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = "Don't have an account? ",
-                    style = AirdropType.body2,
-                    color = colors.textDarkTitle,
-                )
-                Text(
-                    text = "Register",
-                    style = AirdropType.underlineLink.copy(textDecoration = TextDecoration.Underline),
-                    color = colors.textDarkTitle,
-                    modifier = Modifier.clickable(onClick = onRegister),
-                )
-            }
+            // Swift FigmaLoginViewController.swift:205-219 — one centered
+            // prompt with a styled Register span, 16dp after the Log In CTA.
+            // One clickable Text wraps as a unit at accessibility font sizes
+            // and exposes a stable focus/action target to TalkBack.
+            Text(
+                text = buildAnnotatedString {
+                    append("Don't have an account? ")
+                    withStyle(
+                        SpanStyle(
+                            fontWeight = FontWeight.SemiBold,
+                            textDecoration = TextDecoration.Underline,
+                        ),
+                    ) {
+                        append("Register")
+                    }
+                },
+                style = AirdropType.body2.copy(textAlign = TextAlign.Center),
+                color = colors.textDarkTitle,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 30.dp)
+                    .padding(top = 16.dp, bottom = 16.dp)
+                    .testTag(LoginTags.REGISTER_PROMPT)
+                    .clickable(onClick = onRegister),
+            )
         }
     }
 }
