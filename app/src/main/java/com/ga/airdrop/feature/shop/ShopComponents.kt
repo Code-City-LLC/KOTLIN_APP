@@ -116,15 +116,26 @@ fun ShopInnerHeader(
                 .height(56.dp)
                 .padding(horizontal = Spacing.md)
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_arrow),
-                contentDescription = "Back",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
+            Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .size(24.dp)
+                    .testTag(ShopInnerHeaderTags.BACK_TARGET)
                     .clickable(onClick = onBack),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_arrow_back_figma),
+                    contentDescription = "Back",
+                    colorFilter = ColorFilter.tint(colors.iconSelected),
+                    modifier = Modifier
+                        // Live Figma My Cart 40008798:29430: the 24dp
+                        // control contains an 18x15 glyph; never scale the
+                        // glyph itself to the full touch frame.
+                        .size(width = 18.dp, height = 15.dp)
+                        .testTag(ShopInnerHeaderTags.BACK_GLYPH),
+                )
+            }
             Text(
                 text = title,
                 style = titleStyle,
@@ -140,6 +151,11 @@ fun ShopInnerHeader(
                 .background(colors.iconShape)
         )
     }
+}
+
+internal object ShopInnerHeaderTags {
+    const val BACK_TARGET = "shop-inner-header-back-target"
+    const val BACK_GLYPH = "shop-inner-header-back-glyph"
 }
 
 /** Cart icon + orange count pill, used as InnerHeader trailing content. */
