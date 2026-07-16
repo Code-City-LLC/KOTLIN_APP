@@ -650,7 +650,7 @@ private fun InfoNoteCard(title: String, body: String, footer: String?, testTag: 
             Text(
                 text = footer,
                 style = AirdropType.body2,
-                color = colors.textDescription,
+                color = if (colors.isDark) colors.textDarkTitle else colors.textDescription,
             )
         }
     }
