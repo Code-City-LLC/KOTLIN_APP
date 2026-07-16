@@ -47,6 +47,8 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
+import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 
 /**
  * Restricted Items — Swift `FigmaRestrictedItemsViewController` entry list plus
@@ -629,8 +631,8 @@ private fun InfoNoteCard(title: String, body: String, footer: String?, testTag: 
             .defaultMinSize(minHeight = 48.dp)
             .testTag(testTag)
             .clip(RoundedCornerShape(Radius.s))
-            .background(AlertPalette.Light.OnHold)
-            .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(Radius.s))
+            .background(colors.infoBoxBackground)
+            .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(Radius.s))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {

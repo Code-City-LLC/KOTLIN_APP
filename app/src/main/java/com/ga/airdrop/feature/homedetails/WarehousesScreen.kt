@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,9 +44,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
+import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import com.ga.airdrop.data.model.Warehouse
 import com.ga.airdrop.feature.homedetails.components.CopiedToastPill
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
@@ -184,8 +186,10 @@ fun WarehousesScreen(
 
             Column(
                 Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
             ) {
                 TypeTabs(current = type, onSelect = { current = it.key })
                 WarehouseHero(type)
@@ -226,7 +230,7 @@ fun WarehousesScreen(
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.md)
-                        .padding(top = Spacing.md, bottom = Spacing.lg),
+                        .padding(top = Spacing.md, bottom = Spacing.xl),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     Text(
@@ -457,8 +461,8 @@ private fun PleaseNoteCard() {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.xs))
-            .background(AlertPalette.Light.OnHold)
-            .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(Radius.xs))
+            .background(colors.infoBoxBackground)
+            .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(Radius.xs))
             .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {

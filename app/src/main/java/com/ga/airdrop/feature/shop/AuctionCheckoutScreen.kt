@@ -44,10 +44,11 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
+import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import java.util.Locale
 
 /**
@@ -164,28 +165,28 @@ fun AuctionCheckoutScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(AlertPalette.Light.OnHold, RoundedCornerShape(Radius.s))
-                    .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(Radius.s))
+                    .background(colors.infoBoxBackground, RoundedCornerShape(Radius.s))
+                    .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(Radius.s))
                     .padding(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Image(
                     painter = painterResource(R.drawable.ic_info),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(AlertPalette.OnHold),
+                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
                     modifier = Modifier.size(20.dp),
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = "Our Promise:",
                         style = AirdropType.subtitle1,
-                        color = AlertPalette.OnHold,
+                        color = colors.textDarkTitle,
                     )
                     Text(
                         text = "✅ We do not store any card details in our system.\n" +
                             "✅ Your card details are safe and secure.",
                         style = AirdropType.body2,
-                        color = colors.textDescription,
+                        color = colors.textDarkTitle,
                     )
                 }
             }

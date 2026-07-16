@@ -74,6 +74,8 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
+import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
+import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -484,15 +486,13 @@ private fun ContactsRow(onClick: () -> Unit) {
 @Composable
 private fun InfoCard() {
     val colors = AirdropTheme.colors
-    val background = if (colors.isDark) Color(0x1A0993D1) else AlertPalette.Light.OnHold
-    val border = if (colors.isDark) Color(0x6B0992D1) else AlertPalette.Middle.OnHold
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("invite-friend-info-card")
             .clip(RoundedCornerShape(Radius.xs))
-            .background(background)
-            .border(1.dp, border, RoundedCornerShape(Radius.xs))
+            .background(colors.infoBoxBackground)
+            .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(Radius.xs))
             .padding(horizontal = 20.dp, vertical = 15.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

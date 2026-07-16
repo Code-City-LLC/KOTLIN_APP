@@ -220,6 +220,12 @@ val AirdropColorScheme.frostedGlassSurface: Color
     get() = (if (isDark) Color(0xFF292929) else Color.White)
         .copy(alpha = FROSTED_GLASS_FALLBACK_ALPHA)
 
+val AirdropColorScheme.infoBoxBackground: Color
+    get() = if (isDark) Color(0x1A0993D1) else AlertPalette.Light.OnHold
+
+val AirdropColorScheme.infoBoxBorder: Color
+    get() = if (isDark) Color(0xFF0993D1) else AlertPalette.Middle.OnHold
+
 /** Home card glass resolves visually to Figma's opaque gray150 after Swift blur. */
 val AirdropColorScheme.frostedGlassCardSurface: Color
     get() = gray150

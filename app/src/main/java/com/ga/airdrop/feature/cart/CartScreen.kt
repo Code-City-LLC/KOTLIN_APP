@@ -59,6 +59,8 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
+import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import com.ga.airdrop.feature.shop.ShopChevronRight
 import com.ga.airdrop.feature.shop.ShopDropdownField
 import com.ga.airdrop.feature.shop.ShopInnerHeader
@@ -655,15 +657,8 @@ private fun PromiseCard() {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(
-                com.ga.airdrop.core.designsystem.theme.AlertPalette.Light.OnHold,
-                RoundedCornerShape(Radius.s),
-            )
-            .border(
-                1.dp,
-                com.ga.airdrop.core.designsystem.theme.AlertPalette.Middle.OnHold,
-                RoundedCornerShape(Radius.s),
-            )
+            .background(colors.infoBoxBackground, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(Radius.s))
             // Swift buildPromiseCard row insets (:686-689) — 14 all sides.
             .padding(14.dp),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -671,17 +666,16 @@ private fun PromiseCard() {
         Image(
             painter = painterResource(R.drawable.ic_info),
             contentDescription = null,
-            // Swift buildPromiseCard (:642-692): 20pt blueMain icon.
-            colorFilter = ColorFilter.tint(BrandPalette.BlueMain),
+            colorFilter = ColorFilter.tint(colors.textDarkTitle),
             modifier = Modifier.size(20.dp),
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(text = "Our Promise", style = AirdropType.subtitle1, color = BrandPalette.BlueMain)
+            Text(text = "Our Promise", style = AirdropType.subtitle1, color = colors.textDarkTitle)
             Text(
                 text = "We do not store any card details in our system. " +
                     "Your card details are safe and secure.",
                 style = AirdropType.body2,
-                color = colors.textDescription,
+                color = colors.textDarkTitle,
             )
         }
     }

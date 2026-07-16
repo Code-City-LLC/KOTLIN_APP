@@ -38,6 +38,8 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
+import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 
 /**
@@ -272,19 +274,20 @@ private fun boldRuns(runs: List<Pair<String, Boolean>>): AnnotatedString =
 
 @Composable
 private fun OutroCard() {
+    val colors = AirdropTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.xs))
-            .background(AlertPalette.Light.OnHold)
-            .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(Radius.xs))
+            .background(colors.infoBoxBackground)
+            .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(Radius.xs))
             .padding(Spacing.md),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Image(
             painter = painterResource(R.drawable.ic_info),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(Color(0xFF292929)),
+            colorFilter = ColorFilter.tint(colors.textDarkTitle),
             modifier = Modifier.size(20.dp),
         )
         Column(
@@ -294,7 +297,7 @@ private fun OutroCard() {
             Text(
                 text = "That’s it! 🎉",
                 style = AirdropType.subtitle1,
-                color = Color(0xFF292929),
+                color = colors.textDarkTitle,
             )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 outroBullets.forEach { bullet ->
@@ -318,7 +321,7 @@ private fun OutroCard() {
                         Text(
                             text = bullet,
                             style = AirdropType.body2,
-                            color = Color(0xFF292929),
+                            color = colors.textDarkTitle,
                             modifier = Modifier.weight(1f),
                         )
                     }
