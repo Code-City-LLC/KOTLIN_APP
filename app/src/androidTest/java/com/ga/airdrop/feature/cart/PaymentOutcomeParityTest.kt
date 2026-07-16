@@ -25,7 +25,7 @@ class PaymentOutcomeParityTest {
             AirdropTheme {
                 PaymentReturnContent(
                     sessionId = "cs_unpaid",
-                    verify = { PaymentReturnResult.NotPaid("unpaid") },
+                    verify = { PaymentReturnResult.NotPaid("unpaid", terminal = true) },
                     onPaid = { _, _ -> error("not paid") },
                     onNotPaid = { navigated = true },
                     onUnconfirmed = { error("not unconfirmed") },
@@ -39,6 +39,33 @@ class PaymentOutcomeParityTest {
         compose.runOnIdle { assertFalse(navigated) }
         compose.onNodeWithTag("payment-outcome-ok").performClick()
         compose.runOnIdle { assertTrue(navigated) }
+    }
+
+    @Test
+    fun nonterminalNotPaidKeepsPendingAndRoutesToShipmentsRail() {
+        var terminalRetry = false
+        var safeDetail: String? = null
+        compose.setContent {
+            AirdropTheme {
+                PaymentReturnContent(
+                    sessionId = "cs_processing",
+                    verify = { PaymentReturnResult.NotPaid("processing", terminal = false) },
+                    onPaid = { _, _ -> error("not paid") },
+                    onNotPaid = { terminalRetry = true },
+                    onUnconfirmed = { safeDetail = it },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Payment still pending").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Stripe still reports status \"processing\". Check Shipments before paying again.",
+        ).assertIsDisplayed()
+        compose.onNodeWithTag("payment-outcome-ok").performClick()
+        compose.runOnIdle {
+            assertFalse(terminalRetry)
+            assertTrue(safeDetail?.contains("remains pending") == true)
+        }
     }
 
     @Test
@@ -87,17 +114,52 @@ class PaymentOutcomeParityTest {
     }
 
     @Test
-    fun cancelledExplainsThatTheCartRemainsBeforeNavigating() {
-        var done = false
+    fun terminalCancellationAloneReturnsToRetryCart() {
+        var terminalDone = false
+        var safeDone = false
         compose.setContent {
-            AirdropTheme { PaymentCancelledHost(onDone = { done = true }) }
+            AirdropTheme {
+                PaymentCancelledHost(
+                    onTerminalNotPaid = { terminalDone = true },
+                    onUnconfirmed = { safeDone = true },
+                    verify = { PaymentReturnResult.NotPaid("cancelled", terminal = true) },
+                )
+            }
         }
 
         compose.onNodeWithText("Payment cancelled").assertIsDisplayed()
-        compose.onNodeWithText("No payment was completed. Your cart is still available.")
+        compose.onNodeWithText("Stripe confirmed the checkout is cancelled. Your cart is available to retry.")
             .assertIsDisplayed()
-        compose.runOnIdle { assertFalse(done) }
+        compose.runOnIdle { assertFalse(terminalDone) }
         compose.onNodeWithTag("payment-outcome-ok").performClick()
-        compose.runOnIdle { assertTrue(done) }
+        compose.runOnIdle {
+            assertTrue(terminalDone)
+            assertFalse(safeDone)
+        }
+    }
+
+    @Test
+    fun nonterminalCancellationUsesSafeShipmentsRail() {
+        var terminalDone = false
+        var safeDone = false
+        compose.setContent {
+            AirdropTheme {
+                PaymentCancelledHost(
+                    onTerminalNotPaid = { terminalDone = true },
+                    onUnconfirmed = { safeDone = true },
+                    verify = { PaymentReturnResult.NotPaid("processing", terminal = false) },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Couldn't confirm cancellation").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Stripe still reports processing. This checkout remains pending to prevent a duplicate payment.",
+        ).assertIsDisplayed()
+        compose.onNodeWithTag("payment-outcome-ok").performClick()
+        compose.runOnIdle {
+            assertFalse(terminalDone)
+            assertTrue(safeDone)
+        }
     }
 }

@@ -20,9 +20,19 @@ class PackageDetailsChargesGatingTest {
     private fun show(status: String?): Boolean =
         PackageDetailsUiState(detail = ShipmentPackageDetail(id = 1, status = status)).showChargesAndCart
 
+    private fun canAdd(status: String?): Boolean =
+        PackageDetailsUiState(detail = ShipmentPackageDetail(id = 1, status = status)).canAddToCart
+
     @Test fun shown_onlyAt_readyForPickup_and_paidReadyForPickup() {
         assertTrue(show("7"))   // Ready for Pickup
         assertTrue(show("18"))  // Paid and Ready for Pick Up
+    }
+
+    @Test fun addToCartUsesCanonicalExactStatusSevenRule() {
+        assertTrue(canAdd("7"))
+        assertFalse(canAdd("18"))
+        assertFalse(canAdd(null))
+        assertFalse(canAdd("n/a"))
     }
 
     @Test fun hidden_atDelivered_andLaterCodes() {

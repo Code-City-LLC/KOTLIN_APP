@@ -1,5 +1,11 @@
 package com.ga.airdrop.feature.shop
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -7,7 +13,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartScreen
+import com.ga.airdrop.feature.cart.CartViewModel
+import com.ga.airdrop.feature.cart.OrderSummaryScreen
+import com.ga.airdrop.feature.cart.OrderSummaryUiModel
+import com.ga.airdrop.feature.cart.ProfileInformationScreen
 import com.ga.airdrop.feature.delivery.DeliveryMethodScreen
+import java.util.Locale
 
 /**
  * SHOP + CART feature graph.
@@ -81,7 +92,8 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
     }
 
     // My Cart — Figma 40008284:26547.
-    composable(Routes.CART) {
+    composable(Routes.CART) { entry ->
+        val cartViewModel: CartViewModel = viewModel(entry)
         CartScreen(
             onBack = { navController.popBackStack() },
             onShopNow = {
@@ -92,8 +104,9 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                     launchSingleTop = true
                 }
             },
+            viewModel = cartViewModel,
             onNavigate = {
-                // launchSingleTop: a rapid double-tap of Make Payment must not
+                // launchSingleTop: a rapid double-tap of Choose Delivery must not
                 // push two Delivery Method entries (verify finding, 2026-07-06).
                 navController.navigate(it) { launchSingleTop = true }
             },
@@ -101,10 +114,91 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
     }
 
     // Delivery Method — Figma 40008740:28263, Swift
-    // FigmaDeliveryMethodViewController. Cart "Make Payment" lands here;
-    // the currency popup then front-runs the cart's Stripe checkout
-    // (docs/PARITY_GAP_SPECS.md §4 currency-branch deviation).
+    // FigmaDeliveryMethodViewController. Cart "Choose Delivery" lands here;
+    // delivery and currency choices capture the flow before Order Summary.
     composable(Routes.DELIVERY_METHOD) {
-        DeliveryMethodScreen(onBack = { navController.popBackStack() })
+        DeliveryMethodScreen(
+            onBack = { navController.popBackStack() },
+            onNavigate = { route ->
+                navController.navigate(route) { launchSingleTop = true }
+            },
+        )
+    }
+
+    composable(Routes.PROFILE_INFORMATION) { entry ->
+        val cartEntry = remember(entry) { navController.getBackStackEntry(Routes.CART) }
+        val cartViewModel: CartViewModel = viewModel(cartEntry)
+        val state by cartViewModel.state.collectAsState()
+
+        LaunchedEffect(Unit) { cartViewModel.loadCheckoutProfile() }
+        LaunchedEffect(state.profileSummaryNav) {
+            if (state.profileSummaryNav) {
+                navController.navigate(Routes.ORDER_SUMMARY) { launchSingleTop = true }
+                cartViewModel.consumeProfileSummaryNav()
+            }
+        }
+
+        ProfileInformationScreen(
+            form = state.form,
+            profileOptions = state.profileOptions,
+            selectedProfile = state.selectedProfile,
+            countryOptions = cartViewModel.countryOptions,
+            saving = state.profileLoading || state.profileSaving,
+            onBack = { navController.popBackStack() },
+            onFormChange = { next -> cartViewModel.updateForm { next } },
+            onProfileSelected = cartViewModel::selectCheckoutProfile,
+            onContinue = cartViewModel::saveProfileInformation,
+            errorTitle = state.errorTitle,
+            errorMessage = state.errorMessage,
+            onDismissError = cartViewModel::dismissError,
+        )
+    }
+
+    composable(Routes.ORDER_SUMMARY) { entry ->
+        val cartEntry = remember(entry) { navController.getBackStackEntry(Routes.CART) }
+        val cartViewModel: CartViewModel = viewModel(cartEntry)
+        val state by cartViewModel.state.collectAsState()
+        // Collect the live store only to recompose exact captured-line lookup
+        // after an authoritative refresh; later additions are intentionally absent.
+        cartViewModel.items.collectAsState().value
+        val flow = cartViewModel.currentCheckoutFlow()
+        val capturedLines = cartViewModel.capturedCheckoutLines()
+        val currency = flow?.currency.orEmpty().uppercase(Locale.US)
+        val subtotalUsd = capturedLines.sumOf { it.priceUsd * it.qty }
+        val rate = state.exchangeUsdToJmd
+        val fee = flow?.deliveryFee ?: 0.0
+        val feeCurrency = flow?.deliveryFeeCurrency.orEmpty().uppercase(Locale.US)
+        val totalCharges = if (currency == "JMD") {
+            subtotalUsd * rate + if (feeCurrency == "JMD") fee else fee * rate
+        } else {
+            subtotalUsd + if (feeCurrency == "JMD" && rate > 0.0) fee / rate else fee
+        }
+        val context = LocalContext.current
+        val checkoutUrl = state.checkoutUrl
+
+        LaunchedEffect(checkoutUrl, state.checkoutLaunchAttempt) {
+            if (!checkoutUrl.isNullOrBlank() && launchExternalUrl(context, checkoutUrl)) {
+                cartViewModel.consumeCheckoutUrl()
+            }
+        }
+
+        OrderSummaryScreen(
+            model = OrderSummaryUiModel(
+                lines = capturedLines,
+                note = state.note,
+                currency = currency,
+                exchangeUsdToJmd = rate,
+                totalCharges = totalCharges,
+                paying = state.orderPaying,
+                errorTitle = state.errorTitle,
+                errorMessage = state.errorMessage,
+            ),
+            onBack = {
+                if (cartViewModel.rewindOrderSummary()) navController.popBackStack()
+            },
+            onNoteChange = cartViewModel::updateNote,
+            onMakePayment = cartViewModel::payOrderSummary,
+            onDismissError = cartViewModel::dismissError,
+        )
     }
 }

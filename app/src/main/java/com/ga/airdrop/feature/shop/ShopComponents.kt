@@ -341,7 +341,7 @@ fun ShopProductCard(
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
+                    painter = painterResource(if (inCart) R.drawable.ic_check_box else R.drawable.ic_add),
                     contentDescription = if (inCart) "Remove from cart" else "Add to cart",
                     colorFilter = ColorFilter.tint(
                         if (inCart) colors.orangeMain else colors.textDarkTitle

@@ -53,6 +53,8 @@ object Routes {
     // Cart "Make Payment" → Delivery Method → currency popup → Stripe
     // (Swift FigmaDeliveryMethodViewController; docs/PARITY_GAP_SPECS.md §4).
     const val DELIVERY_METHOD = "deliveryMethod"
+    const val PROFILE_INFORMATION = "profileInformation"
+    const val ORDER_SUMMARY = "orderSummary"
 
     // More drill-downs
     const val SETTINGS = "settings"

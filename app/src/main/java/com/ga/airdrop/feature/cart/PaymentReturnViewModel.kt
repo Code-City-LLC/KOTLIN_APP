@@ -22,6 +22,8 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.data.repo.PaymentsRepository
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -42,16 +44,72 @@ sealed interface PaymentReturnResult {
     data class Success(val orderReference: String?, val formattedAmount: String?) :
         PaymentReturnResult
 
-    data class NotPaid(val statusText: String) : PaymentReturnResult
+    data class NotPaid(val statusText: String, val terminal: Boolean = false) : PaymentReturnResult
     data class Unconfirmed(val detail: String) : PaymentReturnResult
 }
 
 class PaymentReturnViewModel(
     private val payments: PaymentsRepository = PaymentsRepository(ApiClient.service),
+    private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
-    suspend fun verify(sessionId: String): PaymentReturnResult =
-        verifySession(sessionId) { payments.checkoutSessionStatus(it) }
+    /** Bare Stripe cancel URLs recover the one persisted exact session. */
+    suspend fun verifyPendingCancellation(): PaymentReturnResult {
+        val owner = sessionBoundary.capture()
+            ?: return PaymentReturnResult.Unconfirmed("The checkout owner is no longer signed in.")
+        val pending = CheckoutFlowStore.pending(owner)
+            ?: return PaymentReturnResult.Unconfirmed("No exact pending checkout could be recovered.")
+        return verify(pending.checkoutSessionId)
+    }
+
+    suspend fun verify(sessionId: String): PaymentReturnResult {
+        val owner = sessionBoundary.capture()
+            ?: return PaymentReturnResult.Unconfirmed("The checkout owner is no longer signed in.")
+        if (CheckoutFlowStore.pending(sessionId, owner) == null) {
+            return PaymentReturnResult.Unconfirmed("This checkout session is not pending for the signed-in account.")
+        }
+        val requestOwner = sessionBoundary.requestOwner(owner)
+            ?: return PaymentReturnResult.Unconfirmed("The checkout owner changed before verification.")
+        val result = verifySession(sessionId) {
+            payments.checkoutSessionStatus(it, requestOwner.provenance)
+        }
+        var committed: PaymentReturnResult? = null
+        val applied = sessionBoundary.runWhileCurrent(owner) {
+            if (CheckoutFlowStore.pending(sessionId, owner) == null) {
+                return@runWhileCurrent false
+            }
+            when (result) {
+                is PaymentReturnResult.Success -> {
+                    if (!commitVerifiedPaidCheckout(sessionId, owner)) {
+                        return@runWhileCurrent false
+                    }
+                }
+                is PaymentReturnResult.NotPaid -> if (result.terminal) {
+                    if (!CheckoutFlowStore.releaseTerminalNotPaid(sessionId, owner)) {
+                        return@runWhileCurrent false
+                    }
+                }
+                is PaymentReturnResult.Unconfirmed -> Unit
+            }
+            committed = result
+            true
+        }
+        return if (applied) committed ?: PaymentReturnResult.Unconfirmed(
+            "The checkout result could not be committed.",
+        ) else PaymentReturnResult.Unconfirmed("The checkout owner changed during verification.")
+    }
+}
+
+/** Crash-recoverable two-phase paid commit; caller holds the auth transition lock. */
+internal fun commitVerifiedPaidCheckout(
+    sessionId: String,
+    owner: com.ga.airdrop.core.session.AuthenticatedSessionOwner,
+): Boolean {
+    val paidKeys = CheckoutFlowStore.pending(sessionId, owner)?.cartKeys?.toSet() ?: return false
+    // Cross-prefs crash safety: remove exact rows durably first; only then
+    // durably consume pending. A crash between commits leaves pending replayable.
+    if (!CartStore.removePaidKeysDurably(paidKeys)) return false
+    return CheckoutFlowStore.consumePaid(sessionId, owner) != null
 }
 
 /**
@@ -72,6 +130,11 @@ internal suspend fun verifySession(
     repeat(3) { attempt ->
         fetch(sessionId)
             .onSuccess { s ->
+                if (s.sessionId.isNullOrBlank() || s.sessionId != sessionId) {
+                    return PaymentReturnResult.Unconfirmed(
+                        "The payment response did not match this checkout session.",
+                    )
+                }
                 val paid = s.paymentStatus?.lowercase() == "paid" ||
                     s.status?.lowercase() == "paid"
                 return if (paid) {
@@ -88,7 +151,11 @@ internal suspend fun verifySession(
                     }
                     PaymentReturnResult.Success(sessionId, amount)
                 } else {
-                    PaymentReturnResult.NotPaid(s.paymentStatus ?: s.status ?: "unknown")
+                    val statusText = s.paymentStatus ?: s.status ?: "unknown"
+                    PaymentReturnResult.NotPaid(
+                        statusText = statusText,
+                        terminal = isTerminalNonPaidStatus(s.status, s.paymentStatus),
+                    )
                 }
             }
             .onFailure { e ->
@@ -97,6 +164,13 @@ internal suspend fun verifySession(
             }
     }
     return PaymentReturnResult.Unconfirmed(lastError?.message ?: "network error")
+}
+
+internal fun isTerminalNonPaidStatus(status: String?, paymentStatus: String?): Boolean {
+    val normalizedStatus = status?.trim()?.lowercase()
+    val normalizedPayment = paymentStatus?.trim()?.lowercase()
+    return normalizedStatus in setOf("expired", "cancelled", "canceled", "failed", "unpaid") ||
+        (normalizedStatus == "complete" && normalizedPayment != "paid")
 }
 
 /**
@@ -147,12 +221,19 @@ internal fun PaymentReturnContent(
 
     when (val alert = pendingAlert) {
         is PaymentReturnResult.NotPaid -> PaymentOutcomeAlert(
-            // Swift: "Payment incomplete" — authoritative not-paid answer.
-            title = "Payment incomplete",
-            message = "Stripe reports status \"${alert.statusText}\". Try again from the cart.",
+            title = if (alert.terminal) "Payment incomplete" else "Payment still pending",
+            message = if (alert.terminal) {
+                "Stripe reports status \"${alert.statusText}\". Try again from the cart."
+            } else {
+                "Stripe still reports status \"${alert.statusText}\". Check Shipments before paying again."
+            },
             onDismiss = {
                 pendingAlert = null
-                onNotPaid(alert.statusText)
+                if (alert.terminal) {
+                    onNotPaid(alert.statusText)
+                } else {
+                    onUnconfirmed("Stripe still reports ${alert.statusText}; checkout remains pending.")
+                }
             },
         )
         is PaymentReturnResult.Unconfirmed -> PaymentOutcomeAlert(
@@ -185,18 +266,46 @@ internal fun PaymentReturnContent(
  * parity: tell the user nothing was charged before showing the intact cart.
  */
 @Composable
-fun PaymentCancelledHost(onDone: () -> Unit) {
-    PaymentOutcomeAlert(
-        title = "Payment cancelled",
-        message = "No payment was completed. Your cart is still available.",
-        onDismiss = onDone,
-    )
+fun PaymentCancelledHost(
+    onTerminalNotPaid: () -> Unit,
+    onUnconfirmed: () -> Unit,
+    onPaid: (ref: String?, amount: String?) -> Unit = { _, _ -> },
+    verify: (suspend () -> PaymentReturnResult)? = null,
+    viewModel: PaymentReturnViewModel = viewModel(),
+) {
+    var result by remember { mutableStateOf<PaymentReturnResult?>(null) }
+    LaunchedEffect(Unit) {
+        result = verify?.invoke() ?: viewModel.verifyPendingCancellation()
+    }
+    when (val outcome = result) {
+        is PaymentReturnResult.Success -> LaunchedEffect(outcome) {
+            onPaid(outcome.orderReference, outcome.formattedAmount)
+        }
+        is PaymentReturnResult.NotPaid -> PaymentOutcomeAlert(
+            title = if (outcome.terminal) "Payment cancelled" else "Couldn't confirm cancellation",
+            message = if (outcome.terminal) {
+                "Stripe confirmed the checkout is ${outcome.statusText}. Your cart is available to retry."
+            } else {
+                "Stripe still reports ${outcome.statusText}. This checkout remains pending to prevent a duplicate payment."
+            },
+            onDismiss = if (outcome.terminal) onTerminalNotPaid else onUnconfirmed,
+        )
+        is PaymentReturnResult.Unconfirmed -> PaymentOutcomeAlert(
+            title = "Couldn't confirm cancellation",
+            message = "The checkout remains pending to prevent a duplicate payment. " + outcome.detail,
+            onDismiss = onUnconfirmed,
+        )
+        null -> Unit
+    }
     Box(
         Modifier
             .fillMaxSize()
             .background(AirdropTheme.colors.gray150)
             .testTag("payment-cancelled-host"),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        if (result == null) CircularProgressIndicator(color = BrandPalette.OrangeMain)
+    }
 }
 
 /** One-button outcome alert, Swift presentPaymentResultAlert counterpart. */

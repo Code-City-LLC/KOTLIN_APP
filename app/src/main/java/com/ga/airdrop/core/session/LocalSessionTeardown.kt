@@ -10,6 +10,7 @@ import com.ga.airdrop.core.push.QuietHoursStore
 import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.feature.calculator.CalculatorHistory
 import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.cart.CheckoutFlowStore
 import com.ga.airdrop.feature.cart.SavedForLaterStore
 import com.ga.airdrop.feature.dropalert.DropAlertPreset
 import com.ga.airdrop.feature.auth.OnboardingStore
@@ -28,6 +29,8 @@ fun clearLocalUserSession(context: Context) {
     SessionStore.clear()
     CartStore.init(appContext)
     CartStore.clear()
+    CheckoutFlowStore.init(appContext)
+    CheckoutFlowStore.clear()
     SavedForLaterStore.init(appContext)
     SavedForLaterStore.clearAll()
     DeliveryDefaultsStore.clearAll()

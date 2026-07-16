@@ -171,7 +171,9 @@ data class MoreDocumentFile(
 class MoreRepositoryException(message: String) : IOException(message)
 
 interface MoreProfileRepository {
-    suspend fun currentUser(): Result<MoreUser>
+    suspend fun currentUser(
+        expectedSession: AuthTokenStore.RequestProvenance? = null,
+    ): Result<MoreUser>
     suspend fun updateProfile(
         fields: Map<String, String?>,
         expectedSession: AuthTokenStore.RequestProvenance,
@@ -205,9 +207,7 @@ class MoreRepository internal constructor(
 
     // ─── User profile ───
 
-    override suspend fun currentUser(): Result<MoreUser> = currentUser(expectedSession = null)
-
-    private suspend fun currentUser(
+    override suspend fun currentUser(
         expectedSession: AuthTokenStore.RequestProvenance?,
     ): Result<MoreUser> = request("GET", "/user/profile", expectedSession = expectedSession) { root ->
         val user = root.objectAt("data")?.objectAt("user")

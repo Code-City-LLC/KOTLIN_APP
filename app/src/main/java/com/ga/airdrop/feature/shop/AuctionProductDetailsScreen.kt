@@ -133,7 +133,7 @@ fun AuctionProductDetailsScreen(
                         featured = featured,
                         quantity = state.quantity,
                         expanded = state.expanded,
-                        cartIds = cartLines.map { it.id }.toSet(),
+                        cartKeys = cartLines.map(CartStore.CartLine::key).toSet(),
                         onChangeQuantity = viewModel::changeQuantity,
                         onToggleExpanded = viewModel::toggleExpanded,
                         onRelatedClick = { onNavigate(Routes.auctionProductDetails(it.routeSlug)) },
@@ -271,7 +271,7 @@ private fun DetailsContent(
     featured: Boolean,
     quantity: Int,
     expanded: Boolean,
-    cartIds: Set<Int>,
+    cartKeys: Set<CartStore.CartLineKey>,
     onChangeQuantity: (Int) -> Unit,
     onToggleExpanded: () -> Unit,
     onRelatedClick: (ShopProduct) -> Unit,
@@ -496,7 +496,10 @@ private fun DetailsContent(
                     related.take(2).forEach { item ->
                         ShopProductCard(
                             product = item,
-                            inCart = cartIds.contains(item.id),
+                            inCart = CartStore.CartLineKey(
+                                CartStore.CartLineKind.AUCTION,
+                                item.id,
+                            ) in cartKeys,
                             onClick = { onRelatedClick(item) },
                             onToggleCart = { onRelatedToggleCart(item) },
                             modifier = Modifier

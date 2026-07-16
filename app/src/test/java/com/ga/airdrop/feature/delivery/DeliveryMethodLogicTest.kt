@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.delivery
 
 import com.ga.airdrop.data.model.DeliveryWarehouse
+import com.ga.airdrop.feature.shipments.ShipmentPackage
+import com.ga.airdrop.feature.shipments.toCartLine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -241,5 +243,23 @@ class DeliveryMethodLogicTest {
     @Test
     fun `empty warehouse list selects nothing`() {
         assertNull(resolveSelectedWarehouseId(emptyList(), null, "Kingston"))
+    }
+
+    @Test
+    fun `shipment canonical kilograms drive checkout weight`() {
+        val line = ShipmentPackage(id = 1, weightKg = "2.5 kg", weightLbs = 99.0).toCartLine()
+        assertEquals(2.5, line.weightKg!!, 0.0)
+    }
+
+    @Test
+    fun `shipment canonical pounds convert to checkout kilograms`() {
+        val line = ShipmentPackage(id = 2, weightLbs = 10.0).toCartLine()
+        assertEquals(4.5359237, line.weightKg!!, 1e-9)
+    }
+
+    @Test
+    fun `shipment legacy display weight is never interpreted as kilograms`() {
+        val line = ShipmentPackage(id = 3, weight = "10LBS").toCartLine()
+        assertNull(line.weightKg)
     }
 }

@@ -1,0 +1,52 @@
+package com.ga.airdrop.feature.cart
+
+import com.ga.airdrop.data.model.CartPackage
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class CartServerGatewayTest {
+
+    @Test
+    fun `canonical kg wins over pounds and legacy display weight`() {
+        val line = CartPackage(
+            id = 1,
+            weightKg = 3.5,
+            weightLbs = 99.0,
+            weight = 88.0,
+        ).toCartLine()
+
+        assertEquals(3.5, line.weightKg!!, 0.0)
+    }
+
+    @Test
+    fun `canonical pounds converts to kilograms`() {
+        val line = CartPackage(id = 2, weightLbs = 10.0).toCartLine()
+
+        assertEquals(4.5359237, line.weightKg!!, 1e-9)
+    }
+
+    @Test
+    fun `legacy weight falls back as pounds and converts to kilograms`() {
+        val line = CartPackage(id = 3, weight = 10.0).toCartLine()
+
+        assertEquals(4.5359237, line.weightKg!!, 1e-9)
+    }
+
+    @Test
+    fun `charges use exact server precedence and missing status remains unknown`() {
+        val line = CartPackage(
+            id = 4,
+            shippingCost = 1.0,
+            additionalCharges = 2.0,
+            additionalChargesTotal = 3.0,
+            totalCharges = 4.0,
+            status = null,
+        ).toCartLine()
+
+        assertEquals(4.0, line.priceUsd, 0.0)
+        assertNull(line.statusCode)
+        assertTrue(line.serverConfirmed)
+    }
+}

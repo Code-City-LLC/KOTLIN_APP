@@ -297,6 +297,11 @@ fun ShipmentPackage.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine
             ?: trackingCode ?: "Package #$id",
         qty = 1,
         priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
+        kind = com.ga.airdrop.feature.cart.CartStore.CartLineKind.PACKAGE,
+        weightKg = resolvedCartWeightKg(weightKg, weightLbs),
+        shippingMethod = shippingMethod,
+        status = statusName,
+        statusCode = status?.toIntOrNull(),
         isAuction = false,
     )
 
@@ -308,5 +313,24 @@ fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.Ca
             ?: trackingCode ?: "Package #$id",
         qty = 1,
         priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
+        kind = com.ga.airdrop.feature.cart.CartStore.CartLineKind.PACKAGE,
+        weightKg = resolvedCartWeightKg(weightKg, weightLbs),
+        shippingMethod = shippingMethod,
+        status = statusName,
+        statusCode = status?.toIntOrNull(),
         isAuction = false,
     )
+
+private fun resolvedCartWeightKg(
+    weightKg: String?,
+    weightLbs: Double?,
+): Double? {
+    fun parse(raw: String?): Double? = raw
+        ?.trim()
+        ?.replace(Regex("[^0-9.+-]"), "")
+        ?.toDoubleOrNull()
+        ?.takeIf { it > 0.0 }
+
+    return parse(weightKg)
+        ?: weightLbs?.takeIf { it > 0.0 }?.times(0.45359237)
+}

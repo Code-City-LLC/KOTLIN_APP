@@ -598,7 +598,11 @@ private fun AuctionProduct.toCartLine(): CartStore.CartLine = CartStore.CartLine
 fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
     val colors = AirdropTheme.colors
     val cartItems by CartStore.items.collectAsState()
-    val inCart = product.id != null && cartItems.any { it.id == product.id }
+    val inCart = product.id?.let { id ->
+        cartItems.any {
+            it.key == CartStore.CartLineKey(CartStore.CartLineKind.AUCTION, id)
+        }
+    } == true
     val shape = RoundedCornerShape(14.dp)
     // Swift makeAuctionCard: fixed 160x245, radius 14, padding 8, spacing 6;
     // photo 124 aspect-fill on gray200; title Body3 single line; price
@@ -660,7 +664,7 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
+                painter = painterResource(if (inCart) R.drawable.ic_check_box else R.drawable.ic_add),
                 contentDescription = if (inCart) "Remove from cart" else "Add to cart",
                 colorFilter = ColorFilter.tint(
                     if (inCart) colors.orangeMain else colors.textDarkTitle
