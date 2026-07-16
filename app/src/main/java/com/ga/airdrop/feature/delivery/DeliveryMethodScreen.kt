@@ -58,6 +58,8 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
+import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
+import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import com.ga.airdrop.data.model.DeliveryWarehouse
 import com.ga.airdrop.data.model.PlaceResult
 import com.ga.airdrop.feature.cart.CartStore
@@ -586,8 +588,8 @@ internal fun DeliverySection(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = 64.dp)
-                    .background(AlertPalette.Light.OnHold, RoundedCornerShape(10.dp))
-                    .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(10.dp))
+                    .background(colors.infoBoxBackground, RoundedCornerShape(10.dp))
+                    .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(10.dp))
                     .padding(horizontal = 15.dp, vertical = 9.dp)
                     .testTag("delivery-selected-location"),
                 horizontalArrangement = Arrangement.spacedBy(5.dp),

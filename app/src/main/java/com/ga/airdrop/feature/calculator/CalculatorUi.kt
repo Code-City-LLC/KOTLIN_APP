@@ -39,10 +39,11 @@ import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
+import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import java.util.Locale
 
 /*
@@ -112,8 +113,8 @@ internal fun InnerScreenHeader(title: String, onBack: () -> Unit) {
 }
 
 /**
- * Blue info card — Swift makeInfoCard/makePackageDimensionsInfoCard:
- * #E3ECFF fill, #97AFDD border, radius 15, 16/14 padding, 20dp info icon.
+ * Blue info card — Swift makeInfoCard/makePackageDimensionsInfoCard.
+ * Dark mode follows Figma "Erroring & Alerts" node 40005210:25762.
  */
 @Composable
 internal fun BlueInfoCard(
@@ -125,8 +126,8 @@ internal fun BlueInfoCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(AlertPalette.Light.OnHold, RoundedCornerShape(Radius.s))
-            .border(1.dp, AlertPalette.Middle.OnHold, RoundedCornerShape(Radius.s))
+            .background(colors.infoBoxBackground, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(Radius.s))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
