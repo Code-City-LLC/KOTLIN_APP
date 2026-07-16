@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.homedetails
 
 import com.ga.airdrop.data.api.AirdropJson
+import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.data.model.CustomerTier
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.Paginated
@@ -95,6 +96,75 @@ class TierServerCopyTest {
             ),
             rows["RUBY"],
         )
+    }
+
+    @Test
+    fun serverOwnedBenefitsUseCustomerFacingSaleTerminology() {
+        val rows = serverBenefitRows(
+            listOf(
+                ServiceTier(
+                    code = "GOLD",
+                    processingCopy = "Priority in pre-auction events.",
+                    benefitsSummary = listOf(
+                        "Warehouse auctions and holiday offers.",
+                        "AUCTION ACCESS",
+                        "Gold early sale and auction notifications.",
+                    ),
+                )
+            )
+        )
+
+        assertEquals(
+            listOf(
+                "Priority in pre-sale events.",
+                "Warehouse sales and holiday offers.",
+                "SALE ACCESS",
+                "Gold early sale notifications.",
+            ),
+            rows["GOLD"],
+        )
+    }
+
+    @Test
+    fun customerFacingSaleCopyPreservesCaseDuringPhraseCleanup() {
+        assertEquals("Sale", customerFacingSaleCopy("Auction and auction"))
+        assertEquals("SALE", customerFacingSaleCopy("AUCTION and AUCTION"))
+        assertEquals("Sales", customerFacingSaleCopy("Auctions and auctions"))
+        assertEquals(
+            "CLEARANCE EVENTS, LIMITED RELEASES, AND FLASH SALES",
+            customerFacingSaleCopy("CLEARANCE EVENTS, AUCTIONS, AND FLASH SALES"),
+        )
+        assertEquals(
+            "Clearance Events, Limited Releases, And Flash Sales",
+            customerFacingSaleCopy("Clearance Events, Auctions, And Flash Sales"),
+        )
+    }
+
+    @Test
+    fun notificationSaleCopyPreservesNavigationIdentity() {
+        val source = AirdropNotification(
+            id = "auction-17",
+            title = "Auction starts now",
+            body = "Two auctions are ready.",
+            type = "auction",
+            isRead = true,
+            createdAt = "2026-07-16T12:00:00Z",
+            route = "auction/product/42",
+            referenceId = "42",
+            payload = mapOf("screen" to "auction", "package_id" to "42"),
+        )
+
+        val customerCopy = source.customerFacingCopy()
+
+        assertEquals("Sale starts now", customerCopy.title)
+        assertEquals("Two sales are ready.", customerCopy.body)
+        assertEquals(source.id, customerCopy.id)
+        assertEquals(source.type, customerCopy.type)
+        assertEquals(source.isRead, customerCopy.isRead)
+        assertEquals(source.createdAt, customerCopy.createdAt)
+        assertEquals(source.route, customerCopy.route)
+        assertEquals(source.referenceId, customerCopy.referenceId)
+        assertEquals(source.payload, customerCopy.payload)
     }
 
     @Test

@@ -551,7 +551,7 @@ private fun AuctionHighlights(
         ) {
             Text(
                 // Swift :527 — Title1.
-                text = "Auction Highlights",
+                text = "Sale Highlights",
                 style = AirdropType.title1,
                 color = colors.textDarkTitle,
             )
@@ -726,7 +726,7 @@ private fun EmptyAuctionCard() {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "No auction highlights",
+            text = "No sale highlights",
             style = AirdropType.body1,
             color = colors.textDescription,
             textAlign = TextAlign.Center,

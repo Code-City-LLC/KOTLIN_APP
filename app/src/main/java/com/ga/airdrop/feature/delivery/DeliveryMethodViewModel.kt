@@ -472,7 +472,7 @@ class DeliveryMethodViewModel(
                 it.copy(
                     errorTitle = "Checkout unavailable",
                     errorMessage = "One or more products are missing the package ID required " +
-                        "for auction checkout.",
+                        "for sale checkout.",
                 )
             }
             return

@@ -116,7 +116,7 @@ class AuctionCheckoutViewModel(
             _state.update {
                 it.copy(
                     errorTitle = "Checkout unavailable",
-                    errorMessage = "This product is missing the package ID required for auction checkout.",
+                    errorMessage = "This product is missing the package ID required for sale checkout.",
                 )
             }
             return

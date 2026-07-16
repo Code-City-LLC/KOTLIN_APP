@@ -135,7 +135,7 @@ class CartHostedCheckoutParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             CartStore.clear()
             CartStore.add(CartStore.CartLine(id = 9002, packageId = 9002, title = "My Package", priceUsd = 6.0, isAuction = false))
-            CartStore.add(CartStore.CartLine(id = 9003, packageId = 9003, title = "Auction Item", priceUsd = 15.0, isAuction = true))
+            CartStore.add(CartStore.CartLine(id = 9003, packageId = 9003, title = "Sale Item", priceUsd = 15.0, isAuction = true))
             mixedVm.set(DeliveryMethodViewModel(repo = DeliveryRepository(ApiClient.service), checkout = mixedRepo))
             mixedVm.get().onCurrencyChosen("USD")
         }
@@ -196,7 +196,7 @@ class CartHostedCheckoutParityTest {
         }
 
         compose.onNodeWithText("Checkout unavailable").assertIsDisplayed()
-        compose.onNodeWithText("One or more products are missing the package ID required for auction checkout.")
+        compose.onNodeWithText("One or more products are missing the package ID required for sale checkout.")
             .assertIsDisplayed()
         assertEquals("Missing package id must block the API call", 0, repo.checkoutCalls.get())
         assertEquals("Missing package id must not clear the cart", 1, CartStore.count)

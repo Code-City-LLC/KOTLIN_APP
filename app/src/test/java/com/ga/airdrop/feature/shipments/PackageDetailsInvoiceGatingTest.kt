@@ -67,6 +67,15 @@ class PackageDetailsInvoiceGatingTest {
         assertFalse(canDelete(status = null, statusName = "Uncollected Packages"))
         assertFalse(canDelete(status = null, statusName = "Dangerous Goods"))
         assertFalse(canDelete(status = null, statusName = "Auction"))
+        assertFalse(canDelete(status = null, statusName = "Sale"))
+    }
+
+    @Test fun saleLabelPreservesTheBackendAuctionStatusAlias() {
+        assertTrue(ShipmentStatusCatalog.defaults.any { it.id == 17 && it.name == "Sale" })
+        assertTrue(ShipmentStatusCatalog.idFor("Auction") == 17)
+        assertTrue(ShipmentStatusCatalog.idFor("Sale") == 17)
+        assertTrue(ShipmentStatusCatalog.customerFacingName("Auction") == "Sale")
+        assertTrue(ShipmentStatusCatalog.customerFacingName("17") == "17")
     }
 
     @Test fun deleteBlocked_viaStatusNameFallback_whenNumericStatusNonNumeric() {

@@ -121,7 +121,7 @@ fun ShopScreen(
                 // ─── Auction section (2-column grid of 4) ───
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     ShopSectionHeader(
-                        title = "Auction",
+                        title = "Sale",
                         actionLabel = "View More",
                         onAction = { onNavigate(Routes.AUCTION) },
                     )
@@ -135,7 +135,7 @@ fun ShopScreen(
                             }
                         }
                     } else if (state.auction.isEmpty()) {
-                        ShopEmptyCard(text = "No auction products")
+                        ShopEmptyCard(text = "No sale products")
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                             state.auction.chunked(2).forEach { rowItems ->

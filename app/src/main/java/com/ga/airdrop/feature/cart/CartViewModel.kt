@@ -159,7 +159,7 @@ class CartViewModel(
             _state.update {
                 it.copy(
                     errorTitle = "Checkout unavailable",
-                    errorMessage = "One or more products are missing the package ID required for auction checkout.",
+                    errorMessage = "One or more products are missing the package ID required for sale checkout.",
                 )
             }
             return null

@@ -97,7 +97,7 @@ class NotificationsViewModel internal constructor(
                     contentSessionId = expectedSession.sessionId
                     _state.update {
                         it.copy(
-                            items = batch,
+                            items = batch.map(AirdropNotification::customerFacingCopy),
                             loading = false,
                             loadedOnce = true,
                             endReached = batch.size < perPage,
@@ -144,7 +144,7 @@ class NotificationsViewModel internal constructor(
                     page = requestedPage
                     _state.update {
                         it.copy(
-                            items = it.items + batch,
+                            items = it.items + batch.map(AirdropNotification::customerFacingCopy),
                             loadingMore = false,
                             endReached = batch.size < perPage,
                         )
@@ -201,6 +201,11 @@ class NotificationsViewModel internal constructor(
         return resolveNotificationRoute(ownedNotification)
     }
 }
+
+internal fun AirdropNotification.customerFacingCopy(): AirdropNotification = copy(
+    title = customerFacingSaleCopy(title),
+    body = customerFacingSaleCopy(body),
+)
 
 internal interface NotificationsDataSource {
     suspend fun notifications(page: Int, limit: Int): Result<List<AirdropNotification>>

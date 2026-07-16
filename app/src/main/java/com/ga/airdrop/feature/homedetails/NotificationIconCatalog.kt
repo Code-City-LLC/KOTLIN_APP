@@ -38,7 +38,7 @@ object NotificationIconCatalog {
                 if ("released" in text) ShipmentStatusCatalog.iconRes(5, dark)
                 else ShipmentStatusCatalog.iconRes(9, dark)
             "transit" in text -> ShipmentStatusCatalog.iconRes(12, dark)
-            "auction" in text || "uncollected" in text -> ShipmentStatusCatalog.iconRes(17, dark)
+            "auction" in text || "sale" in text || "uncollected" in text -> ShipmentStatusCatalog.iconRes(17, dark)
             "dangerous" in text || "restricted" in text -> ShipmentStatusCatalog.iconRes(16, dark)
             "payment" in text || "storage_fee" in text -> R.drawable.ic_payments
             "document" in text ->

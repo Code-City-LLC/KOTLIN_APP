@@ -61,7 +61,7 @@ class ShopInnerHeaderParityTest {
         val backClicks = AtomicInteger(0)
         renderHeader(
             mode = ThemeController.Mode.DARK,
-            title = "Auction Checkout",
+            title = "Sale Checkout",
             backClicks = backClicks,
             includeTrailing = true,
         )

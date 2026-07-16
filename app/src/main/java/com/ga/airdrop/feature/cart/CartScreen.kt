@@ -593,13 +593,7 @@ private fun CartSaleItemCard(
         ?.trim()
         ?.takeIf { it.isNotBlank() }
         ?.replaceFirst("http://", "https://")
-    val auctionFallback = painterResource(
-        if (colors.isDark) {
-            R.drawable.ic_shipments_status_auction_dark
-        } else {
-            R.drawable.ic_shipments_status_auction
-        }
-    )
+    val productFallback = painterResource(R.drawable.ic_package)
     var imageLoadSucceeded by remember(imageUrl) { mutableStateOf<Boolean?>(null) }
 
     Row(
@@ -627,17 +621,21 @@ private fun CartSaleItemCard(
                 AsyncImage(
                     model = imageUrl,
                     contentDescription = if (imageLoadSucceeded == false) {
-                        "Auction image unavailable"
+                        "Product image unavailable"
                     } else {
                         line.title
                     },
                     contentScale = ContentScale.Fit,
-                    error = auctionFallback,
+                    error = productFallback,
                     onSuccess = { imageLoadSucceeded = true },
                     onError = { imageLoadSucceeded = false },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(7.dp)
+                    modifier = (if (imageLoadSucceeded == false) {
+                        Modifier.size(36.dp)
+                    } else {
+                        Modifier
+                            .fillMaxSize()
+                            .padding(7.dp)
+                    })
                         .testTag(
                             if (imageLoadSucceeded == true) {
                                 "cart-sale-image-loaded-${line.id}"
@@ -648,11 +646,10 @@ private fun CartSaleItemCard(
                 )
             } else {
                 Image(
-                    painter = auctionFallback,
-                    contentDescription = "Auction image unavailable",
+                    painter = productFallback,
+                    contentDescription = "Product image unavailable",
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(7.dp)
+                        .size(36.dp)
                         .testTag("cart-sale-image-fallback-${line.id}"),
                 )
             }
@@ -661,24 +658,8 @@ private fun CartSaleItemCard(
             Modifier
                 .weight(1f)
                 .height(84.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Image(
-                    painter = auctionFallback,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                )
-                Text(
-                    text = "Auction item",
-                    style = AirdropType.subtitle3.copy(lineHeight = 16.sp),
-                    color = BrandPalette.OrangeMain,
-                    maxLines = 1,
-                    modifier = Modifier.testTag("cart-auction-type-${line.id}"),
-                )
-            }
             Text(
                 text = line.title,
                 style = AirdropType.body2.copy(
@@ -688,10 +669,7 @@ private fun CartSaleItemCard(
                 color = colors.textDarkTitle,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(top = 2.dp)
-                    .testTag("cart-sale-title-${line.id}"),
+                modifier = Modifier.testTag("cart-sale-title-${line.id}"),
             )
             Text(
                 text = formatUsdPlain(line.priceUsd * line.qty),

@@ -50,8 +50,8 @@ private fun Package.toShipment() = ShipmentPackage(
     weight = weight,
     weightLbs = weightLbs,
     weightKg = weightKg,
-    status = status,
-    statusName = statusName,
+    status = ShipmentStatusCatalog.customerFacingName(status),
+    statusName = ShipmentStatusCatalog.customerFacingName(statusName),
     shippingMethod = shippingMethod,
     trackingCode = trackingCode,
     courierNumber = courierNumber,
@@ -63,8 +63,8 @@ private fun Package.toShipment() = ShipmentPackage(
 
 private fun PackageDetail.toShipmentDetail() = ShipmentPackageDetail(
     id = id,
-    status = status,
-    statusName = statusName,
+    status = ShipmentStatusCatalog.customerFacingName(status),
+    statusName = ShipmentStatusCatalog.customerFacingName(statusName),
     shippingMethod = shippingMethod,
     trackingCode = trackingCode,
     store = store,
@@ -80,7 +80,7 @@ private fun PackageDetail.toShipmentDetail() = ShipmentPackageDetail(
     history = history.map {
         PackageHistoryItem(
             status = it.status,
-            statusName = it.statusName,
+            statusName = ShipmentStatusCatalog.customerFacingName(it.statusName),
             comment = it.comment,
             changedDate = it.changedDate,
         )
@@ -104,7 +104,7 @@ private fun Payment.toShipment() = ShipmentPayment(
     packageId = packageId,
     orderId = orderId,
     packageDescription = packageDescription,
-    packageStatusName = packageStatusName,
+    packageStatusName = ShipmentStatusCatalog.customerFacingName(packageStatusName),
     exchangeRate = exchangeRate,
 )
 
@@ -187,7 +187,14 @@ private class DataShipmentsPackagesRepository(
 
     override suspend fun packageStatuses(): Result<List<PackageStatusInfo>> =
         repo.packageStatuses().map { list ->
-            list.map { PackageStatusInfo(id = it.id, name = it.name, colorCode = it.colorCode, order = it.order) }
+            list.map {
+                PackageStatusInfo(
+                    id = it.id,
+                    name = ShipmentStatusCatalog.customerFacingName(it.name).orEmpty(),
+                    colorCode = it.colorCode,
+                    order = it.order,
+                )
+            }
         }
 
     override suspend fun uploadInvoices(

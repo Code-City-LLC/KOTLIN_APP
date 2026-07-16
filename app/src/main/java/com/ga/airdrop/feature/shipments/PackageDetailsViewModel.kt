@@ -105,7 +105,7 @@ private fun statusNameLocksInvoiceDeletion(value: String): Boolean {
     return lower.contains("ready") || lower.contains("pickup") || lower.contains("pick up") ||
         lower.contains("delivered") || lower.contains("delivery") || lower.contains("complete") ||
         lower.contains("returned") || lower.contains("uncollected") ||
-        lower.contains("dangerous") || lower.contains("auction")
+        lower.contains("dangerous") || lower.contains("auction") || lower.contains("sale")
 }
 
 internal fun reportDamageFeatureEnabled(): Boolean =
