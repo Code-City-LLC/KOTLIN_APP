@@ -295,21 +295,21 @@ object CartStore {
         synchronized(mutationLock) {
             if (snapshot.sequence <= lastAppliedSnapshotSequence) return@synchronized false
             lastAppliedSnapshotSequence = snapshot.sequence
-        val packages = lines
-            .map(CartLine::migrated)
-            .filter {
-                it.resolvedKind == CartLineKind.PACKAGE &&
-                    it.id > 0 && (it.packageId ?: 0) > 0
-            }
-            .associateBy(CartLine::key)
+            val packages = lines
+                .map(CartLine::migrated)
+                .filter {
+                    it.resolvedKind == CartLineKind.PACKAGE &&
+                        it.id > 0 && (it.packageId ?: 0) > 0
+                }
+                .associateBy(CartLine::key)
             // Frozen Swift treats a successful-but-empty package payload as
             // ambiguous because decoder/envelope failures collapse to the same
             // shape. Preserve cached package rows and any unknown-mutation hold
             // until a non-empty authoritative snapshot arrives. Explicit local
             // DELETE success and paid removal still remove exact keys directly.
-            if (packages.isEmpty() && _items.value.any {
-                    it.resolvedKind == CartLineKind.PACKAGE
-                }
+            if (
+                packages.isEmpty() &&
+                _items.value.any { it.resolvedKind == CartLineKind.PACKAGE }
             ) {
                 return@synchronized false
             }
