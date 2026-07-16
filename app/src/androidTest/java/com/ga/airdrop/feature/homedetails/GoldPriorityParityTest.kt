@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.homedetails
 
+import android.accessibilityservice.AccessibilityService
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
@@ -30,7 +31,6 @@ import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
-import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
@@ -475,7 +475,12 @@ class GoldPriorityParityTest {
         compose.onNodeWithTag("tier-change-spinner").assertIsDisplayed()
         compose.onNodeWithTag("tier-change-confirm").assertIsNotEnabled()
         compose.onNodeWithTag("tier-change-cancel").assertIsNotEnabled()
-        pressBack()
+        assertTrue(
+            "System back must be dispatched to the focused modal window",
+            InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(
+                AccessibilityService.GLOBAL_ACTION_BACK,
+            ),
+        )
         compose.waitForIdle()
         compose.onNodeWithTag("tier-change-sheet").assertIsDisplayed()
         compose.runOnIdle { assertEquals(0, dismissCalls) }
