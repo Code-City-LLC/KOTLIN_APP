@@ -252,6 +252,10 @@ class AuthFigmaParityTest {
             .assertIsDisplayed()
             .assertHasClickAction()
             .getUnclippedBoundsInRoot()
+        val registerLabel = compose.onNodeWithTag(
+            LoginTags.REGISTER_LABEL,
+            useUnmergedTree = true,
+        ).getUnclippedBoundsInRoot()
         assertTrue(
             "Log In must be fully inside the visible panel: submit=$submit panel=$panel",
             submit.top >= panel.top && submit.bottom <= panel.bottom,
@@ -261,8 +265,17 @@ class AuthFigmaParityTest {
             register.top >= panel.top && register.bottom <= panel.bottom,
         )
         assertTrue(
-            "Register must remain below Log In in the pinned action group: submit=$submit register=$register",
-            register.top >= submit.bottom,
+            "Register click target must begin immediately after Log In: submit=$submit register=$register",
+            kotlin.math.abs(register.top.value - submit.bottom.value) <= 1f,
+        )
+        assertClose(
+            16f,
+            registerLabel.top.value - submit.bottom.value,
+            "Swift single post-Log-In visual gap",
+        )
+        assertTrue(
+            "Register click target must remain at least 48dp high: register=$register",
+            boundsHeight(register) >= 48f,
         )
     }
 
