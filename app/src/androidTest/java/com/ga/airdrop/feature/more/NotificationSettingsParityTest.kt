@@ -65,6 +65,16 @@ class NotificationSettingsParityTest {
     }
 
     @Test
+    fun quietHoursControlsAreAbsentFromNotificationSettings() {
+        setNotificationSettings(mode = ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("quiet-hours-enable-row").assertDoesNotExist()
+        compose.onNodeWithTag("quiet-hours-from-row").assertDoesNotExist()
+        compose.onNodeWithTag("quiet-hours-until-row").assertDoesNotExist()
+        compose.onNodeWithText("Enable quiet hours").assertDoesNotExist()
+    }
+
+    @Test
     fun enablingPushReregistersFcmTokenLikeSwift() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         clearNotificationPrefs(context)
