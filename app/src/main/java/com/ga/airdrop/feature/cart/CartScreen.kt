@@ -50,6 +50,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.TypeInputField
@@ -494,6 +495,15 @@ private fun CartItemCard(
     onRemove: () -> Unit,
     onOpenActions: () -> Unit,
 ) {
+    if (line.isAuction) {
+        CartSaleItemCard(
+            line = line,
+            onRemove = onRemove,
+            onOpenActions = onOpenActions,
+        )
+        return
+    }
+
     val colors = AirdropTheme.colors
     // Swift makeDropRow (:448-536): TRANSPARENT row, 1dp iconShape bottom
     // hairline — no fill, border, or radius. Labels SubTitle3; drop value
@@ -561,6 +571,83 @@ private fun CartItemCard(
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CartSaleItemCard(
+    line: CartStore.CartLine,
+    onRemove: () -> Unit,
+    onOpenActions: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    val cardShape = RoundedCornerShape(Radius.s)
+    val imageUrl = line.imageUrl
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?.replaceFirst("http://", "https://")
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(colors.gray100, cardShape)
+            .border(1.dp, colors.iconShape, cardShape)
+            .combinedClickable(
+                onClick = {},
+                onLongClick = onOpenActions,
+            )
+            .testTag("cart-sale-line-${line.id}")
+            .padding(horizontal = 20.dp, vertical = 15.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(84.dp)
+                .background(colors.gray200, RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (imageUrl != null) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = line.title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(6.dp),
+                )
+            }
+        }
+        Column(
+            Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = line.title,
+                style = AirdropType.body2,
+                color = colors.textDarkTitle,
+                maxLines = 2,
+            )
+            Text(
+                text = formatUsdPlain(line.priceUsd * line.qty),
+                style = AirdropType.subtitle1,
+                color = BrandPalette.OrangeMain,
+            )
+        }
+        Box(
+            Modifier
+                .size(24.dp)
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_trash),
+                contentDescription = "Remove ${line.title}",
+                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 
