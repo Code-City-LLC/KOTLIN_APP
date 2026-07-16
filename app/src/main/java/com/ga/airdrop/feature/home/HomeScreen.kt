@@ -4,6 +4,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +35,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,9 +45,11 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -64,6 +73,11 @@ import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.feature.cart.CartStore
 import java.text.NumberFormat
 import java.util.Locale
+
+internal const val HOME_WAREHOUSE_SURFACE_ALPHA = 0.95f
+internal const val HOME_BOTTOM_CLEARANCE_DP = 140
+private const val HOME_PRESSED_OUTLINE_ALPHA_LIGHT = 0.42f
+private const val HOME_PRESSED_OUTLINE_ALPHA_DARK = 0.48f
 
 /**
  * Home tab — Swift FigmaHomeViewController (Figma 40001464:28899).
@@ -199,8 +213,13 @@ fun HomeScreen(
                     )
                     Spacer(Modifier.height(Spacing.md)) // custom 20 after auction
                     ReferAFriendCard(onClick = { onNavigate(Routes.REFER_A_FRIEND) })
-                    // Tail spacer clears the tab bar (Swift :274).
-                    Spacer(Modifier.height(120.dp))
+                    // Preserve Swift's 120pt tab-bar allowance plus 20dp of
+                    // visible breathing room below Refer a friend.
+                    Spacer(
+                        Modifier
+                            .height(HOME_BOTTOM_CLEARANCE_DP.dp)
+                            .testTag("home-bottom-clearance")
+                    )
                 }
             }
         }
@@ -279,14 +298,16 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                     .width(238.dp)
                     .height(326.dp)
                     .testTag("home-warehouse-${card.type}")
-                    // Swift uses blur + glassOverlay62. Compose has no backdrop
-                    // blur here, so use the shared high-opacity fallback instead
-                    // of exposing the hero through a flat 62% tint.
+                    // A near-opaque tint preserves a small hero contribution
+                    // without exposing sharp imagery through the unblurred card.
                     .clip(cardShape)
-                    .background(colors.frostedGlassCardSurface)
-                    .border(1.dp, colors.cardHairline, cardShape)
+                    .background(colors.gray150.copy(alpha = HOME_WAREHOUSE_SURFACE_ALPHA))
                     // Swift: the WHOLE card is a tap target → WarehouseView.
-                    .clickable { onOpen(card.type) }
+                    .homePressOutline(
+                        normalBorder = colors.cardHairline,
+                        shape = cardShape,
+                        onClick = { onOpen(card.type) },
+                    )
                     // Swift: px 20, top pinned 30, bottom ≤ (stack bottom is a
                     // lessThanOrEqualTo constraint — no bottom padding here so
                     // Cairo's taller-than-nominal metrics can't clip Read More).
@@ -380,15 +401,15 @@ private fun ActivityGrid(onNavigate: (String) -> Unit) {
 private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     val tagSuffix = activity.label.lowercase(Locale.US).replace(" ", "-")
+    val shape = RoundedCornerShape(Spacing.sm1)
     Column(
         modifier = modifier
             // Swift: fixed 108pt tile (py20 + icon 32 + gap 10 + label 26).
             .height(108.dp)
             .testTag("home-activity-$tagSuffix")
-            .clip(RoundedCornerShape(Spacing.sm1)) // radius 15
+            .clip(shape) // radius 15
             .background(colors.gray150)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
-            .clickable(onClick = onClick),
+            .homePressOutline(colors.iconShape, shape, onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -479,6 +500,7 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
     val colors = AirdropTheme.colors
     val cartItems by CartStore.items.collectAsState()
     val inCart = product.id != null && cartItems.any { it.id == product.id }
+    val shape = RoundedCornerShape(14.dp)
     // Swift makeAuctionCard: fixed 160x245, radius 14, padding 8, spacing 6;
     // photo 124 aspect-fill on gray200; title Body3 single line; price
     // Title2 buttonStatic (textDescription when unavailable); 34pt plus
@@ -488,10 +510,9 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
             .width(160.dp)
             .height(245.dp)
             .testTag("home-auction-card")
-            .clip(RoundedCornerShape(14.dp))
+            .clip(shape)
             .background(colors.gray150)
-            .border(1.dp, colors.iconShape, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
+            .homePressOutline(colors.iconShape, shape, onClick),
     ) {
         Column(
             modifier = Modifier
@@ -619,6 +640,7 @@ private fun EmptyAuctionCard() {
 @Composable
 private fun ReferAFriendCard(onClick: () -> Unit) {
     val colors = AirdropTheme.colors
+    val shape = RoundedCornerShape(Spacing.sm1)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -626,10 +648,9 @@ private fun ReferAFriendCard(onClick: () -> Unit) {
             .padding(horizontal = Spacing.md)
             .height(59.dp)
             .testTag("home-refer-friend")
-            .clip(RoundedCornerShape(Spacing.sm1)) // radius 15 (Figma 2xs)
+            .clip(shape) // radius 15 (Figma 2xs)
             .background(colors.frostedGlassCardSurface)
-            .border(1.dp, colors.cardHairline, RoundedCornerShape(Spacing.sm1))
-            .clickable(onClick = onClick)
+            .homePressOutline(colors.cardHairline, shape, onClick)
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -666,4 +687,40 @@ private fun ReferAFriendCard(onClick: () -> Unit) {
                 .rotate(-90f),
         )
     }
+}
+
+@Composable
+private fun Modifier.homePressOutline(
+    normalBorder: Color,
+    shape: Shape,
+    onClick: () -> Unit,
+): Modifier {
+    val colors = AirdropTheme.colors
+    val interactionSource = remember { MutableInteractionSource() }
+    var isPressed by remember { mutableStateOf(false) }
+    val pressedAlpha = if (colors.isDark) {
+        HOME_PRESSED_OUTLINE_ALPHA_DARK
+    } else {
+        HOME_PRESSED_OUTLINE_ALPHA_LIGHT
+    }
+    val borderColor = if (isPressed) {
+        colors.orangeMain.copy(alpha = pressedAlpha)
+    } else {
+        normalBorder
+    }
+
+    return border(1.dp, borderColor, shape)
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false)
+                isPressed = true
+                waitForUpOrCancellation()
+                isPressed = false
+            }
+        }
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+        )
 }

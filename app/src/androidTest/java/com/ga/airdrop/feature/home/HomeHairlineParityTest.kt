@@ -1,17 +1,18 @@
 package com.ga.airdrop.feature.home
 
-import android.content.ContentValues
 import android.graphics.Bitmap
-import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -31,34 +32,12 @@ class HomeHairlineParityTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun standardSeaDropAndReferUseSwiftHairlineLight() {
-        assertHomeHairlines(
-            mode = ThemeController.Mode.LIGHT,
-            expectedArgb = lightAirdropColors.cardHairline.toArgb(),
-            expectedSurfaceArgb = lightAirdropColors.gray150.toArgb(),
-        )
-    }
-
-    @Test
-    fun standardSeaDropAndReferUseSwiftHairlineDark() {
-        assertHomeHairlines(
-            mode = ThemeController.Mode.DARK,
-            expectedArgb = darkAirdropColors.cardHairline.toArgb(),
-            expectedSurfaceArgb = darkAirdropColors.gray150.toArgb(),
-        )
-    }
-
-    private fun assertHomeHairlines(
-        mode: ThemeController.Mode,
-        expectedArgb: Int,
-        expectedSurfaceArgb: Int,
-    ) {
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.set(mode)
-        }
+    fun standardSeaDropAndReferUseSwiftHairlinesInBothThemes() {
+        setTheme(ThemeController.Mode.LIGHT)
+        var destination = ""
         compose.setContent {
             AirdropTheme {
-                HomeScreen(onNavigate = {})
+                HomeScreen(onNavigate = { destination = it })
             }
         }
         compose.waitForIdle()
@@ -67,41 +46,83 @@ class HomeHairlineParityTest {
             compose.onNodeWithTag("home-warehouse-carousel")
                 .performScrollToNode(hasTestTag("home-warehouse-$type"))
             compose.waitForIdle()
-            val bitmap = compose.onNodeWithTag("home-warehouse-$type")
-                .captureToImage()
-                .asAndroidBitmap()
-            assertEdgeUsesHairline(
-                label = "$mode $type warehouse card",
-                bitmap = bitmap,
-                expectedArgb = expectedArgb,
+            assertTaggedEdgeUsesHairline(
+                tag = "home-warehouse-$type",
+                label = "LIGHT $type warehouse card",
+                expectedArgb = lightAirdropColors.cardHairline.toArgb(),
             )
-            assertOpaqueSurface(
-                label = "$mode $type warehouse card",
-                bitmap = bitmap,
-                expectedArgb = expectedSurfaceArgb,
-                horizontalInsetDp = 12f,
+            if (type == "standard") {
+                val standard = compose.onNodeWithTag("home-warehouse-standard")
+                standard.performTouchInput {
+                    down(center)
+                    advanceEventTime(120)
+                }
+                compose.waitForIdle()
+                val pressedBitmap = standard.captureToImage().asAndroidBitmap()
+                assertEdgeUsesOrangeOutline("Pressed Standard warehouse card", pressedBitmap)
+
+                standard.performTouchInput { up() }
+                compose.waitForIdle()
+                assertTrue(
+                    "Releasing the pressed warehouse card must preserve its Standard route",
+                    destination.endsWith("?type=standard"),
+                )
+            }
+            setTheme(ThemeController.Mode.DARK)
+            assertTaggedEdgeUsesHairline(
+                tag = "home-warehouse-$type",
+                label = "DARK $type warehouse card",
+                expectedArgb = darkAirdropColors.cardHairline.toArgb(),
             )
-            saveProof(bitmap, mode, type)
+            setTheme(ThemeController.Mode.LIGHT)
         }
 
         compose.onNodeWithTag("home-refer-friend").performScrollTo()
         compose.waitForIdle()
-        val referBitmap = compose.onNodeWithTag("home-refer-friend")
-            .captureToImage()
-            .asAndroidBitmap()
+        val lightReferBitmap = captureTagged("home-refer-friend")
         assertEdgeUsesHairline(
-            label = "$mode Refer a friend card",
-            bitmap = referBitmap,
-            expectedArgb = expectedArgb,
+            label = "LIGHT Refer a friend card",
+            bitmap = lightReferBitmap,
+            expectedArgb = lightAirdropColors.cardHairline.toArgb(),
         )
         assertOpaqueSurface(
-            label = "$mode Refer a friend card",
-            bitmap = referBitmap,
-            expectedArgb = expectedSurfaceArgb,
+            label = "LIGHT Refer a friend card",
+            bitmap = lightReferBitmap,
+            expectedArgb = lightAirdropColors.gray150.toArgb(),
             horizontalInsetDp = 8f,
         )
-        saveProof(referBitmap, mode, "refer")
+
+        setTheme(ThemeController.Mode.DARK)
+        val darkReferBitmap = captureTagged("home-refer-friend")
+        assertEdgeUsesHairline(
+            label = "DARK Refer a friend card",
+            bitmap = darkReferBitmap,
+            expectedArgb = darkAirdropColors.cardHairline.toArgb(),
+        )
+        assertOpaqueSurface(
+            label = "DARK Refer a friend card",
+            bitmap = darkReferBitmap,
+            expectedArgb = darkAirdropColors.gray150.toArgb(),
+            horizontalInsetDp = 8f,
+        )
+        compose.onNodeWithTag("home-bottom-clearance")
+            .assertHeightIsEqualTo(HOME_BOTTOM_CLEARANCE_DP.dp)
     }
+
+    private fun setTheme(mode: ThemeController.Mode) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(mode)
+        }
+        compose.waitForIdle()
+    }
+
+    private fun assertTaggedEdgeUsesHairline(tag: String, label: String, expectedArgb: Int) {
+        assertEdgeUsesHairline(label, captureTagged(tag), expectedArgb)
+    }
+
+    private fun captureTagged(tag: String): Bitmap = compose.onNodeWithTag(tag)
+        .captureToImage()
+        .asAndroidBitmap()
 
     private fun assertEdgeUsesHairline(label: String, bitmap: Bitmap, expectedArgb: Int) {
         // A 1dp Compose border is multiple physical pixels on the proof AVD.
@@ -136,6 +157,35 @@ class HomeHairlineParityTest {
             abs((this and 0xFF) - (target and 0xFF)) <= tolerance
     }
 
+    private fun assertEdgeUsesOrangeOutline(label: String, bitmap: Bitmap) {
+        val edgeBand = minOf(2, bitmap.width / 4, bitmap.height / 4).coerceAtLeast(1)
+        val verticalInset = (bitmap.height * 0.2f).toInt()
+        var orangePixels = 0
+
+        for (y in verticalInset until (bitmap.height - verticalInset)) {
+            for (offset in 0 until edgeBand) {
+                if (bitmap.getPixel(offset, y).isOrangeDominant()) orangePixels += 1
+                if (bitmap.getPixel(bitmap.width - 1 - offset, y).isOrangeDominant()) {
+                    orangePixels += 1
+                }
+            }
+        }
+
+        assertTrue(
+            "$label must replace its resting hairline with the Swift/RN orange touch outline; " +
+                "orangePixels=$orangePixels size=${bitmap.width}x${bitmap.height}",
+            orangePixels >= 20,
+        )
+    }
+
+    private fun Int.isOrangeDominant(): Boolean {
+        val alpha = (this ushr 24) and 0xFF
+        val red = (this shr 16) and 0xFF
+        val green = (this shr 8) and 0xFF
+        val blue = this and 0xFF
+        return alpha >= 180 && red - green >= 20 && green - blue >= 15
+    }
+
     private fun assertOpaqueSurface(
         label: String,
         bitmap: Bitmap,
@@ -157,33 +207,4 @@ class HomeHairlineParityTest {
         )
     }
 
-    @Suppress("InlinedApi")
-    private fun saveProof(bitmap: Bitmap, mode: ThemeController.Mode, surface: String) {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val values = ContentValues().apply {
-            put(
-                MediaStore.MediaColumns.DISPLAY_NAME,
-                "home_hairline_${mode.name.lowercase()}_$surface.png",
-            )
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, PROOF_DIRECTORY)
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
-        val uri = requireNotNull(
-            context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values),
-        ) { "Unable to create $mode $surface hairline proof" }
-        context.contentResolver.openOutputStream(uri).use { output ->
-            requireNotNull(output) { "Unable to open $mode $surface hairline proof" }
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
-                "Unable to encode $mode $surface hairline proof"
-            }
-        }
-        values.clear()
-        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-        context.contentResolver.update(uri, values, null, null)
-    }
-
-    private companion object {
-        const val PROOF_DIRECTORY = "Pictures/AirdropProofs/HomeHairlines"
-    }
 }
