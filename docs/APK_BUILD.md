@@ -76,6 +76,42 @@ The final ledger row must match the counter, use the current provenance schema,
 and reference a commit present in the checkout. Handwritten or `git=nogit`
 records fail closed.
 
+## Google Play upload bundle
+
+The Desktop `airdrop-vN.apk` artifacts are staging/debug sideload builds. They
+are not Google Play submissions. Play production is known to use versionCode 21,
+but that is only a floor: an internal, closed, or open track may already contain
+a higher code that cannot be reused.
+
+1. Recover the existing Play-authorized upload key or complete an owner-approved
+   upload-key reset in Play Console. Never generate or reset a key by assumption.
+2. In Play Console's App Bundle Explorer, verify the highest versionCode across
+   every uploaded artifact and track. Choose a new integer greater than that
+   maximum and no greater than Play's `2,100,000,000` limit; do not infer it
+   from the Production track alone.
+3. Copy `keystore.properties.example` to the gitignored
+   `keystore.properties` and set the four real values on the release host.
+4. Build the minified production bundle with the verified code. Replace `NN`
+   with that owner-verified integer:
+
+   ```bash
+   ./gradlew :app:bundleProdRelease -PplayVersionCode=NN
+   ```
+
+Only `prodRelease` uses the Play upload signing configuration. Staging release
+keeps its local debug signature and repository version. Missing, incomplete, or
+invalid upload-key configuration disables the entire `prodRelease` variant. The
+variant is also disabled when `playVersionCode` (or `PLAY_VERSION_CODE`) is
+missing, non-numeric, not greater than the known Production floor of 21, or over
+Play's limit, so Gradle cannot emit an unsigned, debug-signed, knowingly reused,
+or out-of-range Play candidate.
+
+Verify the resulting `app/build/outputs/bundle/prodRelease/app-prod-release.aab`
+with `jarsigner -verify -verbose -certs`, compare its certificate fingerprint to
+the authorized Play upload certificate, and record its SHA-256. Upload first to
+the approved internal test track; production rollout remains gated by issue
+#112 and explicit release approval.
+
 ## Reverting the spammer (if ever needed)
 
 The launchd job was unloaded/disabled and its plist backed up, not deleted:
