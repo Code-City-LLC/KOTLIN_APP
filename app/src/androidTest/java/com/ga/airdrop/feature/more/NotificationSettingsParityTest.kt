@@ -47,6 +47,10 @@ class NotificationSettingsParityTest {
         assertIconContainsColor("notification-package-sms-icon", DARK_ICON, "SMS bubble is iconSelected in light mode")
         assertIconContainsColor("notification-package-sms-icon", ORANGE, "SMS dots are orange in light mode")
         assertIconContainsColor("notification-package-push-icon", ORANGE, "Push bell is orange in light mode")
+        compose.onNodeWithTag("quiet-hours-enable-row").assertDoesNotExist()
+        compose.onNodeWithTag("quiet-hours-from-row").assertDoesNotExist()
+        compose.onNodeWithTag("quiet-hours-until-row").assertDoesNotExist()
+        compose.onNodeWithText("Enable quiet hours").assertDoesNotExist()
         saveRootScreenshot("notification_settings_swift_light.png")
     }
 
@@ -62,16 +66,6 @@ class NotificationSettingsParityTest {
         assertIconContainsColor("notification-package-sms-icon", ORANGE, "SMS dots are orange in dark mode")
         assertIconContainsColor("notification-package-push-icon", ORANGE, "Push bell is orange in dark mode")
         saveRootScreenshot("notification_settings_swift_dark.png")
-    }
-
-    @Test
-    fun quietHoursControlsAreAbsentFromNotificationSettings() {
-        setNotificationSettings(mode = ThemeController.Mode.LIGHT)
-
-        compose.onNodeWithTag("quiet-hours-enable-row").assertDoesNotExist()
-        compose.onNodeWithTag("quiet-hours-from-row").assertDoesNotExist()
-        compose.onNodeWithTag("quiet-hours-until-row").assertDoesNotExist()
-        compose.onNodeWithText("Enable quiet hours").assertDoesNotExist()
     }
 
     @Test
