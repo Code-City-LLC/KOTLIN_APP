@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -9,6 +11,38 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+val playUploadPropertiesFile = rootProject.file("keystore.properties")
+val playUploadProperties = Properties().apply {
+    if (playUploadPropertiesFile.isFile) {
+        playUploadPropertiesFile.inputStream().use(::load)
+    }
+}
+val playUploadPropertyNames = listOf(
+    "storeFile",
+    "storePassword",
+    "keyAlias",
+    "keyPassword",
+)
+val playUploadStoreFile = playUploadProperties.getProperty("storeFile")
+    ?.takeIf(String::isNotBlank)
+    ?.let(rootProject::file)
+val playUploadSigningConfigured =
+    playUploadPropertiesFile.isFile &&
+        playUploadPropertyNames.all { !playUploadProperties.getProperty(it).isNullOrBlank() } &&
+        playUploadStoreFile?.isFile == true
+val knownPlayProductionVersionCodeFloor = 21
+val maximumPlayVersionCode = 2_100_000_000
+val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
+    .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
+    .orNull
+    ?.trim()
+    ?.toIntOrNull()
+val playReleaseConfigured =
+    playUploadSigningConfigured &&
+        requestedPlayVersionCode != null &&
+        requestedPlayVersionCode > knownPlayProductionVersionCodeFloor &&
+        requestedPlayVersionCode <= maximumPlayVersionCode
+
 android {
     namespace = "com.ga.airdrop"
     compileSdk = 35
@@ -19,7 +53,8 @@ android {
         applicationId = "com.ga.airdrop.app"
         minSdk = 26
         targetSdk = 35
-        // Previous RN release shipped versionCode 7 / versionName 7.0.
+        // Local builds keep the current repository code. prodRelease gets an
+        // owner-verified Play code through androidComponents below.
         versionCode = 8
         versionName = "8.0"
 
@@ -48,20 +83,24 @@ android {
         }
     }
 
+    signingConfigs {
+        create("playUpload") {
+            if (playUploadSigningConfigured) {
+                storeFile = requireNotNull(playUploadStoreFile)
+                storePassword = playUploadProperties.getProperty("storePassword")
+                keyAlias = playUploadProperties.getProperty("keyAlias")
+                keyPassword = playUploadProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            // Sign the release with the auto-managed debug keystore so
-            // `assembleRelease` produces an INSTALLABLE apk for on-device
-            // sideload testing (an unsigned apk is rejected by the package
-            // installer). The debug keystore is a well-known, non-secret
-            // shared key — nothing sensitive is committed.
-            //
-            // FOR PLAY STORE UPLOAD: replace this with a dedicated upload
-            // keystore. Put its credentials in a gitignored keystore.properties
-            // (storeFile/storePassword/keyAlias/keyPassword) and point a real
-            // signingConfig at them — never commit the keystore or passwords.
+            // Staging release remains debug-signed for local sideload testing.
+            // androidComponents overrides only prodRelease with playUpload;
+            // an absent/incomplete authorized key fails signing validation.
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -79,6 +118,20 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+androidComponents {
+    beforeVariants(selector().withName("prodRelease")) { variantBuilder ->
+        // Do not create production release tasks until both the authorized
+        // upload key and an owner-verified Play version code are present.
+        variantBuilder.enable = playReleaseConfigured
+    }
+    onVariants(selector().withName("prodRelease")) { variant ->
+        variant.signingConfig.setConfig(android.signingConfigs.getByName("playUpload"))
+        variant.outputs.forEach { output ->
+            output.versionCode.set(requireNotNull(requestedPlayVersionCode))
+        }
     }
 }
 
