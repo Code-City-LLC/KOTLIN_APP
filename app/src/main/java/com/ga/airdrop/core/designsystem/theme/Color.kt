@@ -21,8 +21,8 @@ object BrandPalette {
     // Primary brand orange — Figma Primary Color/Orange/Main
     val OrangeMain = Color(0xFFF15114)
     val OrangeDark = Color(0xFFF15114) // alias retained (see Swift comment)
-    val OrangeMainDark = Color(0xFFF1855C) // Figma Home - Dark Mode primary orange
-    val OrangeFunctionDark = Color(0xFFF88458) // Figma dark Buttons/Function/Static
+    val OrangeMainDark = Color(0xFFF46427) // Kemar-approved dark primary orange
+    val OrangeFunctionDark = Color(0xFFF46427) // Keep dark CTA/fill aligned with the primary accent
     val OrangeLegacy = Color(0xFFFF8000) // RN's bright pumpkin — explicit references only
     val OrangeTertiary1 = Color(0xFF994D00)
     val OrangeTertiary2 = Color(0xFFCC6600)
