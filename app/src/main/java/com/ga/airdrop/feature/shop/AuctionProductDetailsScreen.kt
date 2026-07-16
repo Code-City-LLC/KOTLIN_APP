@@ -88,7 +88,7 @@ fun AuctionProductDetailsScreen(
 
     Column(Modifier.fillMaxSize().background(colors.gray100)) {
         ShopInnerHeader(
-            title = if (featured) "Feature Product" else "Auction",
+            title = if (featured) "Feature Product" else "Sale",
             onBack = onBack,
             trailing = {
                 ShopHeaderCartIcon(count = cartLines.size, onClick = { onNavigate(Routes.CART) })

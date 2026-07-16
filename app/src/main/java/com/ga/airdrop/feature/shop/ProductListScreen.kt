@@ -49,9 +49,9 @@ fun AuctionScreen(
     viewModel: AuctionViewModel = viewModel(),
 ) {
     ProductListScreen(
-        title = "Auction",
-        searchPlaceholder = "Search Auction Items",
-        emptyText = "No auction items right now",
+        title = "Sale",
+        searchPlaceholder = "Search Sale Items",
+        emptyText = "No sale items right now",
         featured = false,
         viewModel = viewModel,
         onNavigate = onNavigate,

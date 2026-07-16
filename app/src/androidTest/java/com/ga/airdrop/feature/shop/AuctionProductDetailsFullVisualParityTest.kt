@@ -104,7 +104,7 @@ class AuctionProductDetailsFullVisualParityTest {
     }
 
     private fun assertTopGeometry() {
-        compose.onNodeWithText("Auction").assertIsDisplayed()
+        compose.onNodeWithText("Sale").assertIsDisplayed()
 
         val hero = compose.onNodeWithTag("auction-details-hero-card").getUnclippedBoundsInRoot()
         assertClose(20f, hero.left.value, "Swift hero leading inset")

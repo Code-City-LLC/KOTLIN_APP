@@ -87,7 +87,7 @@ fun AuctionCheckoutScreen(
     }
 
     Column(Modifier.fillMaxSize().background(colors.gray150)) {
-        ShopInnerHeader(title = "Auction Checkout", onBack = onBack)
+        ShopInnerHeader(title = "Sale Checkout", onBack = onBack)
 
         Column(
             Modifier

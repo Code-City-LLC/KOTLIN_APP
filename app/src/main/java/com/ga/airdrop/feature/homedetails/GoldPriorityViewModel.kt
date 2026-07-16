@@ -362,8 +362,14 @@ internal fun serverBenefitRows(tiers: List<ServiceTier>): Map<String, List<Strin
         val code = tier.code.trim().uppercase()
         if (code.isEmpty()) return@mapNotNull null
         val rows = buildList {
-            tier.processingCopy?.trim()?.takeIf(String::isNotEmpty)?.let(::add)
-            addAll(tier.benefitsSummary.map(String::trim).filter(String::isNotEmpty))
+            tier.processingCopy?.trim()?.takeIf(String::isNotEmpty)
+                ?.let { add(customerFacingSaleCopy(it)) }
+            addAll(
+                tier.benefitsSummary
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .map(::customerFacingSaleCopy)
+            )
         }.filterNot { row ->
             if (code != "RUBY") return@filterNot false
             val key = normalizedBenefit(row)
@@ -371,6 +377,68 @@ internal fun serverBenefitRows(tiers: List<ServiceTier>): Map<String, List<Strin
         }.distinctBy(::normalizedBenefit)
         code to rows
     }.toMap()
+
+internal fun customerFacingSaleCopy(value: String): String {
+    var result = value
+    listOf(
+        "clearance events, auctions, and flash sales" to
+            "clearance events, limited releases, and flash sales",
+        "Priority in pre-auction and sales events." to
+            "Priority access to presales and member-only sales.",
+        "sales, warehouse auctions, and holiday offers" to
+            "warehouse, holiday, and limited-time sales",
+    ).forEach { (source, replacement) ->
+        result = Regex(Regex.escape(source), RegexOption.IGNORE_CASE).replace(result) { match ->
+            replacement.withCasePatternFrom(match.value)
+        }
+    }
+    result = result
+        .replace(Regex("\\bauctions\\b", RegexOption.IGNORE_CASE)) { match ->
+            match.value.saleReplacement(plural = true)
+        }
+        .replace(Regex("\\bauction\\b", RegexOption.IGNORE_CASE)) { match ->
+            match.value.saleReplacement(plural = false)
+        }
+        .replace(Regex("\\bsale\\s+and\\s+sale\\b", RegexOption.IGNORE_CASE)) { match ->
+            match.value.firstSaleWord().saleReplacement(plural = false)
+        }
+        .replace(Regex("\\bsales\\s+and\\s+sales\\b", RegexOption.IGNORE_CASE)) { match ->
+            match.value.firstSaleWord().saleReplacement(plural = true)
+        }
+    return result
+}
+
+private fun String.firstSaleWord(): String =
+    Regex("\\bsales?\\b", RegexOption.IGNORE_CASE).find(this)?.value.orEmpty()
+
+private fun String.withCasePatternFrom(source: String): String {
+    val letters = source.filter(Char::isLetter)
+    if (letters.isNotEmpty() && letters.all(Char::isUpperCase)) return uppercase()
+    if (letters.isNotEmpty() && letters.all(Char::isLowerCase)) return lowercase()
+
+    val words = Regex("\\p{L}+").findAll(source).map { it.value }.toList()
+    if (words.size > 1 && words.all { word ->
+            word.first().isUpperCase() && word.drop(1).all(Char::isLowerCase)
+        }
+    ) {
+        return Regex("\\b\\p{L}").replace(this) { match -> match.value.uppercase() }
+    }
+
+    return if (source.firstOrNull(Char::isLetter)?.isUpperCase() == true) {
+        replaceFirstChar(Char::uppercase)
+    } else {
+        this
+    }
+}
+
+private fun String.saleReplacement(plural: Boolean): String {
+    val replacement = if (plural) "sales" else "sale"
+    return when {
+        all(Char::isUpperCase) -> replacement.uppercase()
+        firstOrNull()?.isUpperCase() == true -> replacement.replaceFirstChar(Char::uppercase)
+        else -> replacement
+    }
+}
 
 private fun normalizedBenefit(value: String): String =
     value.lowercase()

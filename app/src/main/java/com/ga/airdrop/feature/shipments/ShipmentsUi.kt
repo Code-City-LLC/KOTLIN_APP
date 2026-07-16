@@ -138,7 +138,7 @@ object ShipmentStatusCatalog {
         PackageStatusInfo(14, "Proof of Delivery", "#139135", 12),
         PackageStatusInfo(15, "Uncollected Packages", "#345c0b", 13),
         PackageStatusInfo(16, "Dangerous Goods", "#345c0b", 14),
-        PackageStatusInfo(17, "Auction", "#345c0b", 15),
+        PackageStatusInfo(17, "Sale", "#345c0b", 15),
         PackageStatusInfo(18, "Paid and Ready for Pick Up", "#19d144", 16),
         PackageStatusInfo(19, "Returned to Merchant", "#ff6b6b", 17),
     )
@@ -167,8 +167,15 @@ object ShipmentStatusCatalog {
 
     fun iconResFor(statusName: String?): Int = iconRes(idFor(statusName) ?: 0)
 
+    /** Keeps the backend's Auction contract while presenting the renamed Sale label. */
+    fun customerFacingName(statusName: String?): String? {
+        val value = statusName ?: return null
+        return if (normalize(value) == "auction") "Sale" else value
+    }
+
     fun idFor(statusName: String?): Int? {
         val target = normalize(statusName ?: return null)
+        if (target == "auction" || target == "sale") return 17
         return defaults.firstOrNull { normalize(it.name) == target }?.id
             ?: defaults.firstOrNull { normalize(it.name).contains(target) || target.contains(normalize(it.name)) }?.id
     }

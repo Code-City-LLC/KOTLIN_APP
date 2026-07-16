@@ -50,7 +50,7 @@ class CartSaleProductParityTest {
     }
 
     @Test
-    fun saleProductUsesSwiftCardGeometryTypographyAndFallback() {
+    fun saleProductUsesSwiftCardGeometryWithoutATypeBadgeOrIcon() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val line = CartStore.CartLine(
             id = 812,
@@ -70,15 +70,19 @@ class CartSaleProductParityTest {
         compose.onNodeWithTag("cart-sale-price-812", useUnmergedTree = true)
             .assertTextEquals("USD 30.00")
             .assertIsDisplayed()
-        compose.onNodeWithTag("cart-auction-type-812", useUnmergedTree = true)
-            .assertTextEquals("Auction item")
+        compose.onNodeWithText("Auction item", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("Sale item", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("cart-auction-type-812", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("cart-sale-image-fallback-812", useUnmergedTree = true)
             .assertIsDisplayed()
+        compose.onNodeWithContentDescription(
+            "Product image unavailable",
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
         compose.onNodeWithContentDescription(
             "Auction image unavailable",
             useUnmergedTree = true,
-        ).assertIsDisplayed()
-        compose.onNodeWithTag("cart-sale-image-fallback-812", useUnmergedTree = true)
-            .assertIsDisplayed()
+        ).assertDoesNotExist()
         compose.onNodeWithTag("cart-sale-remove-812", useUnmergedTree = true).assertIsDisplayed()
 
         val density = context.resources.displayMetrics.density
@@ -94,16 +98,16 @@ class CartSaleProductParityTest {
         assertEquals(15f * density, remove.top - card.top, 1f * density)
         assertEquals(20f * density, card.right - remove.right, 1f * density)
 
-        saveScreenshot(context, "auction_dark_fallback_card.png")
+        saveScreenshot(context, "sale_dark_product_fallback_card.png")
     }
 
     @Test
-    fun saleProductUsesLightAuctionFallbackAndIdentity() {
+    fun saleProductUsesLightImageTileAndDescriptionWithoutAuctionIdentity() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val line = CartStore.CartLine(
             id = 814,
             packageId = 814,
-            title = "Light Auction Product",
+            title = "Light Sale Product",
             priceUsd = 18.0,
             qty = 1,
             imageUrl = null,
@@ -112,20 +116,24 @@ class CartSaleProductParityTest {
 
         renderCart(line, ThemeController.Mode.LIGHT)
 
-        compose.onNodeWithTag("cart-auction-type-814", useUnmergedTree = true)
-            .assertTextEquals("Auction item")
-            .assertIsDisplayed()
+        compose.onNodeWithText("Auction item", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("Sale item", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("cart-auction-type-814", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("cart-sale-image-fallback-814", useUnmergedTree = true)
             .assertIsDisplayed()
         compose.onNodeWithContentDescription(
-            "Auction image unavailable",
+            "Product image unavailable",
             useUnmergedTree = true,
         ).assertIsDisplayed()
+        compose.onNodeWithContentDescription(
+            "Auction image unavailable",
+            useUnmergedTree = true,
+        ).assertDoesNotExist()
         compose.onNodeWithTag("cart-sale-title-814", useUnmergedTree = true)
-            .assertTextEquals("Light Auction Product")
+            .assertTextEquals("Light Sale Product")
             .assertIsDisplayed()
 
-        saveScreenshot(context, "auction_light_fallback_card.png")
+        saveScreenshot(context, "sale_light_product_fallback_card.png")
     }
 
     @Test
@@ -134,7 +142,7 @@ class CartSaleProductParityTest {
         val line = CartStore.CartLine(
             id = 813,
             packageId = 813,
-            title = "Auction Hero Product",
+            title = "Sale Hero Product",
             priceUsd = 24.5,
             qty = 1,
             imageUrl = "android.resource://${context.packageName}/${R.drawable.img_home_hero}",
@@ -153,14 +161,14 @@ class CartSaleProductParityTest {
         compose.onNodeWithTag("cart-sale-image-loaded-813", useUnmergedTree = true)
             .assertIsDisplayed()
         compose.onNodeWithContentDescription(
-            "Auction Hero Product",
+            "Sale Hero Product",
             useUnmergedTree = true,
         ).assertIsDisplayed()
-        compose.onNodeWithTag("cart-auction-type-813", useUnmergedTree = true)
-            .assertTextEquals("Auction item")
-            .assertIsDisplayed()
+        compose.onNodeWithText("Auction item", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("Sale item", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("cart-auction-type-813", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("cart-sale-title-813", useUnmergedTree = true)
-            .assertTextEquals("Auction Hero Product")
+            .assertTextEquals("Sale Hero Product")
             .assertIsDisplayed()
         compose.onNodeWithTag("cart-sale-price-813", useUnmergedTree = true)
             .assertTextEquals("USD 24.50")
@@ -179,7 +187,7 @@ class CartSaleProductParityTest {
         compose.onNodeWithText("AIR0000000813", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("Standard", useUnmergedTree = true).assertDoesNotExist()
 
-        saveScreenshot(context, "auction_real_image_card.png")
+        saveScreenshot(context, "sale_real_image_card.png")
     }
 
     private fun renderCart(line: CartStore.CartLine, mode: ThemeController.Mode) {

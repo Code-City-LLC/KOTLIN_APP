@@ -287,7 +287,7 @@ class GoldPriorityParityTest {
                             "Gold faster processing",
                             "Gold storage for all incoming packages.",
                             "Gold loyalty rewards during AirDrop events.",
-                            "Gold early sale and auction notifications.",
+                            "Gold early sale notifications.",
                             "Gold support-line priority over standard tiers.",
                         ),
                         "SAVR" to listOf(
