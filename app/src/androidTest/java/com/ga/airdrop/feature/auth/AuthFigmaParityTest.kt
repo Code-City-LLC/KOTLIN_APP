@@ -21,7 +21,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -89,22 +88,28 @@ class AuthFigmaParityTest {
     }
 
     @Test
-    fun loginActionsRemainReachableAtLiveSystemFontScale() {
+    fun loginActionsRemainVisibleAtCombinedLiveTextScale() {
         var registerTapped = false
-        setLoginContent(
-            mode = ThemeController.Mode.LIGHT,
-            systemFontScale = 1.30f,
-            onRegister = { registerTapped = true },
-        )
+        try {
+            setLoginContent(
+                mode = ThemeController.Mode.LIGHT,
+                systemFontScale = 1.30f,
+                textSize = TextSizeController.Level.LARGEST,
+                onRegister = { registerTapped = true },
+            )
 
-        assertScrollableAuthActionsReachable()
-        saveRootScreenshot("auth_login_system_font_130.png")
-        compose.onNodeWithTag(LoginTags.REGISTER_PROMPT).performClick()
-        assertTrue("Register must remain functional at system font scale 1.30", registerTapped)
+            val panel = compose.onNodeWithTag("login-bottom-panel").getUnclippedBoundsInRoot()
+            assertPinnedAuthActionsVisible(panel)
+            saveRootScreenshot("auth_login_combined_live_text_scale.png")
+            compose.onNodeWithTag(LoginTags.REGISTER_PROMPT).performClick()
+            assertTrue("Register must remain functional at combined live text scale", registerTapped)
+        } finally {
+            setTheme(ThemeController.Mode.LIGHT, TextSizeController.Level.STANDARD)
+        }
     }
 
     @Test
-    fun loginActionsRemainReachableAtLargestAppTextSize() {
+    fun loginActionsRemainVisibleAtLargestAppTextSize() {
         var registerTapped = false
         try {
             setLoginContent(
@@ -113,7 +118,8 @@ class AuthFigmaParityTest {
                 onRegister = { registerTapped = true },
             )
 
-            assertScrollableAuthActionsReachable()
+            val panel = compose.onNodeWithTag("login-bottom-panel").getUnclippedBoundsInRoot()
+            assertPinnedAuthActionsVisible(panel)
             saveRootScreenshot("auth_login_app_text_largest.png")
             compose.onNodeWithTag(LoginTags.REGISTER_PROMPT).performClick()
             assertTrue("Register must remain functional at the largest app text size", registerTapped)
@@ -229,6 +235,15 @@ class AuthFigmaParityTest {
 
     private fun assertStandardAuthActionsVisible(panel: DpRect) {
         assertClose(812f * 0.65f, boundsHeight(panel), "Swift login panel height")
+        assertPinnedAuthActionsVisible(panel)
+        val register = compose.onNodeWithTag(LoginTags.REGISTER_PROMPT).getUnclippedBoundsInRoot()
+        assertTrue(
+            "Register must retain bottom breathing room: register=$register panel=$panel",
+            panel.bottom.value - register.bottom.value >= 16f,
+        )
+    }
+
+    private fun assertPinnedAuthActionsVisible(panel: DpRect) {
         val submit = compose.onNodeWithTag(LoginTags.LOGIN_BUTTON)
             .assertIsDisplayed()
             .assertHasClickAction()
@@ -237,22 +252,18 @@ class AuthFigmaParityTest {
             .assertIsDisplayed()
             .assertHasClickAction()
             .getUnclippedBoundsInRoot()
-        assertTrue("Log In must be fully inside the panel: submit=$submit panel=$panel", submit.bottom <= panel.bottom)
         assertTrue(
-            "Register must be fully inside the panel with bottom breathing room: register=$register panel=$panel",
-            register.bottom <= panel.bottom && panel.bottom.value - register.bottom.value >= 16f,
+            "Log In must be fully inside the visible panel: submit=$submit panel=$panel",
+            submit.top >= panel.top && submit.bottom <= panel.bottom,
         )
-    }
-
-    private fun assertScrollableAuthActionsReachable() {
-        compose.onNodeWithTag(LoginTags.LOGIN_BUTTON)
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
-        compose.onNodeWithTag(LoginTags.REGISTER_PROMPT)
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
+        assertTrue(
+            "Register must be fully inside the visible panel: register=$register panel=$panel",
+            register.top >= panel.top && register.bottom <= panel.bottom,
+        )
+        assertTrue(
+            "Register must remain below Log In in the pinned action group: submit=$submit register=$register",
+            register.top >= submit.bottom,
+        )
     }
 
     private fun boundsWidth(rect: DpRect): Float = (rect.right - rect.left).value

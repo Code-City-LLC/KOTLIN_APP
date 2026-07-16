@@ -129,68 +129,78 @@ fun LoginScreen(
                 .testTag("login-bottom-panel")
                 // Lift the form above the keyboard (edge-to-edge means the
                 // window doesn't resize on its own): pad by whichever is
-                // larger — the nav bar or the IME. Swift keeps the complete
-                // title/form/action stack inside this one scroll view.
+                // larger — the nav bar or the IME. Keep the action group
+                // pinned while only the fields/recovery content scrolls.
                 .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 30.dp)
-                .padding(top = 32.dp, bottom = 32.dp),
+                .padding(top = 32.dp, bottom = 16.dp),
         ) {
-            Text(
-                text = "Welcome Back!",
-                style = AirdropType.h4,
-                color = colors.textDarkTitle,
-            )
-            Spacer(Modifier.height(Spacing.xs))
-            Text(
-                text = "Login to AirDrop",
-                style = AirdropType.body1,
-                color = colors.textDarkTitle,
-            )
-            Spacer(Modifier.height(24.dp))
-            TypeInputField(
-                label = "Email Address",
-                required = true,
-                value = state.email,
-                onValueChange = viewModel::onEmailChange,
-                placeholder = "e.g. username@email.com",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                autofillContentType = ContentType.EmailAddress + ContentType.Username,
-            )
-            Spacer(Modifier.height(Spacing.md))
-            TypeInputField(
-                label = "Password",
-                required = true,
-                value = state.password,
-                onValueChange = viewModel::onPasswordChange,
-                isPassword = true,
-                passwordVisible = state.passwordVisible,
-                onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                autofillContentType = ContentType.Password,
-            )
-            // Swift FigmaLoginViewController.swift:213 — 10 after password;
-            // :171-179 — Body2 underline in textDarkTitle.
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = "Forgot Password?",
-                style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
-                color = colors.textDarkTitle,
-                modifier = Modifier.clickable(onClick = onForgotPassword),
-            )
-            if (state.error != null) {
-                Spacer(Modifier.height(Spacing.sm))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 30.dp)
+                    .padding(bottom = Spacing.md),
+            ) {
                 Text(
-                    text = state.error ?: "",
-                    style = AirdropType.body2,
-                    color = AlertPalette.Error,
+                    text = "Welcome Back!",
+                    style = AirdropType.h4,
+                    color = colors.textDarkTitle,
                 )
+                Spacer(Modifier.height(Spacing.xs))
+                Text(
+                    text = "Login to AirDrop",
+                    style = AirdropType.body1,
+                    color = colors.textDarkTitle,
+                )
+                Spacer(Modifier.height(24.dp))
+                TypeInputField(
+                    label = "Email Address",
+                    required = true,
+                    value = state.email,
+                    onValueChange = viewModel::onEmailChange,
+                    placeholder = "e.g. username@email.com",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    autofillContentType = ContentType.EmailAddress + ContentType.Username,
+                )
+                Spacer(Modifier.height(Spacing.md))
+                TypeInputField(
+                    label = "Password",
+                    required = true,
+                    value = state.password,
+                    onValueChange = viewModel::onPasswordChange,
+                    isPassword = true,
+                    passwordVisible = state.passwordVisible,
+                    onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    autofillContentType = ContentType.Password,
+                )
+                // Swift FigmaLoginViewController.swift:213 — 10 after password;
+                // :171-179 — Body2 underline in textDarkTitle.
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Forgot Password?",
+                    style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
+                    color = colors.textDarkTitle,
+                    modifier = Modifier.clickable(onClick = onForgotPassword),
+                )
+                if (state.error != null) {
+                    Spacer(Modifier.height(Spacing.sm))
+                    Text(
+                        text = state.error ?: "",
+                        style = AirdropType.body2,
+                        color = AlertPalette.Error,
+                    )
+                }
             }
-            Spacer(Modifier.height(Spacing.md))
+            // Swift keeps Log In and Register as one bottom action group. They
+            // must be visible without scrolling on every supported live scale.
             GradientButton(
                 text = "Log In",
                 onClick = viewModel::login,
-                modifier = Modifier.testTag(LoginTags.LOGIN_BUTTON),
+                modifier = Modifier
+                    .padding(horizontal = 30.dp)
+                    .testTag(LoginTags.LOGIN_BUTTON),
                 loading = state.loading,
                 enabled = !state.loading,
             )
@@ -212,8 +222,10 @@ fun LoginScreen(
                 color = colors.textDarkTitle,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 30.dp)
                     .testTag(LoginTags.REGISTER_PROMPT)
-                    .clickable(onClick = onRegister),
+                    .clickable(onClick = onRegister)
+                    .padding(top = 16.dp, bottom = 16.dp),
             )
         }
     }
