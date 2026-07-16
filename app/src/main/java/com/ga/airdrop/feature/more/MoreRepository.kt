@@ -9,11 +9,13 @@ import com.ga.airdrop.data.model.flexString
 import com.ga.airdrop.data.model.objectAt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -193,11 +195,12 @@ interface MoreSettingsRepository {
     suspend fun logout(): Result<Unit>
 }
 
-class MoreRepository : DocumentsRepository, MoreHubRepository, MoreSettingsRepository {
+class MoreRepository internal constructor(
+    private val client: OkHttpClient = ApiClient.okHttp,
+    private val json: Json = ApiClient.json,
+    private val base: String = BuildConfig.API_BASE_URL.trimEnd('/'),
+) : DocumentsRepository, MoreHubRepository, MoreSettingsRepository {
 
-    private val client = ApiClient.okHttp
-    private val json = ApiClient.json
-    private val base = BuildConfig.API_BASE_URL.trimEnd('/')
     private val jsonMedia = "application/json".toMediaType()
 
     // ─── User profile ───
@@ -284,9 +287,15 @@ class MoreRepository : DocumentsRepository, MoreHubRepository, MoreSettingsRepos
 
     // ─── Documents ───
 
+    override suspend fun currentUserId(
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<Int?> = currentUser(expectedSession).map(MoreUser::id)
+
     /** GET /user/documents → map keyed by doc-type string ("file_1583", "trn", …). */
-    override suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>> =
-        request("GET", "/user/documents") { root ->
+    override suspend fun userDocuments(
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<Map<String, MoreDocumentFile>> =
+        request("GET", "/user/documents", expectedSession = expectedSession) { root ->
             val payload = root.objectAt("data") ?: root
             buildMap {
                 for ((key, value) in payload) {
@@ -311,17 +320,21 @@ class MoreRepository : DocumentsRepository, MoreHubRepository, MoreSettingsRepos
         fileName: String,
         mimeType: String,
         bytes: ByteArray,
+        expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<Unit> {
         val multipart = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("document_type", docType)
             .addFormDataPart(docType, fileName, bytes.toRequestBody(mimeType.toMediaType()))
             .build()
-        return request("POST", "/user/documents", multipart) { }
+        return request("POST", "/user/documents", multipart, expectedSession) { }
     }
 
-    override suspend fun deleteUserDocument(identifier: String): Result<Unit> =
-        request("DELETE", "/user/documents/$identifier") { }
+    override suspend fun deleteUserDocument(
+        identifier: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<Unit> =
+        request("DELETE", "/user/documents/$identifier", expectedSession = expectedSession) { }
 
     // ─── Session ───
 
