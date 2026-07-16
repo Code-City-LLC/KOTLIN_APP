@@ -666,16 +666,22 @@ private fun PromiseCard() {
         Image(
             painter = painterResource(R.drawable.ic_info),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(colors.textDarkTitle),
+            colorFilter = ColorFilter.tint(
+                if (colors.isDark) colors.textDarkTitle else BrandPalette.BlueMain,
+            ),
             modifier = Modifier.size(20.dp),
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(text = "Our Promise", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+            Text(
+                text = "Our Promise",
+                style = AirdropType.subtitle1,
+                color = if (colors.isDark) colors.textDarkTitle else BrandPalette.BlueMain,
+            )
             Text(
                 text = "We do not store any card details in our system. " +
                     "Your card details are safe and secure.",
                 style = AirdropType.body2,
-                color = colors.textDarkTitle,
+                color = if (colors.isDark) colors.textDarkTitle else colors.textDescription,
             )
         }
     }

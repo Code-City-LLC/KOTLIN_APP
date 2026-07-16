@@ -44,6 +44,7 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
@@ -173,20 +174,22 @@ fun AuctionCheckoutScreen(
                 Image(
                     painter = painterResource(R.drawable.ic_info),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                    colorFilter = ColorFilter.tint(
+                        if (colors.isDark) colors.textDarkTitle else AlertPalette.OnHold,
+                    ),
                     modifier = Modifier.size(20.dp),
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = "Our Promise:",
                         style = AirdropType.subtitle1,
-                        color = colors.textDarkTitle,
+                        color = if (colors.isDark) colors.textDarkTitle else AlertPalette.OnHold,
                     )
                     Text(
                         text = "✅ We do not store any card details in our system.\n" +
                             "✅ Your card details are safe and secure.",
                         style = AirdropType.body2,
-                        color = colors.textDarkTitle,
+                        color = if (colors.isDark) colors.textDarkTitle else colors.textDescription,
                     )
                 }
             }
