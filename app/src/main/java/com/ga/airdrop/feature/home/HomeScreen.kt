@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.home
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,10 +44,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -249,6 +253,17 @@ private data class WarehouseCard(
     val description: String,
     val imageRes: Int,
     val type: String,
+    val shadow: WarehouseFloorShadowSpec,
+)
+
+private data class WarehouseFloorShadowSpec(
+    val leading: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float,
+    val rotation: Float,
+    val lightOpacity: Float,
+    val darkOpacity: Float,
 )
 
 private val warehouseCards = listOf(
@@ -261,6 +276,15 @@ private val warehouseCards = listOf(
         description = "2 to 3 business days after items are delivered to our warehouse",
         imageRes = R.drawable.img_warehouse_standard,
         type = "standard",
+        shadow = WarehouseFloorShadowSpec(
+            leading = 3.8f,
+            top = 59f,
+            width = 83.1f,
+            height = 13.5f,
+            rotation = 0.16f,
+            lightOpacity = 0.70f,
+            darkOpacity = 0.89f,
+        ),
     ),
     WarehouseCard(
         title = "SeaDrop",
@@ -268,6 +292,15 @@ private val warehouseCards = listOf(
         description = "2 to 4 weeks after items are delivered to our warehouse.",
         imageRes = R.drawable.img_warehouse_seadrop,
         type = "seadrop",
+        shadow = WarehouseFloorShadowSpec(
+            leading = 0.1f,
+            top = 57.5f,
+            width = 74.6f,
+            height = 15.2f,
+            rotation = 12.54f,
+            lightOpacity = 1f,
+            darkOpacity = 1f,
+        ),
     ),
     WarehouseCard(
         title = "Express",
@@ -275,8 +308,84 @@ private val warehouseCards = listOf(
         description = "1 to 2 business days after items are delivered to our warehouse.",
         imageRes = R.drawable.img_warehouse_express,
         type = "express",
+        shadow = WarehouseFloorShadowSpec(
+            leading = -5.5f,
+            top = 60f,
+            width = 77.9f,
+            height = 21.2f,
+            rotation = 0f,
+            lightOpacity = 0.40f,
+            darkOpacity = 0.88f,
+        ),
     ),
 )
+
+@Composable
+private fun WarehouseIcon(card: WarehouseCard) {
+    Box(modifier = Modifier.size(80.dp)) {
+        WarehouseFloorShadow(
+            spec = card.shadow,
+            type = card.type,
+        )
+        Image(
+            painter = painterResource(card.imageRes),
+            contentDescription = card.title,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(80.dp),
+            contentScale = ContentScale.Fit,
+        )
+    }
+}
+
+@Composable
+private fun WarehouseFloorShadow(
+    spec: WarehouseFloorShadowSpec,
+    type: String,
+) {
+    val isDark = AirdropTheme.colors.isDark
+    val centerColor = if (isDark) {
+        // Figma uses plus-darker. Swift renders its visible result directly
+        // so the floor plane stays black instead of turning pale on glass.
+        Color.Black.copy(alpha = spec.darkOpacity)
+    } else {
+        Color(0xFF737373).copy(alpha = spec.lightOpacity)
+    }
+    val edgeColor = if (isDark) Color.Transparent else Color(0x00D9D9D9)
+
+    Canvas(
+        modifier = Modifier
+            .offset(x = spec.leading.dp, y = spec.top.dp)
+            .size(width = spec.width.dp, height = spec.height.dp)
+            .rotate(spec.rotation)
+            .testTag("home-warehouse-shadow-$type"),
+    ) {
+        val diameter = size.width
+        val radius = diameter / 2f
+        val center = Offset(radius, radius)
+
+        // Draw a circular radial in source space, then flatten it to the
+        // Figma ellipse. This preserves a soft edge across both axes.
+        withTransform({
+            scale(
+                scaleX = 1f,
+                scaleY = size.height / diameter,
+                pivot = Offset.Zero,
+            )
+        }) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    0f to centerColor,
+                    1f to edgeColor,
+                    center = center,
+                    radius = radius,
+                ),
+                radius = radius,
+                center = center,
+            )
+        }
+    }
+}
 
 @Composable
 private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
@@ -316,17 +425,7 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
                 // Swift stack spacing 10 between text rows.
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Box(
-                    modifier = Modifier.size(80.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(card.imageRes),
-                        contentDescription = card.title,
-                        modifier = Modifier.size(80.dp),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
+                WarehouseIcon(card)
                 Spacer(Modifier.height(Spacing.md - Spacing.sm)) // icon→title 30 total
                 Text(
                     text = card.title,
