@@ -163,7 +163,7 @@ internal fun BiometricLockContent(
                 color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier
                     .clickable {
-                        com.ga.airdrop.core.session.clearLocalUserSession(context)
+                        com.ga.airdrop.core.session.clearLocalUserSessionAfterCustomerLogout(context)
                         onUnlocked()
                     }
                     .padding(8.dp)

@@ -39,9 +39,15 @@ import com.ga.airdrop.core.designsystem.components.AirdropBottomBar
 import com.ga.airdrop.core.designsystem.components.AirdropTab
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.session.clearLocalUserSessionAfterCustomerLogout
+import com.ga.airdrop.feature.auth.OnboardingStore
+import com.ga.airdrop.feature.auth.authenticatedEntryDestination
+import com.ga.airdrop.feature.auth.onboardingCompletionDestination
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -101,6 +107,87 @@ class AppRootNavigationParityTest {
         compose.onNodeWithText("Log in").assertIsDisplayed()
         assertEquals(0, compose.onAllNodesWithTag("nav-home-root").fetchSemanticsNodes().size)
         saveRootScreenshot("harness_auth_landing_after_token_clear.png")
+    }
+
+    @Test
+    fun explicitLogoutRequiresOnboardingAfterTheNextSuccessfulLogin() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        OnboardingStore.markSeen(context)
+
+        try {
+            clearLocalUserSessionAfterCustomerLogout(context)
+
+            assertTrue(OnboardingStore.isRequiredAfterLogin(context))
+            assertEquals(
+                Routes.ONBOARDING,
+                authenticatedEntryDestination(
+                    onboardingRequired = OnboardingStore.isRequiredAfterLogin(context),
+                ),
+            )
+
+            OnboardingStore.markSeen(context)
+
+            assertFalse(OnboardingStore.isRequiredAfterLogin(context))
+            assertEquals(
+                Routes.HOME,
+                onboardingCompletionDestination(isAuthenticated = true),
+            )
+            assertEquals(
+                Routes.AUTH_LANDING,
+                onboardingCompletionDestination(isAuthenticated = false),
+            )
+        } finally {
+            OnboardingStore.markSeen(context)
+        }
+    }
+
+    @Test
+    fun pendingPushWaitsForPostLoginOnboardingBeforeReplaying() {
+        listOf(
+            null,
+            Routes.SPLASH,
+            Routes.AUTH_LANDING,
+            Routes.LOGIN,
+            Routes.ONBOARDING,
+        ).forEach { route ->
+            assertFalse(
+                "Pending push must remain deferred on auth route: $route",
+                canConsumePendingPush(
+                    navigationUnlocked = true,
+                    token = "ui-proof-token",
+                    currentRoute = route,
+                ),
+            )
+        }
+
+        assertFalse(
+            canConsumePendingPush(
+                navigationUnlocked = false,
+                token = "ui-proof-token",
+                currentRoute = Routes.HOME,
+            ),
+        )
+        assertFalse(
+            canConsumePendingPush(
+                navigationUnlocked = true,
+                token = null,
+                currentRoute = Routes.HOME,
+            ),
+        )
+        assertTrue(
+            canConsumePendingPush(
+                navigationUnlocked = true,
+                token = "ui-proof-token",
+                currentRoute = Routes.HOME,
+            ),
+        )
+        assertTrue(
+            canConsumePendingPush(
+                navigationUnlocked = true,
+                token = "ui-proof-token",
+                currentRoute = Routes.SHIPMENTS,
+            ),
+        )
     }
 
     @Test

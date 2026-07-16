@@ -17,8 +17,9 @@ import com.ga.airdrop.core.navigation.Routes
  * No new route constants needed — all exist in Routes.kt already.
  *
  * Launch flow (RN LaunchAppView; Figma "Onboarding - Design Done"
- * 40006240:*): token → HOME; first run (onboarding not seen) → ONBOARDING
- * carousel + "Choose Your Look" → AUTH_LANDING; returning-but-signed-out →
+ * 40006240:*): token → HOME unless an explicit logout armed onboarding for
+ * the next login; first run (onboarding not seen) → ONBOARDING carousel +
+ * "Choose Your Look" → AUTH_LANDING; returning-but-signed-out →
  * AUTH_LANDING. Swift's SceneDelegate collapsed this straight to login, but the
  * Onboarding + Choose-Your-Look + AuthLanding are shipped Figma designs, so
  * Figma wins where Swift dropped them (per Kemar's Government-Charges ruling).
@@ -32,7 +33,10 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
         SplashScreen(
             onFinished = {
                 val target = when {
-                    AuthTokenStore.tokenFlow.value != null -> Routes.HOME
+                    AuthTokenStore.tokenFlow.value != null ->
+                        authenticatedEntryDestination(
+                            OnboardingStore.isRequiredAfterLogin(context),
+                        )
                     !OnboardingStore.hasSeen(context) -> Routes.ONBOARDING
                     else -> Routes.AUTH_LANDING
                 }
@@ -46,8 +50,12 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
     composable(Routes.ONBOARDING) {
         OnboardingScreen(
             onFinished = {
-                navController.navigate(Routes.AUTH_LANDING) {
+                val target = onboardingCompletionDestination(
+                    isAuthenticated = AuthTokenStore.tokenFlow.value != null,
+                )
+                navController.navigate(target) {
                     popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    launchSingleTop = true
                 }
             },
         )
@@ -81,6 +89,14 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
         )
     }
 }
+
+/** One route policy shared by cold-start restore and successful login. */
+internal fun authenticatedEntryDestination(onboardingRequired: Boolean): String =
+    if (onboardingRequired) Routes.ONBOARDING else Routes.HOME
+
+/** Onboarding is valid both before authentication and after explicit relogin. */
+internal fun onboardingCompletionDestination(isAuthenticated: Boolean): String =
+    if (isAuthenticated) Routes.HOME else Routes.AUTH_LANDING
 
 internal fun NavHostController.showRegistrationSuccess() {
     com.ga.airdrop.core.session.clearLocalUserSession(context)
