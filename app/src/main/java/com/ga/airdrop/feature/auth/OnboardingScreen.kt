@@ -49,10 +49,10 @@ import androidx.compose.ui.unit.sp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.ThemeToggle
+import com.ga.airdrop.core.designsystem.components.primaryButtonGradient
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
-import com.ga.airdrop.core.designsystem.theme.GradientPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.ThemeController
@@ -266,7 +266,7 @@ private fun onboardTitle(parts: List<Pair<String, Boolean>>, isDark: Boolean): A
 
 /**
  * Figma Frame 2147207861: five 35dp lines, 3dp round-cap stroke, 10dp gaps
- * (38dp visual dashes, 7dp apart) — active #F15114, inactive gray500 @20%.
+ * (38dp visual dashes, 7dp apart) — active semantic orange, inactive gray500 @20%.
  */
 @Composable
 private fun OnboardPageIndicator(current: Int, modifier: Modifier = Modifier) {
@@ -278,7 +278,7 @@ private fun OnboardPageIndicator(current: Int, modifier: Modifier = Modifier) {
                     .width(38.dp)
                     .height(3.dp)
                     .background(
-                        if (index == current) BrandPalette.OrangeMain
+                        if (index == current) colors.orangeMain
                         else colors.gray500.copy(alpha = 0.2f),
                         RoundedCornerShape(Radius.full),
                     ),
@@ -295,7 +295,7 @@ private fun OnboardSkipButton(onClick: () -> Unit) {
         modifier = Modifier
             .height(46.dp)
             .clip(RoundedCornerShape(Radius.xs))
-            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(Radius.xs))
+            .border(1.dp, colors.orangeMain, RoundedCornerShape(Radius.xs))
             .clickable(onClick = onClick)
             .padding(horizontal = Spacing.md),
         contentAlignment = Alignment.Center,
@@ -307,12 +307,13 @@ private fun OnboardSkipButton(onClick: () -> Unit) {
 /** Primary small button (Figma Static/Primary/Small): 106x46 gradient + arrow. */
 @Composable
 private fun OnboardNextButton(onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
     Row(
         modifier = Modifier
             .width(106.dp)
             .height(46.dp)
             .clip(RoundedCornerShape(Radius.xs))
-            .background(Brush.verticalGradient(GradientPalette.SignInButton))
+            .background(Brush.verticalGradient(primaryButtonGradient(colors)))
             .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.spacedBy(8.75.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,

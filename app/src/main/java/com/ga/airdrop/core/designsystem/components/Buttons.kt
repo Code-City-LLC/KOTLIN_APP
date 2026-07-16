@@ -14,12 +14,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.ga.airdrop.core.designsystem.theme.AirdropColorScheme
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.GradientPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
+
+/**
+ * Primary button fill for the active theme.
+ *
+ * Light mode preserves the approved Swift/Figma gradient. Dark mode uses the
+ * approved solid #F46427 token so shared CTAs cannot fall back to the lighter
+ * #F15114 gradient stop.
+ */
+internal fun primaryButtonGradient(colors: AirdropColorScheme): List<Color> =
+    if (colors.isDark) {
+        listOf(colors.buttonStatic, colors.buttonStatic)
+    } else {
+        GradientPalette.SignInButton
+    }
 
 /**
  * Primary CTA — Swift "RN MainButton main variant"
@@ -35,13 +51,14 @@ fun GradientButton(
     enabled: Boolean = true,
     loading: Boolean = false,
 ) {
+    val colors = AirdropTheme.colors
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
-                if (enabled) Brush.verticalGradient(GradientPalette.SignInButton)
+                if (enabled) Brush.verticalGradient(primaryButtonGradient(colors))
                 else Brush.verticalGradient(
                     listOf(BrandPalette.ButtonDisable, BrandPalette.ButtonDisable)
                 )
@@ -62,7 +79,7 @@ fun GradientButton(
 }
 
 /**
- * Secondary CTA — white surface, 1dp #F15114 border, radius 10,
+ * Secondary CTA — themed surface, 1dp semantic orange border, radius 10,
  * Cairo SemiBold 16 dark-title label.
  */
 @Composable
@@ -79,12 +96,12 @@ fun OutlineButton(
             .height(52.dp)
             .clip(RoundedCornerShape(Radius.xs))
             .background(colors.gray100)
-            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(Radius.xs))
+            .border(1.dp, colors.orangeMain, RoundedCornerShape(Radius.xs))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         // Swift secondary button label = orangeMain (FigmaCalculatorResults:290 /
         // DropAlert:74), not textDarkTitle.
-        Text(text = text, style = AirdropType.button, color = BrandPalette.OrangeMain)
+        Text(text = text, style = AirdropType.button, color = colors.orangeMain)
     }
 }
