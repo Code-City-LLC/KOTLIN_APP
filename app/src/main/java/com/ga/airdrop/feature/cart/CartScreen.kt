@@ -47,9 +47,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.TypeInputField
@@ -494,6 +498,15 @@ private fun CartItemCard(
     onRemove: () -> Unit,
     onOpenActions: () -> Unit,
 ) {
+    if (line.isAuction) {
+        CartSaleItemCard(
+            line = line,
+            onRemove = onRemove,
+            onOpenActions = onOpenActions,
+        )
+        return
+    }
+
     val colors = AirdropTheme.colors
     // Swift makeDropRow (:448-536): TRANSPARENT row, 1dp iconShape bottom
     // hairline — no fill, border, or radius. Labels SubTitle3; drop value
@@ -561,6 +574,147 @@ private fun CartItemCard(
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CartSaleItemCard(
+    line: CartStore.CartLine,
+    onRemove: () -> Unit,
+    onOpenActions: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    val cardShape = RoundedCornerShape(Radius.s)
+    val imageUrl = line.imageUrl
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?.replaceFirst("http://", "https://")
+    val auctionFallback = painterResource(
+        if (colors.isDark) {
+            R.drawable.ic_shipments_status_auction_dark
+        } else {
+            R.drawable.ic_shipments_status_auction
+        }
+    )
+    var imageLoadSucceeded by remember(imageUrl) { mutableStateOf<Boolean?>(null) }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(colors.gray100, cardShape)
+            .border(1.dp, colors.cardHairline, cardShape)
+            .combinedClickable(
+                onClick = {},
+                onLongClick = onOpenActions,
+            )
+            .testTag("cart-sale-line-${line.id}")
+            .padding(horizontal = 20.dp, vertical = 15.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(84.dp)
+                .background(colors.gray200, RoundedCornerShape(10.dp))
+                .testTag("cart-sale-image-${line.id}"),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (imageUrl != null) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = if (imageLoadSucceeded == false) {
+                        "Auction image unavailable"
+                    } else {
+                        line.title
+                    },
+                    contentScale = ContentScale.Fit,
+                    error = auctionFallback,
+                    onSuccess = { imageLoadSucceeded = true },
+                    onError = { imageLoadSucceeded = false },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(7.dp)
+                        .testTag(
+                            if (imageLoadSucceeded == true) {
+                                "cart-sale-image-loaded-${line.id}"
+                            } else {
+                                "cart-sale-image-fallback-${line.id}"
+                            }
+                        ),
+                )
+            } else {
+                Image(
+                    painter = auctionFallback,
+                    contentDescription = "Auction image unavailable",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(7.dp)
+                        .testTag("cart-sale-image-fallback-${line.id}"),
+                )
+            }
+        }
+        Column(
+            Modifier
+                .weight(1f)
+                .height(84.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = auctionFallback,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = "Auction item",
+                    style = AirdropType.subtitle3.copy(lineHeight = 16.sp),
+                    color = BrandPalette.OrangeMain,
+                    maxLines = 1,
+                    modifier = Modifier.testTag("cart-auction-type-${line.id}"),
+                )
+            }
+            Text(
+                text = line.title,
+                style = AirdropType.body2.copy(
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                ),
+                color = colors.textDarkTitle,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 2.dp)
+                    .testTag("cart-sale-title-${line.id}"),
+            )
+            Text(
+                text = formatUsdPlain(line.priceUsd * line.qty),
+                style = AirdropType.subtitle2.copy(
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 20.sp,
+                ),
+                color = BrandPalette.OrangeMain,
+                modifier = Modifier.testTag("cart-sale-price-${line.id}"),
+            )
+        }
+        Box(
+            Modifier
+                .size(24.dp)
+                .align(Alignment.Top)
+                .clickable(onClick = onRemove)
+                .testTag("cart-sale-remove-${line.id}"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_trash),
+                contentDescription = "Remove ${line.title}",
+                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 
