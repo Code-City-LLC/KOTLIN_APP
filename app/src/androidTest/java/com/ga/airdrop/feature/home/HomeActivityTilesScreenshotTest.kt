@@ -63,6 +63,22 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
+    fun captureEveryWarehouseCardShadowLight() {
+        captureWarehouseCardShadows(
+            mode = ThemeController.Mode.LIGHT,
+            themeName = "light",
+        )
+    }
+
+    @Test
+    fun captureEveryWarehouseCardShadowDark() {
+        captureWarehouseCardShadows(
+            mode = ThemeController.Mode.DARK,
+            themeName = "dark",
+        )
+    }
+
+    @Test
     fun homeLinksUseSwiftFigmaOrangeLight() {
         assertHomeLinkAccent(
             mode = ThemeController.Mode.LIGHT,
@@ -397,6 +413,40 @@ class HomeActivityTilesScreenshotTest {
         compose.onNodeWithText("Services").performScrollTo()
         compose.waitForIdle()
         saveRootScreenshot(activityTilesFilename)
+    }
+
+    private fun captureWarehouseCardShadows(
+        mode: ThemeController.Mode,
+        themeName: String,
+    ) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync { ThemeController.set(mode) }
+        setHomeContent()
+
+        listOf("standard", "seadrop", "express").forEach { type ->
+            compose.onNodeWithTag("home-warehouse-carousel")
+                .performScrollToNode(hasTestTag("home-warehouse-$type"))
+            compose.waitForIdle()
+
+            val shadow = compose.onNodeWithTag(
+                "home-warehouse-shadow-$type",
+                useUnmergedTree = true,
+            )
+            assertTrue("$type $themeName shadow must be visible", nodeHasVisibleBounds(shadow))
+
+            val bitmap = captureBitmapWithRetry("$type $themeName warehouse card") {
+                compose.onNodeWithTag("home-warehouse-$type")
+                    .captureToImage()
+                    .asAndroidBitmap()
+            }
+            val filename = "home_warehouse_${type}_shadow_$themeName.png"
+            FileOutputStream(File(screenshotDir(), filename)).use { stream ->
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+                    "Unable to encode $filename"
+                }
+            }
+            saveProofScreenshot(bitmap, filename)
+        }
     }
 
     private fun saveRootScreenshot(filename: String) {
