@@ -18,12 +18,16 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.SessionStore
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertArrayEquals
 import org.junit.Rule
@@ -35,6 +39,11 @@ class DocumentsScreenScreenshotTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    @After
+    fun tearDown() {
+        SessionStore.onAuthenticatedSessionChanged(null)
+    }
 
     @Test
     fun documentCardUsesSwiftActionsGeometry() {
@@ -75,6 +84,7 @@ class DocumentsScreenScreenshotTest {
                 fileName = "new-trn.jpg",
                 mimeType = "image/jpeg",
                 bytes = ByteArray(2048),
+                ownerSessionId = "preview-session",
             ),
         )
 
@@ -102,12 +112,72 @@ class DocumentsScreenScreenshotTest {
     }
 
     @Test
+    fun accountReplacementDismissesOriginatingUploadSheet() {
+        val repository = CountingDocumentsRepository()
+        val boundary = FakeAuthenticatedSessionBoundary("session-a", initialAccountId = 101)
+        lateinit var viewModel: DocumentsViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            viewModel = DocumentsViewModel(repository, boundary)
+        }
+        compose.setContent {
+            AirdropTheme {
+                DocumentsScreen(onBack = {}, onNavigate = {}, viewModel = viewModel)
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.ownerSessionId == "session-a"
+        }
+        compose.onAllNodesWithText("Upload")[0].performClick()
+        compose.onNodeWithTag("upload-source-sheet").assertIsDisplayed()
+
+        boundary.replace("session-b", accountId = 202)
+        compose.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.ownerSessionId == "session-b"
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("upload-source-sheet").assertDoesNotExist()
+    }
+
+    @Test
+    fun accountReplacementDismissesOriginatingDeleteDialog() {
+        val repository = CountingDocumentsRepository(
+            documents = mapOf("airdrop_contract" to sampleFile),
+        )
+        val boundary = FakeAuthenticatedSessionBoundary("session-a", initialAccountId = 101)
+        lateinit var viewModel: DocumentsViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            viewModel = DocumentsViewModel(repository, boundary)
+        }
+        compose.setContent {
+            AirdropTheme {
+                DocumentsScreen(onBack = {}, onNavigate = {}, viewModel = viewModel)
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.files["airdrop_contract"] != null
+        }
+        compose.onNodeWithContentDescription("Delete").performClick()
+        compose.onNodeWithText("Delete Document").assertIsDisplayed()
+
+        boundary.replace("session-b", accountId = 202)
+        compose.waitUntil(timeoutMillis = 5_000) {
+            viewModel.state.value.ownerSessionId == "session-b"
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Delete Document").assertDoesNotExist()
+    }
+
+    @Test
     fun documentsScreenReloadsOnResumeLikeSwiftViewDidAppear() {
         val repository = CountingDocumentsRepository()
         lateinit var viewModel: DocumentsViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
-            viewModel = DocumentsViewModel(repository)
+            viewModel = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
         }
 
         compose.setContent {
@@ -127,7 +197,7 @@ class DocumentsScreenScreenshotTest {
         val repository = CountingDocumentsRepository()
         lateinit var viewModel: DocumentsViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            viewModel = DocumentsViewModel(repository)
+            viewModel = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
         }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -147,8 +217,9 @@ class DocumentsScreenScreenshotTest {
         val bytes = byteArrayOf(1, 5, 8, 3)
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            viewModel = DocumentsViewModel(repository)
-            viewModel.stageUpload(slot, "form-1583.pdf", "application/pdf", bytes)
+            viewModel = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
+            val claim = requireNotNull(viewModel.claimUpload(slot))
+            viewModel.stageUpload(claim, "form-1583.pdf", "application/pdf", bytes)
             viewModel.commitPendingUpload(slot)
         }
 
@@ -176,8 +247,9 @@ class DocumentsScreenScreenshotTest {
         val bytes = byteArrayOf(7, 7, 7)
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            viewModel = DocumentsViewModel(repository)
-            viewModel.stageUpload(slot, "trn-photo.jpg", "image/jpeg", bytes)
+            viewModel = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
+            val claim = requireNotNull(viewModel.claimUpload(slot))
+            viewModel.stageUpload(claim, "trn-photo.jpg", "image/jpeg", bytes)
         }
 
         assertEquals(0, repository.uploadCount.get())
@@ -211,7 +283,7 @@ class DocumentsScreenScreenshotTest {
         val slot = DOCUMENT_SLOTS.first { it.docType == "airdrop_contract" }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            viewModel = DocumentsViewModel(repository)
+            viewModel = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
             viewModel.load()
         }
         compose.waitUntil(timeoutMillis = 5_000) {
@@ -219,7 +291,7 @@ class DocumentsScreenScreenshotTest {
         }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            viewModel.delete(slot)
+            viewModel.delete(requireNotNull(viewModel.claimDelete(slot)))
         }
         compose.waitUntil(timeoutMillis = 5_000) {
             repository.deleteCount.get() == 1 &&
@@ -242,7 +314,7 @@ class DocumentsScreenScreenshotTest {
         val slot = DOCUMENT_SLOTS.first { it.docType == "trn" }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            viewModel = DocumentsViewModel(repository)
+            viewModel = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
             viewModel.load()
         }
         compose.waitUntil(timeoutMillis = 5_000) {
@@ -250,7 +322,7 @@ class DocumentsScreenScreenshotTest {
         }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            viewModel.delete(slot)
+            viewModel.delete(requireNotNull(viewModel.claimDelete(slot)))
         }
         compose.waitUntil(timeoutMillis = 5_000) {
             repository.deleteCount.get() == 1 &&
@@ -349,7 +421,13 @@ class DocumentsScreenScreenshotTest {
         val lastUpload = AtomicReference<UploadRecord?>()
         val lastDelete = AtomicReference<String?>()
 
-        override suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>> {
+        override suspend fun currentUserId(
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<Int?> = Result.success(expectedSession.accountId)
+
+        override suspend fun userDocuments(
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<Map<String, MoreDocumentFile>> {
             loadCount.incrementAndGet()
             return Result.success(documents)
         }
@@ -359,13 +437,17 @@ class DocumentsScreenScreenshotTest {
             fileName: String,
             mimeType: String,
             bytes: ByteArray,
+            expectedSession: AuthTokenStore.RequestProvenance,
         ): Result<Unit> {
             uploadCount.incrementAndGet()
             lastUpload.set(UploadRecord(docType, fileName, mimeType, bytes))
             return Result.success(Unit)
         }
 
-        override suspend fun deleteUserDocument(identifier: String): Result<Unit> {
+        override suspend fun deleteUserDocument(
+            identifier: String,
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<Unit> {
             deleteCount.incrementAndGet()
             lastDelete.set(identifier)
             return Result.success(Unit)

@@ -2,10 +2,19 @@ package com.ga.airdrop.feature.more
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ga.airdrop.core.network.ApiClient
-import com.ga.airdrop.data.repo.UserRepository
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.session.AuthenticatedOwnerChange
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.AuthenticatedSessionJobs
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.captureOwnedRequest
+import com.ga.airdrop.core.session.captureOwnedSession
+import com.ga.airdrop.core.session.changeTo
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -55,6 +64,8 @@ val DOCUMENT_SLOTS = listOf(
 )
 
 data class DocumentsUiState(
+    /** Non-secret owner generation used to discard account-A UI intents. */
+    val ownerSessionId: String? = null,
     val files: Map<String, MoreDocumentFile> = emptyMap(),
     /** Session user id for the legacy server-generated form downloads. */
     val legacyUserId: Int? = null,
@@ -69,19 +80,41 @@ data class PendingDocumentUpload(
     val fileName: String,
     val mimeType: String,
     val bytes: ByteArray,
+    val ownerSessionId: String,
+)
+
+class DocumentUploadClaim internal constructor(
+    val slot: DocumentSlot,
+    internal val ownerSessionId: String,
+)
+
+class DocumentDeleteClaim internal constructor(
+    val slot: DocumentSlot,
+    internal val ownerSessionId: String,
+    internal val identifier: String,
 )
 
 interface DocumentsRepository {
-    suspend fun userDocuments(): Result<Map<String, MoreDocumentFile>>
+    suspend fun currentUserId(
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<Int?>
+
+    suspend fun userDocuments(
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<Map<String, MoreDocumentFile>>
 
     suspend fun uploadUserDocument(
         docType: String,
         fileName: String,
         mimeType: String,
         bytes: ByteArray,
+        expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<Unit>
 
-    suspend fun deleteUserDocument(identifier: String): Result<Unit>
+    suspend fun deleteUserDocument(
+        identifier: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<Unit>
 }
 
 /**
@@ -91,139 +124,262 @@ interface DocumentsRepository {
  */
 class DocumentsViewModel(
     private val repository: DocumentsRepository = MoreRepository(),
-    private val userRepository: UserRepository = UserRepository(ApiClient.service),
+    private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(DocumentsUiState())
+    private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
+    private val _state = MutableStateFlow(
+        DocumentsUiState(ownerSessionId = sessionOwner?.sessionId),
+    )
     val state: StateFlow<DocumentsUiState> = _state
 
+    private val sessionJobs = AuthenticatedSessionJobs(viewModelScope)
+    private var legacyUserJob: Job? = null
+    private var loadJob: Job? = null
+
     init {
-        // Swift refreshLegacyDownloadUserID: the legacy Contract/1583/Custom
-        // form downloads need the session user id. Non-fatal — on failure the
-        // legacy fallback simply stays unavailable (uploaded files still open).
         viewModelScope.launch {
-            userRepository.currentUser().onSuccess { user ->
-                _state.update { it.copy(legacyUserId = user.id) }
+            sessionBoundary.changes.collect { changed ->
+                when (sessionOwner.changeTo(changed)) {
+                    AuthenticatedOwnerChange.Unchanged -> return@collect
+                    AuthenticatedOwnerChange.IdentityUpdated -> {
+                        sessionOwner = changed
+                        return@collect
+                    }
+                    AuthenticatedOwnerChange.SessionReplaced -> Unit
+                }
+                sessionJobs.replaceSession()
+                legacyUserJob = null
+                loadJob = null
+                sessionOwner = changed
+                resetOwnedState()
+                if (changed != null) {
+                    loadLegacyUserId()
+                    load()
+                }
             }
         }
+        loadLegacyUserId()
     }
 
     fun load() {
-        if (_state.value.loading || _state.value.refreshing) return
-        _state.update { it.copy(loading = true, refreshing = false) }
-        fetchDocuments()
+        fetchDocuments(refreshing = false)
     }
 
     fun refresh() {
-        if (_state.value.loading || _state.value.refreshing) return
-        _state.update { it.copy(loading = false, refreshing = true) }
-        fetchDocuments()
+        fetchDocuments(refreshing = true)
     }
 
-    private fun fetchDocuments() {
-        viewModelScope.launch {
-            repository.userDocuments()
+    private fun loadLegacyUserId() {
+        if (legacyUserJob?.isActive == true) return
+        val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
+        val owner = requestOwner.session
+        legacyUserJob = sessionJobs.launch {
+            repository.currentUserId(requestOwner.provenance)
+                .onSuccess { userId ->
+                    if (userId != null && !sessionBoundary.bindAccountId(owner, userId)) {
+                        return@onSuccess
+                    }
+                    sessionBoundary.apply(owner) {
+                        _state.update { it.copy(legacyUserId = userId) }
+                    }
+                }
+        }
+    }
+
+    private fun fetchDocuments(refreshing: Boolean) {
+        if (loadJob?.isActive == true) return
+        val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
+        val owner = requestOwner.session
+        if (!sessionBoundary.apply(owner) {
+                _state.update { it.copy(loading = !refreshing, refreshing = refreshing) }
+            }
+        ) return
+        loadJob = sessionJobs.launch {
+            repository.userDocuments(requestOwner.provenance)
                 .onSuccess { files ->
-                    _state.update {
-                        it.copy(
-                            files = files,
-                            loading = false,
-                            refreshing = false,
-                        )
+                    sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(
+                                files = files,
+                                loading = false,
+                                refreshing = false,
+                            )
+                        }
                     }
                 }
                 // Render slots without files so Upload still works (RN parity on 401).
                 .onFailure {
-                    _state.update { it.copy(loading = false, refreshing = false) }
+                    sessionBoundary.apply(owner) {
+                        _state.update { it.copy(loading = false, refreshing = false) }
+                    }
                 }
         }
     }
 
-    fun stageUpload(slot: DocumentSlot, fileName: String, mimeType: String, bytes: ByteArray) {
-        _state.update {
+    fun claimUpload(slot: DocumentSlot): DocumentUploadClaim? {
+        val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return null
+        return DocumentUploadClaim(slot, owner.sessionId)
+    }
+
+    fun stageUpload(
+        claim: DocumentUploadClaim,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ) {
+        updateOwnedState(claim.ownerSessionId) {
             it.copy(
                 pendingUploads = it.pendingUploads + (
-                    slot.docType to PendingDocumentUpload(
+                    claim.slot.docType to PendingDocumentUpload(
                         fileName = fileName,
                         mimeType = mimeType,
-                        bytes = bytes,
+                        bytes = bytes.copyOf(),
+                        ownerSessionId = claim.ownerSessionId,
                     )
-                    ),
+                ),
             )
         }
     }
 
     fun clearPendingUpload(slot: DocumentSlot) {
-        _state.update { it.copy(pendingUploads = it.pendingUploads - slot.docType) }
+        updateOwnedState { it.copy(pendingUploads = it.pendingUploads - slot.docType) }
     }
 
     fun commitPendingUpload(slot: DocumentSlot) {
-        val upload = _state.value.pendingUploads[slot.docType] ?: return
-        uploadBytes(
-            slot = slot,
-            fileName = upload.fileName,
-            mimeType = upload.mimeType,
-            bytes = upload.bytes,
-            clearPending = true,
-        )
-    }
-
-    private fun uploadBytes(
-        slot: DocumentSlot,
-        fileName: String,
-        mimeType: String,
-        bytes: ByteArray,
-        clearPending: Boolean,
-    ) {
-        _state.update { it.copy(uploadingType = slot.docType) }
-        viewModelScope.launch {
-            repository.uploadUserDocument(slot.docType, fileName, mimeType, bytes)
+        val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
+        val owner = requestOwner.session
+        var upload: PendingDocumentUpload? = null
+        if (!sessionBoundary.apply(owner) {
+                val candidate = _state.value.pendingUploads[slot.docType]
+                if (candidate?.ownerSessionId == owner.sessionId) {
+                    upload = candidate
+                    _state.update { it.copy(uploadingType = slot.docType) }
+                } else if (candidate != null) {
+                    _state.update { it.copy(pendingUploads = it.pendingUploads - slot.docType) }
+                }
+            }
+        ) return
+        val claimedUpload = upload ?: return
+        sessionJobs.launch {
+            repository.uploadUserDocument(
+                docType = slot.docType,
+                fileName = claimedUpload.fileName,
+                mimeType = claimedUpload.mimeType,
+                bytes = claimedUpload.bytes,
+                expectedSession = requestOwner.provenance,
+            )
                 .onSuccess {
-                    _state.update {
-                        it.copy(
-                            pendingUploads = if (clearPending) {
-                                it.pendingUploads - slot.docType
-                            } else {
-                                it.pendingUploads
-                            },
-                            uploadingType = null,
-                            alert = "Uploaded" to "${slot.title} was uploaded.",
-                        )
+                    val applied = sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(
+                                pendingUploads = it.pendingUploads - slot.docType,
+                                uploadingType = null,
+                                alert = "Uploaded" to "${slot.title} was uploaded.",
+                            )
+                        }
                     }
-                    load()
+                    if (applied) load()
                 }
                 .onFailure { e ->
-                    _state.update {
-                        it.copy(
-                            uploadingType = null,
-                            alert = "Upload failed" to (e.message ?: "Please try again."),
-                        )
+                    sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(
+                                uploadingType = null,
+                                alert = "Upload failed" to (e.message ?: "Please try again."),
+                            )
+                        }
                     }
                 }
         }
     }
 
-    fun delete(slot: DocumentSlot) {
-        val file = _state.value.files[slot.docType] ?: return
-        val identifier = file.docType?.takeIf { it.isNotEmpty() } ?: slot.docType
-        viewModelScope.launch {
-            repository.deleteUserDocument(identifier)
+    fun claimDelete(slot: DocumentSlot): DocumentDeleteClaim? {
+        val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return null
+        var identifier: String? = null
+        if (!sessionBoundary.apply(owner) {
+                val file = _state.value.files[slot.docType] ?: return@apply
+                identifier = file.docType?.takeIf { it.isNotEmpty() } ?: slot.docType
+            }
+        ) return null
+        return identifier?.let { DocumentDeleteClaim(slot, owner.sessionId, it) }
+    }
+
+    fun delete(claim: DocumentDeleteClaim) {
+        val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
+        val owner = requestOwner.session
+        if (owner.sessionId != claim.ownerSessionId) return
+        sessionJobs.launch {
+            repository.deleteUserDocument(claim.identifier, requestOwner.provenance)
                 .onSuccess {
-                    _state.update { it.copy(alert = "Deleted" to "${slot.title} was removed.") }
-                    load()
+                    val applied = sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(alert = "Deleted" to "${claim.slot.title} was removed.")
+                        }
+                    }
+                    if (applied) load()
                 }
                 .onFailure { e ->
-                    _state.update {
-                        it.copy(alert = "Delete failed" to (e.message ?: "Please try again."))
+                    sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(alert = "Delete failed" to (e.message ?: "Please try again."))
+                        }
                     }
                 }
         }
     }
 
     fun showAlert(title: String, message: String) =
-        _state.update { it.copy(alert = title to message) }
+        updateOwnedState { it.copy(alert = title to message) }
 
-    fun dismissAlert() = _state.update { it.copy(alert = null) }
+    fun showUploadFailure(claim: DocumentUploadClaim, message: String) =
+        updateOwnedState(claim.ownerSessionId) {
+            it.copy(alert = "Upload failed" to message)
+        }
+
+    fun dismissAlert() = updateOwnedState { it.copy(alert = null) }
+
+    fun openDocument(
+        slot: DocumentSlot,
+        legacyBase: String,
+        onOpen: (url: String, title: String) -> Unit,
+    ) {
+        val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
+        sessionBoundary.apply(owner) {
+            val current = _state.value
+            val url = (
+                current.files[slot.docType]?.fileUrl
+                    ?: legacyDownloadUrl(
+                        docType = slot.docType,
+                        userId = current.legacyUserId?.toString(),
+                        legacyBase = legacyBase,
+                    )
+                )?.replaceFirst("http://", "https://")
+            if (url.isNullOrBlank()) {
+                _state.update {
+                    it.copy(
+                        alert = "Not available" to
+                            "No download link is available for ${slot.title} yet.",
+                    )
+                }
+            } else {
+                onOpen(url, slot.title)
+            }
+        }
+    }
+
+    private fun updateOwnedState(
+        expectedSessionId: String? = null,
+        transform: (DocumentsUiState) -> DocumentsUiState,
+    ) {
+        val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
+        if (expectedSessionId != null && owner.sessionId != expectedSessionId) return
+        sessionBoundary.apply(owner) { _state.update(transform) }
+    }
+
+    private fun resetOwnedState() {
+        _state.value = DocumentsUiState(ownerSessionId = sessionOwner?.sessionId)
+    }
 }
 
 /**

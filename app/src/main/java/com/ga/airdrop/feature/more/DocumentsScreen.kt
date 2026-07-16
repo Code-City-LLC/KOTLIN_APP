@@ -77,9 +77,13 @@ fun DocumentsScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
-    var uploadSlot by remember { mutableStateOf<DocumentSlot?>(null) }
+    var uploadClaim by remember(state.ownerSessionId) {
+        mutableStateOf<DocumentUploadClaim?>(null)
+    }
     var infoSlot by remember { mutableStateOf<DocumentSlot?>(null) }
-    var deleteSlot by remember { mutableStateOf<DocumentSlot?>(null) }
+    var deleteClaim by remember(state.ownerSessionId) {
+        mutableStateOf<DocumentDeleteClaim?>(null)
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     val ptrState = rememberPullToRefreshState()
 
@@ -96,24 +100,8 @@ fun DocumentsScreen(
     }
 
     fun openFile(slot: DocumentSlot) {
-        // Uploaded file wins; else the legacy server-generated form (Swift
-        // onDownloadTapped :756 — file?.fileURL ?? legacyDownloadURL(slot)).
-        val url = (
-            state.files[slot.docType]?.fileUrl
-                ?: legacyDownloadUrl(
-                    docType = slot.docType,
-                    userId = state.legacyUserId?.toString(),
-                    legacyBase = com.ga.airdrop.BuildConfig.LEGACY_BASE_URL,
-                )
-            )?.replaceFirst("http://", "https://")
-        if (url.isNullOrBlank()) {
-            viewModel.showAlert(
-                "Not available",
-                "No download link is available for ${slot.title} yet.",
-            )
-        } else {
-            // Shared in-app viewer route (registered by the shipments group).
-            onNavigate(Routes.invoiceViewer(url, slot.title))
+        viewModel.openDocument(slot, com.ga.airdrop.BuildConfig.LEGACY_BASE_URL) { url, title ->
+            onNavigate(Routes.invoiceViewer(url, title))
         }
     }
 
@@ -164,8 +152,8 @@ fun DocumentsScreen(
                             onInfo = { infoSlot = slot },
                             onDownload = { openFile(slot) },
                             onView = { openFile(slot) },
-                            onDelete = { deleteSlot = slot },
-                            onUpload = { uploadSlot = slot },
+                            onDelete = { deleteClaim = viewModel.claimDelete(slot) },
+                            onUpload = { uploadClaim = viewModel.claimUpload(slot) },
                             onClearPendingUpload = { viewModel.clearPendingUpload(slot) },
                             onCommitPendingUpload = { viewModel.commitPendingUpload(slot) },
                         )
@@ -176,10 +164,10 @@ fun DocumentsScreen(
         }
     }
 
-    uploadSlot?.let { slot ->
+    uploadClaim?.let { claim ->
         AirdropUploadSourceSheet(
             config = AirdropUploadSourceConfig(
-                sheetTitle = "Upload ${slot.title}",
+                sheetTitle = "Upload ${claim.slot.title}",
                 allowedFileExtensions = AirdropUploadSourceConfig.userDocumentFileExtensions,
                 allowsMultipleFileSelection = false,
                 maxSelectionCount = 1,
@@ -187,15 +175,15 @@ fun DocumentsScreen(
             onPicked = { files ->
                 files.firstOrNull()?.let { file ->
                     viewModel.stageUpload(
-                        slot = slot,
+                        claim = claim,
                         fileName = file.fileName,
                         mimeType = file.mimeType,
                         bytes = file.bytes,
                     )
                 }
             },
-            onFailure = { message -> viewModel.showAlert("Upload failed", message) },
-            onDismiss = { uploadSlot = null },
+            onFailure = { message -> viewModel.showUploadFailure(claim, message) },
+            onDismiss = { uploadClaim = null },
         )
     }
     infoSlot?.let { slot ->
@@ -206,13 +194,13 @@ fun DocumentsScreen(
             onDismiss = { infoSlot = null },
         )
     }
-    deleteSlot?.let { slot ->
+    deleteClaim?.let { claim ->
         MoreConfirmDialog(
             title = "Delete Document",
             message = "Are you sure you want to delete this document? This action cannot be undone.",
             confirmLabel = "Delete",
-            onConfirm = { viewModel.delete(slot) },
-            onDismiss = { deleteSlot = null },
+            onConfirm = { viewModel.delete(claim) },
+            onDismiss = { deleteClaim = null },
         )
     }
     state.alert?.let { (title, message) ->
