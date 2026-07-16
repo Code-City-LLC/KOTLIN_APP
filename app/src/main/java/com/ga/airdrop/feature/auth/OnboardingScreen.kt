@@ -115,11 +115,13 @@ private val LAST_INTRO_PAGE = introPages.size
 private val PAGE_COUNT = introPages.size + 1
 
 /**
- * First-run onboarding — Swift FigmaOnboardingSplashViewController advances to
+ * First-install and post-logout onboarding — Swift
+ * FigmaOnboardingSplashViewController advances to
  * 40006240:24027 ("Choose Your Look"), then Continue opens the intro pager
  * nodes 40006240:23774/23798/23823/23848/23872 with Skip/Next and the 5-dash
- * indicator. Completing/skipping the intro pager marks [OnboardingStore] seen
- * and routes to auth landing.
+ * indicator. Completing/skipping the intro pager marks [OnboardingStore] seen;
+ * the navigation host then routes a signed-out customer to auth landing or an
+ * authenticated relogin to Home.
  */
 @Composable
 fun OnboardingScreen(onFinished: () -> Unit) {

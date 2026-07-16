@@ -9,6 +9,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -21,6 +22,8 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.feature.auth.AuthLandingScreen
 import com.ga.airdrop.feature.auth.LoginScreen
+import com.ga.airdrop.feature.auth.OnboardingStore
+import com.ga.airdrop.feature.auth.authenticatedEntryDestination
 import com.ga.airdrop.feature.auth.authExtraGraph
 import com.ga.airdrop.feature.calculator.calculatorGraph
 import com.ga.airdrop.feature.dropalert.dropAlertGraph
@@ -146,10 +149,15 @@ private fun androidx.navigation.NavGraphBuilder.authGraph(navController: NavHost
         )
     }
     composable(Routes.LOGIN) {
+        val context = LocalContext.current
         LoginScreen(
             onLoggedIn = {
-                navController.navigate(Routes.HOME) {
+                val target = authenticatedEntryDestination(
+                    OnboardingStore.isRequiredAfterLogin(context),
+                )
+                navController.navigate(target) {
                     popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
                 }
             },
             onRegister = { navController.navigate(Routes.SIGN_UP) },
