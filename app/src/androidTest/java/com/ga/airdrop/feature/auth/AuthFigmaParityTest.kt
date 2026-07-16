@@ -7,8 +7,10 @@ import android.provider.MediaStore
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
@@ -19,11 +21,14 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
+import com.ga.airdrop.core.designsystem.theme.TextSizeController
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
@@ -65,9 +70,8 @@ class AuthFigmaParityTest {
         assertRedFigmaLogoPixel(bitmap, xDp = 165f, yDp = 142f)
         compose.onNodeWithText("Welcome Back!").assertIsDisplayed()
         compose.onNodeWithText("Login to AirDrop").assertIsDisplayed()
-        compose.onNodeWithText("Log In").assertIsDisplayed().assertHasClickAction()
+        assertStandardAuthActionsVisible(panel)
         saveRootScreenshot("auth_login_dark_figma.png")
-        compose.onNodeWithText("Register").assertIsDisplayed()
     }
 
     @Test
@@ -75,11 +79,47 @@ class AuthFigmaParityTest {
         setLoginContent(ThemeController.Mode.LIGHT)
 
         val logo = compose.onNodeWithTag("login-logo").getUnclippedBoundsInRoot()
+        val panel = compose.onNodeWithTag("login-bottom-panel").getUnclippedBoundsInRoot()
 
         assertClose(260f, boundsWidth(logo), "Figma light login logo width")
         assertClose(72f, boundsHeight(logo), "Figma light login logo height")
         assertClose(150f, logo.top.value, "Figma light login logo top")
+        assertStandardAuthActionsVisible(panel)
         saveRootScreenshot("auth_login_light_figma.png")
+    }
+
+    @Test
+    fun loginActionsRemainReachableAtLiveSystemFontScale() {
+        var registerTapped = false
+        setLoginContent(
+            mode = ThemeController.Mode.LIGHT,
+            systemFontScale = 1.30f,
+            onRegister = { registerTapped = true },
+        )
+
+        assertScrollableAuthActionsReachable()
+        saveRootScreenshot("auth_login_system_font_130.png")
+        compose.onNodeWithTag(LoginTags.REGISTER_PROMPT).performClick()
+        assertTrue("Register must remain functional at system font scale 1.30", registerTapped)
+    }
+
+    @Test
+    fun loginActionsRemainReachableAtLargestAppTextSize() {
+        var registerTapped = false
+        try {
+            setLoginContent(
+                mode = ThemeController.Mode.DARK,
+                textSize = TextSizeController.Level.LARGEST,
+                onRegister = { registerTapped = true },
+            )
+
+            assertScrollableAuthActionsReachable()
+            saveRootScreenshot("auth_login_app_text_largest.png")
+            compose.onNodeWithTag(LoginTags.REGISTER_PROMPT).performClick()
+            assertTrue("Register must remain functional at the largest app text size", registerTapped)
+        } finally {
+            setTheme(ThemeController.Mode.LIGHT, TextSizeController.Level.STANDARD)
+        }
     }
 
     @Test
@@ -107,22 +147,35 @@ class AuthFigmaParityTest {
         saveRootScreenshot("auth_onboarding_first_intro.png")
     }
 
-    private fun setLoginContent(mode: ThemeController.Mode) {
-        setTheme(mode)
+    private fun setLoginContent(
+        mode: ThemeController.Mode,
+        systemFontScale: Float = 1.0f,
+        textSize: TextSizeController.Level = TextSizeController.Level.STANDARD,
+        onRegister: () -> Unit = {},
+    ) {
+        setTheme(mode, textSize)
         val viewModel = LoginViewModel()
         compose.setContent {
-            AirdropThemeProvider {
-                Box(
-                    Modifier
-                        .width(375.dp)
-                        .height(812.dp),
-                ) {
-                    LoginScreen(
-                        onLoggedIn = {},
-                        onRegister = {},
-                        onForgotPassword = {},
-                        viewModel = viewModel,
-                    )
+            val deviceDensity = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(
+                    density = deviceDensity.density,
+                    fontScale = systemFontScale,
+                ),
+            ) {
+                AirdropThemeProvider {
+                    Box(
+                        Modifier
+                            .width(375.dp)
+                            .height(812.dp),
+                    ) {
+                        LoginScreen(
+                            onLoggedIn = {},
+                            onRegister = onRegister,
+                            onForgotPassword = {},
+                            viewModel = viewModel,
+                        )
+                    }
                 }
             }
         }
@@ -161,11 +214,45 @@ class AuthFigmaParityTest {
         compose.waitForIdle()
     }
 
-    private fun setTheme(mode: ThemeController.Mode) {
+    private fun setTheme(
+        mode: ThemeController.Mode,
+        textSize: TextSizeController.Level = TextSizeController.Level.STANDARD,
+    ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.init(InstrumentationRegistry.getInstrumentation().targetContext)
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            ThemeController.init(context)
+            TextSizeController.init(context)
             ThemeController.set(mode)
+            TextSizeController.set(textSize)
         }
+    }
+
+    private fun assertStandardAuthActionsVisible(panel: DpRect) {
+        assertClose(812f * 0.65f, boundsHeight(panel), "Swift login panel height")
+        val submit = compose.onNodeWithTag(LoginTags.LOGIN_BUTTON)
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .getUnclippedBoundsInRoot()
+        val register = compose.onNodeWithTag(LoginTags.REGISTER_PROMPT)
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .getUnclippedBoundsInRoot()
+        assertTrue("Log In must be fully inside the panel: submit=$submit panel=$panel", submit.bottom <= panel.bottom)
+        assertTrue(
+            "Register must be fully inside the panel with bottom breathing room: register=$register panel=$panel",
+            register.bottom <= panel.bottom && panel.bottom.value - register.bottom.value >= 16f,
+        )
+    }
+
+    private fun assertScrollableAuthActionsReachable() {
+        compose.onNodeWithTag(LoginTags.LOGIN_BUTTON)
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertHasClickAction()
+        compose.onNodeWithTag(LoginTags.REGISTER_PROMPT)
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertHasClickAction()
     }
 
     private fun boundsWidth(rect: DpRect): Float = (rect.right - rect.left).value
