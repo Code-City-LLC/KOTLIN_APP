@@ -24,13 +24,13 @@
     <path
         android:pathData="M8.53753 13.8448C8.53753 9.35496 12.1777 5.71484 16.6661 5.71484C21.156 5.71484 24.7961 9.35496 24.7961 13.8448L24.7975 15.4768C24.7975 16.4419 25.0101 17.3955 25.4215 18.2697L25.9987 19.4957C26.8808 21.3703 25.5123 23.5249 23.4417 23.5249H9.89187C7.82015 23.5249 6.45283 21.3703 7.33496 19.4957L7.91225 18.2697C8.32348 17.3955 8.53623 16.4419 8.53623 15.4768L8.53753 13.8448Z"
         android:fillType="evenOdd"
-        android:strokeColor="#FFF88458"
+        android:strokeColor="#FFF46427"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:pathData="M16.6667 4V5.71499"
-        android:strokeColor="#FFF88458"
+        android:strokeColor="#FFF46427"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
