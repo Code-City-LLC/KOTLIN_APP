@@ -9,6 +9,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -21,6 +22,8 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.feature.auth.AuthLandingScreen
 import com.ga.airdrop.feature.auth.LoginScreen
+import com.ga.airdrop.feature.auth.OnboardingStore
+import com.ga.airdrop.feature.auth.authenticatedEntryDestination
 import com.ga.airdrop.feature.auth.authExtraGraph
 import com.ga.airdrop.feature.calculator.calculatorGraph
 import com.ga.airdrop.feature.dropalert.dropAlertGraph
@@ -77,8 +80,16 @@ fun AppRoot(
     // Push-notification deep links (route + referenceID) land here once the
     // graph is composed — mirrors FigmaRouteResolver deep-linking.
     val pendingPush by com.ga.airdrop.core.push.PushDeepLink.pending.collectAsState()
-    androidx.compose.runtime.LaunchedEffect(pendingPush, token, navigationUnlocked) {
-        if (pendingPush != null && navigationUnlocked) {
+    androidx.compose.runtime.LaunchedEffect(
+        pendingPush,
+        token,
+        navigationUnlocked,
+        currentRoute,
+    ) {
+        if (
+            pendingPush != null &&
+            canConsumePendingPush(navigationUnlocked, token, currentRoute)
+        ) {
             consumePendingPushIfUnlocked(navigationUnlocked, AuthTokenStore.snapshot())
                 ?.let { navController.navigate(it) }
         }
@@ -135,6 +146,20 @@ internal fun consumePendingPushIfUnlocked(
     null
 }
 
+/**
+ * Swift defers a pre-login push until Home is restored after any required
+ * onboarding. Including [currentRoute] in the caller's effect key makes the
+ * pending route replay as soon as navigation enters the authenticated graph.
+ */
+internal fun canConsumePendingPush(
+    navigationUnlocked: Boolean,
+    token: String?,
+    currentRoute: String?,
+): Boolean = navigationUnlocked &&
+    token != null &&
+    currentRoute != null &&
+    currentRoute !in AUTH_GRAPH_ROUTES
+
 internal fun shouldResetToAuthLanding(token: String?, currentRoute: String?): Boolean =
     token == null && currentRoute != null && currentRoute !in AUTH_GRAPH_ROUTES
 
@@ -146,10 +171,15 @@ private fun androidx.navigation.NavGraphBuilder.authGraph(navController: NavHost
         )
     }
     composable(Routes.LOGIN) {
+        val context = LocalContext.current
         LoginScreen(
             onLoggedIn = {
-                navController.navigate(Routes.HOME) {
+                val target = authenticatedEntryDestination(
+                    OnboardingStore.isRequiredAfterLogin(context),
+                )
+                navController.navigate(target) {
                     popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
                 }
             },
             onRegister = { navController.navigate(Routes.SIGN_UP) },

@@ -12,6 +12,7 @@ import com.ga.airdrop.feature.calculator.CalculatorHistory
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.cart.SavedForLaterStore
 import com.ga.airdrop.feature.dropalert.DropAlertPreset
+import com.ga.airdrop.feature.auth.OnboardingStore
 import com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches
 import com.ga.airdrop.feature.shop.ShopRecentSearches
 import com.ga.airdrop.feature.shop.clearShopSessionCaches
@@ -41,6 +42,17 @@ fun clearLocalUserSession(context: Context) {
     clearLegacySessionCachePrefs(appContext)
 
     PushRegistrar.onLogout()
+}
+
+/**
+ * Explicit customer logout has one extra product rule: the next successful
+ * login must enter the existing onboarding sequence before Home. Other local
+ * session boundaries (registration, account deletion, rejected bearer) keep
+ * their current routing and therefore continue to call [clearLocalUserSession].
+ */
+fun clearLocalUserSessionAfterCustomerLogout(context: Context) {
+    OnboardingStore.requireAfterNextLogin(context)
+    clearLocalUserSession(context)
 }
 
 fun clearLegacySessionCachePrefs(context: Context) {
