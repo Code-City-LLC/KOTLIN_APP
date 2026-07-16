@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
@@ -162,6 +163,8 @@ class HomeActivityTilesScreenshotTest {
             "home-activity-calculator" to Routes.CALCULATOR,
             "home-activity-drop-alert" to Routes.DROP_ALERT,
         ).forEach { (tag, route) ->
+            compose.onNodeWithTag(tag).performScrollTo()
+            compose.waitForIdle()
             compose.onNodeWithTag(tag).performClick()
             compose.runOnIdle {
                 assertEquals(route, navigatedRoutes.lastOrNull())
@@ -372,7 +375,9 @@ class HomeActivityTilesScreenshotTest {
         compose.waitUntil(timeoutMillis = 8_000) {
             compose.onAllNodesWithText(warehouseCase.expectedTitle).fetchSemanticsNodes().isNotEmpty()
         }
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap = captureBitmapWithRetry("${warehouseCase.type} warehouse destination") {
+            compose.onRoot().captureToImage().asAndroidBitmap()
+        }
         val output = File(screenshotDir(), warehouseCase.screenshot)
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -395,7 +400,9 @@ class HomeActivityTilesScreenshotTest {
     }
 
     private fun saveRootScreenshot(filename: String) {
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap = captureBitmapWithRetry(filename) {
+            compose.onRoot().captureToImage().asAndroidBitmap()
+        }
         val output = File(screenshotDir(), filename)
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -407,23 +414,43 @@ class HomeActivityTilesScreenshotTest {
     private fun saveProofScreenshot(bitmap: Bitmap, filename: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val resolver = context.contentResolver
+        val relativePath = "$PROOF_SCREENSHOT_DIR/${context.packageName}/"
+        resolver.delete(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            "${MediaStore.Images.Media.DISPLAY_NAME}=? AND " +
+                "${MediaStore.Images.Media.RELATIVE_PATH}=?",
+            arrayOf(filename, relativePath),
+        )
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, PROOF_SCREENSHOT_DIR)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         val uri = requireNotNull(
             resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values),
         ) { "Unable to create proof screenshot $filename" }
-
-        resolver.openOutputStream(uri).use { output ->
-            requireNotNull(output) { "Unable to open proof screenshot $filename" }
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        var published = false
+        try {
+            val output = requireNotNull(resolver.openOutputStream(uri)) {
+                "Unable to open proof screenshot $filename"
+            }
+            output.use {
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) {
+                    "Unable to encode proof screenshot $filename"
+                }
+            }
+            values.clear()
+            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            check(resolver.update(uri, values, null, null) > 0) {
+                "Unable to publish proof screenshot $filename"
+            }
+            published = true
+        } finally {
+            if (!published) {
+                runCatching { resolver.delete(uri, null, null) }
+            }
         }
-        values.clear()
-        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-        resolver.update(uri, values, null, null)
     }
 
     private fun setHomeContent(onNavigate: (String) -> Unit = {}) {
@@ -450,11 +477,14 @@ class HomeActivityTilesScreenshotTest {
         compose.onNodeWithText("Refer a friend").performScrollTo()
         compose.waitForIdle()
 
-        assertIconContainsColor("home-refer-friend-icon", targetColor, "Swift textDarkTitle refer icon")
-        assertIconDoesNotContainColor(
-            tag = "home-refer-friend-icon",
-            target = STALE_FIGMA_ORANGE,
-            label = "Figma orange accent must not render on Swift-precedence Home refer icon",
+        val bitmap = captureVisibleNode(
+            compose.onNodeWithTag("home-refer-friend-icon", useUnmergedTree = true),
+            "Home refer icon",
+        )
+        assertTrue("Swift textDarkTitle refer icon", bitmap.hasPixelNear(targetColor))
+        assertTrue(
+            "Figma orange accent must not render on Swift-precedence Home refer icon",
+            !bitmap.hasPixelNear(STALE_FIGMA_ORANGE),
         )
         saveRootScreenshot(screenshot)
     }
@@ -469,17 +499,11 @@ class HomeActivityTilesScreenshotTest {
         instrumentation.runOnMainSync { ThemeController.set(mode) }
 
         setHomeContent()
-        assertTextContainsColor("Read More", targetColor, "${mode.name} Read More accent")
-        forbiddenColor?.let {
-            assertTextDoesNotContainColor("Read More", it, "${mode.name} Read More stale accent")
-        }
+        assertTextAccent("Read More", targetColor, forbiddenColor, mode)
 
         compose.onNodeWithText("See More").performScrollTo()
         compose.waitForIdle()
-        assertTextContainsColor("See More", targetColor, "${mode.name} See More accent")
-        forbiddenColor?.let {
-            assertTextDoesNotContainColor("See More", it, "${mode.name} See More stale accent")
-        }
+        assertTextAccent("See More", targetColor, forbiddenColor, mode)
         saveRootScreenshot(screenshot)
     }
 
@@ -502,9 +526,13 @@ class HomeActivityTilesScreenshotTest {
             "home-activity-calculator-icon",
             "home-activity-drop-alert-icon",
         ).forEach { tag ->
-            assertIconContainsColor(tag, targetColor, "${mode.name} $tag accent")
+            val node = compose.onNodeWithTag(tag, useUnmergedTree = true)
+            node.performScrollTo()
+            compose.waitForIdle()
+            val bitmap = captureVisibleNode(node, "${mode.name} $tag")
+            assertTrue("${mode.name} $tag accent", bitmap.hasPixelNear(targetColor))
             assertIconColorDominates(
-                tag = tag,
+                bitmap = bitmap,
                 expected = targetColor,
                 alternate = alternateColor,
                 label = "${mode.name} $tag expected accent should dominate alternate",
@@ -530,29 +558,12 @@ class HomeActivityTilesScreenshotTest {
 
     private fun boundsTop(bounds: androidx.compose.ui.unit.DpRect): Float = bounds.top.value
 
-    private fun assertIconContainsColor(tag: String, target: Int, label: String) {
-        val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
-            .captureToImage()
-            .asAndroidBitmap()
-        assertTrue(label, bitmap.hasPixelNear(target))
-    }
-
-    private fun assertIconDoesNotContainColor(tag: String, target: Int, label: String) {
-        val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
-            .captureToImage()
-            .asAndroidBitmap()
-        assertTrue(label, !bitmap.hasPixelNear(target))
-    }
-
     private fun assertIconColorDominates(
-        tag: String,
+        bitmap: Bitmap,
         expected: Int,
         alternate: Int,
         label: String,
     ) {
-        val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
-            .captureToImage()
-            .asAndroidBitmap()
         val expectedCount = bitmap.pixelCountNear(expected)
         val alternateCount = bitmap.pixelCountNear(alternate)
         assertTrue(
@@ -561,18 +572,65 @@ class HomeActivityTilesScreenshotTest {
         )
     }
 
-    private fun assertTextContainsColor(text: String, target: Int, label: String) {
-        val bitmap = compose.onAllNodesWithText(text, useUnmergedTree = true)[0]
-            .captureToImage()
-            .asAndroidBitmap()
-        assertTrue(label, bitmap.hasPixelNear(target))
+    private fun assertTextAccent(
+        text: String,
+        target: Int,
+        forbidden: Int?,
+        mode: ThemeController.Mode,
+    ) {
+        val bitmap = captureVisibleNode(
+            compose.onAllNodesWithText(text, useUnmergedTree = true)[0],
+            "${mode.name} $text",
+        )
+        assertTrue("${mode.name} $text accent", bitmap.hasPixelNear(target))
+        forbidden?.let {
+            assertTrue("${mode.name} $text stale accent", !bitmap.hasPixelNear(it))
+        }
     }
 
-    private fun assertTextDoesNotContainColor(text: String, target: Int, label: String) {
-        val bitmap = compose.onAllNodesWithText(text, useUnmergedTree = true)[0]
-            .captureToImage()
-            .asAndroidBitmap()
-        assertTrue(label, !bitmap.hasPixelNear(target))
+    private fun captureVisibleNode(
+        node: SemanticsNodeInteraction,
+        label: String,
+    ): Bitmap {
+        compose.waitUntil(timeoutMillis = 5_000) { nodeHasVisibleBounds(node) }
+        compose.waitForIdle()
+        assertTrue("$label must have visible non-zero bounds", nodeHasVisibleBounds(node))
+        return captureBitmapWithRetry(label) {
+            node.captureToImage().asAndroidBitmap()
+        }
+    }
+
+    private fun nodeHasVisibleBounds(node: SemanticsNodeInteraction): Boolean = runCatching {
+        val bounds = node.getUnclippedBoundsInRoot()
+        val rootBounds = compose.onRoot().getUnclippedBoundsInRoot()
+        val visibleWidth = minOf(bounds.right, rootBounds.right) - maxOf(bounds.left, rootBounds.left)
+        val visibleHeight = minOf(bounds.bottom, rootBounds.bottom) - maxOf(bounds.top, rootBounds.top)
+        visibleWidth.value > 0f && visibleHeight.value > 0f
+    }.getOrDefault(false)
+
+    private fun captureBitmapWithRetry(label: String, capture: () -> Bitmap): Bitmap {
+        repeat(CAPTURE_ATTEMPTS) { attempt ->
+            compose.waitForIdle()
+            try {
+                val bitmap = capture()
+                check(bitmap.width > 0 && bitmap.height > 0) { "$label produced an empty bitmap" }
+                return bitmap
+            } catch (failure: Throwable) {
+                if (!failure.isTransientCaptureFailure() || attempt == CAPTURE_ATTEMPTS - 1) {
+                    throw failure
+                }
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+                Thread.sleep(CAPTURE_RETRY_DELAY_MS)
+            }
+        }
+        error("$label capture exhausted all attempts")
+    }
+
+    private fun Throwable.isTransientCaptureFailure(): Boolean {
+        val detail = message.orEmpty()
+        return detail.contains("PixelCopy") ||
+            detail.contains("width and height must be > 0") ||
+            detail.contains("produced an empty bitmap")
     }
 
     private fun Bitmap.hasPixelNear(target: Int): Boolean {
@@ -622,6 +680,8 @@ class HomeActivityTilesScreenshotTest {
         private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF88458.toInt()
         private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
         private const val COLOR_TOLERANCE = 8
+        private const val CAPTURE_ATTEMPTS = 3
+        private const val CAPTURE_RETRY_DELAY_MS = 150L
         private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/home_refer_icon"
     }
 }
