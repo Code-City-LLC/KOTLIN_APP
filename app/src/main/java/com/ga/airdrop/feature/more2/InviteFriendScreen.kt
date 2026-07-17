@@ -203,7 +203,7 @@ fun InviteFriendScreen(
             Text(
                 text = "View Referral History  \u2192",
                 style = AirdropType.body2.copy(textDecoration = TextDecoration.Underline),
-                color = colors.orangeDark,
+                color = BrandPalette.OrangeDark,
                 modifier = Modifier
                     .clickable(onClick = onViewReferralHistory)
                     .testTag("invite-friend-history-link"),
@@ -667,7 +667,7 @@ private fun ContactSheetRow(
             Text(
                 text = "Invite",
                 style = AirdropType.subtitle2.copy(textDecoration = TextDecoration.Underline),
-                color = colors.orangeMain,
+                color = BrandPalette.OrangeMain,
                 modifier = Modifier
                     .clickable { onInvite(contact) }
                     .padding(horizontal = 12.dp, vertical = 10.dp)

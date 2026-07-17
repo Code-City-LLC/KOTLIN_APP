@@ -303,12 +303,12 @@ fun AuthCheckboxRow(
                 .padding(top = 3.dp)
                 .size(16.dp)
                 .background(
-                    if (checked) AirdropTheme.colors.orangeMain else colors.gray100,
+                    if (checked) BrandPalette.OrangeMain else colors.gray100,
                     RoundedCornerShape(2.dp),
                 )
                 .border(
                     1.dp,
-                    if (checked) AirdropTheme.colors.orangeMain else colors.iconShape,
+                    if (checked) BrandPalette.OrangeMain else colors.iconShape,
                     RoundedCornerShape(2.dp),
                 )
                 .clickable(onClick = onToggle),

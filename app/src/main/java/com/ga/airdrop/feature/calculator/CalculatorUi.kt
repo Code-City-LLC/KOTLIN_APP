@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
@@ -161,7 +162,7 @@ internal fun FieldLabel(label: String, required: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Text(text = label, style = AirdropType.subtitle2, color = AirdropTheme.colors.textDarkTitle)
         if (required) {
-            Text(text = "*", style = AirdropType.subtitle2, color = AirdropTheme.colors.orangeMain)
+            Text(text = "*", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
         }
     }
 }
@@ -213,7 +214,7 @@ internal fun CalcInputField(
                     value = value,
                     onValueChange = onValueChange,
                     textStyle = textStyle.copy(color = colors.textDarkTitle),
-                    cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
+                    cursorBrush = SolidColor(BrandPalette.OrangeMain),
                     singleLine = true,
                     enabled = enabled,
                     keyboardOptions = keyboardOptions,
@@ -319,7 +320,7 @@ internal fun OptionPickerSheet(
                 Text(
                     text = option,
                     style = if (isSelected) AirdropType.title2 else AirdropType.subtitle1,
-                    color = if (isSelected) AirdropTheme.colors.orangeMain else colors.textDarkTitle,
+                    color = if (isSelected) BrandPalette.OrangeMain else colors.textDarkTitle,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
@@ -344,7 +345,7 @@ internal fun SimpleAlertDialog(title: String, message: String, onDismiss: () -> 
         text = { Text(text = message, style = AirdropType.body2, color = colors.textDescription) },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = "OK", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
+                Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
             }
         },
     )

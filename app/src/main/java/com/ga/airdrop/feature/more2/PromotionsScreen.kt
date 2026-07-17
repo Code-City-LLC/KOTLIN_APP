@@ -38,6 +38,7 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.data.model.PromotionalBanner
 
@@ -158,12 +159,12 @@ private fun PromotionCard(banner: PromotionalBanner, index: Int) {
                 Text(
                     text = if (expanded) "View Less" else "View Details",
                     style = AirdropType.subtitle2,
-                    color = AirdropTheme.colors.orangeMain,
+                    color = BrandPalette.OrangeMain,
                 )
                 androidx.compose.foundation.Image(
                     painter = painterResource(R.drawable.ic_chevron),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
+                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
                     modifier = Modifier
                         .size(14.dp)
                         .rotate(if (expanded) 180f else 0f),

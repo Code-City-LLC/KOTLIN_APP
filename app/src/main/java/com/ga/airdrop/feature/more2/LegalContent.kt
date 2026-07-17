@@ -38,6 +38,7 @@ import androidx.core.text.HtmlCompat
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /*
@@ -119,7 +120,7 @@ internal fun LegalHtmlContent(html: String, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     val bodyColor = colors.textDescription.toArgb()
     val headingColor = colors.textDarkTitle.toArgb()
-    val linkColor = AirdropTheme.colors.orangeMain.toArgb()
+    val linkColor = BrandPalette.OrangeMain.toArgb()
     val prepared = remember(html, bodyColor, headingColor) {
         colorLegalHeadings(
             HtmlCompat.fromHtml(prepareLegalHtml(html), HtmlCompat.FROM_HTML_MODE_LEGACY),

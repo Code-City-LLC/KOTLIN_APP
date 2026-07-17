@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.data.model.ReferredFriend
@@ -60,7 +61,7 @@ fun ReferredFriendsScreen(
             when {
                 state.loading -> {
                     CircularProgressIndicator(
-                        color = AirdropTheme.colors.orangeMain,
+                        color = BrandPalette.OrangeMain,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .padding(top = 60.dp)

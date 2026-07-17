@@ -56,6 +56,7 @@ import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 // Shared form chrome from the sibling calculator feature (same owner) —
@@ -286,7 +287,7 @@ private fun InsuranceInfoCard() {
                 pushStringAnnotation(tag = "link", annotation = "terms")
                 withStyle(
                     SpanStyle(
-                        color = AirdropTheme.colors.orangeMain,
+                        color = BrandPalette.OrangeMain,
                         textDecoration = TextDecoration.Underline,
                     )
                 ) {
@@ -331,7 +332,7 @@ private fun DescriptionField(value: String, onValueChange: (String) -> Unit) {
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-                cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
+                cursorBrush = SolidColor(BrandPalette.OrangeMain),
                 modifier = Modifier.fillMaxSize(),
             )
         }
