@@ -36,8 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.ga.airdrop.R
 import com.ga.airdrop.core.auth.AuthTokenStore
-import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
 import com.ga.airdrop.core.push.QuietHoursStore
 import com.ga.airdrop.core.security.BiometricGate
@@ -119,7 +119,7 @@ internal fun BiometricLockContent(
             Image(
                 painter = painterResource(R.drawable.ic_lock),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
+                colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
                 modifier = Modifier.size(80.dp),
             )
             Spacer(Modifier.height(16.dp))
@@ -145,7 +145,7 @@ internal fun BiometricLockContent(
                     .fillMaxWidth()
                     .height(56.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(AirdropTheme.colors.buttonStatic)
+                    .background(BrandPalette.ButtonStatic)
                     .clickable { attemptUnlock() }
                     .testTag("biometric-lock-unlock"),
                 contentAlignment = Alignment.Center,

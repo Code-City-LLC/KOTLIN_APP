@@ -173,7 +173,7 @@ fun NotificationSettingsScreen(
                     titleStyle = AirdropType.body1,
                     rowStyle = ToggleRowStyle.Sub,
                     iconRes = R.drawable.ic_notifications,
-                    iconTint = AirdropTheme.colors.orangeMain,
+                    iconTint = BrandPalette.OrangeMain,
                     checked = state.packagePush,
                     enabled = packageSubEnabled,
                     onChange = { on ->
@@ -225,7 +225,7 @@ fun NotificationSettingsScreen(
                     titleStyle = AirdropType.body1,
                     rowStyle = ToggleRowStyle.Sub,
                     iconRes = R.drawable.ic_notifications,
-                    iconTint = AirdropTheme.colors.orangeMain,
+                    iconTint = BrandPalette.OrangeMain,
                     checked = state.promosPush,
                     enabled = promosSubEnabled,
                     onChange = { on ->
@@ -386,7 +386,7 @@ private fun ToggleRow(
             onCheckedChange = onChange,
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedTrackColor = AirdropTheme.colors.orangeMain,
+                checkedTrackColor = BrandPalette.OrangeMain,
                 checkedThumbColor = BrandPalette.White,
                 uncheckedTrackColor = colors.gray300,
                 uncheckedThumbColor = BrandPalette.White,

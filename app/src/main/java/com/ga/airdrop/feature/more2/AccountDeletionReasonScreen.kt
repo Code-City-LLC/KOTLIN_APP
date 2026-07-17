@@ -133,7 +133,7 @@ fun AccountDeletionReasonScreen(
 @Composable
 private fun ReasonRow(reason: String, selected: Boolean, onSelect: () -> Unit) {
     val colors = AirdropTheme.colors
-    val borderColor = if (selected) AirdropTheme.colors.orangeMain else colors.iconShape
+    val borderColor = if (selected) BrandPalette.OrangeMain else colors.iconShape
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -158,7 +158,7 @@ private fun ReasonRow(reason: String, selected: Boolean, onSelect: () -> Unit) {
                     Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(AirdropTheme.colors.orangeMain)
+                        .background(BrandPalette.OrangeMain)
                 )
             }
         }

@@ -251,7 +251,7 @@ private fun DeliveryMethodDialog(
                         Text(
                             text = if (isCurrent) "${method.displayName} selected" else method.displayName,
                             style = AirdropType.subtitle1,
-                            color = if (isCurrent) AirdropTheme.colors.orangeMain else colors.textDarkTitle,
+                            color = if (isCurrent) BrandPalette.OrangeMain else colors.textDarkTitle,
                             modifier = Modifier.weight(1f),
                         )
                     }

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
@@ -84,7 +85,7 @@ fun AccountDeletionScreen(
                     onValueChange = viewModel::onEmail,
                     placeholder = "e.g. kemi2627@yahoo.com",
                     required = true,
-                    asteriskColor = AirdropTheme.colors.orangeMain,
+                    asteriskColor = BrandPalette.OrangeMain,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     fieldTag = "account-deletion-email-input",
                     cardTag = "account-deletion-email-card",
@@ -95,7 +96,7 @@ fun AccountDeletionScreen(
                     onValueChange = viewModel::onPassword,
                     placeholder = "**********",
                     required = true,
-                    asteriskColor = AirdropTheme.colors.orangeMain,
+                    asteriskColor = BrandPalette.OrangeMain,
                     isPassword = true,
                     passwordVisible = state.passwordVisible,
                     onTogglePasswordVisibility = viewModel::togglePasswordVisibility,

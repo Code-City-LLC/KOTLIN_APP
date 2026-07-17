@@ -220,7 +220,7 @@ private fun SearchRow(value: String, onValueChange: (String) -> Unit) {
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-                cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
+                cursorBrush = SolidColor(BrandPalette.OrangeMain),
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -343,7 +343,7 @@ private fun SearchResultCard(
             Text(
                 text = category.displayName,
                 style = AirdropType.subtitle3,
-                color = AirdropTheme.colors.orangeMain,
+                color = BrandPalette.OrangeMain,
                 maxLines = 1,
             )
             Text(
@@ -417,7 +417,7 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
                                     .padding(top = 8.dp)
                                     .size(4.dp)
                                     .testTag("restricted-detail-item-bullet-$index")
-                                    .background(AirdropTheme.colors.orangeMain)
+                                    .background(BrandPalette.OrangeMain)
                             )
                             Spacer(Modifier.width(Spacing.sm))
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -536,7 +536,7 @@ private fun RestrictedItemsLegalInfo(onBack: () -> Unit) {
                                         .padding(top = 8.dp)
                                         .size(4.dp)
                                         .testTag("restricted-legal-bullet-$index")
-                                        .background(AirdropTheme.colors.orangeMain)
+                                        .background(BrandPalette.OrangeMain)
                                 )
                                 Spacer(Modifier.width(Spacing.sm))
                                 Text(
@@ -584,7 +584,7 @@ private fun RestrictedItemsLegalInfo(onBack: () -> Unit) {
                                 Text(
                                     text = authority.label,
                                     style = AirdropType.body2,
-                                    color = AirdropTheme.colors.orangeMain,
+                                    color = BrandPalette.OrangeMain,
                                     modifier = Modifier
                                         .testTag("restricted-legal-authority-link-$index")
                                         .clickable { openLink(authority.url) },
@@ -609,7 +609,7 @@ private fun RestrictedItemsLegalInfo(onBack: () -> Unit) {
                         Text(
                             text = RestrictedLegalInfo.bisLink.label,
                             style = AirdropType.body2,
-                            color = AirdropTheme.colors.orangeMain,
+                            color = BrandPalette.OrangeMain,
                             modifier = Modifier
                                 .testTag("restricted-legal-bis-link")
                                 .clickable { openLink(RestrictedLegalInfo.bisLink.url) },

@@ -52,6 +52,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -118,7 +119,7 @@ fun DocumentsScreen(
                     PullToRefreshDefaults.Indicator(
                         state = ptrState,
                         isRefreshing = state.refreshing,
-                        color = AirdropTheme.colors.orangeMain,
+                        color = BrandPalette.OrangeMain,
                         modifier = Modifier.align(Alignment.TopCenter),
                     )
                 },
@@ -134,7 +135,7 @@ fun DocumentsScreen(
                 ) {
                     if (state.loading && state.files.isEmpty()) {
                         Box(Modifier.fillMaxWidth().padding(top = Spacing.xl), Alignment.Center) {
-                            CircularProgressIndicator(color = AirdropTheme.colors.orangeMain)
+                            CircularProgressIndicator(color = BrandPalette.OrangeMain)
                         }
                     }
                     DOCUMENT_SLOTS.forEach { slot ->
@@ -444,7 +445,7 @@ private fun PendingUploadSection(
                     if (file.mimeType == "application/pdf") R.drawable.ic_pdf else R.drawable.ic_document_list,
                 ),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
+                colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
                 modifier = Modifier.size(28.dp),
             )
             Column(Modifier.weight(1f)) {
@@ -484,7 +485,7 @@ private fun PendingUploadSection(
                 .fillMaxWidth()
                 .height(44.dp)
                 .clip(RoundedCornerShape(Radius.xs))
-                .background(if (uploading) colors.textPlaceholder else AirdropTheme.colors.orangeMain)
+                .background(if (uploading) colors.textPlaceholder else BrandPalette.OrangeMain)
                 .clickable(enabled = !uploading, onClick = onCommit)
                 .testTag("documents-commit-upload-$tagSuffix"),
             contentAlignment = Alignment.Center,
@@ -503,7 +504,7 @@ private fun PendingUploadSection(
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
-                    color = AirdropTheme.colors.orangeMain,
+                    color = BrandPalette.OrangeMain,
                     strokeWidth = 2.dp,
                 )
                 Text(
@@ -556,7 +557,7 @@ private fun SplitAction(
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = AirdropTheme.colors.orangeMain,
+                color = BrandPalette.OrangeMain,
                 strokeWidth = 2.dp,
             )
         } else {

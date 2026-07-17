@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
 
@@ -146,7 +147,7 @@ private fun RestrictedShipmentsCard(onLinkClick: () -> Unit) {
                 pushStringAnnotation(tag = "link", annotation = "restrictedItems")
                 withStyle(
                     SpanStyle(
-                        color = AirdropTheme.colors.orangeMain,
+                        color = BrandPalette.OrangeMain,
                         textDecoration = TextDecoration.Underline,
                     )
                 ) {
