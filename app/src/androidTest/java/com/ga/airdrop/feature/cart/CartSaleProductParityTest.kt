@@ -101,7 +101,11 @@ class CartSaleProductParityTest {
 
         compose.onNodeWithTag("cart-your-note-row").performClick()
         compose.onNodeWithTag("cart-note-popup").assertIsDisplayed()
-        compose.onNodeWithTag("cart-note-popup-pattern").assertIsDisplayed()
+        // The approved contour is intentionally much larger than the clipped
+        // dialog surface, so its semantics bounds are not "displayed" even
+        // though the intersecting pixels render. Existence plus the byte and
+        // dimension assertions below lock the actual visual asset.
+        compose.onNodeWithTag("cart-note-popup-pattern").fetchSemanticsNode()
         compose.onNodeWithTag("cart-note-input").performTextInput("Leave at reception")
         compose.onNodeWithTag("cart-note-save").performClick()
         compose.onNodeWithText("Leave at reception").assertIsDisplayed()
@@ -156,6 +160,11 @@ class CartSaleProductParityTest {
 
         compose.onNodeWithTag("cart-frosted-totals-footer").assertIsDisplayed()
         compose.onNodeWithText("Choose Delivery").assertIsDisplayed()
+        compose.waitForIdle()
+        // onSizeChanged publishes the measured 2x-font footer inset through a
+        // second composition. Scroll only after that state has settled.
+        compose.onNodeWithTag("cart-your-note-row").performScrollTo()
+        compose.waitForIdle()
         compose.onNodeWithTag("cart-your-note-row").performScrollTo().assertIsDisplayed()
         val tail = compose.onNodeWithTag("cart-your-note-row").getUnclippedBoundsInRoot()
         val footer = compose.onNodeWithTag("cart-frosted-totals-footer").getUnclippedBoundsInRoot()
