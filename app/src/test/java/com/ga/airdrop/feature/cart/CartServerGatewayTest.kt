@@ -55,7 +55,7 @@ class CartServerGatewayTest {
         val line = CartPackage(
             id = 5,
             status = null,
-            statusName = "Ready for Pickup",
+            statusName = "  rEaDy FoR pIcKuP  ",
         ).toCartLine()
 
         assertEquals(7, line.statusCode)
@@ -72,5 +72,31 @@ class CartServerGatewayTest {
 
         assertEquals(18, line.statusCode)
         assertTrue(!line.isCheckoutEligible())
+    }
+
+    @Test
+    fun `non-ready status name never synthesizes a cart status`() {
+        val line = CartPackage(id = 7, statusName = "Delivered").toCartLine()
+
+        assertNull(line.statusCode)
+        assertTrue(!line.isCheckoutEligible())
+    }
+
+    @Test
+    fun `blank status name remains unknown`() {
+        val line = CartPackage(id = 8, statusName = "   ").toCartLine()
+
+        assertNull(line.statusCode)
+        assertTrue(!line.isCheckoutEligible())
+    }
+
+    @Test
+    fun `unknown and fuzzy status names remain unknown`() {
+        listOf("Unknown", "Ready for Pickup at Kingston", "Ready").forEachIndexed { index, name ->
+            val line = CartPackage(id = 9 + index, statusName = name).toCartLine()
+
+            assertNull(name, line.statusCode)
+            assertTrue(name, !line.isCheckoutEligible())
+        }
     }
 }

@@ -274,6 +274,90 @@ class CartViewModelCheckoutTest {
     }
 
     @Test
+    fun `pending hosted checkout blocks sale and package removal without mutation`() = runTest {
+        val sale = sale(10, 910)
+        val packageLine = packageLine(11, 911)
+        val lines = listOf(sale, packageLine)
+        lines.forEach(CartStore::add)
+        orderSummaryFlow(lines)
+        val creation = requireNotNull(CheckoutFlowStore.beginHostedCheckoutCreation(ownerA))
+        val pending = requireNotNull(
+            CheckoutFlowStore.recordHostedCheckout(ownerA, creation.id, "cs_remove_blocked"),
+        )
+        val flowBefore = requireNotNull(CheckoutFlowStore.current(ownerA))
+        val cartBefore = CartStore.items.value
+        val gateway = FakeCartGateway(listOf(packageLine))
+        val viewModel = viewModel(FakeCheckout(), FakeBoundary(ownerA), gateway)
+        runCurrent()
+
+        viewModel.removeOrderSummaryItem(sale)
+        viewModel.removeOrderSummaryItem(packageLine)
+        advanceUntilIdle()
+
+        assertEquals(cartBefore, CartStore.items.value)
+        assertEquals(0, gateway.mutationCalls)
+        assertEquals(flowBefore, CheckoutFlowStore.current(ownerA))
+        assertEquals(pending, CheckoutFlowStore.pending(ownerA))
+        assertNull(CheckoutFlowStore.creating(ownerA))
+        assertTrue(viewModel.isOrderSummaryRemovalLocked())
+    }
+
+    @Test
+    fun `pending checkout creation blocks sale and package removal without mutation`() = runTest {
+        val sale = sale(12, 912)
+        val packageLine = packageLine(13, 913)
+        val lines = listOf(sale, packageLine)
+        lines.forEach(CartStore::add)
+        orderSummaryFlow(lines)
+        val creation = requireNotNull(CheckoutFlowStore.beginHostedCheckoutCreation(ownerA))
+        val flowBefore = requireNotNull(CheckoutFlowStore.current(ownerA))
+        val cartBefore = CartStore.items.value
+        val gateway = FakeCartGateway(listOf(packageLine))
+        val viewModel = viewModel(FakeCheckout(), FakeBoundary(ownerA), gateway)
+        runCurrent()
+
+        viewModel.removeOrderSummaryItem(sale)
+        viewModel.removeOrderSummaryItem(packageLine)
+        advanceUntilIdle()
+
+        assertEquals(cartBefore, CartStore.items.value)
+        assertEquals(0, gateway.mutationCalls)
+        assertEquals(flowBefore, CheckoutFlowStore.current(ownerA))
+        assertEquals(creation, CheckoutFlowStore.creating(ownerA))
+        assertNull(CheckoutFlowStore.pending(ownerA))
+        assertTrue(viewModel.isOrderSummaryRemovalLocked())
+    }
+
+    @Test
+    fun `late transition refusal preserves pending payment authority`() = runTest {
+        val packageLine = packageLine(14, 914)
+        CartStore.add(packageLine)
+        orderSummaryFlow(packageLine)
+        val flowBefore = requireNotNull(CheckoutFlowStore.current(ownerA))
+        lateinit var pending: PendingHostedCheckout
+        val gateway = FakeCartGateway(listOf(packageLine)) {
+            val creation = requireNotNull(CheckoutFlowStore.beginHostedCheckoutCreation(ownerA))
+            pending = requireNotNull(
+                CheckoutFlowStore.recordHostedCheckout(ownerA, creation.id, "cs_late_remove"),
+            )
+        }
+        val viewModel = viewModel(FakeCheckout(), FakeBoundary(ownerA), gateway)
+        runCurrent()
+
+        viewModel.removeOrderSummaryItem(packageLine)
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.mutationCalls)
+        assertTrue(CartStore.items.value.isEmpty())
+        assertEquals(flowBefore, CheckoutFlowStore.current(ownerA))
+        assertEquals(pending, CheckoutFlowStore.pending(ownerA))
+        assertNull(CheckoutFlowStore.creating(ownerA))
+        assertFalse(viewModel.state.value.orderSummaryRestartNav)
+        assertEquals("Payment still pending", viewModel.state.value.errorTitle)
+        assertTrue(viewModel.isOrderSummaryRemovalLocked())
+    }
+
+    @Test
     fun `profile GET carries captured provenance and replacement owner cannot apply response`() = runTest {
         val line = sale(9, 909)
         CartStore.add(line)
@@ -315,15 +399,23 @@ class CartViewModelCheckoutTest {
         checkout: ShopCheckoutRepository,
         boundary: FakeBoundary,
         line: CartStore.CartLine,
+    ) = viewModel(checkout, boundary, FakeCartGateway(line))
+
+    private fun viewModel(
+        checkout: ShopCheckoutRepository,
+        boundary: FakeBoundary,
+        cartServer: CartServerGateway,
     ) = CartViewModel(
         checkout = checkout,
-        cartServer = FakeCartGateway(line),
+        cartServer = cartServer,
         sessionBoundary = boundary,
         profileRepository = FakeProfileRepository,
     )
 
-    private fun orderSummaryFlow(line: CartStore.CartLine) {
-        val flow = requireNotNull(CheckoutFlowStore.start(ownerA, listOf(line)))
+    private fun orderSummaryFlow(line: CartStore.CartLine) = orderSummaryFlow(listOf(line))
+
+    private fun orderSummaryFlow(lines: List<CartStore.CartLine>) {
+        val flow = requireNotNull(CheckoutFlowStore.start(ownerA, lines))
         requireNotNull(
             CheckoutFlowStore.update(ownerA, flow.id) {
                 it.copy(currency = "USD", phase = CheckoutPhase.ORDER_SUMMARY)
@@ -338,6 +430,16 @@ class CartViewModelCheckoutTest {
         priceUsd = 12.0,
         kind = CartStore.CartLineKind.AUCTION,
         isAuction = true,
+    )
+
+    private fun packageLine(id: Int, packageId: Int) = CartStore.CartLine(
+        id = id,
+        packageId = packageId,
+        title = "Package $id",
+        priceUsd = 14.0,
+        kind = CartStore.CartLineKind.PACKAGE,
+        statusCode = 7,
+        serverConfirmed = true,
     )
 
     private class FakeCheckout(
@@ -384,12 +486,35 @@ class CartViewModelCheckoutTest {
         override suspend fun billingProfile(): Result<ShopBillingProfile> = Result.success(ShopBillingProfile())
     }
 
-    private class FakeCartGateway(private val line: CartStore.CartLine) : CartServerGateway {
-        override suspend fun cart(expectedSession: AuthTokenStore.RequestProvenance) = Result.success(listOf(line))
-        override suspend fun addPackage(packageId: Int, expectedSession: AuthTokenStore.RequestProvenance) =
-            Result.success(Unit)
-        override suspend fun removePackage(packageId: Int, expectedSession: AuthTokenStore.RequestProvenance) =
-            Result.success(Unit)
+    private class FakeCartGateway(
+        private val lines: List<CartStore.CartLine>,
+        private val onRemovePackage: (() -> Unit)? = null,
+    ) : CartServerGateway {
+        constructor(
+            line: CartStore.CartLine,
+            onRemovePackage: (() -> Unit)? = null,
+        ) : this(listOf(line), onRemovePackage)
+
+        var mutationCalls = 0
+
+        override suspend fun cart(expectedSession: AuthTokenStore.RequestProvenance) = Result.success(lines)
+
+        override suspend fun addPackage(
+            packageId: Int,
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<Unit> {
+            mutationCalls++
+            return Result.success(Unit)
+        }
+
+        override suspend fun removePackage(
+            packageId: Int,
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<Unit> {
+            mutationCalls++
+            onRemovePackage?.invoke()
+            return Result.success(Unit)
+        }
     }
 
     private class FakeBoundary(initial: AuthenticatedSessionOwner?) : AuthenticatedSessionBoundary {

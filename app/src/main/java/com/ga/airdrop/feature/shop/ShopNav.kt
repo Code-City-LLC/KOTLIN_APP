@@ -198,6 +198,7 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 exchangeUsdToJmd = rate,
                 totalCharges = totalCharges,
                 removingKeys = state.mutatingKeys,
+                removalLocked = cartViewModel.isOrderSummaryRemovalLocked(),
                 paying = state.orderPaying,
                 errorTitle = state.errorTitle,
                 errorMessage = state.errorMessage,

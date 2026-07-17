@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -288,6 +289,32 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("ARD0000000042").assertDoesNotExist()
         compose.onNodeWithTag("order-summary-sale-title-42").assertTextEquals("Sale watch")
         compose.onNodeWithTag("order-summary-sale-price-42").assertTextEquals("20.00 USD")
+        val saleCardBounds = compose.onNodeWithTag("order-summary-sale-42").getUnclippedBoundsInRoot()
+        val saleImageBounds = compose.onNodeWithTag("order-summary-sale-image-42").getUnclippedBoundsInRoot()
+        val saleTrashBounds = compose.onNodeWithTag("order-summary-remove-auction-42").getUnclippedBoundsInRoot()
+        assertEquals(
+            "Sale image width must remain fixed",
+            84f,
+            (saleImageBounds.right - saleImageBounds.left).value,
+            0.5f,
+        )
+        assertEquals(
+            "Sale image height must remain fixed",
+            84f,
+            (saleImageBounds.bottom - saleImageBounds.top).value,
+            0.5f,
+        )
+        assertEquals(
+            "Sale trash must share the image well's top edge",
+            saleImageBounds.top.value,
+            saleTrashBounds.top.value,
+            0.5f,
+        )
+        assertTrue(
+            "Sale trash must remain in the card's top-right region",
+            saleTrashBounds.left.value > saleImageBounds.right.value &&
+                saleTrashBounds.right.value <= saleCardBounds.right.value,
+        )
         compose.onNodeWithTag("cart-macbook-hero").assertDoesNotExist()
         compose.onNodeWithText("Basket (2 Items)").assertDoesNotExist()
         compose.onNodeWithText("Your Note").assertDoesNotExist()
@@ -304,6 +331,49 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("Make Payment").performClick()
         assertEquals(1, makePaymentCalls.get())
         assertEquals("Opening/confirming payment UI must not clear cart rows", 2, CartStore.count)
+    }
+
+    @Test
+    fun orderSummaryDisablesAllTrashActionsWhilePaymentAuthorityIsLocked() {
+        val removeCalls = AtomicInteger()
+        val lines = listOf(
+            CartStore.CartLine(
+                id = 51,
+                packageId = 7051,
+                title = "Locked package",
+                kind = CartStore.CartLineKind.PACKAGE,
+                statusCode = 7,
+                serverConfirmed = true,
+            ),
+            CartStore.CartLine(
+                id = 52,
+                packageId = 9052,
+                title = "Locked sale",
+                kind = CartStore.CartLineKind.AUCTION,
+                isAuction = true,
+            ),
+        )
+        compose.setContent {
+            AirdropThemeProvider {
+                OrderSummaryScreen(
+                    model = OrderSummaryUiModel(
+                        lines = lines,
+                        removalLocked = true,
+                    ),
+                    onBack = {},
+                    onNoteChange = {},
+                    onRemoveItem = { removeCalls.incrementAndGet() },
+                    onMakePayment = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag("order-summary-remove-package-51").assertIsNotEnabled()
+        compose.onNodeWithTag("order-summary-remove-auction-52").assertIsNotEnabled()
+        compose.onNodeWithTag("order-summary-remove-package-51").performClick()
+        compose.onNodeWithTag("order-summary-remove-auction-52").performClick()
+        compose.waitForIdle()
+        assertEquals("Locked trash controls must dispatch zero callbacks", 0, removeCalls.get())
     }
 
     @Test

@@ -412,6 +412,12 @@ class CartViewModel(
         return CheckoutFlowStore.current(owner)
     }
 
+    /** Removal must stay closed for every durable Stripe authority state. */
+    fun isOrderSummaryRemovalLocked(): Boolean {
+        val owner = currentOwner() ?: return true
+        return _state.value.orderPaying || hasDurablePaymentAuthority(owner)
+    }
+
     /**
      * Order Summary removal is deliberately sequenced after the canonical
      * cart mutation. Packages wait for Laravel DELETE success; Sale rows use
@@ -420,7 +426,7 @@ class CartViewModel(
      */
     fun removeOrderSummaryItem(line: CartStore.CartLine) {
         if (_state.value.orderPaying) {
-            return orderError(
+            return orderSummaryRemovalError(
                 "Checkout in progress",
                 "Wait for the secure checkout request to finish before changing this order.",
             )
@@ -429,6 +435,18 @@ class CartViewModel(
             "Sign in required",
             "Log in to your Airdropja account before changing this order.",
         )
+        val pendingHosted = CheckoutFlowStore.pending(owner) != null
+        val pendingCreation = CheckoutFlowStore.creating(owner) != null
+        if (pendingHosted || pendingCreation) {
+            return orderSummaryRemovalError(
+                if (pendingHosted) "Payment still pending" else "Payment status unknown",
+                if (pendingHosted) {
+                    "This order has a pending payment. Check Shipments before changing its items."
+                } else {
+                    "A checkout request may already have reached Stripe. Check Shipments before changing this order."
+                },
+            )
+        }
         val flow = CheckoutFlowStore.current(owner)?.takeIf {
             it.phase == CheckoutPhase.ORDER_SUMMARY && line.key in it.cartKeys
         } ?: return orderError(
@@ -455,12 +473,20 @@ class CartViewModel(
                     it.copy(orderSummaryRestartNav = true)
                 }
                 null -> {
-                    CheckoutFlowStore.clear()
+                    val paymentAuthorityPending = hasDurablePaymentAuthority(owner)
                     _state.update {
                         it.copy(
-                            orderSummaryRestartNav = true,
-                            errorTitle = "Checkout restarted",
-                            errorMessage = "The item was removed, but the order changed. Review your cart before checking out again.",
+                            orderSummaryRestartNav = !paymentAuthorityPending,
+                            errorTitle = if (paymentAuthorityPending) {
+                                "Payment still pending"
+                            } else {
+                                "Checkout restarted"
+                            },
+                            errorMessage = if (paymentAuthorityPending) {
+                                "The cart changed while payment was pending. Check Shipments before taking another action."
+                            } else {
+                                "The item was removed, but the order changed. Review your cart before checking out again."
+                            },
                         )
                     }
                 }
@@ -674,6 +700,9 @@ class CartViewModel(
         return current
     }
 
+    private fun hasDurablePaymentAuthority(owner: AuthenticatedSessionOwner): Boolean =
+        CheckoutFlowStore.pending(owner) != null || CheckoutFlowStore.creating(owner) != null
+
     private fun capturedLines(flow: CheckoutFlow): List<CartStore.CartLine>? {
         if (flow.cartKeys.isEmpty() || flow.cartKeys.distinct().size != flow.cartKeys.size) return null
         val byKey = CartStore.items.value.associateBy(CartStore.CartLine::key)
@@ -701,6 +730,15 @@ class CartViewModel(
                 orderPaying = false,
                 checkoutUrl = null,
                 checkoutSessionId = null,
+                errorTitle = title,
+                errorMessage = message,
+            )
+        }
+    }
+
+    private fun orderSummaryRemovalError(title: String, message: String) {
+        _state.update {
+            it.copy(
                 errorTitle = title,
                 errorMessage = message,
             )

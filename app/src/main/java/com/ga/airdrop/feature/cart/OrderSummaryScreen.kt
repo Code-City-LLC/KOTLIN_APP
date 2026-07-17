@@ -53,6 +53,7 @@ data class OrderSummaryUiModel(
     val taxUsd: Double = 5.0,
     val totalCharges: Double = 0.0,
     val removingKeys: Set<CartStore.CartLineKey> = emptySet(),
+    val removalLocked: Boolean = false,
     val paying: Boolean = false,
     val errorTitle: String? = null,
     val errorMessage: String? = null,
@@ -99,6 +100,7 @@ fun OrderSummaryScreen(
                     lines = packageLines,
                     showInfo = true,
                     removingKeys = model.removingKeys,
+                    removalLocked = model.removalLocked,
                     onRemoveItem = onRemoveItem,
                 )
             }
@@ -108,6 +110,7 @@ fun OrderSummaryScreen(
                     lines = saleLines,
                     showInfo = false,
                     removingKeys = model.removingKeys,
+                    removalLocked = model.removalLocked,
                     onRemoveItem = onRemoveItem,
                 )
             }
@@ -167,6 +170,7 @@ private fun OrderSummaryGroup(
     lines: List<CartStore.CartLine>,
     showInfo: Boolean,
     removingKeys: Set<CartStore.CartLineKey>,
+    removalLocked: Boolean,
     onRemoveItem: (CartStore.CartLine) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -190,12 +194,14 @@ private fun OrderSummaryGroup(
                 OrderSummarySaleCard(
                     line = line,
                     removing = line.key in removingKeys,
+                    removalLocked = removalLocked,
                     onRemove = { onRemoveItem(line) },
                 )
             } else {
                 OrderSummaryPackageCard(
                     line = line,
                     removing = line.key in removingKeys,
+                    removalLocked = removalLocked,
                     onRemove = { onRemoveItem(line) },
                 )
             }
@@ -207,6 +213,7 @@ private fun OrderSummaryGroup(
 private fun OrderSummaryPackageCard(
     line: CartStore.CartLine,
     removing: Boolean,
+    removalLocked: Boolean,
     onRemove: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
@@ -225,7 +232,11 @@ private fun OrderSummaryPackageCard(
             OrderSummaryValue("Description", line.title)
             OrderSummaryValue("Price", formatUsdPlain(line.priceUsd * line.qty), price = true)
         }
-        OrderSummaryRemoveButton(line = line, removing = removing, onRemove = onRemove)
+        OrderSummaryRemoveButton(
+            line = line,
+            disabled = removing || removalLocked,
+            onRemove = onRemove,
+        )
     }
 }
 
@@ -233,6 +244,7 @@ private fun OrderSummaryPackageCard(
 private fun OrderSummarySaleCard(
     line: CartStore.CartLine,
     removing: Boolean,
+    removalLocked: Boolean,
     onRemove: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
@@ -300,21 +312,27 @@ private fun OrderSummarySaleCard(
                 modifier = Modifier.testTag("order-summary-sale-price-${line.id}"),
             )
         }
-        OrderSummaryRemoveButton(line = line, removing = removing, onRemove = onRemove)
+        OrderSummaryRemoveButton(
+            line = line,
+            disabled = removing || removalLocked,
+            onRemove = onRemove,
+            modifier = Modifier.align(Alignment.Top),
+        )
     }
 }
 
 @Composable
 private fun OrderSummaryRemoveButton(
     line: CartStore.CartLine,
-    removing: Boolean,
+    disabled: Boolean,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
     Box(
-        Modifier
+        modifier
             .size(24.dp)
-            .clickable(enabled = !removing, onClick = onRemove)
+            .clickable(enabled = !disabled, onClick = onRemove)
             .testTag(
                 "order-summary-remove-${line.resolvedKind.name.lowercase(Locale.US)}-${line.id}",
             ),
@@ -324,7 +342,7 @@ private fun OrderSummaryRemoveButton(
             painter = painterResource(R.drawable.ic_trash),
             contentDescription = "Remove ${line.title}",
             colorFilter = ColorFilter.tint(
-                if (removing) colors.textDescription else colors.textDarkTitle,
+                if (disabled) colors.textDescription else colors.textDarkTitle,
             ),
             modifier = Modifier.size(20.dp),
         )
