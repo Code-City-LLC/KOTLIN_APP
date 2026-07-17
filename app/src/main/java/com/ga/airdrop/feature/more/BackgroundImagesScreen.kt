@@ -150,7 +150,7 @@ private fun BackgroundTile(
                     .padding(Spacing.md)
                     .size(44.dp)
                     .testTag("background-selected-${choice.id}")
-                    .background(BrandPalette.OrangeMain, CircleShape),
+                    .background(AirdropTheme.colors.orangeMain, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
@@ -165,7 +165,7 @@ private fun BackgroundTile(
                     .padding(Spacing.md)
                     .height(28.dp)
                     .testTag("background-default-pill")
-                    .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                    .background(AirdropTheme.colors.orangeMain, RoundedCornerShape(10.dp))
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {

@@ -55,7 +55,6 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -130,7 +129,7 @@ internal fun NotificationsScreenContent(
 @Composable
 private fun LoadingState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = BrandPalette.OrangeMain, strokeWidth = 2.dp)
+        CircularProgressIndicator(color = AirdropTheme.colors.orangeMain, strokeWidth = 2.dp)
     }
 }
 
@@ -202,7 +201,7 @@ private fun NotificationList(
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator(
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(24.dp),
                     )
@@ -267,7 +266,7 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
                             .padding(start = Spacing.xs)
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(BrandPalette.OrangeMain)
+                            .background(AirdropTheme.colors.orangeMain)
                     )
                 }
             }
@@ -298,12 +297,12 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
                 Text(
                     text = NotificationIconCatalog.actionTitle(notification),
                     style = AirdropType.subtitle1.copy(textDecoration = TextDecoration.Underline),
-                    color = BrandPalette.OrangeMain,
+                    color = AirdropTheme.colors.orangeMain,
                 )
                 Image(
                     painter = painterResource(R.drawable.ic_small_arrow_down),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                    colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
                     modifier = Modifier
                         .size(24.dp)
                         .rotate(-90f),
@@ -413,7 +412,7 @@ private fun EmptyState(onOpenSettings: () -> Unit) {
                     Text(
                         text = buildAnnotatedString {
                             append("Not sure if it’s enabled? Check your ")
-                            withStyle(SpanStyle(color = BrandPalette.OrangeMain)) {
+                            withStyle(SpanStyle(color = AirdropTheme.colors.orangeMain)) {
                                 append("notification settings.")
                             }
                         },
@@ -459,14 +458,14 @@ private fun SettingsGhostButton(onClick: () -> Unit) {
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(14.dp))
+            .border(1.dp, AirdropTheme.colors.orangeMain, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "Settings",
             style = AirdropType.button,
-            color = BrandPalette.OrangeMain,
+            color = AirdropTheme.colors.orangeMain,
         )
     }
 }

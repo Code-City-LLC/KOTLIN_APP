@@ -144,7 +144,7 @@ fun ShippingRatesScreen(
                     .height(52.dp)
                     .testTag("shipping-rates-calculate")
                     .clip(RoundedCornerShape(Radius.xs))
-                    .background(BrandPalette.OrangeMain)
+                    .background(AirdropTheme.colors.orangeMain)
                     .clickable { onNavigate(Routes.CALCULATOR) },
                 contentAlignment = Alignment.Center,
             ) {
@@ -250,7 +250,7 @@ private fun TableHeader(left: String, right: String) {
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp)
-            .background(BrandPalette.OrangeMain)
+            .background(AirdropTheme.colors.orangeMain)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

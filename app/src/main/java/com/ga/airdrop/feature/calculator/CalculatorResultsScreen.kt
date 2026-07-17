@@ -319,13 +319,13 @@ internal fun TotalPill(label: String, amount: Double) {
         Text(
             text = label,
             style = AirdropType.title2,
-            color = BrandPalette.OrangeMain,
+            color = AirdropTheme.colors.orangeMain,
             modifier = Modifier.weight(1f),
         )
         Text(
             text = "USD " + formatDecimal(amount),
             style = AirdropType.title2,
-            color = BrandPalette.OrangeMain,
+            color = AirdropTheme.colors.orangeMain,
         )
     }
 }
@@ -346,7 +346,7 @@ private fun DisclaimerCard(onLinkClick: () -> Unit) {
                 pushStringAnnotation(tag = "link", annotation = "governmentCharges")
                 withStyle(
                     SpanStyle(
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                         fontWeight = FontWeight.SemiBold,
                         textDecoration = TextDecoration.Underline,
                     )

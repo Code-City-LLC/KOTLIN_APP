@@ -218,7 +218,7 @@ fun MoreBottomButtonBar(
                 .fillMaxWidth()
                 .height(52.dp)
                 .clip(RoundedCornerShape(Radius.xs))
-                .background(if (enabled) BrandPalette.OrangeMain else BrandPalette.ButtonDisable)
+                .background(if (enabled) AirdropTheme.colors.orangeMain else BrandPalette.ButtonDisable)
                 .clickable(enabled = enabled && !loading, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
@@ -263,7 +263,7 @@ fun MoreSelectField(
                 // Swift labels: SubTitle-2 with an ORANGE asterisk.
                 Text(text = label, style = AirdropType.subtitle2, color = colors.textDarkTitle)
                 if (required) {
-                    Text(text = "*", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
+                    Text(text = "*", style = AirdropType.subtitle2, color = AirdropTheme.colors.orangeMain)
                 }
             }
         }
