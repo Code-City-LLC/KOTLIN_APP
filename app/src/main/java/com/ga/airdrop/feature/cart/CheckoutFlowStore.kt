@@ -63,6 +63,8 @@ object CartNoteStore {
 @Serializable
 enum class CheckoutPhase { DELIVERY, PROFILE_INFORMATION, ORDER_SUMMARY }
 
+enum class CapturedLineRemovalResult { UPDATED, EMPTY }
+
 @Serializable
 data class CheckoutFlow(
     val id: String,
@@ -300,6 +302,61 @@ object CheckoutFlowStore {
         flow = updated
         persist()
         return updated
+    }
+
+    /**
+     * Shrinks the immutable checkout capture only after its cart mutation has
+     * succeeded. The updated identity reaches disk before Order Summary may
+     * continue; removing the final row exits the checkout instead of leaving
+     * an empty payable flow behind.
+     */
+    @Synchronized
+    fun removeCapturedLine(
+        owner: AuthenticatedSessionOwner,
+        expectedFlowId: String,
+        removedKey: CartStore.CartLineKey,
+        remainingLines: List<CartStore.CartLine>,
+    ): CapturedLineRemovalResult? {
+        if (pendingHosted != null || pendingCreation != null || !bindFlowOwner(owner)) return null
+        val current = flow?.takeIf {
+            it.id == expectedFlowId && it.phase == CheckoutPhase.ORDER_SUMMARY
+        } ?: return null
+        if (current.cartKeys.size != current.packageIds.size) return null
+        val removedIndex = current.cartKeys.indexOf(removedKey).takeIf { it >= 0 } ?: return null
+        if (current.cartKeys.lastIndexOf(removedKey) != removedIndex) return null
+
+        val expectedKeys = current.cartKeys.toMutableList().apply { removeAt(removedIndex) }
+        val expectedPackageIds = current.packageIds.toMutableList().apply { removeAt(removedIndex) }
+        val remainingByKey = remainingLines.associateBy(CartStore.CartLine::key)
+        if (remainingByKey.size != remainingLines.size) return null
+        val exactRemaining = expectedKeys.map { remainingByKey[it] ?: return null }
+        if (exactRemaining.any { !it.isCheckoutEligible() } ||
+            exactRemaining.mapNotNull(CartStore.CartLine::packageId) != expectedPackageIds ||
+            CartStore.hasPendingPackageMutations(expectedKeys)
+        ) return null
+
+        val previous = current
+        val result = if (exactRemaining.isEmpty()) {
+            flow = null
+            CapturedLineRemovalResult.EMPTY
+        } else {
+            flow = current.copy(
+                cartKeys = expectedKeys,
+                packageIds = expectedPackageIds,
+                isAuction = exactRemaining.any {
+                    it.resolvedKind == CartStore.CartLineKind.AUCTION
+                },
+                totalWeightKg = exactRemaining.mapNotNull(CartStore.CartLine::weightKg)
+                    .sum()
+                    .takeIf { it > 0.0 },
+            )
+            CapturedLineRemovalResult.UPDATED
+        }
+        if (!persistSynchronously()) {
+            flow = previous
+            return null
+        }
+        return result
     }
 
     /** Explicit Back-to-Delivery transition; forbidden once Stripe is pending. */

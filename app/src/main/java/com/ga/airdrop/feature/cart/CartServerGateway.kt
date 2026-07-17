@@ -6,6 +6,7 @@ import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.data.model.CartPackage
 import com.ga.airdrop.data.repo.PackagesRepository
+import com.ga.airdrop.feature.shipments.ShipmentStatusCatalog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -61,7 +62,7 @@ internal fun CartPackage.toCartLine(): CartStore.CartLine = CartStore.CartLine(
     weightKg = weightKg?.takeIf { it > 0.0 }
         ?: (weightLbs ?: weight)?.takeIf { it > 0.0 }?.times(0.45359237),
     status = statusName,
-    statusCode = status,
+    statusCode = status ?: ShipmentStatusCatalog.idFor(statusName),
     serverConfirmed = true,
     isAuction = false,
 )

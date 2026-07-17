@@ -49,4 +49,28 @@ class CartServerGatewayTest {
         assertNull(line.statusCode)
         assertTrue(line.serverConfirmed)
     }
+
+    @Test
+    fun `ready for pickup name restores status seven when cart payload omits code`() {
+        val line = CartPackage(
+            id = 5,
+            status = null,
+            statusName = "Ready for Pickup",
+        ).toCartLine()
+
+        assertEquals(7, line.statusCode)
+        assertTrue(line.isCheckoutEligible())
+    }
+
+    @Test
+    fun `explicit status code remains authoritative over display name`() {
+        val line = CartPackage(
+            id = 6,
+            status = 18,
+            statusName = "Ready for Pickup",
+        ).toCartLine()
+
+        assertEquals(18, line.statusCode)
+        assertTrue(!line.isCheckoutEligible())
+    }
 }

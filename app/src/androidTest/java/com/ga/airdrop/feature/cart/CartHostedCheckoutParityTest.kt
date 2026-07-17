@@ -72,6 +72,7 @@ class CartHostedCheckoutParityTest {
     @Test
     fun profileInformationUsesFieldOrderAndCanonicalCountryCatalog() {
         val continueCalls = AtomicInteger()
+        val paymentMethodCalls = AtomicInteger()
         val loadedForm = CartBillingForm(
             firstName = "John",
             lastName = "Brown",
@@ -113,6 +114,7 @@ class CartHostedCheckoutParityTest {
                         }
                         formSnapshot.set(form)
                     },
+                    onPaymentMethodClick = { paymentMethodCalls.incrementAndGet() },
                     onContinue = { continueCalls.incrementAndGet() },
                 )
             }
@@ -125,6 +127,12 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("JMD").assertIsDisplayed()
         compose.onNodeWithText("Postal Code").assertIsDisplayed()
         compose.onNodeWithTag("checkout-profile-postal-required").assertIsDisplayed()
+        compose.onNodeWithTag("checkout-profile-state-card").performScrollTo().performClick()
+        compose.onNodeWithText("Florida").performClick()
+        assertEquals("Florida", formSnapshot.get().state)
+        compose.onNodeWithTag("checkout-profile-city-card").performScrollTo().performClick()
+        compose.onNodeWithText("Houston").performClick()
+        assertEquals("Houston", formSnapshot.get().city)
 
         val orderedFieldTops = listOf(
             "checkout-profile-select-card",
@@ -164,7 +172,18 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText(jamaicaDisplay).assertIsDisplayed()
         compose.onNodeWithText("Postal Code").assertDoesNotExist()
 
-        compose.onNodeWithText("Continue to Order Summary").performClick()
+        compose.onNodeWithTag("checkout-profile-payment-divider").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("checkout-profile-payment-method-row").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Payment Method").assertIsDisplayed()
+        compose.onNodeWithTag("checkout-profile-payment-method-row").performClick()
+        assertEquals(1, paymentMethodCalls.get())
+        compose.onNodeWithTag("profile-information-continue").performScrollTo()
+        val paymentTop = compose.onNodeWithTag("checkout-profile-payment-method-row")
+            .getUnclippedBoundsInRoot().top.value
+        val continueTop = compose.onNodeWithTag("profile-information-continue")
+            .getUnclippedBoundsInRoot().top.value
+        assertTrue("CTA must follow Payment Method inside the scroll content", continueTop > paymentTop)
+        compose.onNodeWithTag("profile-information-continue").performClick()
         assertEquals(1, continueCalls.get())
         assertTrue(checkoutCountryRequiresPostalCode("United States"))
         assertTrue(!checkoutCountryRequiresPostalCode("Jamaica"))
@@ -174,9 +193,40 @@ class CartHostedCheckoutParityTest {
     }
 
     @Test
+    fun checkoutPaymentMethodNoticeMatchesTheSelectedCurrency() {
+        lateinit var viewModel: CartViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel = CartViewModel(
+                checkout = FakeCartCheckoutRepository(),
+                cartServer = FakeCartServerGateway(emptyList()),
+                sessionBoundary = FakeSessionBoundary(owner),
+            )
+            viewModel.updateForm { it.copy(currency = "USD") }
+            viewModel.showCheckoutPaymentMethodNotice()
+        }
+        assertEquals("Payment method", viewModel.state.value.errorTitle)
+        assertEquals(
+            "USD orders use secure Stripe checkout after Order Summary. No payment was started.",
+            viewModel.state.value.errorMessage,
+        )
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.dismissError()
+            viewModel.updateForm { it.copy(currency = "JMD") }
+            viewModel.showCheckoutPaymentMethodNotice()
+        }
+        assertEquals("JMD checkout unavailable", viewModel.state.value.errorTitle)
+        assertEquals(
+            "JMD payment is not available yet. No payment was started.",
+            viewModel.state.value.errorMessage,
+        )
+    }
+
+    @Test
     fun orderSummaryIsDistinctAndKeepsCartUntilVerifiedReturn() {
         val makePaymentCalls = AtomicInteger()
         val noteUpdates = AtomicReference<String?>()
+        val removedItem = AtomicReference<CartStore.CartLine?>()
         val lines = listOf(
             CartStore.CartLine(
                 id = 41,
@@ -218,6 +268,7 @@ class CartHostedCheckoutParityTest {
                         note = it
                         noteUpdates.set(it)
                     },
+                    onRemoveItem = { removedItem.set(it) },
                     onMakePayment = { makePaymentCalls.incrementAndGet() },
                 )
             }
@@ -230,8 +281,8 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("Charges").assertIsDisplayed()
         compose.onNodeWithText("Total Packages and Sales").assertIsDisplayed()
         compose.onNodeWithText("Make Payment").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Remove Ready package").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Remove Sale watch").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Remove Ready package").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Remove Sale watch").assertIsDisplayed()
         compose.onNodeWithTag("order-summary-sale-image-fallback-42").assertIsDisplayed()
         compose.onNodeWithContentDescription("Product image unavailable").assertDoesNotExist()
         compose.onNodeWithText("ARD0000000042").assertDoesNotExist()
@@ -240,6 +291,9 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithTag("cart-macbook-hero").assertDoesNotExist()
         compose.onNodeWithText("Basket (2 Items)").assertDoesNotExist()
         compose.onNodeWithText("Your Note").assertDoesNotExist()
+
+        compose.onNodeWithContentDescription("Remove Sale watch").performClick()
+        assertEquals(lines[1].key, removedItem.get()?.key)
 
         compose.onNodeWithTag("order-summary-special-instructions").performClick()
         compose.onNodeWithTag("cart-note-input").performTextClearance()
@@ -250,6 +304,58 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("Make Payment").performClick()
         assertEquals(1, makePaymentCalls.get())
         assertEquals("Opening/confirming payment UI must not clear cart rows", 2, CartStore.count)
+    }
+
+    @Test
+    fun orderSummaryRemovalShrinksCapturedFlowAndExitsAfterFinalItem() {
+        val lines = listOf(
+            CartStore.CartLine(
+                id = 61,
+                packageId = 7061,
+                title = "Ready package",
+                priceUsd = 12.0,
+                kind = CartStore.CartLineKind.PACKAGE,
+                statusCode = 7,
+                serverConfirmed = true,
+            ),
+            CartStore.CartLine(
+                id = 62,
+                packageId = 9062,
+                title = "Sale watch",
+                priceUsd = 20.0,
+                kind = CartStore.CartLineKind.AUCTION,
+                isAuction = true,
+            ),
+        )
+        val viewModel = prepareOrderSummaryViewModel(
+            repo = FakeCartCheckoutRepository(),
+            currency = "USD",
+            note = "",
+            lines = lines,
+        )
+        compose.setContent {
+            Box(Modifier.width(1.dp).height(1.dp))
+        }
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.removeOrderSummaryItem(lines[0])
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            CartStore.count == 1 && viewModel.capturedCheckoutLines().map { it.key } == listOf(lines[1].key)
+        }
+        val reduced = requireNotNull(viewModel.currentCheckoutFlow())
+        assertEquals(listOf(lines[1].key), reduced.cartKeys)
+        assertEquals(listOf(9062), reduced.packageIds)
+        assertTrue(reduced.isAuction)
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            viewModel.removeOrderSummaryItem(lines[1])
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            CartStore.count == 0 && viewModel.state.value.orderSummaryRestartNav
+        }
+        assertNull(viewModel.currentCheckoutFlow())
+        assertTrue(viewModel.capturedCheckoutLines().isEmpty())
     }
 
     @Test
@@ -285,6 +391,7 @@ class CartHostedCheckoutParityTest {
                             ),
                             onBack = {},
                             onNoteChange = {},
+                            onRemoveItem = {},
                             onMakePayment = {},
                         )
                     }

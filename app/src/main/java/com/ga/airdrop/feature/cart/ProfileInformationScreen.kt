@@ -34,8 +34,12 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.location.CountryCatalog
+import com.ga.airdrop.feature.more.MoreRowCard
 import com.ga.airdrop.feature.shop.ShopDropdownField
 import com.ga.airdrop.feature.shop.ShopInnerHeader
+
+internal val CHECKOUT_STATE_OPTIONS = listOf("Florida", "California", "New York", "Texas", "Other")
+internal val CHECKOUT_CITY_OPTIONS = listOf("Miami", "Los Angeles", "New York City", "Houston", "Other")
 
 /**
  * Checkout Profile Information — Figma 40008740:28560. This is deliberately
@@ -52,6 +56,7 @@ fun ProfileInformationScreen(
     onBack: () -> Unit,
     onFormChange: (CartBillingForm) -> Unit,
     onProfileSelected: (String) -> Unit,
+    onPaymentMethodClick: () -> Unit,
     onContinue: () -> Unit,
     errorTitle: String? = null,
     errorMessage: String? = null,
@@ -75,6 +80,7 @@ fun ProfileInformationScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, top = 29.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -122,19 +128,19 @@ fun ProfileInformationScreen(
                 placeholder = "Enter address line 2 (optional)",
                 testTagPrefix = "checkout-profile-address-2",
             )
-            TypeInputField(
+            ShopDropdownField(
                 label = "State",
                 value = form.state,
-                onValueChange = { onFormChange(form.copy(state = it)) },
-                placeholder = "Select state",
+                options = CHECKOUT_STATE_OPTIONS,
+                onSelect = { onFormChange(form.copy(state = it)) },
                 required = true,
                 testTagPrefix = "checkout-profile-state",
             )
-            TypeInputField(
+            ShopDropdownField(
                 label = "City",
                 value = form.city,
-                onValueChange = { onFormChange(form.copy(city = it)) },
-                placeholder = "Select city",
+                options = CHECKOUT_CITY_OPTIONS,
+                onSelect = { onFormChange(form.copy(city = it)) },
                 required = true,
                 testTagPrefix = "checkout-profile-city",
             )
@@ -168,20 +174,33 @@ fun ProfileInformationScreen(
                     testTagPrefix = "checkout-profile-postal",
                 )
             }
-        }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(colors.gray150)
-                .padding(horizontal = 20.dp, vertical = 12.dp)
-                .navigationBarsPadding(),
-        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(colors.cardHairline)
+                    .testTag("checkout-profile-payment-divider"),
+            )
+            MoreRowCard(
+                iconRes = R.drawable.ic_more_payment_methods,
+                title = "Payment Method",
+                onClick = onPaymentMethodClick,
+                testTagPrefix = "checkout-profile-payment-method",
+            )
             CheckoutSolidButton(
                 text = "Continue to Order Summary",
                 onClick = onContinue,
                 enabled = !saving,
                 loading = saving,
-                modifier = Modifier.testTag("profile-information-continue"),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("profile-information-continue"),
+            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .testTag("profile-information-scroll-tail"),
             )
         }
     }

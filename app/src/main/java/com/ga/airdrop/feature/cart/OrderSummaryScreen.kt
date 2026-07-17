@@ -52,6 +52,7 @@ data class OrderSummaryUiModel(
     val exchangeUsdToJmd: Double = com.ga.airdrop.feature.shipments.DEFAULT_USD_TO_JMD,
     val taxUsd: Double = 5.0,
     val totalCharges: Double = 0.0,
+    val removingKeys: Set<CartStore.CartLineKey> = emptySet(),
     val paying: Boolean = false,
     val errorTitle: String? = null,
     val errorMessage: String? = null,
@@ -67,6 +68,7 @@ fun OrderSummaryScreen(
     model: OrderSummaryUiModel,
     onBack: () -> Unit,
     onNoteChange: (String) -> Unit,
+    onRemoveItem: (CartStore.CartLine) -> Unit,
     onMakePayment: () -> Unit,
     onDismissError: () -> Unit = {},
 ) {
@@ -96,6 +98,8 @@ fun OrderSummaryScreen(
                     title = "Packages",
                     lines = packageLines,
                     showInfo = true,
+                    removingKeys = model.removingKeys,
+                    onRemoveItem = onRemoveItem,
                 )
             }
             if (saleLines.isNotEmpty()) {
@@ -103,6 +107,8 @@ fun OrderSummaryScreen(
                     title = "Sales",
                     lines = saleLines,
                     showInfo = false,
+                    removingKeys = model.removingKeys,
+                    onRemoveItem = onRemoveItem,
                 )
             }
             SpecialInstructionsCard(note = model.note, onClick = { showingNotePopup = true })
@@ -118,7 +124,7 @@ fun OrderSummaryScreen(
             CheckoutSolidButton(
                 text = "Make Payment",
                 onClick = onMakePayment,
-                enabled = !model.paying && model.lines.isNotEmpty(),
+                enabled = !model.paying && model.lines.isNotEmpty() && model.removingKeys.isEmpty(),
                 loading = model.paying,
                 modifier = Modifier.testTag("order-summary-make-payment"),
             )
@@ -160,6 +166,8 @@ private fun OrderSummaryGroup(
     title: String,
     lines: List<CartStore.CartLine>,
     showInfo: Boolean,
+    removingKeys: Set<CartStore.CartLineKey>,
+    onRemoveItem: (CartStore.CartLine) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -179,16 +187,28 @@ private fun OrderSummaryGroup(
         }
         lines.forEach { line ->
             if (line.resolvedKind == CartStore.CartLineKind.AUCTION) {
-                OrderSummarySaleCard(line = line)
+                OrderSummarySaleCard(
+                    line = line,
+                    removing = line.key in removingKeys,
+                    onRemove = { onRemoveItem(line) },
+                )
             } else {
-                OrderSummaryPackageCard(line = line)
+                OrderSummaryPackageCard(
+                    line = line,
+                    removing = line.key in removingKeys,
+                    onRemove = { onRemoveItem(line) },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun OrderSummaryPackageCard(line: CartStore.CartLine) {
+private fun OrderSummaryPackageCard(
+    line: CartStore.CartLine,
+    removing: Boolean,
+    onRemove: () -> Unit,
+) {
     val colors = AirdropTheme.colors
     Row(
         Modifier
@@ -205,11 +225,16 @@ private fun OrderSummaryPackageCard(line: CartStore.CartLine) {
             OrderSummaryValue("Description", line.title)
             OrderSummaryValue("Price", formatUsdPlain(line.priceUsd * line.qty), price = true)
         }
+        OrderSummaryRemoveButton(line = line, removing = removing, onRemove = onRemove)
     }
 }
 
 @Composable
-private fun OrderSummarySaleCard(line: CartStore.CartLine) {
+private fun OrderSummarySaleCard(
+    line: CartStore.CartLine,
+    removing: Boolean,
+    onRemove: () -> Unit,
+) {
     val colors = AirdropTheme.colors
     Row(
         Modifier
@@ -275,6 +300,34 @@ private fun OrderSummarySaleCard(line: CartStore.CartLine) {
                 modifier = Modifier.testTag("order-summary-sale-price-${line.id}"),
             )
         }
+        OrderSummaryRemoveButton(line = line, removing = removing, onRemove = onRemove)
+    }
+}
+
+@Composable
+private fun OrderSummaryRemoveButton(
+    line: CartStore.CartLine,
+    removing: Boolean,
+    onRemove: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Box(
+        Modifier
+            .size(24.dp)
+            .clickable(enabled = !removing, onClick = onRemove)
+            .testTag(
+                "order-summary-remove-${line.resolvedKind.name.lowercase(Locale.US)}-${line.id}",
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_trash),
+            contentDescription = "Remove ${line.title}",
+            colorFilter = ColorFilter.tint(
+                if (removing) colors.textDescription else colors.textDarkTitle,
+            ),
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 

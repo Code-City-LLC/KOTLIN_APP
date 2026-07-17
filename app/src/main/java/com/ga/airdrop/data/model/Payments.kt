@@ -67,7 +67,6 @@ data class CreateCheckoutRequest(
     val currency: String,
     @SerialName("is_auction") val isAuction: Boolean,
     @SerialName("return_url") val returnUrl: String? = null,
-    @SerialName("user_note") val userNote: String? = null,
 )
 
 /** Non-null signal that makes Laravel issue the mobile Stripe deep links. */

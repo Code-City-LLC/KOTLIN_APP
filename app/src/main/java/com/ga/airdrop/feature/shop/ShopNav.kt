@@ -147,6 +147,7 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
             onBack = { navController.popBackStack() },
             onFormChange = { next -> cartViewModel.updateForm { next } },
             onProfileSelected = cartViewModel::selectCheckoutProfile,
+            onPaymentMethodClick = cartViewModel::showCheckoutPaymentMethodNotice,
             onContinue = cartViewModel::saveProfileInformation,
             errorTitle = state.errorTitle,
             errorMessage = state.errorMessage,
@@ -176,6 +177,13 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
         val context = LocalContext.current
         val checkoutUrl = state.checkoutUrl
 
+        LaunchedEffect(state.orderSummaryRestartNav) {
+            if (state.orderSummaryRestartNav) {
+                navController.popBackStack(Routes.CART, inclusive = false)
+                cartViewModel.consumeOrderSummaryRestartNav()
+            }
+        }
+
         LaunchedEffect(checkoutUrl, state.checkoutLaunchAttempt) {
             if (!checkoutUrl.isNullOrBlank() && launchExternalUrl(context, checkoutUrl)) {
                 cartViewModel.consumeCheckoutUrl()
@@ -189,6 +197,7 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 currency = currency,
                 exchangeUsdToJmd = rate,
                 totalCharges = totalCharges,
+                removingKeys = state.mutatingKeys,
                 paying = state.orderPaying,
                 errorTitle = state.errorTitle,
                 errorMessage = state.errorMessage,
@@ -197,6 +206,7 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 if (cartViewModel.rewindOrderSummary()) navController.popBackStack()
             },
             onNoteChange = cartViewModel::updateNote,
+            onRemoveItem = cartViewModel::removeOrderSummaryItem,
             onMakePayment = cartViewModel::payOrderSummary,
             onDismissError = cartViewModel::dismissError,
         )

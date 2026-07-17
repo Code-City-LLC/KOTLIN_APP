@@ -52,6 +52,7 @@ data class CartUiState(
     val profileLoading: Boolean = false,
     val profileSaving: Boolean = false,
     val profileSummaryNav: Boolean = false,
+    val orderSummaryRestartNav: Boolean = false,
     val profileOptions: List<String> = listOf(ADD_NEW_CHECKOUT_PROFILE),
     val selectedProfile: String = ADD_NEW_CHECKOUT_PROFILE,
     val orderPaying: Boolean = false,
@@ -387,6 +388,18 @@ class CartViewModel(
         _state.update { it.copy(profileSummaryNav = false) }
     }
 
+    fun showCheckoutPaymentMethodNotice() {
+        val (title, message) = when (parseCheckoutCurrency(_state.value.form.currency)) {
+            CheckoutCurrency.USD -> "Payment method" to
+                "USD orders use secure Stripe checkout after Order Summary. No payment was started."
+            CheckoutCurrency.JMD -> "JMD checkout unavailable" to
+                "JMD payment is not available yet. No payment was started."
+            null -> "Payment method unavailable" to
+                "Select a supported payment currency before continuing. No payment was started."
+        }
+        profileError(title, message)
+    }
+
     /** Exact flow snapshot; later cart additions are deliberately excluded. */
     fun capturedCheckoutLines(): List<CartStore.CartLine> {
         val owner = currentOwner() ?: return emptyList()
@@ -397,6 +410,73 @@ class CartViewModel(
     fun currentCheckoutFlow(): CheckoutFlow? {
         val owner = currentOwner() ?: return null
         return CheckoutFlowStore.current(owner)
+    }
+
+    /**
+     * Order Summary removal is deliberately sequenced after the canonical
+     * cart mutation. Packages wait for Laravel DELETE success; Sale rows use
+     * their existing local owner. Only then is the durable captured flow
+     * reduced, and an empty or unpersistable capture returns to My Cart.
+     */
+    fun removeOrderSummaryItem(line: CartStore.CartLine) {
+        if (_state.value.orderPaying) {
+            return orderError(
+                "Checkout in progress",
+                "Wait for the secure checkout request to finish before changing this order.",
+            )
+        }
+        val owner = currentOwner() ?: return orderError(
+            "Sign in required",
+            "Log in to your Airdropja account before changing this order.",
+        )
+        val flow = CheckoutFlowStore.current(owner)?.takeIf {
+            it.phase == CheckoutPhase.ORDER_SUMMARY && line.key in it.cartKeys
+        } ?: return orderError(
+            "Checkout unavailable",
+            "Return to your cart and restart checkout.",
+        )
+        val exactLine = capturedLines(flow)?.firstOrNull { it.key == line.key }
+            ?: return orderError(
+                "Checkout unavailable",
+                "The cart changed. Return to your cart and restart checkout.",
+            )
+
+        val finishRemoval = {
+            when (
+                CheckoutFlowStore.removeCapturedLine(
+                    owner = owner,
+                    expectedFlowId = flow.id,
+                    removedKey = exactLine.key,
+                    remainingLines = CartStore.items.value,
+                )
+            ) {
+                CapturedLineRemovalResult.UPDATED -> Unit
+                CapturedLineRemovalResult.EMPTY -> _state.update {
+                    it.copy(orderSummaryRestartNav = true)
+                }
+                null -> {
+                    CheckoutFlowStore.clear()
+                    _state.update {
+                        it.copy(
+                            orderSummaryRestartNav = true,
+                            errorTitle = "Checkout restarted",
+                            errorMessage = "The item was removed, but the order changed. Review your cart before checking out again.",
+                        )
+                    }
+                }
+            }
+        }
+
+        if (exactLine.resolvedKind == CartStore.CartLineKind.AUCTION) {
+            CartStore.remove(exactLine.key)
+            finishRemoval()
+        } else {
+            mutatePackageLine(exactLine, add = false, onSuccess = finishRemoval)
+        }
+    }
+
+    fun consumeOrderSummaryRestartNav() {
+        _state.update { it.copy(orderSummaryRestartNav = false) }
     }
 
     /** Persist the exact phase rewind before header/system Back may pop. */

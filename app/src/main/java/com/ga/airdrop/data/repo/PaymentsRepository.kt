@@ -59,6 +59,7 @@ class PaymentsRepository(private val service: AirdropApiService) {
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     suspend fun createCheckout(
         packageIds: List<Int>,
         currency: String,
@@ -82,7 +83,6 @@ class PaymentsRepository(private val service: AirdropApiService) {
                 currency = normalizedCurrency,
                 isAuction = isAuction,
                 returnUrl = MOBILE_CHECKOUT_RETURN_URL,
-                userNote = normalizeCheckoutUserNote(userNote),
             ),
         )
         val data = envelope.data
@@ -136,6 +136,3 @@ class PaymentsRepository(private val service: AirdropApiService) {
         envelope.data
     }
 }
-
-internal fun normalizeCheckoutUserNote(value: String?): String? =
-    value?.trim()?.takeIf(String::isNotEmpty)
