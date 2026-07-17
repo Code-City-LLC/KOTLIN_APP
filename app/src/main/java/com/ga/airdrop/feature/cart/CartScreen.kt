@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -106,15 +107,16 @@ fun CartScreen(
     var showingNotePopup by rememberSaveable { mutableStateOf(false) }
     var actionLine by remember { mutableStateOf<CartStore.CartLine?>(null) }
     var footerHeightPx by remember { mutableStateOf(0) }
-    val scrollTailPadding = if (isEmpty) {
-        24.dp
+    val footerViewportInset = if (isEmpty) {
+        0.dp
     } else if (footerHeightPx > 0) {
-        with(density) { footerHeightPx.toDp() } + 12.dp
+        with(density) { footerHeightPx.toDp() }
     } else {
         // Safe first-frame bound; onSizeChanged replaces it with the actual
         // wrapped footer height at the active width and font scale.
-        190.dp
+        178.dp
     }
+    val scrollTailPadding = if (isEmpty) 24.dp else 12.dp
 
     LaunchedEffect(Unit) {
         CartStore.init(context)
@@ -157,8 +159,10 @@ fun CartScreen(
             Column(
                 Modifier
                     .fillMaxSize()
+                    // Keep the fixed frosted footer out of the scroll viewport;
+                    // performScrollTo must never settle content behind it.
+                    .padding(bottom = footerViewportInset)
                     .verticalScroll(rememberScrollState())
-                    // The scroll surface continues behind the frosted totals bar.
                     .padding(
                         start = 20.dp,
                         end = 20.dp,
@@ -432,8 +436,8 @@ internal fun CartNotePopup(
 ) {
     var draft by rememberSaveable(initialNote) { mutableStateOf(initialNote) }
     val focusRequester = remember { FocusRequester() }
+    var focusTargetAttached by remember { mutableStateOf(false) }
     val colors = AirdropTheme.colors
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -441,6 +445,9 @@ internal fun CartNotePopup(
             decorFitsSystemWindows = false,
         ),
     ) {
+        LaunchedEffect(focusTargetAttached) {
+            if (focusTargetAttached) focusRequester.requestFocus()
+        }
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -515,6 +522,7 @@ internal fun CartNotePopup(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .focusRequester(focusRequester)
+                                .onGloballyPositioned { focusTargetAttached = it.isAttached }
                                 .testTag("cart-note-input"),
                         )
                     }

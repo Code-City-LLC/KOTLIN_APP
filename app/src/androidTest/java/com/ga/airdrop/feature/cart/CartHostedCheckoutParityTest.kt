@@ -126,6 +126,7 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("John Brown").assertIsDisplayed()
         compose.onNodeWithText("Selected Payment Currency").assertIsDisplayed()
         compose.onNodeWithText("JMD").assertIsDisplayed()
+        compose.onNodeWithTag("checkout-profile-postal-card").performScrollTo()
         compose.onNodeWithText("Postal Code").assertIsDisplayed()
         compose.onNodeWithTag("checkout-profile-postal-required").assertIsDisplayed()
         compose.onNodeWithTag("checkout-profile-state-card").performScrollTo().performClick()
@@ -162,6 +163,7 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithTag("checkout-profile-country-card").performScrollTo().performClick()
         compose.onNodeWithText(canadaDisplay).performClick()
         assertEquals("Canada", formSnapshot.get().country)
+        compose.onNodeWithTag("checkout-profile-postal-card").performScrollTo()
         compose.onNodeWithText("Postal Code").assertIsDisplayed()
         compose.onNodeWithTag("checkout-profile-postal-required").assertDoesNotExist()
 
@@ -613,11 +615,24 @@ class CartHostedCheckoutParityTest {
             val flow = requireNotNull(
                 CheckoutFlowStore.start(owner, CartStore.items.value),
             )
-            requireNotNull(
-                CheckoutFlowStore.update(owner, flow.id) {
-                    it.copy(currency = currency, phase = CheckoutPhase.ORDER_SUMMARY)
-                },
-            )
+            if (currency.equals("JMD", ignoreCase = true)) {
+                requireNotNull(
+                    CheckoutFlowStore.update(owner, flow.id) {
+                        it.copy(currency = currency, phase = CheckoutPhase.PROFILE_INFORMATION)
+                    },
+                )
+                requireNotNull(
+                    CheckoutFlowStore.update(owner, flow.id) {
+                        it.copy(phase = CheckoutPhase.ORDER_SUMMARY)
+                    },
+                )
+            } else {
+                requireNotNull(
+                    CheckoutFlowStore.update(owner, flow.id) {
+                        it.copy(currency = currency, phase = CheckoutPhase.ORDER_SUMMARY)
+                    },
+                )
+            }
             viewModel = CartViewModel(
                 checkout = repo,
                 cartServer = FakeCartServerGateway(CartStore.items.value),
