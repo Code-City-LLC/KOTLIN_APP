@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import java.io.ByteArrayOutputStream
@@ -186,7 +185,7 @@ fun AirdropUploadSourceSheet(
                     .fillMaxWidth()
                     .height(48.dp)
                     .clip(RoundedCornerShape(Radius.xs))
-                    .background(BrandPalette.OrangeMain)
+                    .background(AirdropTheme.colors.orangeMain)
                     .clickable(onClick = onDismiss)
                     .testTag("upload-source-cancel"),
                 contentAlignment = Alignment.Center,

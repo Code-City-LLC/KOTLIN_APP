@@ -206,18 +206,18 @@ internal fun More2GhostButton(
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(14.dp))
+            .border(1.dp, AirdropTheme.colors.orangeMain, RoundedCornerShape(14.dp))
             .clickable(enabled = enabled && !loading, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
-                color = BrandPalette.OrangeMain,
+                color = AirdropTheme.colors.orangeMain,
                 strokeWidth = 2.dp,
             )
         } else {
-            Text(text = text, style = AirdropType.button, color = BrandPalette.OrangeMain)
+            Text(text = text, style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
         }
     }
 }
@@ -323,7 +323,7 @@ internal fun More2Field(
                     value = value,
                     onValueChange = onValueChange,
                     textStyle = AirdropType.body1.copy(color = colors.textDarkTitle),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(BrandPalette.OrangeMain),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(AirdropTheme.colors.orangeMain),
                     singleLine = true,
                     enabled = !readOnly && onClick == null,
                     keyboardOptions = keyboardOptions,
@@ -358,7 +358,7 @@ internal fun More2Field(
 @Composable
 internal fun More2Loading(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = BrandPalette.OrangeMain)
+        CircularProgressIndicator(color = AirdropTheme.colors.orangeMain)
     }
 }
 
@@ -383,7 +383,7 @@ internal fun More2Alert(
             Text(
                 text = confirmText,
                 style = AirdropType.subtitle2,
-                color = if (destructiveConfirm) AlertPalette.Error else BrandPalette.OrangeMain,
+                color = if (destructiveConfirm) AlertPalette.Error else AirdropTheme.colors.orangeMain,
                 modifier = Modifier
                     .clickable {
                         onConfirm?.invoke()

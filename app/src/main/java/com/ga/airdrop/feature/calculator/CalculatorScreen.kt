@@ -313,7 +313,7 @@ private fun CalculatorPrimaryButton(
             .clip(RoundedCornerShape(Radius.xs))
             // Swift setLoading (FigmaCalculatorViewController.swift:855-859): dim to
             // 0.7 alpha + swap title to "Calculating..." — NO spinner.
-            .background(BrandPalette.OrangeMain.copy(alpha = if (loading) 0.7f else 1f))
+            .background(AirdropTheme.colors.orangeMain.copy(alpha = if (loading) 0.7f else 1f))
             .clickable(enabled = !loading, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -420,7 +420,7 @@ private fun ProductResultsPanel(
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                         strokeWidth = 2.dp,
                     )
                     Text(text = "Searching...", style = AirdropType.body2, color = colors.textDescription)
@@ -537,7 +537,7 @@ private fun RecentCalculationsRow(onClick: () -> Unit) {
         Image(
             painter = painterResource(R.drawable.ic_clock),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+            colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
             modifier = Modifier.size(20.dp),
         )
         Text(
@@ -637,7 +637,7 @@ private fun RecentCalculationItem(entry: CalculatorHistory.Entry, onClick: () ->
             Text(
                 text = "\$${formatCalcMoney(total)}",
                 style = AirdropType.title2,
-                color = BrandPalette.OrangeMain,
+                color = AirdropTheme.colors.orangeMain,
             )
         }
     }

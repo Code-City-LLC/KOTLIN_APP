@@ -33,7 +33,6 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 
 /**
  * Shared Swift makeField parity: subtitle2 label (+ orange asterisk), 48dp
@@ -70,7 +69,7 @@ fun TypeInputField(
                     Text(
                         text = "*",
                         style = AirdropType.subtitle2,
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                         modifier = testTagPrefix?.let { Modifier.testTag("$it-required") }
                             ?: Modifier,
                     )
@@ -105,7 +104,7 @@ fun TypeInputField(
                     value = value,
                     onValueChange = onValueChange,
                     textStyle = AirdropType.body1.copy(color = colors.textDarkTitle),
-                    cursorBrush = SolidColor(BrandPalette.OrangeMain),
+                    cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
                     singleLine = true,
                     enabled = enabled,
                     keyboardOptions = keyboardOptions,

@@ -33,7 +33,6 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -123,12 +122,12 @@ private fun FaqHeroCard() {
                     .align(Alignment.TopEnd)
                     .offset(x = 50.dp, y = (-50).dp)
                     .size(140.dp)
-                    .background(BrandPalette.ButtonStatic.copy(alpha = 0.12f), CircleShape),
+                    .background(colors.buttonStatic.copy(alpha = 0.12f), CircleShape),
             )
             Text(
                 text = "?",
                 style = AirdropType.h2,
-                color = BrandPalette.OrangeMain,
+                color = AirdropTheme.colors.orangeMain,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .testTag("faq-hero-monogram")
