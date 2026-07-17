@@ -2,12 +2,16 @@ package com.ga.airdrop.feature.more2
 
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.feature.shop.ShopProductHandoffStore
+import com.ga.airdrop.feature.shop.launchExternalUrl
+import com.ga.airdrop.feature.shop.routeSlug
 
 /**
  * MORE feature group, part 2 — registration for the orchestrator's mainGraph:
@@ -88,7 +92,17 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
     }
 
     composable(Routes.PROMOTIONS) {
-        PromotionsScreen(onBack = { navController.popBackStack() })
+        val context = LocalContext.current
+        PromotionsScreen(
+            onBack = { navController.popBackStack() },
+            onOpenAmazon = { url -> launchExternalUrl(context, url) },
+            onOpenSale = { product ->
+                ShopProductHandoffStore.put(product)
+                navController.navigate(
+                    Routes.auctionProductDetails(product.routeSlug, featured = false),
+                )
+            },
+        )
     }
 
     composable(Routes.SHIPPING_RATES) {

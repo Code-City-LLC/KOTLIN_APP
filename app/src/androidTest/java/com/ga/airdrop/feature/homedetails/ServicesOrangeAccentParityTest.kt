@@ -6,6 +6,7 @@ import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -35,7 +36,6 @@ class ServicesOrangeAccentParityTest {
         setServicesContent(ThemeController.Mode.LIGHT)
         saveRootScreenshot("services_orange_light.png")
 
-        assertServicesSwiftFigmaGeometry()
         assertTaggedNodeContainsColor(
             tag = "services-main-heading",
             target = FIGMA_ORANGE_LIGHT,
@@ -46,6 +46,12 @@ class ServicesOrangeAccentParityTest {
             expected = FIGMA_ORANGE_LIGHT,
             alternate = FIGMA_DARK_FUNCTION_ORANGE,
             label = "Services light main heading should prefer light accent",
+        )
+        assertServicesSwiftFigmaGeometry()
+        assertTaggedNodeContainsColor(
+            tag = "services-logo-row-top-logo-0",
+            target = AMAZON_ORANGE,
+            label = "Services light rail should preserve native Amazon color",
         )
 
         compose.onNodeWithTag("services-tax-free-heading").performScrollTo()
@@ -62,7 +68,6 @@ class ServicesOrangeAccentParityTest {
         setServicesContent(ThemeController.Mode.DARK)
         saveRootScreenshot("services_orange_dark.png")
 
-        assertServicesSwiftFigmaGeometry()
         assertTaggedNodeContainsColor(
             tag = "services-main-heading",
             target = FIGMA_DARK_FUNCTION_ORANGE,
@@ -74,6 +79,8 @@ class ServicesOrangeAccentParityTest {
             alternate = FIGMA_ORANGE_LIGHT,
             label = "Services dark main heading should prefer dark accent",
         )
+        assertServicesSwiftFigmaGeometry()
+        assertDarkLogoIsMonochrome("services-logo-row-top-logo-0")
 
         compose.onNodeWithTag("services-tax-free-heading").performScrollTo()
         compose.waitForIdle()
@@ -115,10 +122,40 @@ class ServicesOrangeAccentParityTest {
 
         compose.onNodeWithTag("services-logo-marquee").performScrollTo()
         compose.waitForIdle()
-        // Semantics reports the content inside the wrapper's 1dp vertical padding.
-        assertClose(88f, nodeHeightDp("services-logo-marquee"), "Services marquee content height")
+        assertClose(120f, nodeHeightDp("services-logo-marquee"), "Services marquee content height")
         assertClose(40f, nodeHeightDp("services-logo-row-top"), "Services top marquee row height")
         assertClose(40f, nodeHeightDp("services-logo-row-bottom"), "Services bottom marquee row height")
+
+        val top = compose.onNodeWithTag("services-logo-row-top").getUnclippedBoundsInRoot()
+        val bottom = compose.onNodeWithTag("services-logo-row-bottom").getUnclippedBoundsInRoot()
+        assertClose(40f, (bottom.top - top.bottom).value, "Swift logo rail separation")
+
+        val amazon = compose.onNodeWithTag("services-logo-row-top-logo-0")
+            .getUnclippedBoundsInRoot()
+        assertClose(93f, (amazon.right - amazon.left).value, "Amazon mark width")
+        assertClose(28f, (amazon.bottom - amazon.top).value, "Amazon mark height")
+    }
+
+    private fun assertDarkLogoIsMonochrome(tag: String) {
+        val bitmap = compose.onNodeWithTag(tag, useUnmergedTree = true)
+            .captureToImage()
+            .asAndroidBitmap()
+        var brightNeutralPixels = 0
+        var saturatedPixels = 0
+        for (y in 0 until bitmap.height) {
+            for (x in 0 until bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
+                val red = (pixel shr 16) and 0xFF
+                val green = (pixel shr 8) and 0xFF
+                val blue = pixel and 0xFF
+                val max = maxOf(red, green, blue)
+                val min = minOf(red, green, blue)
+                if (max >= 170 && max - min <= 10) brightNeutralPixels++
+                if (max >= 100 && max - min >= 35) saturatedPixels++
+            }
+        }
+        assertTrue("Dark Services mark should contain the 75% white treatment", brightNeutralPixels > 5)
+        assertEquals("Dark Services mark must not retain native brand color", 0, saturatedPixels)
     }
 
     private fun nodeWidthDp(tag: String): Float {
@@ -222,6 +259,7 @@ class ServicesOrangeAccentParityTest {
     private companion object {
         private const val FIGMA_ORANGE_LIGHT = 0xFFF15114.toInt()
         private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF46427.toInt()
+        private const val AMAZON_ORANGE = 0xFFFF9900.toInt()
         private const val COLOR_TOLERANCE = 8
         private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/services_orange"
     }

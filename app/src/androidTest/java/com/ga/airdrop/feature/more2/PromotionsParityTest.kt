@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -38,6 +39,9 @@ import com.ga.airdrop.data.model.MutationResponse
 import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.PromotionalBanner
 import com.ga.airdrop.data.model.ShippingRates
+import com.ga.airdrop.feature.shop.AMAZON_ASSOCIATES_DISCLOSURE
+import com.ga.airdrop.feature.shop.ShopProduct
+import com.ga.airdrop.feature.shop.ShopProductsRepository
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicInteger
@@ -132,12 +136,73 @@ class PromotionsParityTest {
         assertNoTag("promotions-card-0")
     }
 
-    private fun setPromotions(api: FakePromotionsApi, mode: ThemeController.Mode) {
+    @Test
+    fun eligibleAppleAndRealSaleProductsUseSharedPromotionRails() {
+        val amazonUrl = "https://www.amazon.com/dp/M4?tag=airdrop00-20"
+        val products = FakePromotionsProductsRepository(
+            featured = listOf(
+                ShopProduct(
+                    id = 501,
+                    title = "MacBook Pro M4",
+                    imageUrl = "https://images.example.test/macbook.jpg",
+                    priceUsd = 1599.0,
+                    amazonUrl = amazonUrl,
+                ),
+                ShopProduct(
+                    id = 502,
+                    title = "MacBook Pro protective case",
+                    imageUrl = "https://images.example.test/case.jpg",
+                    priceUsd = 39.0,
+                    amazonUrl = "https://www.amazon.com/dp/CASE?tag=airdrop00-20",
+                ),
+            ),
+            sale = listOf(
+                ShopProduct(
+                    id = 601,
+                    slug = "sale-highlight",
+                    title = "AirDrop Sale Highlight",
+                    imageUrl = "https://images.example.test/sale.jpg",
+                    priceUsd = 45.0,
+                ),
+            ),
+        )
+        var openedAmazon: String? = null
+        var openedSale: ShopProduct? = null
+
+        setPromotions(
+            api = FakePromotionsApi(emptyList()),
+            mode = ThemeController.Mode.LIGHT,
+            products = products,
+            onOpenAmazon = { openedAmazon = it },
+            onOpenSale = { openedSale = it },
+        )
+
+        compose.onNodeWithTag("promotions-apple-section").assertIsDisplayed()
+        compose.onNodeWithText(AMAZON_ASSOCIATES_DISCLOSURE).assertIsDisplayed()
+        compose.onNodeWithText("MacBook Pro M4").assertIsDisplayed()
+        assertNoText("protective case")
+        compose.onNodeWithTag("promotions-apple-card-0").performClick()
+        assertEquals(amazonUrl, openedAmazon)
+
+        compose.onNodeWithTag("promotions-sale-section").performScrollTo()
+        compose.onNodeWithTag("promotions-sale-card-0").performClick()
+        assertEquals(products.sale.single(), openedSale)
+        assertEquals(1, products.featuredCalls.get())
+        assertEquals(1, products.auctionCalls.get())
+    }
+
+    private fun setPromotions(
+        api: FakePromotionsApi,
+        mode: ThemeController.Mode,
+        products: FakePromotionsProductsRepository = FakePromotionsProductsRepository(),
+        onOpenAmazon: (String) -> Unit = {},
+        onOpenSale: (ShopProduct) -> Unit = {},
+    ) {
         backClicks = 0
         lateinit var viewModel: PromotionsViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
-            viewModel = PromotionsViewModel(More2Repository(api))
+            viewModel = PromotionsViewModel(More2Repository(api), products)
         }
 
         compose.setContent {
@@ -151,13 +216,18 @@ class PromotionsParityTest {
                     PromotionsScreen(
                         onBack = { backClicks += 1 },
                         viewModel = viewModel,
+                        onOpenAmazon = onOpenAmazon,
+                        onOpenSale = onOpenSale,
                     )
                 }
             }
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            api.promotionalCalls.get() == 1 && !viewModel.state.value.loading
+            api.promotionalCalls.get() == 1 &&
+                products.featuredCalls.get() == 1 &&
+                products.auctionCalls.get() == 1 &&
+                !viewModel.state.value.loading
         }
         compose.waitForIdle()
     }
@@ -309,6 +379,37 @@ class PromotionsParityTest {
 
         override suspend fun deactivateAccount(body: DeactivateAccountRequest): MutationResponse =
             throw AssertionError("Unused in PromotionsParityTest")
+    }
+
+    private class FakePromotionsProductsRepository(
+        val featured: List<ShopProduct> = emptyList(),
+        val sale: List<ShopProduct> = emptyList(),
+    ) : ShopProductsRepository {
+        val featuredCalls = AtomicInteger()
+        val auctionCalls = AtomicInteger()
+
+        override suspend fun auctionProducts(
+            page: Int,
+            perPage: Int,
+            search: String?,
+        ): Result<List<ShopProduct>> {
+            auctionCalls.incrementAndGet()
+            return Result.success(sale)
+        }
+
+        override suspend fun featuredProducts(
+            page: Int,
+            perPage: Int,
+            search: String?,
+        ): Result<List<ShopProduct>> {
+            featuredCalls.incrementAndGet()
+            return Result.success(featured)
+        }
+
+        override suspend fun productBySlug(
+            slug: String,
+            featured: Boolean,
+        ): Result<ShopProduct> = throw AssertionError("Unused in PromotionsParityTest")
     }
 
     private companion object {

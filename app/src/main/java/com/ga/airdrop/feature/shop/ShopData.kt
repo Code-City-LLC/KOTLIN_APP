@@ -3,6 +3,8 @@ package com.ga.airdrop.feature.shop
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.feature.cart.CartStore
+import java.net.URI
+import java.util.Locale
 
 /*
  * SHOP data contracts.
@@ -43,6 +45,127 @@ data class ShopProduct(
     val packageId: Int? = null,
     val createdAt: String? = null,
 )
+
+const val AMAZON_ASSOCIATES_DISCLOSURE =
+    "As an Amazon Associate, AirDrop earns from qualifying purchases."
+
+private const val AIRDROP_AMAZON_ASSOCIATE_TAG = "airdrop00-20"
+
+private val amazonStorefrontDomains = setOf(
+    "amazon.ae",
+    "amazon.ca",
+    "amazon.cn",
+    "amazon.co.jp",
+    "amazon.co.uk",
+    "amazon.com",
+    "amazon.com.au",
+    "amazon.com.be",
+    "amazon.com.br",
+    "amazon.com.mx",
+    "amazon.com.tr",
+    "amazon.de",
+    "amazon.eg",
+    "amazon.es",
+    "amazon.fr",
+    "amazon.in",
+    "amazon.it",
+    "amazon.nl",
+    "amazon.pl",
+    "amazon.sa",
+    "amazon.se",
+    "amazon.sg",
+)
+
+private val appleAccessoryTerms = listOf(
+    "adapter",
+    "bag",
+    "cable",
+    "case",
+    "charger",
+    "cover",
+    "dock",
+    "hub",
+    "keyboard",
+    "mouse",
+    "protector",
+    "replacement",
+    "screen protector",
+    "sleeve",
+    "stand",
+    "strap",
+)
+
+private val macProductTerms = listOf(
+    "mac",
+    "macbook",
+    "imac",
+    "mac mini",
+    "mac pro",
+    "mac studio",
+)
+
+private val appleProductTerms = listOf(
+    "apple",
+    "airpods",
+    "airtag",
+    "ipad",
+    "iphone",
+    "vision pro",
+)
+
+/**
+ * Returns the approved Associates URL only when it is an HTTPS Amazon link
+ * carrying AirDrop's exact affiliate tag. Promotion surfaces must never open
+ * an untagged or look-alike URL supplied by content data.
+ */
+fun ShopProduct.amazonAssociatesUrlOrNull(): String? {
+    val raw = amazonUrl?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val uri = runCatching { URI(raw) }.getOrNull() ?: return null
+    if (!uri.scheme.equals("https", ignoreCase = true)) return null
+
+    val host = uri.host?.lowercase(Locale.US)?.trimEnd('.') ?: return null
+    val isAmazonStorefront = amazonStorefrontDomains.any { domain ->
+        host == domain || host.endsWith(".$domain")
+    }
+    if (!isAmazonStorefront) return null
+
+    val hasApprovedTag = uri.rawQuery.orEmpty().split('&').any { field ->
+        field.substringBefore('=', missingDelimiterValue = "") == "tag" &&
+            field.substringAfter('=', missingDelimiterValue = "") == AIRDROP_AMAZON_ASSOCIATE_TAG
+    }
+    return raw.takeIf { hasApprovedTag }
+}
+
+/**
+ * Shared Swift handoff contract for Promotions and My Cart: complete tagged
+ * products only, accessories excluded, with Mac products before other Apple
+ * devices while preserving backend order inside each group.
+ */
+fun eligibleAppleAmazonProducts(products: List<ShopProduct>): List<ShopProduct> =
+    products.mapIndexedNotNull { index, product ->
+        val normalizedTitle = product.title.trim().lowercase(Locale.US)
+        if (normalizedTitle.isEmpty() ||
+            product.imageUrl.isNullOrBlank() ||
+            product.priceUsd <= 0.0 ||
+            !product.priceUsd.isFinite() ||
+            product.amazonAssociatesUrlOrNull() == null ||
+            appleAccessoryTerms.any { normalizedTitle.containsCatalogTerm(it) }
+        ) {
+            return@mapIndexedNotNull null
+        }
+
+        val priority = when {
+            macProductTerms.any { normalizedTitle.containsCatalogTerm(it) } -> 0
+            appleProductTerms.any { normalizedTitle.containsCatalogTerm(it) } -> 1
+            else -> return@mapIndexedNotNull null
+        }
+        Triple(priority, index, product)
+    }
+        .sortedWith(compareBy<Triple<Int, Int, ShopProduct>> { it.first }.thenBy { it.second })
+        .map { it.third }
+
+private fun String.containsCatalogTerm(term: String): Boolean =
+    Regex("(^|[^a-z0-9])${Regex.escape(term)}([^a-z0-9]|$)").containsMatchIn(this)
 
 fun ShopProduct.toCartLine(qty: Int = 1): CartStore.CartLine = CartStore.CartLine(
     id = id,

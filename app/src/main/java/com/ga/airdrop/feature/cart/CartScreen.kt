@@ -73,8 +73,11 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
+import com.ga.airdrop.feature.shop.AMAZON_ASSOCIATES_DISCLOSURE
 import com.ga.airdrop.feature.shop.ShopChevronRight
 import com.ga.airdrop.feature.shop.ShopInnerHeader
+import com.ga.airdrop.feature.shop.ShopProduct
+import com.ga.airdrop.feature.shop.amazonAssociatesUrlOrNull
 import com.ga.airdrop.feature.shop.formatUsdPlain
 import java.net.URI
 import java.util.Locale
@@ -93,6 +96,7 @@ fun CartScreen(
     viewModel: CartViewModel = viewModel(),
     /** Route push — Continue goes Cart → Delivery Method. */
     onNavigate: (String) -> Unit = {},
+    onOpenAmazon: (String) -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
@@ -167,7 +171,9 @@ fun CartScreen(
             } else if (isEmpty) {
                 EmptyCartCard(onShopNow = onShopNow)
             } else {
-                CartMacBookHero()
+                state.appleHero?.let { product ->
+                    CartAppleHero(product = product, onOpenAmazon = onOpenAmazon)
+                }
 
                 // Exact order: hero → Basket → cards → compact Your Note row.
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -253,18 +259,84 @@ fun CartScreen(
 internal val CartHeaderTitleStyle = AirdropType.subtitle1
 
 @Composable
-private fun CartMacBookHero() {
-    Image(
-        painter = painterResource(R.drawable.img_cart_macbook_hero),
-        contentDescription = "The New MacBook Pro",
-        contentScale = ContentScale.Crop,
-        modifier = Modifier
-            .fillMaxWidth()
-            // 335×172 is the exact exported Figma frame inside 20dp insets.
-            .height(172.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .testTag("cart-macbook-hero"),
-    )
+private fun CartAppleHero(
+    product: ShopProduct,
+    onOpenAmazon: (String) -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    val amazonUrl = remember(product.amazonUrl) { product.amazonAssociatesUrlOrNull() }
+    var imageFailed by remember(product.imageUrl) { mutableStateOf(product.imageUrl.isNullOrBlank()) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                // Preserve the exact Figma hero footprint while replacing the
+                // stale bitmap with the current eligible featured product.
+                .height(172.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.gray200)
+                .clickable(enabled = amazonUrl != null) {
+                    amazonUrl?.let(onOpenAmazon)
+                }
+                .testTag("cart-apple-hero"),
+        ) {
+            if (imageFailed) {
+                Image(
+                    painter = painterResource(R.drawable.ic_shopping_bag),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(colors.gray500),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(48.dp)
+                        .testTag("cart-apple-hero-image-fallback"),
+                )
+            } else {
+                AsyncImage(
+                    model = product.imageUrl,
+                    contentDescription = product.title,
+                    contentScale = ContentScale.Crop,
+                    onError = { imageFailed = true },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("cart-apple-hero-image"),
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.74f))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = product.title,
+                    style = AirdropType.subtitle3,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("cart-apple-hero-title"),
+                )
+                Text(
+                    text = formatUsdPlain(product.priceUsd),
+                    style = AirdropType.title2,
+                    color = colors.orangeMain,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        Text(
+            text = AMAZON_ASSOCIATES_DISCLOSURE,
+            style = AirdropType.body3,
+            color = colors.textDescription,
+            modifier = Modifier.testTag("cart-apple-disclosure"),
+        )
+    }
 }
 
 @Composable

@@ -261,6 +261,7 @@ class HomeActivityTilesScreenshotTest {
         val context = instrumentation.targetContext
         val product = AuctionProduct(
             id = 42,
+            packageId = 42,
             name = "Apple 2023 MacBook Pro Laptop M3 chip",
             slug = "apple-2023-macbook-pro-laptop-m3-chip",
             currentPrice = "1550.00",
@@ -284,11 +285,23 @@ class HomeActivityTilesScreenshotTest {
                 }
             }
 
+            compose.onNodeWithContentDescription("Add to cart").assertExists()
+            compose.onNodeWithTag("home-auction-cart-glyph", useUnmergedTree = true)
+                .getUnclippedBoundsInRoot().let { glyph ->
+                assertClose(22f, boundsWidth(glyph), "Swift add glyph width")
+                assertClose(22f, boundsHeight(glyph), "Swift add glyph height")
+            }
             compose.onNodeWithTag("home-auction-cart-toggle").performClick()
             compose.runOnIdle {
                 assertEquals(emptyList<String>(), navigatedRoutes)
                 assertEquals(1, CartStore.count)
                 assertEquals(product.id, CartStore.items.value.single().id)
+            }
+            compose.onNodeWithContentDescription("Remove from cart").assertExists()
+            compose.onNodeWithTag("home-auction-cart-glyph", useUnmergedTree = true)
+                .getUnclippedBoundsInRoot().let { glyph ->
+                assertClose(22f, boundsWidth(glyph), "Swift selected check-box width")
+                assertClose(22f, boundsHeight(glyph), "Swift selected check-box height")
             }
 
             compose.onNodeWithTag("home-auction-card").performClick()

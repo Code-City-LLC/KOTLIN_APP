@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -41,6 +45,10 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.data.model.PromotionalBanner
+import com.ga.airdrop.feature.shop.AMAZON_ASSOCIATES_DISCLOSURE
+import com.ga.airdrop.feature.shop.ShopProduct
+import com.ga.airdrop.feature.shop.ShopProductCard
+import com.ga.airdrop.feature.shop.amazonAssociatesUrlOrNull
 
 /**
  * Promotions — Figma node 40001646:14035, behavior from
@@ -51,9 +59,14 @@ import com.ga.airdrop.data.model.PromotionalBanner
 fun PromotionsScreen(
     onBack: () -> Unit,
     viewModel: PromotionsViewModel = viewModel(),
+    onOpenAmazon: (String) -> Unit = {},
+    onOpenSale: (ShopProduct) -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    val hasContent = state.banners.isNotEmpty() ||
+        state.appleFinds.isNotEmpty() ||
+        state.saleHighlights.isNotEmpty()
 
     Column(
         Modifier
@@ -81,7 +94,7 @@ fun PromotionsScreen(
                         )
                     }
                 }
-                state.banners.isEmpty() && state.hasLoaded -> {
+                !hasContent && state.hasLoaded -> {
                     Box(
                         Modifier
                             .fillMaxSize()
@@ -108,8 +121,78 @@ fun PromotionsScreen(
                         state.banners.forEachIndexed { index, banner ->
                             PromotionCard(banner = banner, index = index)
                         }
+                        if (state.appleFinds.isNotEmpty()) {
+                            PromotionProductRail(
+                                title = "Apple Finds on Amazon",
+                                products = state.appleFinds,
+                                tag = "promotions-apple",
+                                disclosure = AMAZON_ASSOCIATES_DISCLOSURE,
+                                onProduct = { product ->
+                                    product.amazonAssociatesUrlOrNull()?.let(onOpenAmazon)
+                                },
+                            )
+                        }
+                        if (state.saleHighlights.isNotEmpty()) {
+                            PromotionProductRail(
+                                title = "Sale Highlights",
+                                products = state.saleHighlights,
+                                tag = "promotions-sale",
+                                onProduct = onOpenSale,
+                            )
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PromotionProductRail(
+    title: String,
+    products: List<ShopProduct>,
+    tag: String,
+    disclosure: String? = null,
+    onProduct: (ShopProduct) -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("$tag-section"),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = title,
+            style = AirdropType.title1,
+            color = colors.textDarkTitle,
+        )
+        disclosure?.let {
+            Text(
+                text = it,
+                style = AirdropType.body3,
+                color = colors.textDescription,
+                modifier = Modifier.testTag("$tag-disclosure"),
+            )
+        }
+        LazyRow(
+            contentPadding = PaddingValues(0.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            itemsIndexed(
+                items = products,
+                key = { index, product -> product.id.takeIf { it != 0 } ?: "$tag-$index" },
+            ) { index, product ->
+                ShopProductCard(
+                    product = product,
+                    inCart = false,
+                    onClick = { onProduct(product) },
+                    onToggleCart = null,
+                    modifier = Modifier
+                        .width(160.dp)
+                        .testTag("$tag-card-$index"),
+                )
             }
         }
     }

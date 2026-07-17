@@ -10,7 +10,10 @@ import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.feature.more.MoreProfileRepository
 import com.ga.airdrop.feature.more.MoreRepository
 import com.ga.airdrop.feature.shop.ShopCheckoutRepository
+import com.ga.airdrop.feature.shop.ShopProduct
+import com.ga.airdrop.feature.shop.ShopProductsRepository
 import com.ga.airdrop.feature.shop.ShopRepoProvider
+import com.ga.airdrop.feature.shop.eligibleAppleAmazonProducts
 import java.net.URI
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,6 +63,8 @@ data class CartUiState(
     val checkoutUrl: String? = null,
     val checkoutSessionId: String? = null,
     val checkoutLaunchAttempt: Long = 0L,
+    /** First eligible tagged Apple/Mac product from the shared featured feed. */
+    val appleHero: ShopProduct? = null,
 )
 
 internal const val ADD_NEW_CHECKOUT_PROFILE = "Add new profile"
@@ -76,6 +81,7 @@ class CartViewModel(
     private val cartServer: CartServerGateway = DataCartServerGateway(),
     private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
     private val profileRepository: MoreProfileRepository = MoreRepository(),
+    private val products: ShopProductsRepository = ShopRepoProvider.products,
 ) : ViewModel() {
 
     val countryOptions: List<String> get() = CountryCatalog.displayOptions
@@ -107,6 +113,7 @@ class CartViewModel(
             _state.update { it.copy(note = CartNoteStore.note(owner)) }
         }
         loadRate()
+        loadAppleHero()
         viewModelScope.launch {
             sessionBoundary.changes.collect { changed ->
                 val replaced = sessionOwner?.sessionId != changed?.sessionId
@@ -122,10 +129,12 @@ class CartViewModel(
                     hydrateGeneration++
                     CartStore.clear()
                     CheckoutFlowStore.clear()
+                    val appleHero = _state.value.appleHero
                     _state.value = CartUiState(
                         exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current,
                         loadingCart = changed != null,
                         note = changed?.let(CartNoteStore::note).orEmpty(),
+                        appleHero = appleHero,
                     )
                 } else if (changed != null) {
                     // Account id may be strengthened after /user/profile.
@@ -147,6 +156,17 @@ class CartViewModel(
                     _state.update { it.copy(exchangeUsdToJmd = rate) }
                 }
             }
+        }
+    }
+
+    private fun loadAppleHero() {
+        viewModelScope.launch {
+            products.featuredProducts(page = 1, perPage = 50, search = null)
+                .onSuccess { featured ->
+                    _state.update {
+                        it.copy(appleHero = eligibleAppleAmazonProducts(featured).firstOrNull())
+                    }
+                }
         }
     }
 
