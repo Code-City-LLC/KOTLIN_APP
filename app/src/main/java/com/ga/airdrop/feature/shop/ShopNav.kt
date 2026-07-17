@@ -94,6 +94,7 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
     // My Cart — Figma 40008284:26547.
     composable(Routes.CART) { entry ->
         val cartViewModel: CartViewModel = viewModel(entry)
+        val context = LocalContext.current
         CartScreen(
             onBack = { navController.popBackStack() },
             onShopNow = {
@@ -110,6 +111,7 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 // push two Delivery Method entries (verify finding, 2026-07-06).
                 navController.navigate(it) { launchSingleTop = true }
             },
+            onOpenAmazon = { url -> launchExternalUrl(context, url) },
         )
     }
 

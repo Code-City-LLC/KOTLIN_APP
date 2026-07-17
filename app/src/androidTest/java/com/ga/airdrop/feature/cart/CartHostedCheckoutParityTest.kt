@@ -323,7 +323,7 @@ class CartHostedCheckoutParityTest {
             saleTrashBounds.left.value > saleImageBounds.right.value &&
                 saleTrashBounds.right.value <= saleCardBounds.right.value,
         )
-        compose.onNodeWithTag("cart-macbook-hero").assertDoesNotExist()
+        compose.onNodeWithTag("cart-apple-hero").assertDoesNotExist()
         compose.onNodeWithText("Basket (2 Items)").assertDoesNotExist()
         compose.onNodeWithText("Your Note").assertDoesNotExist()
 

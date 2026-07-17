@@ -669,7 +669,9 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
                 colorFilter = ColorFilter.tint(
                     if (inCart) colors.orangeMain else colors.textDarkTitle
                 ),
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier
+                    .size(22.dp)
+                    .testTag("home-auction-cart-glyph"),
             )
         }
     }

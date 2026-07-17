@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -34,10 +34,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
@@ -85,12 +86,28 @@ private val benefits = listOf(
     "Island wide delivery",
 )
 
-private val storeLogos = listOf(
-    R.drawable.img_homedet_logo_amazon,
-    R.drawable.img_homedet_logo_ebay,
-    R.drawable.img_homedet_logo_walmart,
-    R.drawable.img_homedet_logo_rhode,
-    R.drawable.img_homedet_logo_alani,
+private data class ServicesStoreLogo(
+    val drawable: Int,
+    val width: Int,
+    val height: Int,
+)
+
+private const val MARQUEE_FRAME_MILLIS = 16L
+
+private val topStoreLogos = listOf(
+    ServicesStoreLogo(R.drawable.img_homedet_logo_amazon, width = 93, height = 28),
+    ServicesStoreLogo(R.drawable.img_homedet_logo_ebay, width = 80, height = 32),
+    ServicesStoreLogo(R.drawable.img_homedet_logo_walmart, width = 102, height = 24),
+    ServicesStoreLogo(R.drawable.img_homedet_logo_farfetch, width = 161, height = 20),
+    ServicesStoreLogo(R.drawable.img_homedet_logo_homedepot, width = 36, height = 36),
+)
+
+private val bottomStoreLogos = listOf(
+    ServicesStoreLogo(R.drawable.img_homedet_logo_bestbuy, width = 48, height = 28),
+    ServicesStoreLogo(R.drawable.img_homedet_logo_alibaba, width = 101, height = 16),
+    ServicesStoreLogo(R.drawable.img_homedet_logo_neimanmarcus, width = 73, height = 28),
+    ServicesStoreLogo(R.drawable.img_homedet_logo_target, width = 32, height = 32),
+    ServicesStoreLogo(R.drawable.img_homedet_logo_macys, width = 88, height = 24),
 )
 
 private val customerPhotos = listOf(
@@ -172,7 +189,7 @@ fun ServicesScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(Spacing.lg))
             TaxFreeHeading()
             Spacer(Modifier.height(Spacing.md))
-            LogoMarquee(storeLogos)
+            LogoMarquee(topLogos = topStoreLogos, bottomLogos = bottomStoreLogos)
             Spacer(Modifier.height(25.dp))
             BenefitsCard()
             Spacer(Modifier.height(Spacing.xxxl))
@@ -350,29 +367,29 @@ private fun ServicesHero() {
 // ─── Store logo rows ───────────────────────────────────────────────────────
 
 @Composable
-private fun LogoMarquee(logos: List<Int>) {
+private fun LogoMarquee(
+    topLogos: List<ServicesStoreLogo>,
+    bottomLogos: List<ServicesStoreLogo>,
+) {
     Column(
         Modifier
             .fillMaxWidth()
-            .height(90.dp)
-            .testTag("services-logo-marquee")
-            .padding(vertical = 1.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .height(120.dp)
+            .testTag("services-logo-marquee"),
+        verticalArrangement = Arrangement.spacedBy(40.dp),
     ) {
         LogoMarqueeRow(
-            logos = logos,
+            logos = topLogos,
             movesForward = true,
             initialIndex = 0,
-            initialDelayMillis = 350,
-            intervalMillis = 2_000,
+            speedDpPerSecond = 10.9f,
             tag = "services-logo-row-top",
         )
         LogoMarqueeRow(
-            logos = logos,
+            logos = bottomLogos,
             movesForward = false,
-            initialIndex = logos.size,
-            initialDelayMillis = 600,
-            intervalMillis = 2_200,
+            initialIndex = bottomLogos.size,
+            speedDpPerSecond = 9.4f,
             tag = "services-logo-row-bottom",
         )
     }
@@ -380,34 +397,36 @@ private fun LogoMarquee(logos: List<Int>) {
 
 @Composable
 private fun LogoMarqueeRow(
-    logos: List<Int>,
+    logos: List<ServicesStoreLogo>,
     movesForward: Boolean,
     initialIndex: Int,
-    initialDelayMillis: Long,
-    intervalMillis: Long,
+    speedDpPerSecond: Float,
     tag: String,
 ) {
     val colors = AirdropTheme.colors
+    val density = LocalDensity.current
     val displayLogos = remember(logos) { logos + logos + logos }
     val state = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
 
-    LaunchedEffect(logos, movesForward) {
-        var index = initialIndex
-        delay(initialDelayMillis)
+    LaunchedEffect(logos, movesForward, speedDpPerSecond, density) {
+        val direction = if (movesForward) 1f else -1f
+        val speedPxPerSecond = with(density) { speedDpPerSecond.dp.toPx() } * direction
+        val singleSetWidthPx = with(density) {
+            logos.sumOf { logo -> logo.width + 56 }.dp.toPx()
+        }
         while (true) {
-            index += if (movesForward) 1 else -1
-            when {
-                movesForward && index >= logos.size * 2 -> {
-                    index = logos.size
-                    state.scrollToItem(index)
+            delay(MARQUEE_FRAME_MILLIS)
+            state.scroll {
+                scrollBy(speedPxPerSecond * MARQUEE_FRAME_MILLIS / 1_000f)
+                when {
+                    movesForward && state.firstVisibleItemIndex >= logos.size * 2 -> {
+                        scrollBy(-singleSetWidthPx)
+                    }
+                    !movesForward && state.firstVisibleItemIndex <= 0 -> {
+                        scrollBy(singleSetWidthPx)
+                    }
                 }
-                !movesForward && index <= 0 -> {
-                    index = logos.size
-                    state.scrollToItem(index)
-                }
-                else -> state.animateScrollToItem(index)
             }
-            delay(intervalMillis)
         }
     }
 
@@ -417,24 +436,24 @@ private fun LogoMarqueeRow(
             .fillMaxWidth()
             .height(40.dp)
             .testTag(tag),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(0.dp),
         userScrollEnabled = false,
     ) {
-        items(displayLogos) { res ->
+        itemsIndexed(displayLogos) { index, logo ->
             Box(
                 Modifier
-                    .size(width = 100.dp, height = 40.dp)
-                    .shadow(2.dp, RoundedCornerShape(12.dp))
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(colors.gray300)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .size(width = (logo.width + 56).dp, height = 40.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(res),
+                    painter = painterResource(logo.drawable),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
+                    colorFilter = if (colors.isDark) ColorFilter.tint(Color.White) else null,
+                    alpha = if (colors.isDark) 0.75f else 1f,
+                    modifier = Modifier
+                        .size(width = logo.width.dp, height = logo.height.dp)
+                        .testTag("$tag-logo-$index"),
                 )
             }
         }
