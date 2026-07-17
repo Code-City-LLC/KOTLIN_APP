@@ -61,6 +61,7 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.feature.cart.isPackageCartEligibleStatus
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -264,10 +265,10 @@ fun packageStatusColor(statusName: String?): Color {
     }
 }
 
-/** Swift FigmaPackagesViewController.cardModel: only status 7/18 gets add-to-cart. */
+/** Laravel cart contract: only exact status 7 may expose a new-cart add. */
 fun packageCanAddToCart(pkg: ShipmentPackage): Boolean {
     val statusCode = pkg.status?.trim()?.toIntOrNull()
-    return statusCode == 7 || statusCode == 18
+    return isPackageCartEligibleStatus(statusCode)
 }
 
 /** Timeline flavor — FigmaPackageDetailsViewController.statusColor. */
@@ -827,7 +828,9 @@ fun PackageCard(
                         modifier = testTag?.let { Modifier.testTag("$it-status-value") } ?: Modifier,
                     )
                 }
-                if (canAddToCart) {
+                // Existing rows remain removable even after the server moves
+                // them out of status 7; only a new add is status-gated.
+                if (canAddToCart || inCart) {
                     Box(
                         modifier = Modifier
                             .size(24.dp)
@@ -836,7 +839,7 @@ fun PackageCard(
                         contentAlignment = Alignment.Center,
                     ) {
                         Image(
-                            painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
+                            painter = painterResource(if (inCart) R.drawable.ic_check_box else R.drawable.ic_add),
                             contentDescription = if (inCart) "In cart" else "Add to cart",
                             colorFilter = ColorFilter.tint(
                                 if (inCart) BrandPalette.OrangeMain else colors.iconSelected

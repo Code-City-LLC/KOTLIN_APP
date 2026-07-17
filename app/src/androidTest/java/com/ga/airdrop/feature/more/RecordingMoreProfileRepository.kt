@@ -15,7 +15,9 @@ internal class RecordingMoreProfileRepository(
     val lastProfileUpdate = AtomicReference<Map<String, String?>?>()
     var updateResult: Result<String?> = Result.success("OK")
 
-    override suspend fun currentUser(): Result<MoreUser> {
+    override suspend fun currentUser(
+        expectedSession: AuthTokenStore.RequestProvenance?,
+    ): Result<MoreUser> {
         currentUserCalls.incrementAndGet()
         return Result.success(user)
     }

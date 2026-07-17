@@ -77,7 +77,7 @@ fun AuctionCheckoutScreen(
     // it retryable so a retry doesn't mint a second Stripe session (same gate
     // as CartScreen, FuchsiaTower Pass-4 C5).
     val checkoutUrl = state.checkoutUrl
-    LaunchedEffect(checkoutUrl) {
+    LaunchedEffect(checkoutUrl, state.checkoutLaunchAttempt) {
         if (checkoutUrl != null) {
             if (launchExternalUrl(context, checkoutUrl)) {
                 viewModel.consumeCheckoutUrl()

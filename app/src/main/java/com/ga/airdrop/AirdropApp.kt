@@ -11,14 +11,26 @@ import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
 import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.feature.calculator.CalculatorHistory
 import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.cart.CheckoutFlowStore
+import com.ga.airdrop.feature.cart.SavedForLaterStore
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.feature.dropalert.DropAlertPreset
 import com.ga.airdrop.feature.shipments.PackagesSortStore
 import com.ga.airdrop.feature.shipments.ShipmentsRepoBinding
 import com.ga.airdrop.feature.shop.ShopRecentSearches
 import com.ga.airdrop.feature.shop.ShopRepoBinding
 import okhttp3.OkHttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class AirdropApp : Application(), ImageLoaderFactory {
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate() {
         super.onCreate()
@@ -26,6 +38,21 @@ class AirdropApp : Application(), ImageLoaderFactory {
         ThemeController.init(this)
         TextSizeController.init(this)
         CartStore.init(this)
+        SavedForLaterStore.init(this)
+        CheckoutFlowStore.init(this)
+        applicationScope.launch {
+            AuthTokenStore.snapshotFlow
+                .map { snapshot ->
+                    snapshot.sessionId?.takeIf { snapshot.token != null }
+                        ?.let { AuthenticatedSessionOwner(it, snapshot.accountId) }
+                }
+                .distinctUntilChanged()
+                .collect { owner ->
+                    CartStore.onAuthenticatedSessionChanged(owner)
+                    SavedForLaterStore.onAuthenticatedSessionChanged(owner)
+                    CheckoutFlowStore.onAuthenticatedSessionChanged(owner)
+                }
+        }
         DeliveryDefaultsStore.init(this)
         BiometricGate.init(this)
         CalculatorHistory.init(this)

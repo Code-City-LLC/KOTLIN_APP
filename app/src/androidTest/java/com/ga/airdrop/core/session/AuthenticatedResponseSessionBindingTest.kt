@@ -329,7 +329,9 @@ private class FakeMoreHubRepository(
     val currentUserCalls = AtomicInteger()
     val deleteProfileImageCalls = AtomicInteger()
 
-    override suspend fun currentUser(): Result<MoreUser> =
+    override suspend fun currentUser(
+        expectedSession: AuthTokenStore.RequestProvenance?,
+    ): Result<MoreUser> =
         if (currentUserCalls.incrementAndGet() == 1) firstUser.awaitResult()
         else Result.success(
             MoreUser(
@@ -372,7 +374,9 @@ private class GuardedMutationMoreRepository(
     val deleteAttempts = AtomicInteger()
     val serverDeleteCalls = AtomicInteger()
 
-    override suspend fun currentUser(): Result<MoreUser> = Result.success(
+    override suspend fun currentUser(
+        expectedSession: AuthTokenStore.RequestProvenance?,
+    ): Result<MoreUser> = Result.success(
         if (boundary.currentSessionId() == "account-a") {
             MoreUser(
                 firstName = "Account",

@@ -291,6 +291,12 @@ data class CartPackage(
     val description: String? = null,
     @Serializable(with = FlexibleDoubleSerializer::class)
     val weight: Double? = null,
+    @SerialName("weight_kg")
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val weightKg: Double? = null,
+    @SerialName("weight_lbs")
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val weightLbs: Double? = null,
     @SerialName("number_of_pieces")
     @Serializable(with = FlexibleIntSerializer::class)
     val numberOfPieces: Int? = null,
@@ -303,9 +309,17 @@ data class CartPackage(
     @SerialName("additional_charges")
     @Serializable(with = FlexibleDoubleSerializer::class)
     val additionalCharges: Double? = null,
+    @SerialName("additional_charges_total")
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val additionalChargesTotal: Double? = null,
+    @SerialName("total_charges")
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val totalCharges: Double? = null,
     @SerialName("status_name")
     @Serializable(with = FlexibleStringSerializer::class)
     val statusName: String? = null,
+    @Serializable(with = FlexibleIntSerializer::class)
+    val status: Int? = null,
 )
 
 @Serializable

@@ -1,5 +1,6 @@
 package com.ga.airdrop.data.repo
 
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.api.AirdropJson
 import com.ga.airdrop.data.model.CheckoutResponse
@@ -12,6 +13,7 @@ import com.ga.airdrop.data.model.Payment
 import com.ga.airdrop.data.model.PaymentIntentStatus
 import com.ga.airdrop.data.model.PaymentSheetConfig
 import java.io.File
+import java.util.Locale
 
 sealed interface InvoiceLocation {
     data class Remote(val url: String) : InvoiceLocation
@@ -57,15 +59,28 @@ class PaymentsRepository(private val service: AirdropApiService) {
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     suspend fun createCheckout(
         packageIds: List<Int>,
         currency: String,
         isAuction: Boolean = true,
-    ): Result<CheckoutResponse> = apiResult {
+        userNote: String? = null,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<CheckoutResponse> {
+        val normalizedCurrency = currency.trim().uppercase(Locale.US)
+        if (normalizedCurrency != "USD") {
+            return Result.failure(IllegalArgumentException("Stripe checkout is available in USD only"))
+        }
+        if (packageIds.isEmpty() || packageIds.any { it <= 0 }) {
+            return Result.failure(IllegalArgumentException("Checkout package IDs must be positive"))
+        }
+        return apiResult {
         val envelope = service.createCheckout(
-            CreateCheckoutRequest(
+            authRevision = expectedSession.revision.toString(),
+            sessionId = expectedSession.sessionId,
+            body = CreateCheckoutRequest(
                 packageIds = packageIds,
-                currency = currency,
+                currency = normalizedCurrency,
                 isAuction = isAuction,
                 returnUrl = MOBILE_CHECKOUT_RETURN_URL,
             ),
@@ -76,13 +91,26 @@ class PaymentsRepository(private val service: AirdropApiService) {
         }
         data
     }
+    }
 
-    suspend fun checkoutSessionStatus(sessionId: String): Result<CheckoutSessionStatus> = apiResult {
-        val envelope = service.checkoutSessionStatus(sessionId)
+    suspend fun checkoutSessionStatus(
+        sessionId: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<CheckoutSessionStatus> {
+        if (sessionId.isBlank()) {
+            return Result.failure(IllegalArgumentException("Checkout session ID is required"))
+        }
+        return apiResult {
+        val envelope = service.checkoutSessionStatus(
+            authRevision = expectedSession.revision.toString(),
+            ownerSessionId = expectedSession.sessionId,
+            sessionId = sessionId,
+        )
         if (envelope.success == false || envelope.data == null) {
             error(envelope.message ?: "Failed to fetch checkout session status")
         }
         envelope.data
+    }
     }
 
     suspend fun createPaymentSheet(

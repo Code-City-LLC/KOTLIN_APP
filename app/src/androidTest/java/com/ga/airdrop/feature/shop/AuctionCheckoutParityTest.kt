@@ -28,6 +28,8 @@ import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.data.model.CheckoutResponse
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.CompletableDeferred
@@ -279,8 +281,15 @@ class AuctionCheckoutParityTest {
             packageIds: List<Int>,
             currency: String,
             isAuction: Boolean,
-        ): Result<String> = checkoutFailure?.let { Result.failure(it) }
-            ?: Result.success("https://checkout.airdropja.test/session")
+            userNote: String?,
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<CheckoutResponse> = checkoutFailure?.let { Result.failure(it) }
+            ?: Result.success(
+                CheckoutResponse(
+                    checkoutUrl = "https://checkout.airdropja.test/session",
+                    sessionId = "cs_auction_test",
+                ),
+            )
 
         override suspend fun exchangeRate(): Result<Double> =
             exchangeRateBlock?.invoke() ?: exchangeRateResult

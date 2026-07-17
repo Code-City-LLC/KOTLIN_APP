@@ -108,7 +108,12 @@ fun PackagesScreen(
                         exchangeRate = state.exchangeRate,
                         onClick = { onNavigate(Routes.packageDetails(pkg.id.toString())) },
                         onToggleCart = { viewModel.toggleCart(pkg) },
-                        inCart = cartLines.any { it.id == pkg.id },
+                        inCart = cartLines.any {
+                            it.key == com.ga.airdrop.feature.cart.CartStore.CartLineKey(
+                                com.ga.airdrop.feature.cart.CartStore.CartLineKind.PACKAGE,
+                                pkg.id,
+                            )
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = Spacing.sm),

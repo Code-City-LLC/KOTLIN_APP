@@ -8,8 +8,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,9 +19,11 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -29,6 +33,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,10 +46,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -55,37 +66,32 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ga.airdrop.R
-import com.ga.airdrop.core.designsystem.components.GradientButton
-import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
-import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
-import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
+import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
 import com.ga.airdrop.feature.shop.ShopChevronRight
-import com.ga.airdrop.feature.shop.ShopDropdownField
 import com.ga.airdrop.feature.shop.ShopInnerHeader
 import com.ga.airdrop.feature.shop.formatUsdPlain
-import com.ga.airdrop.feature.shop.launchExternalUrl
+import java.net.URI
 import java.util.Locale
 
 /**
  * My Cart — Figma "My Cart Page" 40008284:26547, behavior from
- * FigmaCartViewController (RN MyCartView). Items come from the local
- * [CartStore]; "Make Payment" opens Stripe hosted checkout in a Custom Tab.
- * The verified-paid return flow owns cart clearing; the empty state shows the
- * EmptyCartIllustration with the ghost "Shop Now" CTA.
+ * FigmaCartViewController (RN MyCartView). The server hydrates package rows
+ * into the shared [CartStore], local auction rows retain a distinct identity,
+ * and Continue starts the Delivery Method flow. Payment controls live only on
+ * Order Summary.
  */
 @Composable
 fun CartScreen(
     onBack: () -> Unit,
     onShopNow: () -> Unit,
     viewModel: CartViewModel = viewModel(),
-    openCheckoutUrl: ((String) -> Unit)? = null,
-    /** Route push — "Make Payment" now goes Cart → Delivery Method. */
+    /** Route push — Continue goes Cart → Delivery Method. */
     onNavigate: (String) -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
@@ -95,7 +101,9 @@ fun CartScreen(
     val context = LocalContext.current
     val isEmpty = items.isEmpty()
     var showingSavedForLater by rememberSaveable { mutableStateOf(false) }
+    var showingNotePopup by rememberSaveable { mutableStateOf(false) }
     var actionLine by remember { mutableStateOf<CartStore.CartLine?>(null) }
+    val scrollTailPadding = if (isEmpty) 24.dp else 12.dp
 
     LaunchedEffect(Unit) {
         CartStore.init(context)
@@ -107,12 +115,12 @@ fun CartScreen(
             savedItems = savedItems,
             onBack = { showingSavedForLater = false },
             onMoveToCart = viewModel::moveSavedToCart,
-            onRemove = { line -> viewModel.removeSaved(line.id) },
+            onRemove = viewModel::removeSaved,
         )
         return
     }
 
-    // "Make Payment" hand-off — one-shot nav to the Delivery Method screen
+    // Continue hand-off — one-shot nav to the Delivery Method screen
     // (Swift cart → FigmaDeliveryMethodViewController parity).
     LaunchedEffect(state.navToDeliveryMethod) {
         if (state.navToDeliveryMethod) {
@@ -121,28 +129,12 @@ fun CartScreen(
         }
     }
 
-    // Stripe hosted checkout — Custom Tab; verified-paid return clears later.
-    val checkoutUrl = state.checkoutUrl
-    LaunchedEffect(checkoutUrl) {
-        if (checkoutUrl != null) {
-            val opened = if (openCheckoutUrl != null) {
-                openCheckoutUrl(checkoutUrl)
-                true
-            } else {
-                launchExternalUrl(context, checkoutUrl)
-            }
-            // Only clear the cart once the browser actually opened — a failed
-            // launch must keep the cart intact (FuchsiaTower Pass-4 C5).
-            if (opened) viewModel.onCheckoutOpened()
-        }
-    }
-
     Column(
         Modifier
             .fillMaxSize()
-            // Swift FigmaCartViewController.swift:82 — page is gray100.
-            .background(colors.gray100)
-            // Lift the billing form + payment bar above the keyboard.
+            // Swift/Figma 40008798:29430 — gray150 canvas behind white cards.
+            .background(colors.gray150)
+            // Lift the saved-note editor above the keyboard.
             .imePadding()
     ) {
         // Live Figma My Cart Header Type 40008798:29447 uses Subtitle1:
@@ -150,21 +142,35 @@ fun CartScreen(
         // empty cart never reads "Order Summary".
         ShopInnerHeader(title = "My Cart", onBack = onBack, titleStyle = CartHeaderTitleStyle)
 
+        // Swift pins scrollView.bottom directly to bottomBar.top. Keep the
+        // footer as a fixed sibling so larger text can never reduce the
+        // scroll viewport without Compose knowing its exact boundary.
         Column(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .testTag("cart-scroll-viewport")
                 .verticalScroll(rememberScrollState())
-                // Swift contentStack insets (:274-277): top 16, sides 20, bottom 24.
-                .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
-            // Swift contentStack spacing 24 between sections.
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+                .padding(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 16.dp,
+                    bottom = scrollTailPadding,
+                ),
+            // Both My Cart and Order Summary use a 20pt section rhythm.
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            if (isEmpty) {
+            if (state.loadingCart && isEmpty) {
+                Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.CircularProgressIndicator(color = BrandPalette.OrangeMain)
+                }
+            } else if (isEmpty) {
                 EmptyCartCard(onShopNow = onShopNow)
             } else {
-                // ─── Basket — single combined list + Swift Saved (N) pill ───
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CartMacBookHero()
+
+                // Exact order: hero → Basket → cards → compact Your Note row.
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     CartBasketHeader(
                         itemCount = items.size,
                         savedCount = savedItems.size,
@@ -173,172 +179,36 @@ fun CartScreen(
                     items.forEach { line ->
                         CartItemCard(
                             line = line,
-                            onRemove = { viewModel.removeItem(line.id) },
+                            onRemove = { viewModel.removeItem(line) },
                             onOpenActions = { actionLine = line },
                         )
                     }
                 }
 
-                // ─── Your Note — header ABOVE the 90dp note card (Swift) ───
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    CartSectionHeader("Your Note")
-                    NoteCard(note = state.note, onNoteChange = viewModel::updateNote)
-                }
-
-                // ─── Charges ───
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    CartSectionHeader("Charges")
-                    ChargesCard(
-                        exchangeUsdToJmd = state.exchangeUsdToJmd,
-                        totalPackages = items.size,
-                        totalUsd = viewModel.totalUsd(),
-                    )
-                }
-
-                // ─── Our Promise ───
-                PromiseCard()
-
-                // ─── {Name} Information ───
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    val name = state.loadedFirstName.ifBlank { state.form.firstName }
-                    CartSectionHeader("${name.ifBlank { "Your" }} Information")
-                    BillingFormCard(viewModel)
-                }
-
-                // ─── Payment Method row — Swift buildPaymentMethodRow
-                // (:753-790): 56pt, radius 15, label + 16pt gray500 chevron,
-                // NO leading icon.
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .background(colors.gray100, RoundedCornerShape(Radius.s))
-                        .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-                        .clickable { viewModel.setPaymentMethodDialogVisible(true) }
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Payment Method",
-                        style = AirdropType.subtitle1,
-                        color = colors.textDarkTitle,
-                    )
-                    Image(
-                        painter = painterResource(R.drawable.ic_small_arrow_down),
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(colors.gray500),
-                        modifier = Modifier
-                            .size(16.dp)
-                            .rotate(-90f),
-                    )
-                }
+                CartNoteRow(note = state.note, onClick = { showingNotePopup = true })
             }
         }
 
-        // ─── Bottom checkout bar — Swift :183-252: OPAQUE gray100 +
-        // iconShape divider, Exchange Rate + Order Total rows (NO Tax row),
-        // solid orangeMain radius-10 52pt Make Payment button.
         if (!isEmpty) {
-            Column(Modifier.fillMaxWidth().background(colors.gray100)) {
-                Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
-                Column(
-                    Modifier
-                        .padding(start = Spacing.md, end = Spacing.md, top = 12.dp, bottom = 8.dp)
-                        .navigationBarsPadding(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Exchange Rate",
-                            style = AirdropType.body3,
-                            color = colors.textDescription,
-                        )
-                        Text(
-                            text = String.format(
-                                Locale.US, "1 USD = %.2f JMD", state.exchangeUsdToJmd
-                            ),
-                            style = AirdropType.body3,
-                            color = colors.textDarkTitle,
-                        )
-                    }
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Order Total",
-                            style = AirdropType.subtitle1,
-                            color = colors.textDarkTitle,
-                        )
-                        Text(
-                            text = String.format(
-                                Locale.US,
-                                "USD %.2f  /  JMD %.2f",
-                                viewModel.totalUsd(),
-                                viewModel.totalJmd(),
-                            ),
-                            style = AirdropType.title2,
-                            color = BrandPalette.OrangeMain,
-                        )
-                    }
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                            .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
-                            .clickable(enabled = !state.paying, onClick = viewModel::pay),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (state.paying) {
-                            androidx.compose.material3.CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                color = BrandPalette.White,
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Text(
-                                text = "Make Payment",
-                                style = AirdropType.button,
-                                color = BrandPalette.White,
-                            )
-                        }
-                    }
-                }
-            }
+            CartTotalsFooter(
+                currency = state.form.currency,
+                exchangeUsdToJmd = state.exchangeUsdToJmd,
+                totalUsd = viewModel.totalUsd(),
+                totalJmd = viewModel.totalJmd(),
+                paying = state.paying,
+                onChooseDelivery = viewModel::pay,
+            )
         }
     }
 
-    // Payment Method sheet stand-in (Swift action sheet).
-    if (state.showPaymentMethodDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.setPaymentMethodDialogVisible(false) },
-            containerColor = colors.gray100,
-            title = {
-                Text(text = "Payment Method", style = AirdropType.title2, color = colors.textDarkTitle)
+    if (showingNotePopup) {
+        CartNotePopup(
+            initialNote = state.note,
+            onSave = {
+                viewModel.updateNote(it)
+                showingNotePopup = false
             },
-            text = {
-                Text(
-                    text = "Card on file is used through Stripe Hosted Checkout.",
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.setPaymentMethodDialogVisible(false) }) {
-                    Text(text = "Continue", style = AirdropType.button, color = BrandPalette.OrangeMain)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.setPaymentMethodDialogVisible(false) }) {
-                    Text(text = "Cancel", style = AirdropType.button, color = colors.textDarkTitle)
-                }
-            },
+            onDismiss = { showingNotePopup = false },
         )
     }
 
@@ -351,7 +221,7 @@ fun CartScreen(
                 actionLine = null
             },
             onRemove = {
-                viewModel.removeItem(line.id)
+                viewModel.removeItem(line)
                 actionLine = null
             },
             onDismiss = { actionLine = null },
@@ -382,12 +252,273 @@ fun CartScreen(
 
 internal val CartHeaderTitleStyle = AirdropType.subtitle1
 
-/* ─── Section header — Figma "Header Section" with info icon ───────────── */
+@Composable
+private fun CartMacBookHero() {
+    Image(
+        painter = painterResource(R.drawable.img_cart_macbook_hero),
+        contentDescription = "The New MacBook Pro",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .fillMaxWidth()
+            // 335×172 is the exact exported Figma frame inside 20dp insets.
+            .height(172.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .testTag("cart-macbook-hero"),
+    )
+}
 
 @Composable
-private fun CartSectionHeader(title: String) {
-    // Swift sectionHeader (:809-815) — bare SubTitle1 label, no icon.
-    Text(text = title, style = AirdropType.subtitle1, color = AirdropTheme.colors.textDarkTitle)
+internal fun CartNoteRow(
+    note: String,
+    title: String = "Your Note",
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AirdropTheme.colors
+    val display = note.trim().ifEmpty { title }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(59.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(colors.gray100)
+            .border(1.dp, colors.cardHairline, RoundedCornerShape(15.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp)
+            .testTag("cart-your-note-row"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_chat),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+        )
+        Text(
+            text = display,
+            style = AirdropType.subtitle1,
+            color = colors.textDarkTitle,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        ShopChevronRight()
+    }
+}
+
+@Composable
+private fun CartTotalsFooter(
+    currency: String,
+    exchangeUsdToJmd: Double,
+    totalUsd: Double,
+    totalJmd: Double,
+    paying: Boolean,
+    onChooseDelivery: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier
+            .fillMaxWidth()
+            .background(colors.frostedGlassSurface)
+            .testTag("cart-frosted-totals-footer"),
+    ) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.cardHairline))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            BottomBarRow(
+                label = "Exchange Rate",
+                value = String.format(Locale.US, "USD 1 = JMD %.2f", exchangeUsdToJmd),
+            )
+            BottomBarRow(label = "Fax", value = "$ 5.00")
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = "Order Total", style = AirdropType.title2, color = colors.textDarkTitle)
+                Text(
+                    text = if (currency.equals("JMD", ignoreCase = true)) {
+                        String.format(Locale.US, "JMD %.2f", totalJmd)
+                    } else {
+                        String.format(Locale.US, "USD %.2f", totalUsd)
+                    },
+                    style = AirdropType.title2,
+                    color = colors.textDarkTitle,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            CheckoutSolidButton(
+                text = "Choose Delivery",
+                loading = paying,
+                enabled = !paying,
+                onClick = onChooseDelivery,
+                modifier = Modifier.testTag("cart-choose-delivery"),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun CheckoutSolidButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+) {
+    val colors = AirdropTheme.colors
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (enabled) colors.buttonStatic else BrandPalette.ButtonDisable)
+            .clickable(enabled = enabled && !loading, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(22.dp),
+                color = BrandPalette.White,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                CheckoutArrow()
+                Text(text = text, style = AirdropType.button, color = BrandPalette.White)
+                CheckoutArrow()
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckoutArrow() {
+    Image(
+        painter = painterResource(R.drawable.ic_small_arrow_down),
+        contentDescription = null,
+        colorFilter = ColorFilter.tint(BrandPalette.White),
+        modifier = Modifier.size(20.dp).rotate(-90f),
+    )
+}
+
+@Composable
+internal fun CartNotePopup(
+    initialNote: String,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var draft by rememberSaveable(initialNote) { mutableStateOf(initialNote) }
+    val focusRequester = remember { FocusRequester() }
+    var focusTargetAttached by remember { mutableStateOf(false) }
+    val colors = AirdropTheme.colors
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        LaunchedEffect(focusTargetAttached) {
+            if (focusTargetAttached) focusRequester.requestFocus()
+        }
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .background(Color(0xB3292929))
+                .imePadding()
+                .padding(horizontal = 19.dp)
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            val popupHeight = maxHeight.coerceAtMost(566.dp)
+            val inputHeight = (popupHeight - 147.dp).coerceIn(120.dp, 332.dp)
+            Box(
+                Modifier
+                    .widthIn(max = 337.dp)
+                    .fillMaxWidth()
+                    .height(popupHeight)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.gray100)
+                    // Consume blank-card taps so they never fall through to
+                    // the dismissing backdrop.
+                    .clickable(onClick = {})
+                    .testTag("cart-note-popup"),
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.img_cart_note_popup_pattern),
+                    contentDescription = null,
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier
+                        .offset(x = (-122).dp, y = (-418).dp)
+                        .width(1631.53.dp)
+                        .height(1846.758.dp)
+                        .alpha(0.07f)
+                        .testTag("cart-note-popup-pattern"),
+                )
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(start = 14.dp, end = 13.dp, top = 13.dp, bottom = 13.dp),
+                    verticalArrangement = Arrangement.spacedBy(25.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_chat),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Text(text = "Your Note", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(inputHeight)
+                            .background(colors.gray100, RoundedCornerShape(10.dp))
+                            .border(1.dp, colors.cardHairline, RoundedCornerShape(10.dp))
+                            .padding(10.dp),
+                    ) {
+                        if (draft.isEmpty()) {
+                            Text(
+                                text = "Enter Your text",
+                                style = AirdropType.body3,
+                                color = colors.textDescription,
+                            )
+                        }
+                        BasicTextField(
+                            value = draft,
+                            onValueChange = { draft = it },
+                            textStyle = AirdropType.body3.copy(color = colors.textDarkTitle),
+                            cursorBrush = SolidColor(BrandPalette.OrangeMain),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .focusRequester(focusRequester)
+                                .onGloballyPositioned { focusTargetAttached = it.isAttached }
+                                .testTag("cart-note-input"),
+                        )
+                    }
+                    CheckoutSolidButton(
+                        text = "Save",
+                        onClick = { onSave(draft.trim()) },
+                        modifier = Modifier.testTag("cart-note-save"),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -501,7 +632,7 @@ private fun CartItemCard(
     onRemove: () -> Unit,
     onOpenActions: () -> Unit,
 ) {
-    if (line.isAuction) {
+    if (line.resolvedKind == CartStore.CartLineKind.AUCTION) {
         CartSaleItemCard(
             line = line,
             onRemove = onRemove,
@@ -589,11 +720,7 @@ private fun CartSaleItemCard(
 ) {
     val colors = AirdropTheme.colors
     val cardShape = RoundedCornerShape(Radius.s)
-    val imageUrl = line.imageUrl
-        ?.trim()
-        ?.takeIf { it.isNotBlank() }
-        ?.replaceFirst("http://", "https://")
-    val productFallback = painterResource(R.drawable.ic_package)
+    val imageUrl = validatedProductImageUrl(line.imageUrl)
     var imageLoadSucceeded by remember(imageUrl) { mutableStateOf<Boolean?>(null) }
 
     Row(
@@ -617,39 +744,31 @@ private fun CartSaleItemCard(
                 .testTag("cart-sale-image-${line.id}"),
             contentAlignment = Alignment.Center,
         ) {
-            if (imageUrl != null) {
+            if (imageUrl != null && imageLoadSucceeded != false) {
                 AsyncImage(
                     model = imageUrl,
-                    contentDescription = if (imageLoadSucceeded == false) {
-                        "Product image unavailable"
-                    } else {
-                        line.title
-                    },
+                    contentDescription = line.title,
                     contentScale = ContentScale.Fit,
-                    error = productFallback,
                     onSuccess = { imageLoadSucceeded = true },
                     onError = { imageLoadSucceeded = false },
-                    modifier = (if (imageLoadSucceeded == false) {
-                        Modifier.size(36.dp)
-                    } else {
-                        Modifier
-                            .fillMaxSize()
-                            .padding(7.dp)
-                    })
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(7.dp)
                         .testTag(
                             if (imageLoadSucceeded == true) {
                                 "cart-sale-image-loaded-${line.id}"
                             } else {
-                                "cart-sale-image-fallback-${line.id}"
+                                "cart-sale-image-loading-${line.id}"
                             }
                         ),
                 )
             } else {
-                Image(
-                    painter = productFallback,
-                    contentDescription = "Product image unavailable",
-                    modifier = Modifier
-                        .size(36.dp)
+                // Frozen Sale rows never impersonate a shipment. A missing,
+                // non-HTTPS, or failed product URL leaves only this neutral
+                // image well: no package/auction icon and no fabricated ID.
+                Box(
+                    Modifier
+                        .fillMaxSize()
                         .testTag("cart-sale-image-fallback-${line.id}"),
                 )
             }
@@ -657,7 +776,7 @@ private fun CartSaleItemCard(
         Column(
             Modifier
                 .weight(1f)
-                .height(84.dp),
+                .heightIn(min = 84.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
             Text(
@@ -699,201 +818,14 @@ private fun CartSaleItemCard(
     }
 }
 
-/* ─── Your Note card ───────────────────────────────────────────────────── */
-
-@Composable
-private fun NoteCard(note: String, onNoteChange: (String) -> Unit) {
-    val colors = AirdropTheme.colors
-    // Swift buildNoteCard (:541-576): fixed 90pt gray100 radius-12 multiline
-    // field; the "Your Note" header lives ABOVE the card.
-    Box(
-        Modifier
-            .fillMaxWidth()
-            // Swift buildNoteCard (:565) — fixed 90pt height.
-            .height(90.dp)
-            .background(colors.gray100, RoundedCornerShape(12.dp))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(12.dp))
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-    ) {
-        if (note.isEmpty()) {
-            Text(
-                text = "Add any delivery notes or special requests",
-                style = AirdropType.body2,
-                color = colors.textPlaceholder,
-            )
-        }
-        BasicTextField(
-            value = note,
-            onValueChange = onNoteChange,
-            textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-            cursorBrush = SolidColor(BrandPalette.OrangeMain),
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-/* ─── Charges card — Figma "Fees Card" ─────────────────────────────────── */
-
-@Composable
-private fun ChargesCard(exchangeUsdToJmd: Double, totalPackages: Int, totalUsd: Double) {
-    val colors = AirdropTheme.colors
-    // Swift renderChargesRows (:601-638): ONE gray150 card, rows spaced 10,
-    // then a 1dp divider and a "Total Charges" row with an ORANGE value —
-    // no invented footer band, no hardcoded colors.
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(colors.gray150, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        ChargeRow(label = "Payment Currency", value = "USD")
-        ChargeRow(label = "Tax", value = "0")
-        ChargeRow(
-            label = "Exchange Rate (USD)",
-            value = String.format(Locale.US, "USD 1 = JMD %.2f", exchangeUsdToJmd),
-        )
-        ChargeRow(label = "Total Packages", value = totalPackages.toString())
-        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = "Total Charges", style = AirdropType.subtitle1, color = colors.textDarkTitle)
-            Text(
-                text = formatUsdPlain(totalUsd),
-                style = AirdropType.subtitle1,
-                color = BrandPalette.OrangeMain,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ChargeRow(label: String, value: String) {
-    val colors = AirdropTheme.colors
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = label, style = AirdropType.body2, color = colors.textDescription)
-        Text(text = value, style = AirdropType.body2, color = colors.textDarkTitle)
-    }
-}
-
-/* ─── Our Promise card — Figma "Erroring & Alerts" onHold variant ──────── */
-
-@Composable
-private fun PromiseCard() {
-    val colors = AirdropTheme.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(colors.infoBoxBackground, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.infoBoxBorder, RoundedCornerShape(Radius.s))
-            // Swift buildPromiseCard row insets (:686-689) — 14 all sides.
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ic_info),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(
-                if (colors.isDark) colors.textDarkTitle else BrandPalette.BlueMain,
-            ),
-            modifier = Modifier.size(20.dp),
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(
-                text = "Our Promise",
-                style = AirdropType.subtitle1,
-                color = if (colors.isDark) colors.textDarkTitle else BrandPalette.BlueMain,
-            )
-            Text(
-                text = "We do not store any card details in our system. " +
-                    "Your card details are safe and secure.",
-                style = AirdropType.body2,
-                color = if (colors.isDark) colors.textDarkTitle else colors.textDescription,
-            )
-        }
-    }
-}
-
-/* ─── Billing form card ────────────────────────────────────────────────── */
-
-@Composable
-private fun BillingFormCard(viewModel: CartViewModel) {
-    val state by viewModel.state.collectAsState()
-    val form = state.form
-    // Swift buildBillingForm (:696-745): fields sit directly on the page —
-    // no wrapper card; name row + vertical spacing 12.
-    Column(
-        Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TypeInputField(
-                label = "First Name",
-                value = form.firstName,
-                onValueChange = { v -> viewModel.updateForm { it.copy(firstName = v) } },
-                required = true,
-                modifier = Modifier.weight(1f),
-            )
-            TypeInputField(
-                label = "Last Name",
-                value = form.lastName,
-                onValueChange = { v -> viewModel.updateForm { it.copy(lastName = v) } },
-                required = true,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        ShopDropdownField(
-            label = "Payment Currency",
-            value = form.currency,
-            options = viewModel.currencyOptions,
-            onSelect = { v -> viewModel.updateForm { it.copy(currency = v) } },
-            required = true,
-        )
-        TypeInputField(
-            label = "Address line 1",
-            value = form.address1,
-            onValueChange = { v -> viewModel.updateForm { it.copy(address1 = v) } },
-            required = true,
-        )
-        TypeInputField(
-            label = "Address line 2",
-            value = form.address2,
-            onValueChange = { v -> viewModel.updateForm { it.copy(address2 = v) } },
-        )
-        TypeInputField(
-            label = "State",
-            value = form.state,
-            onValueChange = { v -> viewModel.updateForm { it.copy(state = v) } },
-            required = true,
-        )
-        TypeInputField(
-            label = "City",
-            value = form.city,
-            onValueChange = { v -> viewModel.updateForm { it.copy(city = v) } },
-            required = true,
-        )
-        ShopDropdownField(
-            label = "Country",
-            value = form.country,
-            options = viewModel.countryOptions,
-            onSelect = { v -> viewModel.updateForm { it.copy(country = v) } },
-            required = true,
-        )
-        TypeInputField(
-            label = "Postal Code",
-            value = form.postal,
-            onValueChange = { v -> viewModel.updateForm { it.copy(postal = v) } },
-            required = true,
-        )
-    }
+/** Sale images are rendered only from an absolute, credential-free HTTPS URL. */
+internal fun validatedProductImageUrl(raw: String?): String? {
+    val trimmed = raw?.trim().orEmpty()
+    if (trimmed.isEmpty()) return null
+    val uri = runCatching { URI(trimmed) }.getOrNull() ?: return null
+    if (!uri.scheme.equals("https", ignoreCase = true) || uri.host.isNullOrBlank()) return null
+    if (uri.userInfo != null) return null
+    return trimmed
 }
 
 /* ─── Bottom bar row ───────────────────────────────────────────────────── */

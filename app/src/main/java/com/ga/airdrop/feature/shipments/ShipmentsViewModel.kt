@@ -2,6 +2,11 @@ package com.ga.airdrop.feature.shipments
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
+import com.ga.airdrop.feature.cart.CartServerGateway
+import com.ga.airdrop.feature.cart.DataCartServerGateway
+import com.ga.airdrop.feature.cart.PackageCartMutationCoordinator
 import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +50,8 @@ data class QuickTrackUiState(
 class ShipmentsViewModel(
     private val repo: ShipmentsHubRepository = ShipmentsRepoProvider.hub,
     private val packagesRepo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
+    cartServer: CartServerGateway = DataCartServerGateway(),
+    sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -55,6 +62,7 @@ class ShipmentsViewModel(
     val quickTrack: StateFlow<QuickTrackUiState> = _quickTrack
     private var refreshJob: Job? = null
     private var quickTrackJob: Job? = null
+    private val cartMutations = PackageCartMutationCoordinator(cartServer, sessionBoundary)
 
     init {
         refresh()
@@ -87,10 +95,11 @@ class ShipmentsViewModel(
     }
 
     fun toggleCart(pkg: ShipmentPackage) {
-        // Swift FigmaShipmentsViewController.onTapAddPackageToCart — the ONE
-        // shared cart; membership is observed via CartStore.items so the UI
-        // recomposes without a fake state write.
-        com.ga.airdrop.feature.cart.CartStore.toggle(pkg.toCartLine())
+        cartMutations.toggle(
+            line = pkg.toCartLine(),
+            scope = viewModelScope,
+            onFailure = { message -> _state.update { it.copy(error = message) } },
+        )
     }
 
     fun openQuickTrack() {

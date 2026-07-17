@@ -22,6 +22,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.feature.shop.ShopBillingProfile
 import com.ga.airdrop.feature.shop.ShopCheckoutRepository
 import java.util.concurrent.atomic.AtomicInteger
@@ -50,8 +52,22 @@ class CartSavedForLaterParityTest {
     fun longPressSavesLineAndViewerMovesItBackToCart() {
         setCartContent(
             listOf(
-                CartStore.CartLine(id = 2001, packageId = 7001, title = "Alpha Radio", priceUsd = 5.0),
-                CartStore.CartLine(id = 2002, packageId = 7002, title = "Beta Lamp", priceUsd = 7.0),
+                CartStore.CartLine(
+                    id = 2001,
+                    packageId = 7001,
+                    title = "Alpha Radio",
+                    priceUsd = 5.0,
+                    kind = CartStore.CartLineKind.AUCTION,
+                    isAuction = true,
+                ),
+                CartStore.CartLine(
+                    id = 2002,
+                    packageId = 7002,
+                    title = "Beta Lamp",
+                    priceUsd = 7.0,
+                    kind = CartStore.CartLineKind.AUCTION,
+                    isAuction = true,
+                ),
             )
         )
 
@@ -59,7 +75,7 @@ class CartSavedForLaterParityTest {
             compose.onAllNodesWithText("Basket (2 Items)").fetchSemanticsNodes().isNotEmpty()
         }
 
-        compose.onNodeWithTag("cart-line-2001").performTouchInput { longClick() }
+        compose.onNodeWithTag("cart-sale-line-2001").performTouchInput { longClick() }
         compose.onNodeWithTag("cart-action-save-for-later").performClick()
 
         compose.waitUntil(timeoutMillis = 5_000) {
@@ -95,10 +111,24 @@ class CartSavedForLaterParityTest {
     fun savedViewerRemoveDeletesOnlySavedCopy() {
         setCartContent(
             cartLines = listOf(
-                CartStore.CartLine(id = 3002, packageId = 8002, title = "Active Lamp", priceUsd = 7.0),
+                CartStore.CartLine(
+                    id = 3002,
+                    packageId = 8002,
+                    title = "Active Lamp",
+                    priceUsd = 7.0,
+                    kind = CartStore.CartLineKind.AUCTION,
+                    isAuction = true,
+                ),
             ),
             savedLines = listOf(
-                CartStore.CartLine(id = 3001, packageId = 8001, title = "Saved Radio", priceUsd = 5.0),
+                CartStore.CartLine(
+                    id = 3001,
+                    packageId = 8001,
+                    title = "Saved Radio",
+                    priceUsd = 5.0,
+                    kind = CartStore.CartLineKind.AUCTION,
+                    isAuction = true,
+                ),
             ),
         )
 
@@ -126,8 +156,8 @@ class CartSavedForLaterParityTest {
             SavedForLaterStore.init(context)
             CartStore.clear()
             SavedForLaterStore.clearAll()
-            cartLines.forEach { CartStore.add(it) }
-            savedLines.forEach { SavedForLaterStore.save(it) }
+            cartLines.forEach { check(CartStore.add(it)) }
+            savedLines.forEach { check(SavedForLaterStore.save(it)) }
         }
         compose.setContent {
             AirdropThemeProvider {
@@ -142,7 +172,6 @@ class CartSavedForLaterParityTest {
                         onBack = {},
                         onShopNow = {},
                         viewModel = viewModel,
-                        openCheckoutUrl = {},
                     )
                 }
             }
@@ -156,9 +185,16 @@ class CartSavedForLaterParityTest {
             packageIds: List<Int>,
             currency: String,
             isAuction: Boolean,
-        ): Result<String> {
+            userNote: String?,
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<CheckoutResponse> {
             checkoutCalls.incrementAndGet()
-            return Result.success("https://checkout.airdropja.test/cart-session")
+            return Result.success(
+                CheckoutResponse(
+                    checkoutUrl = "https://checkout.airdropja.test/cart-session",
+                    sessionId = "cs_saved_test",
+                ),
+            )
         }
 
         override suspend fun exchangeRate(): Result<Double> = Result.success(161.0)

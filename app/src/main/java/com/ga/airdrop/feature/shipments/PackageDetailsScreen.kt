@@ -501,7 +501,9 @@ private fun PackageDetailsContent(
                     modifier = Modifier.testTag("package-details-total-value"),
                 )
             }
-            GradientButton(text = "Add to Cart", onClick = onAddToCart)
+            if (state.canAddToCart) {
+                GradientButton(text = "Add to Cart", onClick = onAddToCart)
+            }
         }
 
         if (state.showReportDamageCta) {

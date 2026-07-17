@@ -1,5 +1,7 @@
 package com.ga.airdrop.feature.shop
 
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.feature.cart.CartStore
 
 /*
@@ -49,6 +51,7 @@ fun ShopProduct.toCartLine(qty: Int = 1): CartStore.CartLine = CartStore.CartLin
     title = title,
     qty = qty,
     priceUsd = priceUsd,
+    kind = CartStore.CartLineKind.AUCTION,
     isAuction = true,
 )
 
@@ -99,9 +102,16 @@ interface ShopCheckoutRepository {
      * body: { "package_ids": [Int], "currency": "USD"|"JMD", "is_auction": true }
      * response: { "success": Bool, "data": { "checkout_url": String,
      * "session_id": String, "amount": Double, "currency": String,
-     * "package_count": Int }, "message": String? } → returns checkout_url.
+     * "package_count": Int }, "message": String? }. Both URL and session id
+     * remain intact so payment return verification can bind to the initiator.
      */
-    suspend fun createCheckout(packageIds: List<Int>, currency: String, isAuction: Boolean = true): Result<String>
+    suspend fun createCheckout(
+        packageIds: List<Int>,
+        currency: String,
+        isAuction: Boolean = true,
+        userNote: String? = null,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<CheckoutResponse>
 
     /**
      * RECONCILE: GET /exchange-rates (no auth) → { "usd_to_jmd": Double }.
@@ -145,7 +155,13 @@ private object UnboundShopProductsRepository : ShopProductsRepository {
 }
 
 private object UnboundShopCheckoutRepository : ShopCheckoutRepository {
-    override suspend fun createCheckout(packageIds: List<Int>, currency: String, isAuction: Boolean): Result<String> =
+    override suspend fun createCheckout(
+        packageIds: List<Int>,
+        currency: String,
+        isAuction: Boolean,
+        userNote: String?,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<CheckoutResponse> =
         Result.failure(unbound)
 
     override suspend fun exchangeRate(): Result<Double> = Result.failure(unbound)

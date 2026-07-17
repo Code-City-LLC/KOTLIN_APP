@@ -64,7 +64,6 @@ import com.ga.airdrop.data.model.DeliveryWarehouse
 import com.ga.airdrop.data.model.PlaceResult
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.shop.ShopInnerHeader
-import com.ga.airdrop.feature.shop.launchExternalUrl
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -72,10 +71,8 @@ import kotlinx.coroutines.withContext
 /**
  * Delivery Method — Figma 40008740:28263, behavior from
  * FigmaDeliveryMethodViewController (docs/PARITY_GAP_SPECS.md §2). Reached
- * from My Cart "Make Payment"; ends in the currency popup, which (Phase-1
- * deviation, see [DeliveryMethodViewModel]) front-runs the cart's existing
- * Stripe hosted checkout — restore JMD→Profile / USD→Order Summary when
- * those screens land.
+ * from My Cart "Choose Delivery"; the currency popup routes JMD to Profile
+ * Information and USD to Order Summary without dispatching payment.
  *
  * LOCATION (Phase-1): "Use Current Location" is fully wired (runtime permission +
  * FusedLocationProvider); only the interactive map remains Phase-1 static
@@ -84,6 +81,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun DeliveryMethodScreen(
     onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {},
     viewModel: DeliveryMethodViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
@@ -158,16 +156,11 @@ fun DeliveryMethodScreen(
         }
     }
 
-    // Stripe hosted checkout — Custom Tab (CartScreen parity). Only consume the
-    // one-shot URL when the browser actually opened — a failed launch must keep
-    // the URL retryable instead of silently no-oping so a retry doesn't mint a
-    // second Stripe session (same gate as CartScreen, FuchsiaTower Pass-4 C5).
-    val checkoutUrl = state.checkoutUrl
-    LaunchedEffect(checkoutUrl) {
-        if (checkoutUrl != null) {
-            if (launchExternalUrl(context, checkoutUrl)) {
-                viewModel.onCheckoutOpened()
-            }
+    val navTarget = state.navTarget
+    LaunchedEffect(navTarget) {
+        if (navTarget != null) {
+            onNavigate(navTarget)
+            viewModel.consumeNav()
         }
     }
 

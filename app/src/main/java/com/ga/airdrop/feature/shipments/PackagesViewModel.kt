@@ -2,6 +2,11 @@ package com.ga.airdrop.feature.shipments
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
+import com.ga.airdrop.feature.cart.CartServerGateway
+import com.ga.airdrop.feature.cart.DataCartServerGateway
+import com.ga.airdrop.feature.cart.PackageCartMutationCoordinator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +66,8 @@ data class PackagesUiState(
 class PackagesViewModel(
     private val repo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
     private val hubRepo: ShipmentsHubRepository = ShipmentsRepoProvider.hub,
+    cartServer: CartServerGateway = DataCartServerGateway(),
+    sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
     companion object {
@@ -75,6 +82,7 @@ class PackagesViewModel(
 
     private var currentPage = 1
     private var loadJob: Job? = null
+    private val cartMutations = PackageCartMutationCoordinator(cartServer, sessionBoundary)
 
     init {
         viewModelScope.launch {
@@ -138,9 +146,11 @@ class PackagesViewModel(
     fun refresh() = load(reset = true)
 
     fun toggleCart(pkg: ShipmentPackage) {
-        // Swift FigmaPackagesViewController:715-731 — shared cart toggle;
-        // the screen observes CartStore.items, so no state write is needed.
-        com.ga.airdrop.feature.cart.CartStore.toggle(pkg.toCartLine())
+        cartMutations.toggle(
+            line = pkg.toCartLine(),
+            scope = viewModelScope,
+            onFailure = { message -> _state.update { it.copy(error = message) } },
+        )
     }
 
     private fun load(reset: Boolean) {

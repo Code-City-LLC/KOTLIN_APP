@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.shop
 
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.data.repo.MiscRepository
 import com.ga.airdrop.data.repo.PaymentsRepository
@@ -112,9 +114,15 @@ private class DataShopCheckoutRepository(
         packageIds: List<Int>,
         currency: String,
         isAuction: Boolean,
-    ): Result<String> =
-        payments.createCheckout(packageIds, currency, isAuction)
-            .mapCatching { it.checkoutUrl ?: error("Missing checkout URL") }
+        userNote: String?,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<CheckoutResponse> =
+        payments.createCheckout(packageIds, currency, isAuction, userNote, expectedSession)
+            .mapCatching { response ->
+                require(!response.checkoutUrl.isNullOrBlank()) { "Missing checkout URL" }
+                require(!response.sessionId.isNullOrBlank()) { "Missing checkout session ID" }
+                response
+            }
 
     override suspend fun exchangeRate(): Result<Double> =
         misc.exchangeRate().mapCatching { it.usdToJmd ?: error("Missing exchange rate") }

@@ -3,6 +3,12 @@ package com.ga.airdrop.feature.shipments
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.BuildConfig
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
+import com.ga.airdrop.feature.cart.CartServerGateway
+import com.ga.airdrop.feature.cart.DataCartServerGateway
+import com.ga.airdrop.feature.cart.PackageCartMutationCoordinator
+import com.ga.airdrop.feature.cart.isPackageCartEligibleStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -31,14 +37,18 @@ data class PackageDetailsUiState(
     val statusInt: Int get() = detail?.status?.toIntOrNull() ?: 0
 
     /**
-     * Charges breakdown + Add-to-Cart section — parity with Swift `showCharges`
+     * Charges breakdown section — parity with Swift `showCharges`
      * (FigmaPackageDetailsViewController.swift L1265: `statusInt == 7 || statusInt == 18`).
      * 7 = Ready for Pickup, 18 = Paid and Ready for Pick Up. `>= 7` was wrong because
      * status codes are non-contiguous (Swift L1258-1261) — it leaked Delivered (8) and
      * in-transit/customs (9/10/12). The Add-to-Cart CTA lives inside the same Swift
-     * `totalContainer`, so it shares this gate.
+     * `totalContainer`. The Laravel add contract is narrower; [canAddToCart]
+     * independently gates that CTA to exact status 7.
      */
     val showChargesAndCart: Boolean get() = statusInt == 7 || statusInt == 18
+
+    val canAddToCart: Boolean
+        get() = isPackageCartEligibleStatus(detail?.status?.trim()?.toIntOrNull())
 
     /**
      * Swift FigmaPackageDetailsViewController.updateReportDamageCTA:
@@ -119,12 +129,15 @@ class PackageDetailsViewModel(
     private val packageId: String,
     private val repo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
     private val hubRepo: ShipmentsHubRepository = ShipmentsRepoProvider.hub,
+    cartServer: CartServerGateway = DataCartServerGateway(),
+    sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
         PackageDetailsUiState(exchangeRate = com.ga.airdrop.core.prefs.ExchangeRateStore.current),
     )
     val state: StateFlow<PackageDetailsUiState> = _state
+    private val cartMutations = PackageCartMutationCoordinator(cartServer, sessionBoundary)
 
     init {
         viewModelScope.launch {
@@ -311,10 +324,19 @@ class PackageDetailsViewModel(
 
     fun addToCart() {
         val detail = _state.value.detail ?: return
-        // Swift FigmaPackageDetailsViewController:1186-1224 — add the real
-        // line to the shared cart so MyCart renders it.
-        com.ga.airdrop.feature.cart.CartStore.add(detail.toCartLine())
-        _state.update { it.copy(showAddedToCart = true) }
+        cartMutations.add(
+            line = detail.toCartLine(),
+            scope = viewModelScope,
+            onSuccess = { _state.update { it.copy(showAddedToCart = true) } },
+            onFailure = { message ->
+                _state.update {
+                    it.copy(
+                        transientTitle = "Cart update failed",
+                        transientMessage = message,
+                    )
+                }
+            },
+        )
     }
 
     fun dismissAddedToCart() = _state.update { it.copy(showAddedToCart = false) }

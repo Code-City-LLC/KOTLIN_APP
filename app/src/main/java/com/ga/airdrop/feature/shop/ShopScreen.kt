@@ -61,6 +61,7 @@ fun ShopScreen(
     val state by viewModel.state.collectAsState()
     val headerInfo by SessionStore.header.collectAsState()
     val cartLines by CartStore.items.collectAsState()
+    val cartKeys = cartLines.map(CartStore.CartLine::key).toSet()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var searchFocused by remember { mutableStateOf(false) }
@@ -143,7 +144,10 @@ fun ShopScreen(
                                     rowItems.forEach { product ->
                                         ShopProductCard(
                                             product = product,
-                                            inCart = cartLines.any { it.id == product.id },
+                                            inCart = CartStore.CartLineKey(
+                                                CartStore.CartLineKind.AUCTION,
+                                                product.id,
+                                            ) in cartKeys,
                                             onClick = { openDetails(product, featured = false) },
                                             onToggleCart = { CartStore.toggle(product.toCartLine()) },
                                             modifier = Modifier
@@ -180,7 +184,10 @@ fun ShopScreen(
                             items(state.featured, key = { it.id }) { product ->
                                 ShopProductCard(
                                     product = product,
-                                    inCart = cartLines.any { it.id == product.id },
+                                    inCart = CartStore.CartLineKey(
+                                        CartStore.CartLineKind.AUCTION,
+                                        product.id,
+                                    ) in cartKeys,
                                     onClick = { openDetails(product, featured = true) },
                                     // Swift: no cart toggle on Shop-root featured cards.
                                     onToggleCart = null,

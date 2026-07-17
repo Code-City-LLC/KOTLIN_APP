@@ -341,10 +341,16 @@ interface AirdropApiService {
     suspend fun paymentInvoice(@Path("id") invoiceId: Int): ResponseBody
 
     @POST("payments/create-checkout")
-    suspend fun createCheckout(@Body body: CreateCheckoutRequest): DataEnvelope<CheckoutResponse>
+    suspend fun createCheckout(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+        @Body body: CreateCheckoutRequest,
+    ): DataEnvelope<CheckoutResponse>
 
     @GET("payments/{sessionId}/status")
     suspend fun checkoutSessionStatus(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) ownerSessionId: String,
         @Path("sessionId") sessionId: String,
     ): DataEnvelope<CheckoutSessionStatus>
 
@@ -361,16 +367,25 @@ interface AirdropApiService {
     // ── Cart ──
 
     @GET("cart")
-    suspend fun cart(): DataEnvelope<CartSnapshot>
+    suspend fun cart(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+    ): DataEnvelope<CartSnapshot>
 
     @PUT("packages/{id}/cart")
     suspend fun addPackageToCart(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
         @Path("id") packageId: Int,
         @Body body: EmptyRequest,
     ): DataEnvelope<PackageCartMutation>
 
     @DELETE("packages/{id}/cart")
-    suspend fun removePackageFromCart(@Path("id") packageId: Int): DataEnvelope<PackageCartMutation>
+    suspend fun removePackageFromCart(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+        @Path("id") packageId: Int,
+    ): DataEnvelope<PackageCartMutation>
 
     // ── Referrals ──
 
@@ -435,16 +450,23 @@ interface AirdropApiService {
 
     @POST("delivery/validate-location")
     suspend fun validateDeliveryLocation(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String? = null,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String? = null,
         @Body body: ValidateLocationRequest,
     ): DeliveryValidationResponse
 
     @POST("delivery/save-preference")
     suspend fun saveDeliveryPreference(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String? = null,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String? = null,
         @Body body: SaveDeliveryPreferenceRequest,
     ): DataEnvelope<DeliveryPreference>
 
     @GET("delivery/preference")
-    suspend fun deliveryPreference(): DataEnvelope<DeliveryPreference>
+    suspend fun deliveryPreference(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String? = null,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String? = null,
+    ): DataEnvelope<DeliveryPreference>
 
     @POST("delivery/reverse-geocode")
     suspend fun reverseGeocode(@Body body: ReverseGeocodeRequest): DataEnvelope<ReverseGeocodeResult>

@@ -1,5 +1,6 @@
 package com.ga.airdrop.data.repo
 
+import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.api.UploadFile
 import com.ga.airdrop.data.api.textPart
@@ -94,22 +95,49 @@ class PackagesRepository(private val service: AirdropApiService) {
 
     // ── Server cart ──
 
-    suspend fun cart(): Result<CartSnapshot> = apiResult {
-        val envelope = service.cart()
-        envelope.data ?: error(envelope.message ?: "Failed to load cart")
+    suspend fun cart(expectedSession: AuthTokenStore.RequestProvenance): Result<CartSnapshot> = apiResult {
+        val envelope = service.cart(
+            authRevision = expectedSession.revision.toString(),
+            sessionId = expectedSession.sessionId,
+        )
+        if (envelope.success == false || envelope.data == null) {
+            error(envelope.message ?: "Failed to load cart")
+        }
+        envelope.data
     }
 
-    suspend fun addPackageToCart(packageId: Int): Result<PackageCartMutation> = apiResult {
-        val envelope = service.addPackageToCart(packageId, EmptyRequest())
-        if (envelope.success == false || envelope.data == null) {
+    suspend fun addPackageToCart(
+        packageId: Int,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<PackageCartMutation> = apiResult {
+        require(packageId > 0) { "Package ID must be positive" }
+        val envelope = service.addPackageToCart(
+            authRevision = expectedSession.revision.toString(),
+            sessionId = expectedSession.sessionId,
+            packageId = packageId,
+            body = EmptyRequest(),
+        )
+        if (envelope.success == false || envelope.data == null ||
+            envelope.data.packageId != packageId || envelope.data.inCart != true
+        ) {
             error(envelope.message ?: "Failed to add package to cart")
         }
         envelope.data
     }
 
-    suspend fun removePackageFromCart(packageId: Int): Result<PackageCartMutation> = apiResult {
-        val envelope = service.removePackageFromCart(packageId)
-        if (envelope.success == false || envelope.data == null) {
+    suspend fun removePackageFromCart(
+        packageId: Int,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<PackageCartMutation> = apiResult {
+        require(packageId > 0) { "Package ID must be positive" }
+        val envelope = service.removePackageFromCart(
+            authRevision = expectedSession.revision.toString(),
+            sessionId = expectedSession.sessionId,
+            packageId = packageId,
+        )
+        if (envelope.success == false || envelope.data == null ||
+            envelope.data.packageId != packageId || envelope.data.inCart != false
+        ) {
             error(envelope.message ?: "Failed to remove package from cart")
         }
         envelope.data

@@ -3,6 +3,12 @@ package com.ga.airdrop.feature.delivery
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
+import com.ga.airdrop.core.session.AuthenticatedOwnerChange
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.changeTo
 import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.data.model.DeliveryLocation
 import com.ga.airdrop.data.model.DeliveryWarehouse
@@ -10,14 +16,19 @@ import com.ga.airdrop.data.model.PlaceResult
 import com.ga.airdrop.data.repo.DeliveryGateway
 import com.ga.airdrop.data.repo.DeliveryRepository
 import com.ga.airdrop.feature.cart.CartStore
-import com.ga.airdrop.feature.shop.ShopCheckoutRepository
-import com.ga.airdrop.feature.shop.ShopRepoProvider
-import com.ga.airdrop.feature.shop.isUnauthenticatedCheckoutFailure
+import com.ga.airdrop.feature.cart.CheckoutCurrency
+import com.ga.airdrop.feature.cart.CheckoutFlow
+import com.ga.airdrop.feature.cart.CheckoutFlowStore
+import com.ga.airdrop.feature.cart.CheckoutNextRoute
+import com.ga.airdrop.feature.cart.CheckoutPhase
+import com.ga.airdrop.feature.cart.checkoutNextRoute
+import com.ga.airdrop.feature.cart.parseCheckoutCurrency
 import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -28,19 +39,13 @@ import kotlinx.coroutines.launch
  * map / validate), the preference is saved via POST /delivery/save-preference,
  * then the currency popup appears.
  *
- * CURRENCY-BRANCH DEVIATION (spec §4): Swift routes JMD → Profile Information
- * (FigmaBillingDetailsViewController) and USD → Order Summary
- * (FigmaCartViewController mode:.orderSummary). Kotlin has NO Profile-Info /
- * Order-Summary screens — the Kotlin cart pays via Stripe hosted checkout
- * directly. So [onCurrencyChosen] runs the cart's existing Stripe
- * createCheckout(packageIds, chosenCurrency, isAuction=true) with the SAME
- * guards + error copy as CartViewModel.pay(), and exposes the resulting
- * [DeliveryUiState.checkoutUrl] one-shot for the screen to open in a Custom
- * Tab. restore JMD→Profile / USD→Order Summary when those screens land.
+ * Currency owns routing, never payment dispatch: JMD → Profile Information →
+ * Order Summary; USD → Order Summary. Order Summary alone owns the terminal
+ * rail decision.
  */
 class DeliveryMethodViewModel(
     private val repo: DeliveryGateway = DeliveryRepository(ApiClient.service),
-    private val checkout: ShopCheckoutRepository = ShopRepoProvider.checkout,
+    private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DeliveryUiState())
@@ -54,18 +59,51 @@ class DeliveryMethodViewModel(
 
     /** In-flight validate-location call — last marker move wins. */
     private var validateJob: Job? = null
+    private var settingsJob: Job? = null
+    private var preferenceJob: Job? = null
+    private var saveJob: Job? = null
 
     /** Swift latestSearchQuery — stale-response guard for search results. */
     private var latestQuery: String = ""
+    private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
 
     init {
+        viewModelScope.launch {
+            sessionBoundary.changes.collect { changed ->
+                when (sessionOwner.changeTo(changed)) {
+                    AuthenticatedOwnerChange.Unchanged -> return@collect
+                    AuthenticatedOwnerChange.IdentityUpdated -> {
+                        sessionOwner = changed
+                        return@collect
+                    }
+                    AuthenticatedOwnerChange.SessionReplaced -> Unit
+                }
+                searchJob?.cancel()
+                reverseGeocodeJob?.cancel()
+                validateJob?.cancel()
+                settingsJob?.cancel()
+                preferenceJob?.cancel()
+                saveJob?.cancel()
+                latestQuery = ""
+                sessionOwner = changed
+                _state.value = DeliveryUiState(
+                    errorTitle = if (changed == null) "Sign in required" else null,
+                    errorMessage = if (changed == null) "Log in before continuing checkout." else null,
+                )
+                if (changed != null) {
+                    loadSettings()
+                    loadPreference()
+                }
+            }
+        }
         loadSettings()
         loadPreference()
     }
 
     /** GET /delivery/settings; on failure fall back to the 4 Swift hard-coded warehouses. */
     fun loadSettings() {
-        viewModelScope.launch {
+        settingsJob?.cancel()
+        settingsJob = viewModelScope.launch {
             val warehouses = repo.deliverySettings()
                 .map { it.settings?.warehouses.orEmpty() }
                 .getOrElse { fallbackWarehouses() }
@@ -84,9 +122,13 @@ class DeliveryMethodViewModel(
 
     /** GET /delivery/preference — pre-select mode / warehouse / re-hydrate delivery coord. */
     fun loadPreference() {
-        viewModelScope.launch {
-            repo.preference().onSuccess { pref ->
-                _state.update { s ->
+        val owner = sessionBoundary.capture()?.takeIf { it.sessionId == sessionOwner?.sessionId } ?: return
+        val requestOwner = sessionBoundary.requestOwner(owner) ?: return
+        preferenceJob?.cancel()
+        preferenceJob = viewModelScope.launch {
+            repo.preference(requestOwner.provenance).onSuccess { pref ->
+                sessionBoundary.apply(owner) {
+                    _state.update { s ->
                     val pickup = pref.pickupLocation?.takeIf { it.isNotBlank() } ?: s.pickupLabel
                     val loc = pref.deliveryLocation
                     val lat = loc?.latitude
@@ -106,6 +148,7 @@ class DeliveryMethodViewModel(
                         markerCoord = coord ?: s.markerCoord,
                         mapCenter = coord ?: s.mapCenter,
                     )
+                    }
                 }
             }
             // Failure: screen starts in default state (Swift audit D-1 parity).
@@ -115,8 +158,22 @@ class DeliveryMethodViewModel(
     fun onModeSelected(mode: DeliveryMode) {
         if (mode == DeliveryMode.Pickup) {
             searchJob?.cancel()
+            reverseGeocodeJob?.cancel()
+            validateJob?.cancel()
             latestQuery = ""
-            _state.update { it.copy(mode = mode, searchResults = emptyList()) }
+            _state.update {
+                it.copy(
+                    mode = mode,
+                    searchQuery = "",
+                    searchResults = emptyList(),
+                    markerCoord = null,
+                    validatedAddress = null,
+                    validatedDistanceKm = null,
+                    validatedFee = null,
+                    validatedFeeCurrency = null,
+                    ctaState = DeliveryCtaState.Idle,
+                )
+            }
         } else {
             _state.update { it.copy(mode = mode) }
         }
@@ -329,24 +386,61 @@ class DeliveryMethodViewModel(
         onMapPointPicked(latLng.first, latLng.second)
     }
 
-    /** POST /delivery/validate-location — total_weight_kg=null (CartLine has no weight). */
+    /** POST /delivery/validate-location with the frozen checkout weight. */
     private fun validate(latitude: Double, longitude: Double, address: String?) {
         validateJob?.cancel()
+        val owner = currentOwner() ?: return
+        val requestOwner = sessionBoundary.requestOwner(owner) ?: run {
+            showCheckoutContextError()
+            return
+        }
+        val flow = CheckoutFlowStore.current(owner) ?: run {
+            showCheckoutContextError()
+            return
+        }
+        val flowId = flow.id
+        val frozenWeightKg = flow.totalWeightKg
         _state.update { it.copy(ctaState = DeliveryCtaState.Validating) }
         validateJob = viewModelScope.launch {
-            repo.validateLocation(latitude, longitude, address, totalWeightKg = null)
+            repo.validateLocation(
+                latitude,
+                longitude,
+                address,
+                totalWeightKg = frozenWeightKg,
+                expectedSession = requestOwner.provenance,
+            )
                 .onSuccess { result ->
-                    if (result.valid == true) {
-                        _state.update {
-                            it.copy(
-                                ctaState = DeliveryCtaState.Idle,
-                                validatedAddress = address ?: it.validatedAddress,
-                                validatedDistanceKm = result.distanceKm,
-                                validatedFee = result.deliveryFee,
-                                validatedFeeCurrency = result.feeCurrency,
-                            )
+                    applyCurrentFlow(owner, flowId) {
+                        if (result.valid == true) {
+                            _state.update {
+                                it.copy(
+                                    ctaState = DeliveryCtaState.Idle,
+                                    validatedAddress = address ?: it.validatedAddress,
+                                    validatedDistanceKm = result.distanceKm,
+                                    validatedFee = result.deliveryFee,
+                                    validatedFeeCurrency = result.feeCurrency,
+                                )
+                            }
+                        } else {
+                            _state.update {
+                                it.copy(
+                                    ctaState = DeliveryCtaState.Idle,
+                                    markerCoord = null,
+                                    validatedAddress = null,
+                                    validatedDistanceKm = null,
+                                    validatedFee = null,
+                                    validatedFeeCurrency = null,
+                                    errorTitle = "Delivery not available",
+                                    errorMessage = result.reason
+                                        ?: "This location can't be served by our warehouses. " +
+                                            "Please choose a pickup point.",
+                                )
+                            }
                         }
-                    } else {
+                    }
+                }
+                .onFailure { err ->
+                    applyCurrentFlow(owner, flowId) {
                         _state.update {
                             it.copy(
                                 ctaState = DeliveryCtaState.Idle,
@@ -355,26 +449,10 @@ class DeliveryMethodViewModel(
                                 validatedDistanceKm = null,
                                 validatedFee = null,
                                 validatedFeeCurrency = null,
-                                errorTitle = "Delivery not available",
-                                errorMessage = result.reason
-                                    ?: "This location can't be served by our warehouses. " +
-                                        "Please choose a pickup point.",
+                                errorTitle = "Couldn't validate location",
+                                errorMessage = err.toUserMessage(),
                             )
                         }
-                    }
-                }
-                .onFailure { err ->
-                    _state.update {
-                        it.copy(
-                            ctaState = DeliveryCtaState.Idle,
-                            markerCoord = null,
-                            validatedAddress = null,
-                            validatedDistanceKm = null,
-                            validatedFee = null,
-                            validatedFeeCurrency = null,
-                            errorTitle = "Couldn't validate location",
-                            errorMessage = err.toUserMessage(),
-                        )
                     }
                 }
         }
@@ -416,10 +494,31 @@ class DeliveryMethodViewModel(
         coord: Pair<Double, Double>?,
         address: String?,
     ) {
+        val owner = currentOwner() ?: return
+        val flow = CheckoutFlowStore.current(owner) ?: run {
+            showCheckoutContextError()
+            return
+        }
+        val flowId = flow.id
+        val requestOwner = sessionBoundary.requestOwner(owner) ?: run {
+            showCheckoutContextError()
+            return
+        }
+        val frozenFee = if (mode == DeliveryMode.Delivery) _state.value.validatedFee else null
+        val frozenFeeCurrency = if (mode == DeliveryMode.Delivery) {
+            _state.value.validatedFeeCurrency
+        } else {
+            null
+        }
         _state.update { it.copy(ctaState = DeliveryCtaState.Saving) }
-        viewModelScope.launch {
+        saveJob?.cancel()
+        saveJob = viewModelScope.launch {
             val result = when (mode) {
-                DeliveryMode.Pickup -> repo.savePickupPreference(address)
+                DeliveryMode.Pickup -> repo.savePickupPreference(
+                    address,
+                    flow.totalWeightKg,
+                    requestOwner.provenance,
+                )
                 DeliveryMode.Delivery -> repo.saveDeliveryPreference(
                     DeliveryLocation(
                         address = address,
@@ -427,95 +526,122 @@ class DeliveryMethodViewModel(
                         longitude = coord?.second,
                         formattedAddress = address,
                     ),
+                    totalWeightKg = flow.totalWeightKg,
+                    expectedSession = requestOwner.provenance,
                 )
             }
             result
                 .onSuccess {
-                    _state.update {
-                        it.copy(ctaState = DeliveryCtaState.Idle, showCurrencyPopup = true)
+                    applyCurrentFlow(owner, flowId) {
+                        val updated = CheckoutFlowStore.update(owner, expectedFlowId = flowId) { current ->
+                            current.copy(
+                                deliveryMode = mode.wire,
+                                deliveryAddress = if (mode == DeliveryMode.Delivery) address else null,
+                                deliveryLatitude = if (mode == DeliveryMode.Delivery) coord?.first else null,
+                                deliveryLongitude = if (mode == DeliveryMode.Delivery) coord?.second else null,
+                                pickupLocation = if (mode == DeliveryMode.Pickup) address else null,
+                                deliveryFee = frozenFee,
+                                deliveryFeeCurrency = frozenFeeCurrency,
+                            )
+                        }
+                        if (updated == null) {
+                            showCheckoutContextError()
+                        } else {
+                            _state.update {
+                                it.copy(ctaState = DeliveryCtaState.Idle, showCurrencyPopup = true)
+                            }
+                        }
                     }
                 }
                 .onFailure { err ->
-                    _state.update {
-                        it.copy(
-                            ctaState = DeliveryCtaState.Idle,
-                            errorTitle = "Couldn't save preference",
-                            errorMessage = err.toUserMessage(),
-                        )
+                    applyCurrentFlow(owner, flowId) {
+                        _state.update {
+                            it.copy(
+                                ctaState = DeliveryCtaState.Idle,
+                                errorTitle = "Couldn't save preference",
+                                errorMessage = err.toUserMessage(),
+                            )
+                        }
                     }
                 }
         }
     }
 
     /**
-     * Currency picked. See the class KDoc for the currency-branch deviation:
-     * instead of pushing Profile Information / Order Summary (screens Kotlin
-     * doesn't have yet) this front-runs the cart's terminal Stripe step.
-     * Guards + error copy mirror CartViewModel.pay() EXACTLY.
+     * Currency picked. Persist the exact rail choice into the owned checkout
+     * and route to its next Swift screen; no payment request occurs here.
      */
     fun onCurrencyChosen(currency: String) {
         _state.update { it.copy(showCurrencyPopup = false) }
         if (_state.value.ctaState != DeliveryCtaState.Idle) return
-        val lines = CartStore.items.value
-        if (lines.isEmpty()) {
+        val selected = parseCheckoutCurrency(currency)
+        val next = checkoutNextRoute(currency)
+        if (selected == null || next == null) {
             _state.update {
                 it.copy(
-                    errorTitle = "Cart empty",
-                    errorMessage = "Add at least one item before checkout.",
+                    errorTitle = "Choose currency",
+                    errorMessage = "Select USD or JMD before continuing.",
                 )
             }
             return
         }
-        val packageIds = lines.mapNotNull { it.packageId }
-        if (packageIds.size != lines.size) {
-            _state.update {
-                it.copy(
-                    errorTitle = "Checkout unavailable",
-                    errorMessage = "One or more products are missing the package ID required " +
-                        "for sale checkout.",
-                )
-            }
+        val owner = currentOwner() ?: return
+        val flow = CheckoutFlowStore.current(owner) ?: run {
+            showCheckoutContextError()
             return
         }
-        // Honest auction flag from the cart contents (Swift parity); the
-        // server also derives it authoritatively.
-        val cartIsAuction = lines.any { it.isAuction }
-        viewModelScope.launch {
-            _state.update { it.copy(ctaState = DeliveryCtaState.CheckingOut) }
-            // RECONCILE: POST /payments/create-checkout
-            // { package_ids, currency: chosen, is_auction } → data.checkout_url.
-            checkout.createCheckout(packageIds, currency = currency.uppercase(Locale.US), isAuction = cartIsAuction)
-                .onSuccess { url ->
-                    _state.update { it.copy(ctaState = DeliveryCtaState.Idle, checkoutUrl = url) }
+        val phase = when (next) {
+            CheckoutNextRoute.PROFILE_INFORMATION -> CheckoutPhase.PROFILE_INFORMATION
+            CheckoutNextRoute.ORDER_SUMMARY -> CheckoutPhase.ORDER_SUMMARY
+        }
+        val committed = sessionBoundary.runWhileCurrent(owner) {
+            val deliveryFlow = if (flow.phase == CheckoutPhase.DELIVERY) {
+                CheckoutFlowStore.current(owner)?.takeIf { it.id == flow.id }
+            } else {
+                CheckoutFlowStore.rewindToDelivery(owner, flow.id)
+            } ?: return@runWhileCurrent false
+            val currentLines = CartStore.items.value
+            val byKey = currentLines.associateBy(CartStore.CartLine::key)
+            val capturedLines = deliveryFlow.cartKeys.mapNotNull(byKey::get)
+            if (capturedLines.size != deliveryFlow.cartKeys.size ||
+                capturedLines.any { !it.isCheckoutEligible() } ||
+                CartStore.hasPendingPackageMutations(deliveryFlow.cartKeys) ||
+                capturedLines.mapNotNull(CartStore.CartLine::packageId) != deliveryFlow.packageIds
+            ) {
+                _state.update {
+                    it.copy(
+                        errorTitle = "Checkout unavailable",
+                        errorMessage = "One or more products are unavailable for sale checkout.",
+                    )
                 }
-                .onFailure { err ->
-                    val unauthenticated = err.isUnauthenticatedCheckoutFailure()
-                    _state.update {
-                        it.copy(
-                            ctaState = DeliveryCtaState.Idle,
-                            errorTitle = if (unauthenticated) {
-                                "Sign in required"
-                            } else {
-                                "Checkout failed"
-                            },
-                            errorMessage = if (unauthenticated) {
-                                "Log in to your Airdropja account before checking out."
-                            } else {
-                                err.toUserMessage().ifBlank { "Stripe did not return a valid checkout URL." }
-                            },
-                        )
-                    }
-                }
+                return@runWhileCurrent false
+            }
+            val updated = CheckoutFlowStore.update(
+                owner,
+                expectedFlowId = deliveryFlow.id,
+            ) { current ->
+                current.copy(currency = selected.wireValue, phase = phase)
+            } ?: return@runWhileCurrent false
+            _state.update {
+                it.copy(
+                    ctaState = DeliveryCtaState.Idle,
+                    navTarget = if (selected == CheckoutCurrency.JMD) {
+                        Routes.PROFILE_INFORMATION
+                    } else {
+                        Routes.ORDER_SUMMARY
+                    },
+                )
+            }
+            updated.id == deliveryFlow.id
+        }
+        if (!committed) {
+            if (_state.value.errorTitle == "Checkout unavailable") return
+            showCheckoutContextError()
         }
     }
 
     fun dismissCurrencyPopup() {
         _state.update { it.copy(showCurrencyPopup = false) }
-    }
-
-    /** The hosted checkout tab just opened — clear the one-shot URL (CartViewModel parity). */
-    fun onCheckoutOpened() {
-        _state.update { it.copy(checkoutUrl = null) }
     }
 
     fun consumeNav() {
@@ -524,6 +650,41 @@ class DeliveryMethodViewModel(
 
     fun dismissError() {
         _state.update { it.copy(errorTitle = null, errorMessage = null) }
+    }
+
+    private fun currentOwner(): AuthenticatedSessionOwner? {
+        val owner = sessionBoundary.capture()?.takeIf { it.sessionId == sessionOwner?.sessionId }
+        if (owner == null) {
+            _state.update {
+                it.copy(
+                    ctaState = DeliveryCtaState.Idle,
+                    errorTitle = "Sign in required",
+                    errorMessage = "Log in before continuing checkout.",
+                )
+            }
+        }
+        return owner
+    }
+
+    private fun showCheckoutContextError() {
+        _state.update {
+            it.copy(
+                ctaState = DeliveryCtaState.Idle,
+                errorTitle = "Checkout unavailable",
+                errorMessage = "Your checkout session changed. Return to the cart and try again.",
+            )
+        }
+    }
+
+    /** Commit async results only while both auth owner and checkout id match. */
+    private fun applyCurrentFlow(
+        owner: AuthenticatedSessionOwner,
+        flowId: String,
+        action: () -> Unit,
+    ): Boolean = sessionBoundary.runWhileCurrent(owner) {
+        if (CheckoutFlowStore.current(owner)?.id != flowId) return@runWhileCurrent false
+        action()
+        true
     }
 }
 
@@ -564,8 +725,6 @@ data class DeliveryUiState(
      * restore JMD→Profile / USD→Order Summary when those screens land.
      */
     val navTarget: String? = null,
-    /** Stripe hosted checkout URL to open in a Custom Tab (one-shot). */
-    val checkoutUrl: String? = null,
 )
 
 /* ─── Pure logic (plain-JVM testable — DeliveryMethodLogicTest) ─────────── */

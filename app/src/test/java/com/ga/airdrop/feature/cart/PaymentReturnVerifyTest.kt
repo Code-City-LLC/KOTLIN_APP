@@ -18,12 +18,13 @@ import org.junit.Test
 class PaymentReturnVerifyTest {
 
     private fun status(
+        sessionId: String,
         paymentStatus: String? = null,
         status: String? = null,
         amount: Double? = null,
         currency: String? = null,
     ) = CheckoutSessionStatus(
-        sessionId = "cs_test",
+        sessionId = sessionId,
         status = status,
         paymentStatus = paymentStatus,
         invoiceId = null,
@@ -36,7 +37,7 @@ class PaymentReturnVerifyTest {
         var calls = 0
         val result = verifySession("cs_1", { 0L }) {
             calls++
-            Result.success(status(paymentStatus = "paid", amount = 125.5, currency = "usd"))
+            Result.success(status(it, paymentStatus = "paid", amount = 125.5, currency = "usd"))
         }
         assertTrue(result is PaymentReturnResult.Success)
         result as PaymentReturnResult.Success
@@ -50,7 +51,7 @@ class PaymentReturnVerifyTest {
         var calls = 0
         val result = verifySession("cs_2", { 0L }) {
             calls++
-            Result.success(status(paymentStatus = "unpaid"))
+            Result.success(status(it, paymentStatus = "unpaid"))
         }
         assertTrue(result is PaymentReturnResult.NotPaid)
         assertEquals("unpaid", (result as PaymentReturnResult.NotPaid).statusText)
@@ -77,7 +78,7 @@ class PaymentReturnVerifyTest {
             if (calls == 1) {
                 Result.failure(RuntimeException("flake"))
             } else {
-                Result.success(status(status = "paid"))
+                Result.success(status(it, status = "paid"))
             }
         }
         assertTrue(result is PaymentReturnResult.Success)
@@ -91,9 +92,37 @@ class PaymentReturnVerifyTest {
         var calls = 0
         val result = verifySession("", { 0L }) {
             calls++
-            Result.success(status(paymentStatus = "paid"))
+            Result.success(status("unused", paymentStatus = "paid"))
         }
         assertTrue(result is PaymentReturnResult.Unconfirmed)
         assertEquals(0, calls)
+    }
+
+    @Test
+    fun `mismatched response session is unconfirmed without retry`() = runBlocking {
+        var calls = 0
+        val result = verifySession("cs_expected", { 0L }) {
+            calls++
+            Result.success(status("cs_other", paymentStatus = "paid"))
+        }
+        assertTrue(result is PaymentReturnResult.Unconfirmed)
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun `missing response session is unconfirmed`() = runBlocking {
+        val result = verifySession("cs_expected", { 0L }) {
+            Result.success(
+                CheckoutSessionStatus(
+                    sessionId = null,
+                    status = "paid",
+                    paymentStatus = "paid",
+                    invoiceId = null,
+                    amountTotal = null,
+                    currency = null,
+                ),
+            )
+        }
+        assertTrue(result is PaymentReturnResult.Unconfirmed)
     }
 }

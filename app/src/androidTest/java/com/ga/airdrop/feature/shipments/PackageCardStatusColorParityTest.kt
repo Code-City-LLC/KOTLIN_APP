@@ -119,6 +119,24 @@ class PackageCardStatusColorParityTest {
                         cartToggleTestTag = "package-paid-ready-cart",
                     )
                     PackageCard(
+                        pkg = samplePackage(id = 805, status = "18", statusName = "Paid and Ready for Pick Up"),
+                        exchangeRate = 160.0,
+                        onClick = {},
+                        onToggleCart = {},
+                        inCart = false,
+                        testTag = "package-paid-ready-not-carted",
+                        cartToggleTestTag = "package-paid-ready-not-carted-cart",
+                    )
+                    PackageCard(
+                        pkg = samplePackage(id = 806, status = null, statusName = "Unknown"),
+                        exchangeRate = 160.0,
+                        onClick = {},
+                        onToggleCart = {},
+                        inCart = false,
+                        testTag = "package-unknown",
+                        cartToggleTestTag = "package-unknown-cart",
+                    )
+                    PackageCard(
                         pkg = samplePackage(id = 804, status = "8", statusName = "Delivered"),
                         exchangeRate = 160.0,
                         onClick = {},
@@ -145,9 +163,21 @@ class PackageCardStatusColorParityTest {
                 .fetchSemanticsNodes().size,
         )
         assertEquals(
-            "Swift shows add-to-cart/check for status 18 Paid and Ready for Pick Up",
+            "An existing status-18 row keeps its removal affordance",
             1,
             compose.onAllNodesWithTag("package-paid-ready-cart", useUnmergedTree = true)
+                .fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            "Status 18 must not expose a new-cart add",
+            0,
+            compose.onAllNodesWithTag("package-paid-ready-not-carted-cart", useUnmergedTree = true)
+                .fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            "Unknown status must fail closed",
+            0,
+            compose.onAllNodesWithTag("package-unknown-cart", useUnmergedTree = true)
                 .fetchSemanticsNodes().size,
         )
         assertEquals(

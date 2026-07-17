@@ -95,6 +95,7 @@ private fun ProductListScreen(
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val cartLines by CartStore.items.collectAsState()
+    val cartKeys = cartLines.map(CartStore.CartLine::key).toSet()
     val context = LocalContext.current
     val gridState = rememberLazyGridState()
 
@@ -178,7 +179,10 @@ private fun ProductListScreen(
                     itemsIndexed(state.products, key = { _, p -> p.id }) { _, product ->
                         ShopProductCard(
                             product = product,
-                            inCart = cartLines.any { it.id == product.id },
+                            inCart = CartStore.CartLineKey(
+                                CartStore.CartLineKind.AUCTION,
+                                product.id,
+                            ) in cartKeys,
                             onClick = {
                                 // Swift-style hand-off — featured detail has no
                                 // show endpoint (VERIFICATION_LEDGER P1).

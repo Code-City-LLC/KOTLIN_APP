@@ -223,8 +223,8 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
 
     // Stripe hosted-checkout return (Swift SceneDelegate:432 parity): verify
     // the session, then celebrate / bounce back. Cart is cleared ONLY on
-    // verified paid (+ defensively on Done) — never on cancel/not-paid/
-    // unconfirmed.
+    // verified paid — never on Done/cancel/not-paid/unconfirmed. The return
+    // verifier atomically consumes and removes only the initiating cart keys.
     composable(
         Routes.PAYMENT_RETURN,
         arguments = listOf(
@@ -237,7 +237,6 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
         com.ga.airdrop.feature.cart.PaymentReturnHost(
             sessionId = entry.arguments?.getString("sessionId").orEmpty(),
             onPaid = { ref, amount ->
-                com.ga.airdrop.feature.cart.CartStore.clear()
                 navController.navigate(Routes.paymentSuccess(ref, amount)) {
                     // Pop through the cart so Back from Success never lands on
                     // a stale Delivery Method / cleared cart (verify finding).
@@ -261,13 +260,25 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
             },
         )
     }
-    // Stripe cancel_url deeplink (airdrop://payment-cancelled): explain first
-    // (Swift SceneDelegate "Payment cancelled" alert), then land on the cart
-    // with its contents intact.
+    // Stripe cancel_url is bare, so recover the sole persisted exact session
+    // and verify it server-side. Only authoritative terminal non-paid releases
+    // retry; unknown/network/mismatch remains pending to prevent double-pay.
     composable(Routes.PAYMENT_CANCELLED) {
         com.ga.airdrop.feature.cart.PaymentCancelledHost(
-            onDone = {
+            onPaid = { ref, amount ->
+                navController.navigate(Routes.paymentSuccess(ref, amount)) {
+                    popUpTo(Routes.CART) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
+            onTerminalNotPaid = {
                 navController.navigate(Routes.CART) {
+                    popUpTo(Routes.PAYMENT_CANCELLED) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
+            onUnconfirmed = {
+                navController.navigate(Routes.SHIPMENTS) {
                     popUpTo(Routes.PAYMENT_CANCELLED) { inclusive = true }
                     launchSingleTop = true
                 }
@@ -291,7 +302,6 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
             orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
             formattedAmount = entry.arguments?.getString("amount")?.takeIf { it.isNotBlank() },
             onDone = {
-                com.ga.airdrop.feature.cart.CartStore.clear()
                 navController.navigate(Routes.HOME) {
                     popUpTo(0) { inclusive = true }
                     launchSingleTop = true
