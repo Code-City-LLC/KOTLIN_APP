@@ -105,7 +105,8 @@ class CartSaleProductParityTest {
         // dialog surface, so its semantics bounds are not "displayed" even
         // though the intersecting pixels render. Existence plus the byte and
         // dimension assertions below lock the actual visual asset.
-        compose.onNodeWithTag("cart-note-popup-pattern").fetchSemanticsNode()
+        compose.onNodeWithTag("cart-note-popup-pattern", useUnmergedTree = true)
+            .fetchSemanticsNode()
         compose.onNodeWithTag("cart-note-input").performTextInput("Leave at reception")
         compose.onNodeWithTag("cart-note-save").performClick()
         compose.onNodeWithText("Leave at reception").assertIsDisplayed()

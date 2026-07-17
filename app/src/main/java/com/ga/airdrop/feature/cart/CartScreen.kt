@@ -55,9 +55,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -101,21 +99,10 @@ fun CartScreen(
     val items by viewModel.items.collectAsState()
     val savedItems by viewModel.savedItems.collectAsState()
     val context = LocalContext.current
-    val density = LocalDensity.current
     val isEmpty = items.isEmpty()
     var showingSavedForLater by rememberSaveable { mutableStateOf(false) }
     var showingNotePopup by rememberSaveable { mutableStateOf(false) }
     var actionLine by remember { mutableStateOf<CartStore.CartLine?>(null) }
-    var footerHeightPx by remember { mutableStateOf(0) }
-    val footerViewportInset = if (isEmpty) {
-        0.dp
-    } else if (footerHeightPx > 0) {
-        with(density) { footerHeightPx.toDp() }
-    } else {
-        // Safe first-frame bound; onSizeChanged replaces it with the actual
-        // wrapped footer height at the active width and font scale.
-        178.dp
-    }
     val scrollTailPadding = if (isEmpty) 24.dp else 12.dp
 
     LaunchedEffect(Unit) {
@@ -155,65 +142,61 @@ fun CartScreen(
         // empty cart never reads "Order Summary".
         ShopInnerHeader(title = "My Cart", onBack = onBack, titleStyle = CartHeaderTitleStyle)
 
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    // Keep the fixed frosted footer out of the scroll viewport;
-                    // performScrollTo must never settle content behind it.
-                    .padding(bottom = footerViewportInset)
-                    .verticalScroll(rememberScrollState())
-                    .padding(
-                        start = 20.dp,
-                        end = 20.dp,
-                        top = 16.dp,
-                        bottom = scrollTailPadding,
-                    ),
-                // Both My Cart and Order Summary use a 20pt section rhythm.
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                if (state.loadingCart && isEmpty) {
-                    Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-                        androidx.compose.material3.CircularProgressIndicator(color = BrandPalette.OrangeMain)
-                    }
-                } else if (isEmpty) {
-                    EmptyCartCard(onShopNow = onShopNow)
-                } else {
-                    CartMacBookHero()
-
-                    // Exact order: hero → Basket → cards → compact Your Note row.
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CartBasketHeader(
-                            itemCount = items.size,
-                            savedCount = savedItems.size,
-                            onSavedClick = { showingSavedForLater = true },
-                        )
-                        items.forEach { line ->
-                            CartItemCard(
-                                line = line,
-                                onRemove = { viewModel.removeItem(line) },
-                                onOpenActions = { actionLine = line },
-                            )
-                        }
-                    }
-
-                    CartNoteRow(note = state.note, onClick = { showingNotePopup = true })
+        // Swift pins scrollView.bottom directly to bottomBar.top. Keep the
+        // footer as a fixed sibling so larger text can never reduce the
+        // scroll viewport without Compose knowing its exact boundary.
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 16.dp,
+                    bottom = scrollTailPadding,
+                ),
+            // Both My Cart and Order Summary use a 20pt section rhythm.
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            if (state.loadingCart && isEmpty) {
+                Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.CircularProgressIndicator(color = BrandPalette.OrangeMain)
                 }
-            }
+            } else if (isEmpty) {
+                EmptyCartCard(onShopNow = onShopNow)
+            } else {
+                CartMacBookHero()
 
-            if (!isEmpty) {
-                CartTotalsFooter(
-                    currency = state.form.currency,
-                    exchangeUsdToJmd = state.exchangeUsdToJmd,
-                    totalUsd = viewModel.totalUsd(),
-                    totalJmd = viewModel.totalJmd(),
-                    paying = state.paying,
-                    onChooseDelivery = viewModel::pay,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .onSizeChanged { footerHeightPx = it.height },
-                )
+                // Exact order: hero → Basket → cards → compact Your Note row.
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CartBasketHeader(
+                        itemCount = items.size,
+                        savedCount = savedItems.size,
+                        onSavedClick = { showingSavedForLater = true },
+                    )
+                    items.forEach { line ->
+                        CartItemCard(
+                            line = line,
+                            onRemove = { viewModel.removeItem(line) },
+                            onOpenActions = { actionLine = line },
+                        )
+                    }
+                }
+
+                CartNoteRow(note = state.note, onClick = { showingNotePopup = true })
             }
+        }
+
+        if (!isEmpty) {
+            CartTotalsFooter(
+                currency = state.form.currency,
+                exchangeUsdToJmd = state.exchangeUsdToJmd,
+                totalUsd = viewModel.totalUsd(),
+                totalJmd = viewModel.totalJmd(),
+                paying = state.paying,
+                onChooseDelivery = viewModel::pay,
+            )
         }
     }
 

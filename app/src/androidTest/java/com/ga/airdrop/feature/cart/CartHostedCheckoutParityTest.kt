@@ -150,14 +150,14 @@ class CartHostedCheckoutParityTest {
         ).map { tag -> compose.onNodeWithTag(tag).getUnclippedBoundsInRoot().top.value }
         assertEquals("Checkout fields must retain the frozen Swift order", orderedFieldTops.sorted(), orderedFieldTops)
 
-        compose.onNodeWithTag("checkout-profile-select-card").performClick()
+        compose.onNodeWithTag("checkout-profile-select-card").performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithText("Add new profile").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Add new profile").performClick()
         assertEquals("", formSnapshot.get().firstName)
         assertEquals("JMD", formSnapshot.get().currency)
-        compose.onNodeWithTag("checkout-profile-select-card").performClick()
+        compose.onNodeWithTag("checkout-profile-select-card").performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithText("John Brown").fetchSemanticsNodes().isNotEmpty()
         }
