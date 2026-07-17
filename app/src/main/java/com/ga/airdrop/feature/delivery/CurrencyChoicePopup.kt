@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 
 /**
  * "Choose Currency" decision popup — copy from Swift
@@ -97,7 +96,7 @@ private fun CurrencyOptionRow(
             Text(
                 text = code,
                 style = AirdropType.subtitle1,
-                color = BrandPalette.OrangeMain,
+                color = AirdropTheme.colors.orangeMain,
             )
             Text(
                 text = subtitle,

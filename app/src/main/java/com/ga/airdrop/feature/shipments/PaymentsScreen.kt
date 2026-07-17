@@ -42,7 +42,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -108,7 +107,7 @@ fun PaymentsScreen(
             androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
                 state = ptrState,
                 isRefreshing = refreshing,
-                color = BrandPalette.OrangeMain,
+                color = AirdropTheme.colors.orangeMain,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = shipmentsHeaderClearance()),
@@ -254,14 +253,14 @@ private fun PaymentTypeFilterDialog(
                             Text(
                                 text = filter.label,
                                 style = AirdropType.subtitle1,
-                                color = if (filter == selected) BrandPalette.OrangeMain else colors.textDarkTitle,
+                                color = if (filter == selected) colors.orangeMain else colors.textDarkTitle,
                                 modifier = Modifier.weight(1f),
                             )
                             if (filter == selected) {
                                 Image(
                                     painter = painterResource(R.drawable.ic_check),
                                     contentDescription = null,
-                                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                                    colorFilter = ColorFilter.tint(colors.orangeMain),
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -290,7 +289,7 @@ private fun PaymentTypeFilterDialog(
                     Text(
                         text = "Cancel",
                         style = AirdropType.subtitle1,
-                        color = BrandPalette.OrangeMain,
+                        color = colors.orangeMain,
                     )
                 }
             }

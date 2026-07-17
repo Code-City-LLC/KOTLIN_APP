@@ -274,7 +274,7 @@ fun DeliveryMethodScreen(
             },
             confirmButton = {
                 TextButton(onClick = viewModel::dismissError) {
-                    Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                    Text(text = "OK", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
                 }
             },
         )
@@ -299,7 +299,7 @@ private fun ModeTile(
     // Swift styleModeCard: selected = peach 1.5pt border + orange tint bg
     // (10% dark / 6% light); unselected = 1pt hairline on gray100.
     val background = if (selected) {
-        BrandPalette.OrangeMain.copy(alpha = if (colors.isDark) 0.10f else 0.06f)
+        colors.orangeMain.copy(alpha = if (colors.isDark) 0.10f else 0.06f)
     } else {
         colors.gray100
     }
@@ -326,7 +326,7 @@ private fun ModeTile(
             Image(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
                 modifier = Modifier.size(32.dp),
             )
         }
@@ -410,12 +410,12 @@ private fun WarehouseRow(
                 .padding(top = 4.dp)
                 .size(29.dp)
                 .background(
-                    if (selected) BrandPalette.ButtonStatic else Color.Transparent,
+                    if (selected) AirdropTheme.colors.buttonStatic else Color.Transparent,
                     CircleShape,
                 )
                 .border(
                     1.dp,
-                    if (selected) BrandPalette.OrangeMain else colors.iconShape,
+                    if (selected) AirdropTheme.colors.orangeMain else colors.iconShape,
                     CircleShape,
                 ),
             contentAlignment = Alignment.Center,
@@ -483,7 +483,7 @@ internal fun DeliverySection(
             Row(
                 Modifier
                     .height(32.dp)
-                    .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(6.dp))
+                    .border(1.dp, AirdropTheme.colors.orangeMain, RoundedCornerShape(6.dp))
                     .clickable(onClick = onUseCurrentLocation)
                     .padding(horizontal = 12.dp)
                     .testTag("delivery-use-location"),
@@ -535,7 +535,7 @@ internal fun DeliverySection(
                     onValueChange = onSearchQueryChange,
                     singleLine = true,
                     textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-                    cursorBrush = SolidColor(BrandPalette.OrangeMain),
+                    cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
                     modifier = Modifier

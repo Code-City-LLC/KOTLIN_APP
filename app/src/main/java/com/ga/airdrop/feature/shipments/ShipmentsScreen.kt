@@ -52,7 +52,6 @@ import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -463,7 +462,7 @@ private fun QuickTrackInput(
             onValueChange = onValueChange,
             singleLine = true,
             textStyle = AirdropType.body1.copy(color = colors.textDarkTitle),
-            cursorBrush = SolidColor(BrandPalette.OrangeMain),
+            cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch() }),
             modifier = Modifier
@@ -518,7 +517,7 @@ private fun QuickTrackRecentRow(
         Image(
             painter = painterResource(R.drawable.ic_packages_accent),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+            colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
             modifier = Modifier.size(22.dp),
         )
         Column(Modifier.weight(1f)) {

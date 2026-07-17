@@ -157,7 +157,7 @@ fun AuctionCheckoutScreen(
                             ?.let { usd -> String.format(Locale.US, "$%.2f USD", usd) }
                             ?: "—",
                         style = AirdropType.title2,
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                     )
                 }
             }
@@ -232,7 +232,7 @@ fun AuctionCheckoutScreen(
                         .fillMaxWidth()
                         .height(52.dp)
                         .testTag("auction-checkout-continue")
-                        .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                        .background(AirdropTheme.colors.orangeMain, RoundedCornerShape(10.dp))
                         .clickable(enabled = !state.paying, onClick = viewModel::pay),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -269,7 +269,7 @@ fun AuctionCheckoutScreen(
             },
             confirmButton = {
                 TextButton(onClick = viewModel::dismissError) {
-                    Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                    Text(text = "OK", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
                 }
             },
         )

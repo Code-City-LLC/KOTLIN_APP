@@ -9,19 +9,19 @@
         android:translateY="2.0011">
         <path
             android:pathData="M12.7156 14.2236H5.4956"
-            android:strokeColor="#FFF15114"
+            android:strokeColor="#FFF46427"
             android:strokeWidth="1.5"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
         <path
             android:pathData="M12.7156 10.0371H5.4956"
-            android:strokeColor="#FFF15114"
+            android:strokeColor="#FFF46427"
             android:strokeWidth="1.5"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
         <path
             android:pathData="M8.2507 5.8603H5.4957"
-            android:strokeColor="#FFF15114"
+            android:strokeColor="#FFF46427"
             android:strokeWidth="1.5"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />

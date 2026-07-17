@@ -35,7 +35,6 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
@@ -295,7 +294,7 @@ private fun PaymentPackageHistoryButton(
             .height(50.dp)
             .clip(RoundedCornerShape(Radius.xs))
             .background(colors.gray100)
-            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(Radius.xs))
+            .border(1.dp, colors.orangeMain, RoundedCornerShape(Radius.xs))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

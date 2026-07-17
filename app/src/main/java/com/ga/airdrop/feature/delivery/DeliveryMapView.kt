@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import java.util.Locale
 
 /**
@@ -92,7 +91,7 @@ fun DeliveryMapView(
             Image(
                 painter = painterResource(R.drawable.ic_location),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
                 modifier = Modifier.size(32.dp),
             )
             Text(

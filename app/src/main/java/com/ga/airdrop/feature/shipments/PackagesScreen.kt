@@ -34,7 +34,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -200,7 +199,7 @@ private fun PackagesSortSheet(
                 Text(
                     text = option.title,
                     style = if (isSelected) AirdropType.title2 else AirdropType.subtitle1,
-                    color = if (isSelected) BrandPalette.OrangeMain else colors.textDarkTitle,
+                    color = if (isSelected) colors.orangeMain else colors.textDarkTitle,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelect(option) }

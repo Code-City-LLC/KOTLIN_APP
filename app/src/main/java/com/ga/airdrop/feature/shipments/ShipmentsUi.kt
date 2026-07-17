@@ -599,7 +599,7 @@ fun ShipmentsSearchField(
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-                cursorBrush = SolidColor(BrandPalette.OrangeMain),
+                cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
@@ -806,7 +806,7 @@ fun PackageCard(
             CardFieldColumn(
                 label = "Total Charges",
                 value = ShipmentsFormat.usdJmd(chargesTotal, rate),
-                valueColor = BrandPalette.OrangeMain,
+                valueColor = AirdropTheme.colors.orangeMain,
                 valueMaxLines = 1,
             )
             Row(
@@ -839,7 +839,7 @@ fun PackageCard(
                             painter = painterResource(if (inCart) R.drawable.ic_check else R.drawable.ic_add),
                             contentDescription = if (inCart) "In cart" else "Add to cart",
                             colorFilter = ColorFilter.tint(
-                                if (inCart) BrandPalette.OrangeMain else colors.iconSelected
+                                if (inCart) AirdropTheme.colors.orangeMain else colors.iconSelected
                             ),
                             modifier = Modifier.size(24.dp),
                         )
@@ -899,7 +899,7 @@ fun PaymentCard(
                 Text(
                     text = ShipmentsFormat.price(payment.totalAmount),
                     style = AirdropType.title2,
-                    color = BrandPalette.OrangeMain,
+                    color = AirdropTheme.colors.orangeMain,
                 )
             }
         }
@@ -914,7 +914,7 @@ fun PaymentCard(
                 if (downloadingInvoice) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(22.dp),
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                         strokeWidth = 2.dp,
                     )
                 } else {
@@ -1065,7 +1065,7 @@ fun TotalChargesBox(
     modifier: Modifier = Modifier,
     // Swift OrderDetails renders Total in orangeTertiary1 (#994D00);
     // PackageDetails keeps orangeMain.
-    textColor: Color = BrandPalette.OrangeMain,
+    textColor: Color = AirdropTheme.colors.orangeMain,
 ) {
     val colors = AirdropTheme.colors
     Row(
@@ -1096,7 +1096,7 @@ fun ShipmentsLoadingIndicator(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(
             modifier = Modifier.size(28.dp),
-            color = BrandPalette.OrangeMain,
+            color = AirdropTheme.colors.orangeMain,
             strokeWidth = 2.5.dp,
         )
     }
@@ -1171,7 +1171,7 @@ fun SectionHeaderRow(
             style = AirdropType.body2.copy(
                 textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
             ),
-            color = BrandPalette.OrangeMain,
+            color = AirdropTheme.colors.orangeMain,
             modifier = Modifier
                 .then(actionTestTag?.let { Modifier.testTag(it) } ?: Modifier)
                 .clickable(onClick = onAction),

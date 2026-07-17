@@ -61,7 +61,6 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
@@ -496,7 +495,7 @@ private fun PackageDetailsContent(
                 Text(
                     text = ShipmentsFormat.usdJmd(state.chargesTotal ?: 0.0, rate),
                     style = AirdropType.title2,
-                    color = BrandPalette.OrangeMain,
+                    color = AirdropTheme.colors.orangeMain,
                     textAlign = TextAlign.End,
                     modifier = Modifier.testTag("package-details-total-value"),
                 )
@@ -551,11 +550,11 @@ private fun ReportDamageButton(onClick: () -> Unit) {
             .testTag("package-details-report-damage")
             .clip(RoundedCornerShape(14.dp))
             .background(colors.gray100)
-            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(14.dp))
+            .border(1.dp, AirdropTheme.colors.orangeMain, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = "Report damage", style = AirdropType.button, color = BrandPalette.OrangeMain)
+        Text(text = "Report damage", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
     }
 }
 
@@ -621,7 +620,7 @@ private fun ReportDamageSheet(
                         value = description,
                         onValueChange = onDescriptionChange,
                         textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-                        cursorBrush = SolidColor(BrandPalette.OrangeMain),
+                        cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("package-details-report-damage-description"),
@@ -668,13 +667,13 @@ private fun AddDamagePhotoTile(enabled: Boolean, onClick: () -> Unit) {
             .testTag("package-details-report-damage-add-photo")
             .clip(RoundedCornerShape(12.dp))
             .background(colors.gray150)
-            .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(12.dp))
+            .border(1.dp, AirdropTheme.colors.orangeMain, RoundedCornerShape(12.dp))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "+", style = AirdropType.h6, color = BrandPalette.OrangeMain)
-            Text(text = "Add", style = AirdropType.body3, color = BrandPalette.OrangeMain)
+            Text(text = "+", style = AirdropType.h6, color = AirdropTheme.colors.orangeMain)
+            Text(text = "Add", style = AirdropType.body3, color = AirdropTheme.colors.orangeMain)
         }
     }
 }
@@ -702,7 +701,7 @@ private fun DamagePhotoTile(photo: DamageReportUploadFile, index: Int, onRemove:
         Text(
             text = "Remove",
             style = AirdropType.body3,
-            color = BrandPalette.OrangeMain,
+            color = AirdropTheme.colors.orangeMain,
             modifier = Modifier
                 .testTag("package-details-report-damage-remove-$index")
                 .clickable(onClick = onRemove),
@@ -778,7 +777,7 @@ private fun UploadInvoiceZone(uploading: Boolean, onClick: () -> Unit) {
                 if (uploading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(32.dp),
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                         strokeWidth = 2.5.dp,
                     )
                 } else {
@@ -856,7 +855,7 @@ private fun InvoiceFileRow(
                 if (deleting) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                         strokeWidth = 2.dp,
                     )
                 } else {
@@ -974,7 +973,7 @@ private fun ChargeRow(
                 Image(
                     painter = painterResource(R.drawable.ic_calc_info_circle),
                     contentDescription = "$name info",
-                    colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
+                    colorFilter = ColorFilter.tint(AirdropTheme.colors.orangeMain),
                     modifier = Modifier.size(18.dp),
                 )
             }

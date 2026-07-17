@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.shop
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
@@ -41,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -58,6 +60,8 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Cairo
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.designsystem.theme.darkAirdropColors
+import com.ga.airdrop.core.designsystem.theme.lightAirdropColors
 import java.util.Locale
 
 /* ─── Formatting (Swift displayPrice / renderTotal parity) ─────────────── */
@@ -78,11 +82,20 @@ fun formatJmd(value: Double): String = "JA$" + String.format(Locale.US, "%,.2f",
  */
 fun launchExternalUrl(context: Context, url: String): Boolean {
     val uri = Uri.parse(url)
+    val toolbarColor =
+        if (
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+        ) {
+            darkAirdropColors.orangeMain.toArgb()
+        } else {
+            lightAirdropColors.orangeMain.toArgb()
+        }
     val customTab = runCatching {
         CustomTabsIntent.Builder()
             .setDefaultColorSchemeParams(
                 CustomTabColorSchemeParams.Builder()
-                    .setToolbarColor(android.graphics.Color.parseColor("#F15114"))
+                    .setToolbarColor(toolbarColor)
                     .build()
             )
             .build()
@@ -176,7 +189,7 @@ fun ShopHeaderCartIcon(count: Int, onClick: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = 8.dp, y = (-3).dp)
-                    .background(BrandPalette.OrangeMain, RoundedCornerShape(40.dp))
+                    .background(AirdropTheme.colors.orangeMain, RoundedCornerShape(40.dp))
                     .padding(horizontal = Spacing.xs),
                 contentAlignment = Alignment.Center,
             ) {
@@ -239,7 +252,7 @@ fun ShopSearchField(
                     value = value,
                     onValueChange = onValueChange,
                     textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-                    cursorBrush = SolidColor(BrandPalette.OrangeMain),
+                    cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -410,7 +423,7 @@ fun ShopSectionHeader(title: String, actionLabel: String, onAction: () -> Unit) 
             style = AirdropType.underlineLink.copy(
                 textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
             ),
-            color = BrandPalette.OrangeMain,
+            color = AirdropTheme.colors.orangeMain,
             modifier = Modifier.clickable(onClick = onAction),
         )
     }
@@ -513,7 +526,7 @@ fun ShopDropdownField(
                 Text(
                     text = "*",
                     style = AirdropType.subtitle2,
-                    color = BrandPalette.OrangeMain,
+                    color = AirdropTheme.colors.orangeMain,
                     modifier = testTagPrefix?.let { Modifier.testTag("$it-required") }
                         ?: Modifier,
                 )

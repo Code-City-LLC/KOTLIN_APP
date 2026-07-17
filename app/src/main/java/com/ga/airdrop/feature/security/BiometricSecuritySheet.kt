@@ -102,7 +102,7 @@ fun BiometricSecuritySheet(onDismiss: () -> Unit) {
                         }
                     },
                     colors = SwitchDefaults.colors(
-                        checkedTrackColor = BrandPalette.ButtonStatic,
+                        checkedTrackColor = AirdropTheme.colors.buttonStatic,
                         checkedThumbColor = BrandPalette.White,
                         uncheckedTrackColor = colors.gray300,
                         uncheckedThumbColor = BrandPalette.White,

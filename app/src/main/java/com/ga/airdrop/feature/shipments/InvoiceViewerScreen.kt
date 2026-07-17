@@ -209,7 +209,7 @@ fun InvoiceViewerScreen(
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(28.dp),
-                                    color = BrandPalette.OrangeMain,
+                                    color = AirdropTheme.colors.orangeMain,
                                     strokeWidth = 2.5.dp,
                                 )
                                 Text(
@@ -304,7 +304,7 @@ fun InvoiceViewerScreen(
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(28.dp),
-                                color = BrandPalette.OrangeMain,
+                                color = AirdropTheme.colors.orangeMain,
                                 strokeWidth = 2.5.dp,
                             )
                             Text(
@@ -382,7 +382,7 @@ private fun InvoiceActionButton(
             .let {
                 if (primary) {
                     // Swift primary action = flat orangeMain fill, not a gradient.
-                    it.background(BrandPalette.OrangeMain)
+                    it.background(colors.orangeMain)
                 } else {
                     it
                         .background(colors.gray150)

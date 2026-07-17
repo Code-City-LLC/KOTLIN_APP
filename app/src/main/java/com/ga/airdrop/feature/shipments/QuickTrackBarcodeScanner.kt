@@ -55,7 +55,6 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.google.zxing.BarcodeFormat
@@ -230,7 +229,7 @@ private fun LiveScannerOverlay(onDismiss: () -> Unit) {
                 .fillMaxWidth(0.74f)
                 .height(180.dp)
                 .align(Alignment.CenterHorizontally)
-                .border(3.dp, BrandPalette.OrangeMain, RoundedCornerShape(20.dp))
+                .border(3.dp, AirdropTheme.colors.orangeMain, RoundedCornerShape(20.dp))
                 .testTag("shipments-quick-track-scan-window"),
         )
         Text(
@@ -338,7 +337,7 @@ fun QuickTrackScanButton(
         modifier = modifier
             .size(52.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(BrandPalette.OrangeMain)
+            .background(AirdropTheme.colors.orangeMain)
             .clickable(onClick = onClick)
             .testTag("shipments-quick-track-scan"),
         contentAlignment = Alignment.Center,

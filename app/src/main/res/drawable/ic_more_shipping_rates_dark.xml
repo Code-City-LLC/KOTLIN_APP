@@ -6,7 +6,7 @@
     android:viewportHeight="24">
     <path
         android:pathData="M10 6V5.70615C10 4.07351 11.3235 2.75 12.9562 2.75C14.5888 2.75 15.9123 4.07351 15.9123 5.70615V6.5"
-        android:strokeColor="#FFF15114"
+        android:strokeColor="#FFF46427"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
@@ -30,7 +30,7 @@
         android:strokeLineJoin="round" />
     <path
         android:pathData="M10.2253 11.7729C10.5982 12.9982 11.5571 13.957 12.7822 14.33C11.5571 14.7029 10.5982 15.6617 10.2253 16.887C9.85244 15.6617 8.89362 14.7029 7.66846 14.33C8.89362 13.957 9.85244 12.9982 10.2253 11.7729Z"
-        android:strokeColor="#FFF15114"
+        android:strokeColor="#FFF46427"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />

@@ -109,7 +109,7 @@ fun AuctionProductDetailsScreen(
                             .padding(vertical = 120.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        CircularProgressIndicator(color = BrandPalette.OrangeMain, strokeWidth = 2.dp)
+                        CircularProgressIndicator(color = AirdropTheme.colors.orangeMain, strokeWidth = 2.dp)
                     }
                 }
                 product == null -> {
@@ -163,7 +163,7 @@ fun AuctionProductDetailsScreen(
                         .fillMaxWidth()
                         .height(52.dp)
                         .testTag("auction-details-primary-cta")
-                        .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                        .background(AirdropTheme.colors.orangeMain, RoundedCornerShape(10.dp))
                         .clickable(enabled = product != null) {
                             if (featured) {
                                 val raw = product?.amazonUrl?.trim().orEmpty()
@@ -217,7 +217,7 @@ fun AuctionProductDetailsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { linkUnavailableMessage = null }) {
-                    Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                    Text(text = "OK", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
                 }
             },
         )
@@ -252,7 +252,7 @@ fun AuctionProductDetailsScreen(
                     viewModel.dismissDialog()
                     onNavigate(Routes.CART)
                 }) {
-                    Text(text = "View Cart", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                    Text(text = "View Cart", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
                 }
             },
             dismissButton = {
@@ -343,7 +343,7 @@ private fun DetailsContent(
                         .size(8.dp)
                         .testTag("auction-details-dot-$index")
                         .background(
-                            if (index == 1) BrandPalette.OrangeMain else colors.iconShape,
+                            if (index == 1) AirdropTheme.colors.orangeMain else colors.iconShape,
                             CircleShape,
                         )
                 )
@@ -429,7 +429,7 @@ private fun DetailsContent(
                     // Swift :487-494 — h5 orangeMain "$%.2f".
                     text = String.format(Locale.US, "$%.2f", product.priceUsd),
                     style = AirdropType.h5,
-                    color = BrandPalette.OrangeMain,
+                    color = AirdropTheme.colors.orangeMain,
                 )
             }
             QuantityStepper(quantity = quantity, onChange = onChangeQuantity)
@@ -464,7 +464,7 @@ private fun DetailsContent(
         Text(
             text = if (expanded) "See less" else "See all",
             style = AirdropType.underlineLink.copy(textDecoration = TextDecoration.Underline),
-            color = BrandPalette.OrangeMain,
+            color = AirdropTheme.colors.orangeMain,
             modifier = Modifier.clickable(onClick = onToggleExpanded),
         )
 

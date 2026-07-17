@@ -284,14 +284,14 @@ fun CartScreen(
                                 viewModel.totalJmd(),
                             ),
                             style = AirdropType.title2,
-                            color = BrandPalette.OrangeMain,
+                            color = AirdropTheme.colors.orangeMain,
                         )
                     }
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .height(52.dp)
-                            .background(BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                            .background(AirdropTheme.colors.orangeMain, RoundedCornerShape(10.dp))
                             .clickable(enabled = !state.paying, onClick = viewModel::pay),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -331,7 +331,7 @@ fun CartScreen(
             },
             confirmButton = {
                 TextButton(onClick = { viewModel.setPaymentMethodDialogVisible(false) }) {
-                    Text(text = "Continue", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                    Text(text = "Continue", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
                 }
             },
             dismissButton = {
@@ -373,7 +373,7 @@ fun CartScreen(
             },
             confirmButton = {
                 TextButton(onClick = viewModel::dismissError) {
-                    Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                    Text(text = "OK", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
                 }
             },
         )
@@ -407,7 +407,7 @@ private fun CartBasketHeader(itemCount: Int, savedCount: Int, onSavedClick: () -
             Text(
                 text = "Saved ($savedCount) >",
                 style = AirdropType.body2,
-                color = BrandPalette.OrangeMain,
+                color = AirdropTheme.colors.orangeMain,
                 modifier = Modifier
                     .clickable(onClick = onSavedClick)
                     .padding(start = 8.dp, top = 4.dp, bottom = 4.dp)
@@ -558,7 +558,7 @@ private fun CartItemCard(
                     Text(
                         text = formatUsdPlain(line.priceUsd),
                         style = AirdropType.subtitle1,
-                        color = BrandPalette.OrangeMain,
+                        color = AirdropTheme.colors.orangeMain,
                     )
                 }
             }
@@ -677,7 +677,7 @@ private fun CartSaleItemCard(
                     fontWeight = FontWeight.Bold,
                     lineHeight = 20.sp,
                 ),
-                color = BrandPalette.OrangeMain,
+                color = AirdropTheme.colors.orangeMain,
                 modifier = Modifier.testTag("cart-sale-price-${line.id}"),
             )
         }
@@ -726,7 +726,7 @@ private fun NoteCard(note: String, onNoteChange: (String) -> Unit) {
             value = note,
             onValueChange = onNoteChange,
             textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
-            cursorBrush = SolidColor(BrandPalette.OrangeMain),
+            cursorBrush = SolidColor(AirdropTheme.colors.orangeMain),
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -765,7 +765,7 @@ private fun ChargesCard(exchangeUsdToJmd: Double, totalPackages: Int, totalUsd: 
             Text(
                 text = formatUsdPlain(totalUsd),
                 style = AirdropType.subtitle1,
-                color = BrandPalette.OrangeMain,
+                color = AirdropTheme.colors.orangeMain,
             )
         }
     }
@@ -1017,7 +1017,7 @@ private fun SavedForLaterRow(
         ) {
             SavedForLaterButton(
                 label = "Move to Cart",
-                fillColor = BrandPalette.OrangeMain,
+                fillColor = AirdropTheme.colors.orangeMain,
                 textColor = BrandPalette.White,
                 modifier = Modifier.weight(1f).testTag("saved-move-${line.id}"),
                 onClick = onMoveToCart,
@@ -1093,11 +1093,11 @@ private fun EmptyCartCard(onShopNow: () -> Unit) {
                 .padding(top = 28.dp)
                 .fillMaxWidth()
                 .height(52.dp)
-                .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(14.dp))
+                .border(1.dp, AirdropTheme.colors.orangeMain, RoundedCornerShape(14.dp))
                 .clickable(onClick = onShopNow),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = "Shop Now", style = AirdropType.button, color = BrandPalette.OrangeMain)
+            Text(text = "Shop Now", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
         }
     }
 }

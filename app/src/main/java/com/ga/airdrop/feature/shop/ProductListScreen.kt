@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
@@ -142,7 +141,7 @@ private fun ProductListScreen(
                 androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
                     state = ptrState,
                     isRefreshing = state.refreshing,
-                    color = BrandPalette.OrangeMain,
+                    color = AirdropTheme.colors.orangeMain,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
             },
@@ -198,7 +197,7 @@ private fun ProductListScreen(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 CircularProgressIndicator(
-                                    color = BrandPalette.OrangeMain,
+                                    color = AirdropTheme.colors.orangeMain,
                                     strokeWidth = 2.dp,
                                     modifier = Modifier.height(24.dp),
                                 )

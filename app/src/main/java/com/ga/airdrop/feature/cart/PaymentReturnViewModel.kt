@@ -20,7 +20,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.data.repo.PaymentsRepository
 import java.util.Locale
@@ -176,7 +175,7 @@ internal fun PaymentReturnContent(
             .testTag("payment-return-verifying"),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator(color = BrandPalette.OrangeMain)
+        CircularProgressIndicator(color = AirdropTheme.colors.orangeMain)
     }
 }
 
@@ -217,7 +216,7 @@ private fun PaymentOutcomeAlert(
                 onClick = onDismiss,
                 modifier = Modifier.testTag("payment-outcome-ok"),
             ) {
-                Text(text = "OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                Text(text = "OK", style = AirdropType.button, color = AirdropTheme.colors.orangeMain)
             }
         },
         modifier = Modifier.testTag("payment-outcome-alert"),
