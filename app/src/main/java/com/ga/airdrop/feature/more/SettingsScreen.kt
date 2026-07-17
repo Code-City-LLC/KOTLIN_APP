@@ -247,7 +247,7 @@ private fun CacheClearedSheet(
                     Box(
                         modifier = Modifier
                             .size(104.dp)
-                            .background(BrandPalette.OrangeMain, CircleShape),
+                            .background(AirdropTheme.colors.orangeMain, CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Image(

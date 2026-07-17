@@ -35,7 +35,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /** RN Config.termsAndConditions — opened from the T&C checkbox link. */
@@ -257,7 +256,7 @@ fun SignUpScreen(
                             ) {
                                 withStyle(
                                     SpanStyle(
-                                        color = BrandPalette.OrangeMain,
+                                        color = AirdropTheme.colors.orangeMain,
                                         fontWeight = FontWeight.SemiBold,
                                         textDecoration = TextDecoration.Underline,
                                     ),
