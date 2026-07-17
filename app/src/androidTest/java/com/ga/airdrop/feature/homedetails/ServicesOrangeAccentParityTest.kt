@@ -36,12 +36,6 @@ class ServicesOrangeAccentParityTest {
         setServicesContent(ThemeController.Mode.LIGHT)
         saveRootScreenshot("services_orange_light.png")
 
-        assertServicesSwiftFigmaGeometry()
-        assertTaggedNodeContainsColor(
-            tag = "services-logo-row-top-logo-0",
-            target = AMAZON_ORANGE,
-            label = "Services light rail should preserve native Amazon color",
-        )
         assertTaggedNodeContainsColor(
             tag = "services-main-heading",
             target = FIGMA_ORANGE_LIGHT,
@@ -52,6 +46,12 @@ class ServicesOrangeAccentParityTest {
             expected = FIGMA_ORANGE_LIGHT,
             alternate = FIGMA_DARK_FUNCTION_ORANGE,
             label = "Services light main heading should prefer light accent",
+        )
+        assertServicesSwiftFigmaGeometry()
+        assertTaggedNodeContainsColor(
+            tag = "services-logo-row-top-logo-0",
+            target = AMAZON_ORANGE,
+            label = "Services light rail should preserve native Amazon color",
         )
 
         compose.onNodeWithTag("services-tax-free-heading").performScrollTo()
@@ -68,8 +68,6 @@ class ServicesOrangeAccentParityTest {
         setServicesContent(ThemeController.Mode.DARK)
         saveRootScreenshot("services_orange_dark.png")
 
-        assertServicesSwiftFigmaGeometry()
-        assertDarkLogoIsMonochrome("services-logo-row-top-logo-0")
         assertTaggedNodeContainsColor(
             tag = "services-main-heading",
             target = FIGMA_DARK_FUNCTION_ORANGE,
@@ -81,6 +79,8 @@ class ServicesOrangeAccentParityTest {
             alternate = FIGMA_ORANGE_LIGHT,
             label = "Services dark main heading should prefer dark accent",
         )
+        assertServicesSwiftFigmaGeometry()
+        assertDarkLogoIsMonochrome("services-logo-row-top-logo-0")
 
         compose.onNodeWithTag("services-tax-free-heading").performScrollTo()
         compose.waitForIdle()

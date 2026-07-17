@@ -261,6 +261,7 @@ class HomeActivityTilesScreenshotTest {
         val context = instrumentation.targetContext
         val product = AuctionProduct(
             id = 42,
+            packageId = 42,
             name = "Apple 2023 MacBook Pro Laptop M3 chip",
             slug = "apple-2023-macbook-pro-laptop-m3-chip",
             currentPrice = "1550.00",
