@@ -149,6 +149,7 @@ fun CartScreen(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .testTag("cart-scroll-viewport")
                 .verticalScroll(rememberScrollState())
                 .padding(
                     start = 20.dp,

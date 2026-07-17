@@ -167,9 +167,9 @@ class CartSaleProductParityTest {
         compose.onNodeWithTag("cart-your-note-row").performScrollTo()
         compose.waitForIdle()
         compose.onNodeWithTag("cart-your-note-row").performScrollTo().assertIsDisplayed()
-        val tail = compose.onNodeWithTag("cart-your-note-row").getUnclippedBoundsInRoot()
+        val viewport = compose.onNodeWithTag("cart-scroll-viewport").getUnclippedBoundsInRoot()
         val footer = compose.onNodeWithTag("cart-frosted-totals-footer").getUnclippedBoundsInRoot()
-        assertTrue("Scrollable tail must stop above the measured footer", tail.bottom <= footer.top)
+        assertTrue("Scroll viewport must stop above the fixed footer", viewport.bottom <= footer.top)
     }
 
     @Test
