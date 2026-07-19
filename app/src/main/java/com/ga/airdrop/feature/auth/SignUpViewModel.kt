@@ -64,7 +64,8 @@ val signUpCountries = listOf(
 )
 
 /** RN Profile MainPicker values for pickup_location. */
-val pickupLocationOptions = listOf("Montego Bay", "Kingston", "Savanna-La-Mar")
+// Canonical three pickup counters — single source in data/model/Delivery.kt.
+val pickupLocationOptions: List<String> = com.ga.airdrop.data.model.PICKUP_COUNTER_NAMES
 
 /** Swift SignUpViewController "channel" options (user_hear_type). */
 val hearAboutUsOptions = listOf(

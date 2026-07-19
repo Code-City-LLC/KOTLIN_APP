@@ -5,6 +5,24 @@ import kotlinx.serialization.Serializable
 
 // Mobile mirror of Laravel /api/v1/delivery/* (DeliveryLocationController).
 
+/**
+ * Kemar product ruling 2026-07-19: there are exactly THREE pickup counters —
+ * Montego Bay, Kingston, and Savanna-La-Mar. Every pickup selector (sign-up,
+ * Preferences, Delivery Method pickup list) shows ONLY these. This does NOT
+ * limit delivery: delivery routing/validation keeps using every active
+ * warehouse server-side.
+ */
+val PICKUP_COUNTER_NAMES = listOf("Montego Bay", "Kingston", "Savanna-La-Mar")
+
+private fun normalizePlaceName(name: String?): String =
+    name.orEmpty().lowercase().filter(Char::isLetter)
+
+private val PICKUP_COUNTER_KEYS = PICKUP_COUNTER_NAMES.map(::normalizePlaceName)
+
+/** True when [name] is one of the three pickup counters (punctuation/case-insensitive). */
+fun isPickupCounter(name: String?): Boolean =
+    normalizePlaceName(name) in PICKUP_COUNTER_KEYS
+
 @Serializable
 data class DeliveryWarehouse(
     @Serializable(with = FlexibleIntSerializer::class)
@@ -20,6 +38,11 @@ data class DeliveryWarehouse(
     @SerialName("is_primary")
     @Serializable(with = FlexibleBooleanSerializer::class)
     val isPrimary: Boolean? = null,
+    // Server-side pickup-counter flag (delivery_warehouses.supports_pickup).
+    // null on older payloads; the client also enforces PICKUP_COUNTER_NAMES.
+    @SerialName("supports_pickup")
+    @Serializable(with = FlexibleBooleanSerializer::class)
+    val supportsPickup: Boolean? = null,
     // Present only on validate-location's nearest_warehouse.
     @SerialName("distance_km")
     @Serializable(with = FlexibleDoubleSerializer::class)

@@ -12,6 +12,7 @@ import com.ga.airdrop.core.session.changeTo
 import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.data.model.DeliveryLocation
 import com.ga.airdrop.data.model.DeliveryWarehouse
+import com.ga.airdrop.data.model.isPickupCounter
 import com.ga.airdrop.data.model.PlaceResult
 import com.ga.airdrop.data.repo.DeliveryGateway
 import com.ga.airdrop.data.repo.DeliveryRepository
@@ -104,9 +105,13 @@ class DeliveryMethodViewModel(
     fun loadSettings() {
         settingsJob?.cancel()
         settingsJob = viewModelScope.launch {
+            // Pickup ruling (Kemar 2026-07-19): the PICKUP list shows only the
+            // three counters. Delivery is untouched — validation/routing use
+            // every active warehouse server-side.
             val warehouses = repo.deliverySettings()
                 .map { it.settings?.warehouses.orEmpty() }
                 .getOrElse { fallbackWarehouses() }
+                .filter { it.supportsPickup != false && isPickupCounter(it.name) }
             _state.update {
                 it.copy(
                     warehouses = warehouses,

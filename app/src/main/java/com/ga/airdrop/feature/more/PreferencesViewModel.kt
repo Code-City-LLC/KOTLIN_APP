@@ -40,7 +40,8 @@ class PreferencesViewModel(
 ) : ViewModel() {
 
     // Verbatim RN option lists — order matters (JMD before USD).
-    val pickupLocations = listOf("Montego Bay", "Kingston", "Savanna-La-Mar")
+    // Canonical three pickup counters — single source in data/model/Delivery.kt.
+    val pickupLocations: List<String> = com.ga.airdrop.data.model.PICKUP_COUNTER_NAMES
     val paymentCurrencies = listOf("JMD", "USD")
 
     private val _state = MutableStateFlow(PreferencesUiState())
