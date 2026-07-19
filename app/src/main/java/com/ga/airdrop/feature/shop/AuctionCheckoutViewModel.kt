@@ -33,6 +33,8 @@ data class AuctionCheckoutUiState(
     /** Kept with the URL until dispatch; never persisted. */
     val checkoutSessionId: String? = null,
     val checkoutLaunchAttempt: Long = 0L,
+    /** One-shot: JMD pay routes to the shared NCB card-entry screen. */
+    val ncbNav: Boolean = false,
 )
 
 /**
@@ -213,13 +215,48 @@ class AuctionCheckoutViewModel(
         }
         when (parseCheckoutCurrency(s.currency)) {
             CheckoutCurrency.JMD -> {
-                _state.update {
-                    it.copy(
-                        errorTitle = "JMD payment unavailable",
-                        errorMessage = "JMD checkout requires NCB PowerTranz, which is not available yet. " +
-                            "Choose USD to continue.",
-                    )
+                // NCB PowerTranz rail: start the owned checkout at Order
+                // Summary and hand off to the shared card-entry screen — the
+                // card screen owns the create-ncb-session dispatch and its
+                // double-charge barrier. Swift parity: with no delivery step
+                // in the auction flow, delivery falls back to pickup
+                // ("Airdrop pickup", AirdropCheckoutDeliveryContextCache).
+                val jmdOwner = sessionBoundary.capture()
+                    ?.takeIf { it.sessionId == sessionOwner?.sessionId }
+                if (jmdOwner == null) {
+                    _state.update {
+                        it.copy(
+                            errorTitle = "Sign in required",
+                            errorMessage = "Log in to your Airdropja account before checking out.",
+                        )
+                    }
+                    return
                 }
+                var prepared = false
+                sessionBoundary.runWhileCurrent(jmdOwner) {
+                    val flow = CheckoutFlowStore.start(jmdOwner, listOf(product.toCartLine()))
+                        ?: return@runWhileCurrent false
+                    val updated = CheckoutFlowStore.update(jmdOwner, expectedFlowId = flow.id) { current ->
+                        current.copy(
+                            currency = CheckoutCurrency.JMD.wireValue,
+                            phase = CheckoutPhase.ORDER_SUMMARY,
+                            deliveryMode = current.deliveryMode ?: "pickup",
+                            pickupLocation = current.pickupLocation ?: "Airdrop pickup",
+                        )
+                    }
+                    prepared = updated?.id == flow.id
+                    prepared
+                }
+                if (!prepared) {
+                    _state.update {
+                        it.copy(
+                            errorTitle = "Checkout unavailable",
+                            errorMessage = "The checkout could not be saved safely, so no payment request was sent.",
+                        )
+                    }
+                    return
+                }
+                _state.update { it.copy(ncbNav = true) }
                 return
             }
             null -> {
@@ -357,6 +394,10 @@ class AuctionCheckoutViewModel(
 
     fun consumeCheckoutUrl() {
         _state.update { it.copy(checkoutUrl = null, checkoutSessionId = null) }
+    }
+
+    fun consumeNcbNav() {
+        _state.update { it.copy(ncbNav = false) }
     }
 
     fun dismissError() {

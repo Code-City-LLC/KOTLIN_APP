@@ -88,6 +88,9 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 navController.popBackStack()
                 navController.popBackStack()
             },
+            onNcbCardEntry = {
+                navController.navigate(Routes.NCB_CARD_ENTRY) { launchSingleTop = true }
+            },
         )
     }
 
@@ -223,9 +226,16 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
     }
 
     composable(Routes.NCB_CARD_ENTRY) { entry ->
-        val cartEntry = remember(entry) { navController.getBackStackEntry(Routes.CART) }
+        // Cart lane: share the CART entry's ViewModel (billing form already
+        // loaded). Auction lane has no CART on its stack — fall back to this
+        // entry's own instance; the profile autofill below fills billing.
+        val cartEntry = remember(entry) {
+            runCatching { navController.getBackStackEntry(Routes.CART) }.getOrElse { entry }
+        }
         val cartViewModel: CartViewModel = viewModel(cartEntry)
         val state by cartViewModel.state.collectAsState()
+
+        LaunchedEffect(Unit) { cartViewModel.loadCheckoutProfile() }
 
         LaunchedEffect(state.ncbThreeDsNav) {
             if (state.ncbThreeDsNav) {
@@ -249,7 +259,14 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
     }
 
     composable(Routes.NCB_THREE_DS) { entry ->
-        val cartEntry = remember(entry) { navController.getBackStackEntry(Routes.CART) }
+        // Must resolve to the SAME ViewModel instance the card-entry screen
+        // used (it holds ncbSession): CART when the cart lane is on the
+        // stack, else the card-entry entry beneath us (auction lane).
+        val cartEntry = remember(entry) {
+            runCatching { navController.getBackStackEntry(Routes.CART) }
+                .recoverCatching { navController.getBackStackEntry(Routes.NCB_CARD_ENTRY) }
+                .getOrElse { entry }
+        }
         val cartViewModel: CartViewModel = viewModel(cartEntry)
         val state by cartViewModel.state.collectAsState()
         val session = state.ncbSession

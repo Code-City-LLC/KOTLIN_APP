@@ -63,10 +63,18 @@ import java.util.Locale
 fun AuctionCheckoutScreen(
     onBack: () -> Unit,
     onCheckoutOpened: () -> Unit,
+    onNcbCardEntry: () -> Unit = {},
     viewModel: AuctionCheckoutViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(state.ncbNav) {
+        if (state.ncbNav) {
+            onNcbCardEntry()
+            viewModel.consumeNcbNav()
+        }
+    }
     val context = LocalContext.current
     val product = state.product
     val heroImageUrl = product?.imageUrl
