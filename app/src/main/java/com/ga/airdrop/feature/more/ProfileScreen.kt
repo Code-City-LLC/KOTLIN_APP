@@ -48,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import java.text.SimpleDateFormat
@@ -148,24 +149,43 @@ fun ProfileScreen(
                     required = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 )
-                TypeInputField(
-                    label = "Password",
-                    value = state.password,
-                    onValueChange = { v -> viewModel.set { it.copy(password = v) } },
-                    required = true,
-                    isPassword = true,
-                    passwordVisible = state.passwordVisible,
-                    onTogglePasswordVisibility = viewModel::togglePasswordVisible,
+                // Password reset card (Swift makePasswordResetCard). The
+                // profile PUT does NOT accept password fields, so the old
+                // Password + Confirm inputs were dead — a secure reset link to
+                // the saved email is the real change-password path.
+                Text(
+                    text = "Password",
+                    style = AirdropType.subtitle2,
+                    color = colors.textDarkTitle,
                 )
-                TypeInputField(
-                    label = "Confirm Password",
-                    value = state.confirmPassword,
-                    onValueChange = { v -> viewModel.set { it.copy(confirmPassword = v) } },
-                    required = true,
-                    isPassword = true,
-                    passwordVisible = state.confirmPasswordVisible,
-                    onTogglePasswordVisibility = viewModel::toggleConfirmVisible,
+                Text(
+                    text = "To change your password, send a secure reset link to " +
+                        "your saved email address.",
+                    style = AirdropType.body3,
+                    color = colors.textDescription,
                 )
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .border(
+                            1.dp,
+                            BrandPalette.OrangeMain,
+                            androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                        )
+                        .clickable(enabled = !state.sendingPasswordReset) {
+                            viewModel.sendPasswordReset()
+                        }
+                        .testTag("profile-send-reset-link"),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (state.sendingPasswordReset) "Sending…" else "Send Reset Link",
+                        style = AirdropType.subtitle2,
+                        color = BrandPalette.OrangeMain,
+                    )
+                }
                 MoreSelectField(
                     label = "Language",
                     value = state.language,

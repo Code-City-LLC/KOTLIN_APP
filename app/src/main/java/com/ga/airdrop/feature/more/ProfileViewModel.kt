@@ -42,6 +42,7 @@ data class ProfileUiState(
     val avatar: Bitmap? = null,
     val avatarLoading: Boolean = false,
     val saving: Boolean = false,
+    val sendingPasswordReset: Boolean = false,
     val alert: Pair<String, String>? = null, // title to message
 )
 
@@ -141,6 +142,49 @@ class ProfileViewModel(
         _state.update { it.copy(confirmPasswordVisible = !it.confirmPasswordVisible) }
 
     fun dismissAlert() = _state.update { it.copy(alert = null) }
+
+    /**
+     * Send a secure password-reset link to the saved email (Swift
+     * onSendPasswordReset → restorePassword). The profile PUT can't change
+     * the password, so this is the real change-password path.
+     */
+    fun sendPasswordReset() {
+        val s = _state.value
+        if (s.sendingPasswordReset) return
+        val email = s.email.trim()
+        if (email.isBlank()) {
+            _state.update {
+                it.copy(
+                    alert = "Email required" to
+                        "Your saved email address is required to send a password reset link.",
+                )
+            }
+            return
+        }
+        _state.update { it.copy(sendingPasswordReset = true) }
+        viewModelScope.launch {
+            com.ga.airdrop.data.repo.AuthRepository(com.ga.airdrop.core.network.ApiClient.service)
+                .forgotPassword(email)
+                .onSuccess {
+                    _state.update {
+                        it.copy(
+                            sendingPasswordReset = false,
+                            alert = "Check your email" to
+                                "We've sent a password reset link to $email.",
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            sendingPasswordReset = false,
+                            alert = "Couldn't send link" to
+                                (e.message ?: "Please try again in a moment."),
+                        )
+                    }
+                }
+        }
+    }
 
     // ─── Avatar ───
 
