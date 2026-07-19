@@ -59,12 +59,12 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         arguments = listOf(navArgument("userId") { type = NavType.StringType }),
     ) { entry ->
         val userId = entry.arguments?.getString("userId")?.toIntOrNull() ?: 0
-        // Swift FigmaAuthorizedUserDetailViewController.swift:146-148 — the
-        // detail surface is read-only (Activate/Deactivate + Delete only); no
-        // Edit affordance. Matches RN; no iOS-only edit button.
+        // Swift FigmaAuthorizedUserDetailViewController.swift:131-141 exposes an
+        // Edit button (directive outranks RN parity) → the prefilled editor.
         AuthorizedUserDetailScreen(
             userId = userId,
             onBack = { navController.popBackStack() },
+            onEdit = { navController.navigate(Routes.addAuthorizedUser(userId.toString())) },
         )
     }
 

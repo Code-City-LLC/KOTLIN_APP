@@ -102,6 +102,7 @@ fun ShopScreen(
                     onValueChange = viewModel::onQueryChange,
                     placeholder = "Search",
                     onFilterClick = { viewModel.setSortSheetVisible(true) },
+                    onSearch = viewModel::onSearchSubmit,
                     modifier = Modifier
                         .testTag("shop-root-search")
                         .onFocusEvent { searchFocused = it.hasFocus },

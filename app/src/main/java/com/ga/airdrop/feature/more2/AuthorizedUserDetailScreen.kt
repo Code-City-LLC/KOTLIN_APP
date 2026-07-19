@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.more2
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
@@ -42,6 +44,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 fun AuthorizedUserDetailScreen(
     userId: Int,
     onBack: () -> Unit,
+    onEdit: () -> Unit = {},
     viewModel: AuthorizedUserDetailViewModel = viewModel(
         factory = detailFactory(userId),
         key = "authorizedUserDetail_$userId",
@@ -64,6 +67,24 @@ fun AuthorizedUserDetailScreen(
         More2InnerHeader(
             title = "User Details",
             onBack = onBack,
+            // Swift FigmaAuthorizedUserDetailViewController editButton (:131) —
+            // "directive outranks RN parity — expose Edit". Enabled once loaded.
+            rightContent = if (state.user != null) {
+                {
+                    Text(
+                        text = "Edit",
+                        style = AirdropType.subtitle2,
+                        color = BrandPalette.OrangeMain,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 16.dp)
+                            .clickable(onClick = onEdit)
+                            .testTag("authorized-user-edit"),
+                    )
+                }
+            } else {
+                null
+            },
         )
 
         Box(Modifier.weight(1f)) {
