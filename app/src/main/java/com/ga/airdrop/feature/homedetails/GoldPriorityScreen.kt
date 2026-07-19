@@ -524,6 +524,7 @@ internal fun GoldPriorityContent(
                 benefitRowsForPage(it, benefitRowsByCode)
             }.orEmpty(),
             isUpgrade = sheet.isUpgrade,
+            priceLabel = changeOffers.firstOrNull { it.code == sheet.target.apiCode }?.priceLabel,
             phase = changePhase,
             successName = changeSuccessName,
             successMessage = changeSuccessMessage,

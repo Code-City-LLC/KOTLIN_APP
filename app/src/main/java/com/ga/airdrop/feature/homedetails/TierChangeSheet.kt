@@ -68,6 +68,9 @@ internal fun TierChangeSheet(
     targetBenefits: List<String>?,
     currentBenefits: List<String>,
     isUpgrade: Boolean,
+    /** "$9.99 USD/month" when the target tier is priced (backend billing
+     *  gate, 2026-07-19); null = free switch. Display-only. */
+    priceLabel: String? = null,
     phase: TierChangePhase,
     successName: String?,
     successMessage: String?,
@@ -158,6 +161,7 @@ internal fun TierChangeSheet(
                         targetBenefits = targetBenefits,
                         currentBenefits = currentBenefits,
                         isUpgrade = isUpgrade,
+                        priceLabel = priceLabel,
                         working = working,
                         error = error.takeIf { phase == TierChangePhase.Error },
                         onConfirm = onConfirm,
@@ -181,6 +185,7 @@ private fun TierChangeConfirmation(
     targetBenefits: List<String>?,
     currentBenefits: List<String>,
     isUpgrade: Boolean,
+    priceLabel: String?,
     working: Boolean,
     error: String?,
     onConfirm: () -> Unit,
@@ -223,7 +228,11 @@ private fun TierChangeConfirmation(
             )
             Text(
                 text = if (isUpgrade) {
-                    "Changes apply immediately. Here's what you'll get:"
+                    if (priceLabel == null) {
+                        "Changes apply immediately. Here's what you'll get:"
+                    } else {
+                        "This is a paid upgrade. Here's what you'll get:"
+                    }
                 } else {
                     "Are you sure? Here's what you'd be giving up:"
                 },
@@ -271,6 +280,22 @@ private fun TierChangeConfirmation(
                 )
             }
 
+            if (priceLabel != null) {
+                // Upgrade price panel (2026-07-19) — backend-priced tiers only.
+                Text(
+                    text = "Upgrade price: $priceLabel",
+                    style = AirdropType.h5.copy(fontSize = 16.sp, lineHeight = 22.sp),
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .padding(14.dp)
+                        .testTag("tier-change-price"),
+                )
+            }
+
             if (error != null) {
                 Text(
                     text = error,
@@ -307,7 +332,7 @@ private fun TierChangeConfirmation(
         ) {
             if (isUpgrade) {
                 TierSheetPrimaryButton(
-                    label = "Upgrade Now",
+                    label = if (priceLabel == null) "Upgrade Now" else "Continue to Payment",
                     loading = working,
                     enabled = disclosureReady && !working,
                     onClick = onConfirm,

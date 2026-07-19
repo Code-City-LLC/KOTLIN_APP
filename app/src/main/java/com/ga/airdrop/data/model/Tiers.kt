@@ -9,6 +9,16 @@ data class ServiceTier(
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("processing_copy") val processingCopy: String? = null,
     @SerialName("benefits_summary") val benefitsSummary: List<String> = emptyList(),
+    /**
+     * Upgrade pricing (2026-07-19): null/0 = free self-serve switch; > 0 means
+     * the backend billing gate requires payment (PATCH answers 402 with its
+     * own message until the tier checkout flow ships).
+     */
+    @SerialName("upgrade_price_usd") val upgradePriceUsd: Double? = null,
+    @SerialName("upgrade_price_jmd") val upgradePriceJmd: Double? = null,
+    /** "one_time" | "monthly" | "yearly" */
+    @SerialName("billing_period") val billingPeriod: String? = null,
+    @SerialName("requires_payment") val requiresPayment: Boolean = false,
 )
 
 @Serializable
@@ -32,7 +42,31 @@ data class TierChangeOption(
     @SerialName("is_current") val isCurrent: Boolean = false,
     /** "upgrade" | "downgrade" | "same" — backend-declared, authoritative. */
     val direction: String? = null,
-)
+    /** Upgrade pricing — mirrors ServiceTier so the change sheet can price a
+     *  switch without a second catalog fetch (2026-07-19). */
+    @SerialName("upgrade_price_usd") val upgradePriceUsd: Double? = null,
+    @SerialName("upgrade_price_jmd") val upgradePriceJmd: Double? = null,
+    @SerialName("billing_period") val billingPeriod: String? = null,
+    @SerialName("requires_payment") val requiresPayment: Boolean = false,
+) {
+    /** "$9.99 USD/month" display label; null when the switch is free. */
+    val priceLabel: String?
+        get() {
+            val usd = upgradePriceUsd ?: 0.0
+            val jmd = upgradePriceJmd ?: 0.0
+            if (usd <= 0.0 && jmd <= 0.0) return null
+            val amount = if (usd > 0.0) {
+                "$" + String.format("%.2f", usd) + " USD"
+            } else {
+                "J$" + String.format("%.2f", jmd)
+            }
+            return when (billingPeriod) {
+                "monthly" -> "$amount/month"
+                "yearly" -> "$amount/year"
+                else -> amount
+            }
+        }
+}
 
 /** PATCH /customers/me/tier body — Swift AirdropAPI.TierChangeRequest. */
 @Serializable
