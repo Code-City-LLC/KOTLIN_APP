@@ -168,7 +168,10 @@ fun PackageDetailsScreen(
 
                     when {
                         state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
-                        detail == null -> ShipmentsEmptyLabel(state.error ?: "Package not found")
+                        detail == null -> ShipmentsErrorRetry(
+                            message = state.error ?: "Package not found",
+                            onRetry = { viewModel.refresh() },
+                        )
                         else -> PackageDetailsContent(
                             state = state,
                             detail = detail,

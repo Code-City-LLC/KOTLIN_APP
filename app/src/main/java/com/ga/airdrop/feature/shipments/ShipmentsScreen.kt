@@ -64,6 +64,7 @@ import com.ga.airdrop.core.session.SessionStore
  * recent packages strip, payments preview, orders preview; each section
  * links into its full list.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ShipmentsScreen(
     onNavigate: (String) -> Unit,
@@ -91,7 +92,27 @@ fun ShipmentsScreen(
         }
     }
 
+    // Swift FigmaShipmentsViewController.shipmentsRefreshControl — pull-to-
+    // refresh fires every hub loader (parity with Payments/Orders screens).
+    val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    val hubRefreshing = state.loading
     Box(Modifier.fillMaxSize().background(colors.gray200)) {
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = hubRefreshing,
+            onRefresh = viewModel::refresh,
+            state = ptrState,
+            modifier = Modifier.fillMaxSize(),
+            indicator = {
+                androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                    state = ptrState,
+                    isRefreshing = hubRefreshing,
+                    color = BrandPalette.OrangeMain,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 126.dp),
+                )
+            },
+        ) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -220,6 +241,7 @@ fun ShipmentsScreen(
                 // Tail clears the tab bar (Swift :169-171 — 130).
                 Spacer(Modifier.height(130.dp))
             }
+        }
         }
 
         AirdropHeader(

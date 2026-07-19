@@ -1113,6 +1113,44 @@ fun ShipmentsEmptyLabel(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
+ * Load-failure state with an inline Retry — Swift onRetryLoadDetail
+ * (FigmaPackageDetailsViewController / FigmaPaymentPackageDetailsViewController).
+ * A non-interactive error label leaves the user stranded; this re-fires the
+ * detail load.
+ */
+@Composable
+fun ShipmentsErrorRetry(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    androidx.compose.foundation.layout.Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = message,
+            style = AirdropType.body1,
+            color = AirdropTheme.colors.textDescription,
+        )
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier
+                .height(40.dp)
+                .border(1.dp, BrandPalette.OrangeMain, RoundedCornerShape(10.dp))
+                .clickable(onClick = onRetry)
+                .padding(horizontal = 24.dp)
+                .testTag("shipments-detail-retry"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "Retry", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
+        }
+    }
+}
+
+/**
  * Styled alert — Android counterpart of the Swift UIAlertControllers used
  * across the shipments VCs (CIF info, add-to-cart success, delete confirm).
  */

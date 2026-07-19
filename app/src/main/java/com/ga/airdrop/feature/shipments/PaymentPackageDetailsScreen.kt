@@ -81,7 +81,10 @@ fun PaymentPackageDetailsScreen(
                 Spacer(Modifier.height(shipmentsHeaderClearance()))
                 when {
                     state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
-                    state.payment == null -> ShipmentsEmptyLabel(state.error ?: "Payment not found")
+                    state.payment == null -> ShipmentsErrorRetry(
+                        message = state.error ?: "Payment not found",
+                        onRetry = { viewModel.refresh() },
+                    )
                     else -> PaymentPackageDetailsContent(
                         state = state,
                         onCifInfo = { viewModel.showCifInfo(true) },
@@ -122,6 +125,14 @@ internal fun PaymentPackageDetailsContent(
     val payment = state.payment ?: return
     val detail = state.detail
     val rate = state.effectiveRate
+    // Customs Duty row → notice sheet (Swift onTapCustomsDutyInfo; the plain
+    // Package Details already wires the same CustomsNoticeSheet).
+    val showCustomsNotice = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+    if (showCustomsNotice.value) {
+        CustomsNoticeSheet(onDismiss = { showCustomsNotice.value = false })
+    }
 
     Column(
         Modifier
@@ -223,6 +234,11 @@ internal fun PaymentPackageDetailsContent(
                             "$" + ShipmentsFormat.moneyPlain(amount),
                             "$" + ShipmentsFormat.moneyPlain(amount * rate),
                             colors.textDarkTitle,
+                            onInfo = if (isCustomsDutyCharge(name)) {
+                                { showCustomsNotice.value = true }
+                            } else {
+                                null
+                            },
                         )
                     }
                     Row(Modifier.fillMaxWidth()) {
@@ -304,9 +320,30 @@ private fun PaymentPackageHistoryButton(
 }
 
 @Composable
-private fun ChargeTableRow(name: String, usd: String, jmd: String, color: Color) {
-    Row(Modifier.fillMaxWidth()) {
-        Text(text = name, style = AirdropType.body2, color = color, modifier = Modifier.weight(1f))
+private fun ChargeTableRow(
+    name: String,
+    usd: String,
+    jmd: String,
+    color: Color,
+    onInfo: (() -> Unit)? = null,
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = name, style = AirdropType.body2, color = color)
+            if (onInfo != null) {
+                Spacer(Modifier.size(6.dp))
+                // Customs Duty info affordance — Swift makeCustomsDutyChargesButton.
+                androidx.compose.foundation.layout.Box(
+                    Modifier
+                        .size(18.dp)
+                        .clickable(onClick = onInfo)
+                        .testTag("payment-customs-info"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("ⓘ", style = AirdropType.body3, color = BrandPalette.OrangeMain)
+                }
+            }
+        }
         Text(text = usd, style = AirdropType.body2, color = color)
         Spacer(Modifier.size(Spacing.md))
         Text(text = jmd, style = AirdropType.body2, color = color)
