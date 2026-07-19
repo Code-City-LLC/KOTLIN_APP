@@ -493,4 +493,14 @@ interface AirdropApiService {
 
     @POST("delivery/search-places")
     suspend fun searchPlaces(@Body body: SearchPlacesRequest): DataEnvelope<PlaceSearchResults>
+
+    /**
+     * POST /diagnostics/crashes — anonymous-friendly crash intake
+     * (DiagnosticsController; Swift CrashCapture parity). Raw Response so
+     * the flusher can key deletion off the HTTP status alone.
+     */
+    @POST("diagnostics/crashes")
+    suspend fun reportCrash(
+        @Body body: kotlinx.serialization.json.JsonObject,
+    ): retrofit2.Response<kotlinx.serialization.json.JsonObject>
 }

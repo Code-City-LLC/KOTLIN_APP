@@ -34,6 +34,8 @@ class AirdropApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        // First: crashes during the rest of startup must still be captured.
+        com.ga.airdrop.core.diagnostics.CrashCapture.install(this)
         AuthTokenStore.init(this)
         ThemeController.init(this)
         TextSizeController.init(this)
@@ -64,6 +66,14 @@ class AirdropApp : Application(), ImageLoaderFactory {
         PackagesSortStore.init(this)
         ShopRepoBinding.install()
         ShipmentsRepoBinding.install(cacheDir)
+        // Ship any crash captured on a previous run (delete on acceptance).
+        applicationScope.launch(Dispatchers.IO) {
+            runCatching {
+                com.ga.airdrop.core.diagnostics.CrashCapture.flush { payload ->
+                    com.ga.airdrop.core.network.ApiClient.service.reportCrash(payload).code()
+                }
+            }
+        }
     }
 
     // Coil's app-wide image loader. Its OkHttpClient carries [HttpsImageInterceptor]
