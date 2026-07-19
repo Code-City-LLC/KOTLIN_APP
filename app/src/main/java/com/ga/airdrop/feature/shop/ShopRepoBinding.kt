@@ -124,6 +124,18 @@ private class DataShopCheckoutRepository(
                 response
             }
 
+    override suspend fun createNcbSession(
+        request: com.ga.airdrop.data.model.CreateNcbSessionRequest,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbSessionResponse> =
+        payments.createNcbSession(request, expectedSession)
+
+    override suspend fun ncbCompletePayment(
+        spiToken: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbCompletePaymentResponse> =
+        payments.ncbCompletePayment(spiToken, expectedSession)
+
     override suspend fun exchangeRate(): Result<Double> =
         misc.exchangeRate().mapCatching { it.usdToJmd ?: error("Missing exchange rate") }
 

@@ -56,6 +56,10 @@ object Routes {
     const val PROFILE_INFORMATION = "profileInformation"
     const val ORDER_SUMMARY = "orderSummary"
 
+    // JMD rail: NCB PowerTranz card entry + 3-D Secure challenge.
+    const val NCB_CARD_ENTRY = "ncbCardEntry"
+    const val NCB_THREE_DS = "ncbThreeDs"
+
     // More drill-downs
     const val SETTINGS = "settings"
     const val PROFILE = "profile"

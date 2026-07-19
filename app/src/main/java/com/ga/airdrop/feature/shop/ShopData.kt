@@ -237,6 +237,28 @@ interface ShopCheckoutRepository {
     ): Result<CheckoutResponse>
 
     /**
+     * RECONCILE: POST /payments/create-ncb-session (JMD rail). Flat
+     * snake_case billing+card+delivery body → { spi_token, redirect_data,
+     * checkout_id }. Default fails loudly so fakes that never exercise the
+     * NCB rail stay honest.
+     */
+    suspend fun createNcbSession(
+        request: com.ga.airdrop.data.model.CreateNcbSessionRequest,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbSessionResponse> =
+        Result.failure(UnsupportedOperationException("NCB rail not bound"))
+
+    /**
+     * RECONCILE: POST /payments/ncb-complete-payment { spi_token } →
+     * { invoice_id } after the 3DS challenge finishes.
+     */
+    suspend fun ncbCompletePayment(
+        spiToken: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbCompletePaymentResponse> =
+        Result.failure(UnsupportedOperationException("NCB rail not bound"))
+
+    /**
      * RECONCILE: GET /exchange-rates (no auth) → { "usd_to_jmd": Double }.
      */
     suspend fun exchangeRate(): Result<Double>

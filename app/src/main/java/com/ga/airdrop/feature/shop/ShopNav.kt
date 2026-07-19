@@ -192,6 +192,13 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
             }
         }
 
+        LaunchedEffect(state.ncbCardEntryNav) {
+            if (state.ncbCardEntryNav) {
+                navController.navigate(Routes.NCB_CARD_ENTRY) { launchSingleTop = true }
+                cartViewModel.consumeNcbCardEntryNav()
+            }
+        }
+
         OrderSummaryScreen(
             model = OrderSummaryUiModel(
                 lines = capturedLines,
@@ -213,5 +220,72 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
             onMakePayment = cartViewModel::payOrderSummary,
             onDismissError = cartViewModel::dismissError,
         )
+    }
+
+    composable(Routes.NCB_CARD_ENTRY) { entry ->
+        val cartEntry = remember(entry) { navController.getBackStackEntry(Routes.CART) }
+        val cartViewModel: CartViewModel = viewModel(cartEntry)
+        val state by cartViewModel.state.collectAsState()
+
+        LaunchedEffect(state.ncbThreeDsNav) {
+            if (state.ncbThreeDsNav) {
+                navController.navigate(Routes.NCB_THREE_DS) { launchSingleTop = true }
+                cartViewModel.consumeNcbThreeDsNav()
+            }
+        }
+
+        com.ga.airdrop.feature.cart.NcbCardEntryScreen(
+            form = state.form,
+            countryOptions = cartViewModel.countryOptions,
+            savedProfile = state.selectedProfile,
+            paying = state.ncbPaying,
+            onBack = { navController.popBackStack() },
+            onFormChange = { next -> cartViewModel.updateForm { next } },
+            onSubmit = cartViewModel::startNcbCheckout,
+            errorTitle = state.errorTitle,
+            errorMessage = state.errorMessage,
+            onDismissError = cartViewModel::dismissError,
+        )
+    }
+
+    composable(Routes.NCB_THREE_DS) { entry ->
+        val cartEntry = remember(entry) { navController.getBackStackEntry(Routes.CART) }
+        val cartViewModel: CartViewModel = viewModel(cartEntry)
+        val state by cartViewModel.state.collectAsState()
+        val session = state.ncbSession
+
+        LaunchedEffect(state.ncbSuccessRef) {
+            val ref = state.ncbSuccessRef
+            if (ref != null) {
+                navController.navigate(Routes.paymentSuccess(ref, null)) {
+                    // Mirror the Stripe verified-paid return: pop through the
+                    // cart so Back from Success never lands on a cleared cart.
+                    popUpTo(Routes.CART) { inclusive = true }
+                    launchSingleTop = true
+                }
+                cartViewModel.consumeNcbSuccessNav()
+            }
+        }
+
+        if (session == null) {
+            // Session consumed (paid) or abandoned — nothing to render. The
+            // success effect above owns the paid exit; this covers re-entry.
+            LaunchedEffect(Unit) {
+                if (state.ncbSuccessRef == null) navController.popBackStack()
+            }
+        } else {
+            com.ga.airdrop.feature.cart.NcbThreeDsScreen(
+                redirectData = session.redirectData.orEmpty(),
+                completing = state.ncbCompleting,
+                onComplete = cartViewModel::completeNcbPayment,
+                onLeave = {
+                    cartViewModel.abandonNcbThreeDs()
+                    navController.popBackStack()
+                },
+                errorTitle = state.errorTitle,
+                errorMessage = state.errorMessage,
+                onDismissError = cartViewModel::dismissError,
+            )
+        }
     }
 }

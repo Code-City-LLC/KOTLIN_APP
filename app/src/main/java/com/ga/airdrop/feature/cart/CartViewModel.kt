@@ -65,6 +65,22 @@ data class CartUiState(
     val checkoutLaunchAttempt: Long = 0L,
     /** First eligible tagged Apple/Mac product from the shared featured feed. */
     val appleHero: ShopProduct? = null,
+    /** One-shot: JMD "Make Payment" routes to the NCB card-entry screen. */
+    val ncbCardEntryNav: Boolean = false,
+    /** NCB session-creation POST in flight (Swift isStartingNcbCheckout). */
+    val ncbPaying: Boolean = false,
+    /**
+     * Live NCB session for the 3DS challenge. Holds spi_token +
+     * redirect_data HTML only — the card PAN/CVV never enter state; they
+     * exist solely inside the create-ncb-session request.
+     */
+    val ncbSession: com.ga.airdrop.data.model.NcbSessionResponse? = null,
+    /** One-shot: session created → show the Card Authentication screen. */
+    val ncbThreeDsNav: Boolean = false,
+    /** ncb-complete-payment in flight (Swift isCompletingPayment). */
+    val ncbCompleting: Boolean = false,
+    /** One-shot: NCB paid — route to Payment Success with this reference. */
+    val ncbSuccessRef: String? = null,
 )
 
 internal const val ADD_NEW_CHECKOUT_PROFILE = "Add new profile"
@@ -412,8 +428,9 @@ class CartViewModel(
         val (title, message) = when (parseCheckoutCurrency(_state.value.form.currency)) {
             CheckoutCurrency.USD -> "Payment method" to
                 "USD orders use secure Stripe checkout after Order Summary. No payment was started."
-            CheckoutCurrency.JMD -> "JMD checkout unavailable" to
-                "JMD payment is not available yet. No payment was started."
+            CheckoutCurrency.JMD -> "Payment method" to
+                "JMD orders pay by card (NCB secure checkout). You enter card " +
+                "details after Order Summary. No payment was started."
             null -> "Payment method unavailable" to
                 "Select a supported payment currency before continuing. No payment was started."
         }
@@ -597,10 +614,13 @@ class CartViewModel(
             return orderError("Cart update in progress", "Wait for your cart changes to finish before paying.")
         }
         when (checkoutPaymentRail(flow.currency)) {
-            CheckoutPaymentRail.NCB_POWERTRANZ -> return orderError(
-                "JMD checkout unavailable",
-                "JMD payment is not available yet. No payment was started.",
-            )
+            CheckoutPaymentRail.NCB_POWERTRANZ -> {
+                // JMD: collect the card first (Swift pushes the payment-method
+                // VC). No payment request leaves this screen — the card-entry
+                // screen owns the create-ncb-session dispatch.
+                _state.update { it.copy(ncbCardEntryNav = true) }
+                return
+            }
             CheckoutPaymentRail.STRIPE -> Unit
             null -> return orderError("Checkout unavailable", "The selected payment currency is invalid.")
         }
@@ -710,6 +730,213 @@ class CartViewModel(
 
     fun consumeCheckoutUrl() {
         _state.update { it.copy(checkoutUrl = null, checkoutSessionId = null) }
+    }
+
+    fun consumeNcbCardEntryNav() {
+        _state.update { it.copy(ncbCardEntryNav = false) }
+    }
+
+    fun consumeNcbThreeDsNav() {
+        _state.update { it.copy(ncbThreeDsNav = false) }
+    }
+
+    fun consumeNcbSuccessNav() {
+        _state.update { it.copy(ncbSuccessRef = null) }
+    }
+
+    /**
+     * NCB PowerTranz step 1 — the card-entry "Save" tap (Swift
+     * startNcbCheckout). Validates via [buildNcbCheckoutInput], takes the
+     * same durable creation barrier as Stripe (a crashed POST can already
+     * have CHARGED the card — "unknown" must block, not retry), then holds
+     * the returned spi_token as the pending-checkout identity so the whole
+     * Stripe pending machinery (double-pay guard, TTL heal, consumePaid)
+     * covers the 3DS phase too.
+     */
+    fun startNcbCheckout(card: NcbCardFields) {
+        if (_state.value.ncbPaying || _state.value.orderPaying) return
+        val owner = currentOwner() ?: return orderError(
+            "Sign in required",
+            "Log in to your Airdropja account before checking out.",
+        )
+        if (CheckoutFlowStore.pending(owner) != null) {
+            return orderError(
+                "Payment still pending",
+                "A checkout is already pending. Check Shipments before paying again.",
+            )
+        }
+        if (CheckoutFlowStore.creating(owner) != null) {
+            return orderError(
+                "Payment status unknown",
+                "A payment request may already be in flight. Check Shipments before paying again.",
+            )
+        }
+        val flow = CheckoutFlowStore.current(owner)?.takeIf { it.phase == CheckoutPhase.ORDER_SUMMARY }
+            ?: return orderError("Checkout unavailable", "Return to your cart and restart checkout.")
+        if (checkoutPaymentRail(flow.currency) != CheckoutPaymentRail.NCB_POWERTRANZ) {
+            return orderError("Checkout unavailable", "This payment screen is for JMD checkout only.")
+        }
+        val lines = capturedLines(flow)
+            ?: return orderError("Checkout unavailable", "The cart changed. Return to your cart and restart checkout.")
+        if (CartStore.hasPendingPackageMutations()) {
+            return orderError("Cart update in progress", "Wait for your cart changes to finish before paying.")
+        }
+        val input = buildNcbCheckoutInput(
+            packageIds = lines.mapNotNull(CartStore.CartLine::packageId),
+            isAuction = flow.isAuction,
+            billing = _state.value.form,
+            card = card,
+            deliveryMode = flow.deliveryMode,
+            deliveryAddress = flow.deliveryAddress,
+            deliveryLatitude = flow.deliveryLatitude,
+            deliveryLongitude = flow.deliveryLongitude,
+            pickupLocation = flow.pickupLocation,
+            deliveryFee = flow.deliveryFee,
+            deliveryFeeCurrency = flow.deliveryFeeCurrency,
+            currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR),
+        )
+        val request = when (input) {
+            is NcbCheckoutInput.Invalid -> return orderError("Payment details needed", input.message)
+            is NcbCheckoutInput.Ready -> input.request
+        }
+        val requestOwner = sessionBoundary.requestOwner(owner)
+            ?: return orderError("Sign in required", "Log in to your Airdropja account before checking out.")
+        val expectedFlowId = flow.id
+        var creation: PendingCheckoutCreation? = null
+        val prepared = sessionBoundary.runWhileCurrent(owner) {
+            val exact = CheckoutFlowStore.current(owner)?.takeIf {
+                it.id == expectedFlowId && it.phase == CheckoutPhase.ORDER_SUMMARY
+            } ?: return@runWhileCurrent false
+            if (capturedLines(exact) == null) return@runWhileCurrent false
+            creation = CheckoutFlowStore.beginHostedCheckoutCreation(owner)
+            creation != null
+        }
+        if (!prepared) {
+            return orderError(
+                "Checkout unavailable",
+                "The checkout could not be saved safely, so no payment request was sent.",
+            )
+        }
+        val creationId = requireNotNull(creation).id
+        _state.update { it.copy(ncbPaying = true, errorTitle = null, errorMessage = null) }
+        orderPayJob = sessionJobs.launch {
+            checkout.createNcbSession(request, requestOwner.provenance)
+                .onSuccess { session ->
+                    sessionBoundary.runWhileCurrent(owner) {
+                        if (CheckoutFlowStore.recordHostedCheckout(owner, creationId, session.spiToken.orEmpty()) == null) {
+                            _state.update {
+                                it.copy(
+                                    ncbPaying = false,
+                                    errorTitle = "Payment status unknown",
+                                    errorMessage = "The card session could not be saved safely. " +
+                                        "It cannot be retried; check Shipments.",
+                                )
+                            }
+                            return@runWhileCurrent true
+                        }
+                        _state.update {
+                            it.copy(
+                                ncbPaying = false,
+                                ncbSession = session,
+                                ncbThreeDsNav = true,
+                            )
+                        }
+                        true
+                    }
+                }
+                .onFailure { error ->
+                    // The creation barrier stays — the request may have reached
+                    // PowerTranz and AUTHORIZED the card; it heals on the 30-min
+                    // TTL. Same unknown-state stance as the Stripe rail.
+                    sessionBoundary.runWhileCurrent(owner) {
+                        val unauth = error.message?.contains("Unauthenticated", ignoreCase = true) == true
+                        _state.update {
+                            it.copy(
+                                ncbPaying = false,
+                                errorTitle = if (unauth) "Sign in required" else "NCB checkout failed",
+                                errorMessage = if (unauth) {
+                                    "Your session changed after checkout started. Check Shipments before paying again."
+                                } else {
+                                    (error.message ?: "The card payment could not be started.") +
+                                        " Check Shipments before paying again."
+                                },
+                            )
+                        }
+                        true
+                    }
+                }
+        }
+    }
+
+    /**
+     * NCB step 2 — "Complete Payment" on the 3DS screen (Swift
+     * completePayment): finalize with the spi_token, then settle the local
+     * checkout exactly like a verified Stripe return (durable paid-line
+     * removal BEFORE the pending record is consumed).
+     */
+    fun completeNcbPayment() {
+        if (_state.value.ncbCompleting) return
+        val owner = currentOwner() ?: return orderError(
+            "Sign in required",
+            "Log in to your Airdropja account before completing payment.",
+        )
+        val session = _state.value.ncbSession ?: return orderError(
+            "Payment unavailable",
+            "The card session expired. Return to your cart and restart checkout.",
+        )
+        val spiToken = session.spiToken.orEmpty()
+        val requestOwner = sessionBoundary.requestOwner(owner)
+            ?: return orderError("Sign in required", "Log in before completing payment.")
+        _state.update { it.copy(ncbCompleting = true, errorTitle = null, errorMessage = null) }
+        orderPayJob = sessionJobs.launch {
+            checkout.ncbCompletePayment(spiToken, requestOwner.provenance)
+                .onSuccess { response ->
+                    sessionBoundary.runWhileCurrent(owner) {
+                        // Money truth first: the invoice EXISTS server-side.
+                        // Local bookkeeping is best-effort; never hide success.
+                        val pendingKeys = CheckoutFlowStore.pending(spiToken, owner)?.cartKeys?.toSet()
+                        if (pendingKeys != null && CartStore.removePaidKeysDurably(pendingKeys)) {
+                            CheckoutFlowStore.consumePaid(spiToken, owner)
+                        }
+                        _state.update {
+                            it.copy(
+                                ncbCompleting = false,
+                                ncbSession = null,
+                                ncbSuccessRef = "Invoice #${response.invoiceId ?: ""}".trim().trimEnd('#'),
+                            )
+                        }
+                        true
+                    }
+                }
+                .onFailure { error ->
+                    sessionBoundary.runWhileCurrent(owner) {
+                        _state.update {
+                            it.copy(
+                                ncbCompleting = false,
+                                errorTitle = "Payment incomplete",
+                                errorMessage = error.message
+                                    ?: "The payment could not be completed. Finish the bank challenge, then try again.",
+                            )
+                        }
+                        true
+                    }
+                }
+        }
+    }
+
+    /**
+     * Explicit "Leave" from the 3DS screen. Swift lets the customer leave
+     * after the money-limbo warning; releasing the pending record restores
+     * their ability to retry checkout (the charge, if it happened, shows in
+     * Shipments).
+     */
+    fun abandonNcbThreeDs() {
+        val owner = currentOwner() ?: return
+        val spiToken = _state.value.ncbSession?.spiToken.orEmpty()
+        if (spiToken.isNotEmpty()) {
+            CheckoutFlowStore.releaseTerminalNotPaid(spiToken, owner)
+        }
+        _state.update { it.copy(ncbSession = null, ncbCompleting = false) }
     }
 
     private fun currentOwner(): AuthenticatedSessionOwner? {
