@@ -189,7 +189,13 @@ private fun ProductListScreen(
                                 ShopProductHandoffStore.put(product)
                                 onNavigate(Routes.auctionProductDetails(product.routeSlug, featured))
                             },
-                            onToggleCart = { CartStore.toggle(product.toCartLine()) },
+                            // Swift: featured products are external merchant links
+                            // and must not enter Airdrop's cart — no toggle.
+                            onToggleCart = if (featured) {
+                                null
+                            } else {
+                                { CartStore.toggle(product.toCartLine()) }
+                            },
                             modifier = Modifier.testTag("product-list-card-${product.id}"),
                         )
                     }
