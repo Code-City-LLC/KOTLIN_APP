@@ -337,6 +337,25 @@ class PackageDetailsParityTest {
         )
     }
 
+    @Test
+    fun viewFullHistoryOpensCompleteTimelineOverlay() {
+        setPackageDetailsContent(ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("package-details-view-full-history")
+            .performScrollTo()
+            .performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("package-details-history-overlay").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("package-details-history-overlay").assertIsDisplayed()
+        compose.onNodeWithText("View History").assertIsDisplayed()
+        // The full overlay lists every stop, including the final "Delivered"
+        // (id 8) that the inline timeline (status 7) omits.
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("package-details-history-row-8").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     private fun setPackageDetailsContent(
         mode: ThemeController.Mode,
         detail: ShipmentPackageDetail = sampleDetail(),

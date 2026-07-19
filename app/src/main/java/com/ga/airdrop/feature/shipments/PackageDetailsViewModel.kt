@@ -25,6 +25,8 @@ data class PackageDetailsUiState(
     val transientTitle: String? = null,
     val transientMessage: String? = null,
     val showCifInfo: Boolean = false,
+    /** Swift onTapViewFullHistory — full Shipment Timeline overlay. */
+    val showHistory: Boolean = false,
     val showAddedToCart: Boolean = false,
     val confirmDeleteInvoiceId: Int? = null,
     val showReportDamageSheet: Boolean = false,
@@ -239,6 +241,8 @@ class PackageDetailsViewModel(
     }
 
     fun showCifInfo(show: Boolean) = _state.update { it.copy(showCifInfo = show) }
+
+    fun showHistory(show: Boolean) = _state.update { it.copy(showHistory = show) }
 
     fun showTransientMessage(message: String) =
         showTransient(title = "Upload Invoice", message = message)

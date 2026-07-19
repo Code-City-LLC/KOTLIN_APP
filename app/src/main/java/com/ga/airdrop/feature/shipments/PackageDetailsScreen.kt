@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.shipments
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -90,6 +91,9 @@ fun PackageDetailsScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val detail = state.detail
+
+    // Hardware back closes the full-history overlay before popping the route.
+    BackHandler(enabled = state.showHistory) { viewModel.showHistory(false) }
     val method = ShipmentMethodUi.from(detail?.shippingMethod)
     val detailBrandTitle = packageDetailsBrandTitle(method)
     var showInvoiceSourcePicker by remember { mutableStateOf(false) }
@@ -113,6 +117,7 @@ fun PackageDetailsScreen(
 
     // Swift FigmaPackageDetailsViewController.swift:72 — page is gray200.
     Box(Modifier.fillMaxSize().background(colors.gray200)) {
+        if (!state.showHistory) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -185,6 +190,7 @@ fun PackageDetailsScreen(
                             onCifInfo = { viewModel.showCifInfo(true) },
                             onAddToCart = viewModel::addToCart,
                             onReportDamage = { viewModel.showReportDamageSheet(true) },
+                            onViewFullHistory = { viewModel.showHistory(true) },
                         )
                     }
                 }
@@ -216,6 +222,24 @@ fun PackageDetailsScreen(
             onBack = onBack,
             modifier = Modifier.align(Alignment.TopCenter),
         )
+        }
+
+        // Swift onTapViewFullHistory — full Shipment Timeline overlay.
+        if (state.showHistory && detail != null) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(colors.gray200)
+                    .testTag("package-details-history-overlay"),
+            ) {
+                PackageShipmentTimeline(detail = detail)
+                ShipmentsDetailHeader(
+                    title = "View History",
+                    onBack = { viewModel.showHistory(false) },
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
+        }
 
         if (showInvoiceSourcePicker) {
             val existingCount = detail?.invoices?.size ?: 0
@@ -319,6 +343,7 @@ private fun PackageDetailsContent(
     onCifInfo: () -> Unit,
     onAddToCart: () -> Unit,
     onReportDamage: () -> Unit,
+    onViewFullHistory: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -404,6 +429,18 @@ private fun PackageDetailsContent(
                     )
                 }
             }
+
+            // Swift segment-5 "View Full History →" — opens the complete
+            // status progression (inline shows only stops reached so far).
+            Text(
+                text = "View Full History →",
+                style = AirdropType.subtitle2,
+                color = BrandPalette.OrangeMain,
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .clickable(onClick = onViewFullHistory)
+                    .testTag("package-details-view-full-history"),
+            )
         }
 
         // Upload Your Invoice
@@ -1072,6 +1109,51 @@ private fun DetailKeyValueRow(label: String, value: String) {
 }
 
 /** Swift makeTimelineRow — 24dp status icon + 1dp connector + subtitle1 text. */
+/**
+ * Swift full Shipment Timeline (onTapViewFullHistory) — the complete status
+ * progression, whereas the inline card shows only the stops reached so far.
+ */
+@Composable
+private fun PackageShipmentTimeline(detail: ShipmentPackageDetail) {
+    val colors = AirdropTheme.colors
+    val currentStatus = detail.status?.trim()?.toIntOrNull()
+    val rows = PackageTimelineProgression.statusesFor(currentStatus, showFullTimeline = true)
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .testTag("package-details-history-root"),
+    ) {
+        Spacer(Modifier.height(shipmentsHeaderClearance()))
+        Column(Modifier.padding(Spacing.md)) {
+            DetailSectionCard(
+                title = "Shipment Timeline",
+                tag = "package-details-history-section",
+                titleContentGap = 14.dp,
+                contentSpacing = 12.dp,
+            ) {
+                rows.forEachIndexed { index, status ->
+                    val history = detail.history.firstOrNull { it.status == status.id }
+                    TimelineIconRow(
+                        statusName = status.label,
+                        statusCode = status.id,
+                        color = PackageTimelineProgression.colorFor(
+                            statusId = status.id,
+                            currentStatus = currentStatus,
+                            placeholder = colors.textPlaceholder,
+                        ),
+                        comment = history?.comment?.takeIf { it.isNotBlank() },
+                        date = ShipmentsFormat.timelineDate(history?.changedDate).takeIf { it != "N/A" },
+                        showConnector = index != rows.lastIndex,
+                        tag = "package-details-history-row-${status.id}",
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(Spacing.xl))
+    }
+}
+
 @Composable
 private fun TimelineIconRow(
     statusName: String,
