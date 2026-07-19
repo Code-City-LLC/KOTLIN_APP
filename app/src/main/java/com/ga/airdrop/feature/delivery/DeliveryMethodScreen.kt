@@ -74,9 +74,10 @@ import kotlinx.coroutines.withContext
  * from My Cart "Choose Delivery"; the currency popup routes JMD to Profile
  * Information and USD to Order Summary without dispatching payment.
  *
- * LOCATION (Phase-1): "Use Current Location" is fully wired (runtime permission +
- * FusedLocationProvider); only the interactive map remains Phase-1 static
- * pending a MAPS_API_KEY (see [DeliveryMapView]).
+ * LOCATION: "Use Current Location" is fully wired (runtime permission +
+ * FusedLocationProvider), and the map card is LIVE — it embeds the backend's
+ * own picker page (server Google key; see [DeliveryMapView]), so tap/drag
+ * picks flow into the same validate-location chain as search results.
  */
 @Composable
 fun DeliveryMethodScreen(
@@ -565,12 +566,27 @@ internal fun DeliverySection(
             }
         }
 
-        // Map card — 201dp, radius 5 (Phase-1 static, see DeliveryMapView).
+        // Map card — 201dp, radius 5; live backend picker (DeliveryMapView).
+        // A pick WITH a page-geocoded address behaves like a search-result
+        // tap (validate immediately); without one, the marker path runs the
+        // Laravel-first reverse-geocode chain. Both are existing VM entries.
         DeliveryMapView(
             center = state.mapCenter,
             marker = state.markerCoord,
             addressLabel = state.validatedAddress,
-            onPointPicked = onMapPointPicked,
+            onPointPicked = { latitude, longitude, address ->
+                if (address.isNullOrBlank()) {
+                    onMapPointPicked(latitude, longitude)
+                } else {
+                    onSearchResultPicked(
+                        PlaceResult(
+                            address = address,
+                            latitude = latitude,
+                            longitude = longitude,
+                        ),
+                    )
+                }
+            },
         )
 
         // Selected-location card — hidden until validated (Swift
