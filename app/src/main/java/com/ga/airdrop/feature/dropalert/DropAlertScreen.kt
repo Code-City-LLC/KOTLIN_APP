@@ -89,10 +89,12 @@ fun DropAlertScreen(
     var methodPicker by remember { mutableStateOf(false) }
     var courierPicker by remember { mutableStateOf(false) }
 
+    // Swift picker.allowsMultipleSelection — pick several invoices in one pass;
+    // addInvoice enforces the 3-file cap, so extras beyond the limit drop.
     val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) {
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        uris.forEach { uri ->
             readInvoice(context, uri)?.let(viewModel::addInvoice)
         }
     }
