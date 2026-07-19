@@ -84,6 +84,18 @@ fun AuctionProductDetailsScreen(
     val context = LocalContext.current
     val product = state.product
 
+    // Swift shouldShowBottomCTA: featured always shows; auction hides the CTA
+    // when the product isn't cart-eligible (no linked package / unavailable)
+    // or is already in the cart.
+    val productCartLine = product?.toCartLine()
+    val showBottomCta = product != null && (
+        featured || (
+            productCartLine != null &&
+                productCartLine.isEligibleForNewCartAdd() &&
+                cartLines.none { it.key == productCartLine.key }
+            )
+        )
+
     LaunchedEffect(Unit) { CartStore.init(context) }
 
     Column(Modifier.fillMaxSize().background(colors.gray100)) {
@@ -154,6 +166,7 @@ fun AuctionProductDetailsScreen(
                         featured = featured,
                         quantity = state.quantity,
                         expanded = state.expanded,
+                        bottomCtaVisible = showBottomCta,
                         cartKeys = cartLines.map(CartStore.CartLine::key).toSet(),
                         onChangeQuantity = viewModel::changeQuantity,
                         onToggleExpanded = viewModel::toggleExpanded,
@@ -168,6 +181,9 @@ fun AuctionProductDetailsScreen(
         // Sticky bottom CTA — Swift FigmaAuctionProductDetailsViewController.swift:745-782:
         // gray100 bar, iconShape top divider, solid orangeMain button
         // (radius 10, height 52), insets top 14 / sides 20 / bottom 8.
+        // Swift setBottomCTAVisible: hidden when the product is in the cart or
+        // not cart-eligible (auction), always shown for featured.
+        if (showBottomCta) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -214,6 +230,7 @@ fun AuctionProductDetailsScreen(
                     )
                 }
             }
+        }
         }
     }
 
@@ -318,6 +335,7 @@ private fun DetailsContent(
     featured: Boolean,
     quantity: Int,
     expanded: Boolean,
+    bottomCtaVisible: Boolean,
     cartKeys: Set<CartStore.CartLineKey>,
     onChangeQuantity: (Int) -> Unit,
     onToggleExpanded: () -> Unit,
@@ -598,10 +616,10 @@ private fun DetailsContent(
             }
         }
 
-        // Tail spacer — Swift :242-245.
+        // Tail spacer — Swift :242-245 (80 under a visible CTA, else 24).
         Spacer(
             Modifier
-                .height(80.dp)
+                .height(if (bottomCtaVisible) 80.dp else 24.dp)
                 .testTag("auction-details-bottom-spacer")
         )
     }

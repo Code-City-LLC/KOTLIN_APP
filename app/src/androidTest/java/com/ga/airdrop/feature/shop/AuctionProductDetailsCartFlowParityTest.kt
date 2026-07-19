@@ -81,7 +81,7 @@ class AuctionProductDetailsCartFlowParityTest {
     }
 
     @Test
-    fun duplicateAddShowsSwiftAlreadyInCartDialogWithoutDuplicatingLine() {
+    fun auctionCtaHidesWhenProductAlreadyInCart() {
         val navigations = mutableListOf<String>()
 
         setDetailsContent(
@@ -90,18 +90,11 @@ class AuctionProductDetailsCartFlowParityTest {
         )
         waitForDetails()
 
-        compose.onNodeWithTag("auction-details-primary-cta").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
-            compose.onAllNodesWithText("Already in cart").fetchSemanticsNodes().isNotEmpty()
-        }
-
-        compose.onNodeWithText("Already in cart").assertIsDisplayed()
-        compose.onNodeWithText("${AuctionProduct.title} is already in your cart.").assertIsDisplayed()
-        assertEquals("Duplicate add must not create a second cart line", 1, CartStore.count)
-        assertEquals("Duplicate add must preserve the existing single checkout unit", 1, CartStore.items.value.single().qty)
-
-        compose.onNodeWithText("View Cart").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { navigations == listOf(Routes.CART) }
+        // Swift syncBottomCTAWithCart hides the Add-to-Cart bar once the product
+        // is in the cart, so there is no duplicate-add path from the detail CTA.
+        compose.onNodeWithTag("auction-details-primary-cta").assertDoesNotExist()
+        assertEquals("Seeded cart keeps its single line", 1, CartStore.count)
+        assertEquals("Seeded cart line keeps its single unit", 1, CartStore.items.value.single().qty)
     }
 
     @Test
