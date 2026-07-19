@@ -15,9 +15,12 @@ data class ProductDetailsUiState(
     val error: String? = null,
     val quantity: Int = 1,
     val expanded: Boolean = false,
-    /** null = no dialog; true = "Added to cart"; false = "Already in cart". */
-    val addedDialog: Boolean? = null,
+    /** null = no dialog; otherwise the add-to-cart outcome to surface. */
+    val cartOutcome: CartAddOutcome? = null,
 )
+
+/** Swift onAddToCart outcomes — distinguishes unavailable from already-added. */
+enum class CartAddOutcome { ADDED, ALREADY_IN_CART, UNAVAILABLE }
 
 /**
  * Auction/Feature product details — behavior from
@@ -93,11 +96,18 @@ class AuctionProductDetailsViewModel(
         val product = _state.value.product ?: return
         // Swift adds qty 1 — Stripe hosted checkout charges a single unit,
         // so storing the stepper qty inflated the cart's Order Total.
-        val added = CartStore.add(product.toCartLine(qty = 1))
-        _state.update { it.copy(addedDialog = added) }
+        val line = product.toCartLine(qty = 1)
+        // Swift canAddProductToCart: a product with no linked package can't be
+        // added — say so instead of the misleading "Already in cart".
+        val outcome = when {
+            !line.isEligibleForNewCartAdd() -> CartAddOutcome.UNAVAILABLE
+            CartStore.add(line) -> CartAddOutcome.ADDED
+            else -> CartAddOutcome.ALREADY_IN_CART
+        }
+        _state.update { it.copy(cartOutcome = outcome) }
     }
 
     fun dismissDialog() {
-        _state.update { it.copy(addedDialog = null) }
+        _state.update { it.copy(cartOutcome = null) }
     }
 }

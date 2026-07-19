@@ -223,42 +223,68 @@ fun AuctionProductDetailsScreen(
         )
     }
 
-    // "Added to cart" / "Already in cart" alert (Swift onAddToCart).
-    val added = state.addedDialog
-    if (added != null && product != null) {
+    // Added / Already-in-cart / Unavailable alert (Swift onAddToCart).
+    val outcome = state.cartOutcome
+    if (outcome != null && product != null) {
+        val isAdded = outcome == CartAddOutcome.ADDED
         AlertDialog(
             onDismissRequest = viewModel::dismissDialog,
             containerColor = colors.gray100,
             title = {
                 Text(
-                    text = if (added) "Added to cart" else "Already in cart",
+                    text = when (outcome) {
+                        CartAddOutcome.ADDED -> "Added to cart"
+                        CartAddOutcome.ALREADY_IN_CART -> "Already in cart"
+                        CartAddOutcome.UNAVAILABLE -> "Unavailable"
+                    },
                     style = AirdropType.title2,
                     color = colors.textDarkTitle,
                 )
             },
             text = {
                 Text(
-                    text = if (added) {
-                        "${product.title} added. Tap View Cart to checkout."
-                    } else {
-                        "${product.title} is already in your cart."
+                    text = when (outcome) {
+                        CartAddOutcome.ADDED ->
+                            "${product.title} added. Tap View Cart to checkout."
+                        CartAddOutcome.ALREADY_IN_CART ->
+                            "${product.title} is already in your cart."
+                        CartAddOutcome.UNAVAILABLE ->
+                            "${product.title} can't be added to your cart right now."
                     },
                     style = AirdropType.body2,
                     color = colors.textDescription,
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.dismissDialog()
-                    onNavigate(Routes.CART)
-                }) {
-                    Text(text = "View Cart", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                if (isAdded) {
+                    TextButton(onClick = {
+                        viewModel.dismissDialog()
+                        onNavigate(Routes.CART)
+                    }) {
+                        Text(
+                            text = "View Cart",
+                            style = AirdropType.button,
+                            color = BrandPalette.OrangeMain,
+                        )
+                    }
+                } else {
+                    TextButton(onClick = viewModel::dismissDialog) {
+                        Text(
+                            text = "OK",
+                            style = AirdropType.button,
+                            color = BrandPalette.OrangeMain,
+                        )
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissDialog) {
-                    Text(text = "OK", style = AirdropType.button, color = colors.textDarkTitle)
+            dismissButton = if (isAdded) {
+                {
+                    TextButton(onClick = viewModel::dismissDialog) {
+                        Text(text = "OK", style = AirdropType.button, color = colors.textDarkTitle)
+                    }
                 }
+            } else {
+                null
             },
         )
     }
