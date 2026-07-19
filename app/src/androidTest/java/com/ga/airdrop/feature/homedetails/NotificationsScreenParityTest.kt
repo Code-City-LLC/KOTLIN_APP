@@ -51,6 +51,7 @@ class NotificationsScreenParityTest {
                     onOpenSettings = {},
                     onRefresh = {},
                     onLoadMore = {},
+                    onSetUnreadOnly = {},
                     onNotificationTap = {},
                 )
             }
@@ -80,6 +81,7 @@ class NotificationsScreenParityTest {
                     onOpenSettings = {},
                     onRefresh = {},
                     onLoadMore = {},
+                    onSetUnreadOnly = {},
                     onNotificationTap = {},
                 )
             }
@@ -116,6 +118,7 @@ class NotificationsScreenParityTest {
                         onOpenSettings = {},
                         onRefresh = {},
                         onLoadMore = {},
+                        onSetUnreadOnly = {},
                         onNotificationTap = {},
                     )
                 }

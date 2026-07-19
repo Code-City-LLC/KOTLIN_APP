@@ -120,8 +120,18 @@ class MiscRepository(private val service: AirdropApiService) {
 
     // ── Notifications / device tokens ──
 
-    suspend fun notifications(page: Int = 1, limit: Int = 20): Result<List<AirdropNotification>> =
-        apiResult { service.notifications(page = page, perPage = limit).items }
+    suspend fun notifications(
+        page: Int = 1,
+        limit: Int = 20,
+        unreadOnly: Boolean = false,
+    ): Result<List<AirdropNotification>> =
+        apiResult {
+            service.notifications(
+                page = page,
+                perPage = limit,
+                unreadOnly = if (unreadOnly) 1 else null,
+            ).items
+        }
 
     suspend fun markNotificationRead(
         id: String,

@@ -223,6 +223,9 @@ interface AirdropApiService {
     suspend fun notifications(
         @Query("page") page: Int,
         @Query("per_page") perPage: Int,
+        // Swift AirdropAPI.notifications appends unread_only=1 only when the
+        // All|Unread filter is on Unread; omit it otherwise (null = no param).
+        @Query("unread_only") unreadOnly: Int? = null,
     ): Paginated<AirdropNotification>
 
     @POST("user/notifications/mark-read")

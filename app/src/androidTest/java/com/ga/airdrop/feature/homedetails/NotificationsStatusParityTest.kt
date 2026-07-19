@@ -89,6 +89,7 @@ class NotificationsStatusParityTest {
                     onOpenSettings = {},
                     onRefresh = {},
                     onLoadMore = {},
+                    onSetUnreadOnly = {},
                     onNotificationTap = { notification ->
                         resolveNotificationRoute(notification)?.let(onNavigate)
                     },

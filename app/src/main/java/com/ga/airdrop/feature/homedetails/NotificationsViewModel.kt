@@ -22,7 +22,16 @@ data class NotificationsUiState(
     val error: String? = null,
     /** True once the first page has answered (success or failure). */
     val loadedOnce: Boolean = false,
-)
+    /** Swift All|Unread segment — Unread filters the merged rows. */
+    val showUnreadOnly: Boolean = false,
+) {
+    /**
+     * Swift `apply(notifications:)` — the Unread filter re-filters the merged
+     * rows locally so a row marked read drops out instantly; All shows all.
+     */
+    val visibleItems: List<AirdropNotification>
+        get() = if (showUnreadOnly) items.filter { !it.isRead } else items
+}
 
 /**
  * Live notifications inbox — matches Swift origin/main's populated-list path:
@@ -78,6 +87,8 @@ class NotificationsViewModel internal constructor(
         loadMoreGeneration += 1
         page = 1
         val sessionChanged = expectedSession.sessionId != contentSessionId
+        // A new session resets the filter to All (Swift rebuilds the VC).
+        val unreadOnly = if (sessionChanged) false else _state.value.showUnreadOnly
         contentSessionId = expectedSession.sessionId
         _state.update {
             if (sessionChanged) {
@@ -87,7 +98,7 @@ class NotificationsViewModel internal constructor(
             }
         }
         viewModelScope.launch {
-            dataSource.notifications(page, perPage)
+            dataSource.notifications(page, perPage, unreadOnly)
                 .onSuccess { batch ->
                     if (generation != refreshGeneration) return@onSuccess
                     if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
@@ -129,12 +140,13 @@ class NotificationsViewModel internal constructor(
         val expectedSession = sessionSnapshot()
         val generation = ++loadMoreGeneration
         val requestedPage = page + 1
+        val unreadOnly = current.showUnreadOnly
         viewModelScope.launch {
             if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
                 retireStalePage(generation)
                 return@launch
             }
-            dataSource.notifications(requestedPage, perPage)
+            dataSource.notifications(requestedPage, perPage, unreadOnly)
                 .onSuccess { batch ->
                     if (generation != loadMoreGeneration) return@onSuccess
                     if (!AuthTokenStore.isSameSession(sessionSnapshot(), expectedSession)) {
@@ -159,6 +171,18 @@ class NotificationsViewModel internal constructor(
                     _state.update { it.copy(loadingMore = false) }
                 }
         }
+    }
+
+    /**
+     * Swift onFilterChanged — flip the All|Unread segment. The visible rows
+     * re-filter instantly off the already-loaded set (state.visibleItems),
+     * then page 1 refetches server-side under the new unread_only filter so
+     * pagination continues correctly.
+     */
+    fun setUnreadOnly(unreadOnly: Boolean) {
+        if (_state.value.showUnreadOnly == unreadOnly) return
+        _state.update { it.copy(showUnreadOnly = unreadOnly, endReached = false) }
+        refresh()
     }
 
     private fun retireStaleSession(generation: Long) {
@@ -208,7 +232,11 @@ internal fun AirdropNotification.customerFacingCopy(): AirdropNotification = cop
 )
 
 internal interface NotificationsDataSource {
-    suspend fun notifications(page: Int, limit: Int): Result<List<AirdropNotification>>
+    suspend fun notifications(
+        page: Int,
+        limit: Int,
+        unreadOnly: Boolean,
+    ): Result<List<AirdropNotification>>
     suspend fun markNotificationRead(
         id: String,
         expectedSession: AuthTokenStore.Snapshot,
@@ -218,8 +246,12 @@ internal interface NotificationsDataSource {
 private class RepositoryNotificationsDataSource(
     private val repository: MiscRepository,
 ) : NotificationsDataSource {
-    override suspend fun notifications(page: Int, limit: Int): Result<List<AirdropNotification>> =
-        repository.notifications(page, limit)
+    override suspend fun notifications(
+        page: Int,
+        limit: Int,
+        unreadOnly: Boolean,
+    ): Result<List<AirdropNotification>> =
+        repository.notifications(page, limit, unreadOnly)
 
     override suspend fun markNotificationRead(
         id: String,

@@ -269,6 +269,7 @@ private class FakeNotificationsDataSource(
     override suspend fun notifications(
         page: Int,
         limit: Int,
+        unreadOnly: Boolean,
     ): Result<List<AirdropNotification>> = fetchNotifications(page, limit)
 
     override suspend fun markNotificationRead(

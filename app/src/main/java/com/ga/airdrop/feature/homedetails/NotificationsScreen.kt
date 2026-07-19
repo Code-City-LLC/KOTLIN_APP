@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -85,6 +87,7 @@ fun NotificationsScreen(
         onOpenSettings = { onNavigate(Routes.NOTIFICATION_SETTINGS) },
         onRefresh = viewModel::refresh,
         onLoadMore = viewModel::loadMore,
+        onSetUnreadOnly = viewModel::setUnreadOnly,
         onNotificationTap = { notification ->
             viewModel.onNotificationTapped(notification)?.let(onNavigate)
         },
@@ -98,6 +101,7 @@ internal fun NotificationsScreenContent(
     onOpenSettings: () -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
+    onSetUnreadOnly: (Boolean) -> Unit,
     onNotificationTap: (AirdropNotification) -> Unit,
 ) {
     val colors = AirdropTheme.colors
@@ -113,12 +117,17 @@ internal fun NotificationsScreenContent(
             state.loading && !state.loadedOnce -> LoadingState()
             state.error != null && state.items.isEmpty() ->
                 ErrorState(message = state.error!!, onRetry = onRefresh)
-            state.items.isEmpty() && state.loadedOnce ->
+            // Genuinely no notifications (All mode) → Figma empty-state card.
+            // Under the Unread filter, keep the segment + inline empty label.
+            state.items.isEmpty() && state.loadedOnce && !state.showUnreadOnly ->
                 EmptyState(onOpenSettings = onOpenSettings)
             else -> NotificationList(
-                items = state.items,
+                items = state.visibleItems,
+                unreadOnly = state.showUnreadOnly,
+                emptyUnread = state.showUnreadOnly && state.visibleItems.isEmpty(),
                 loadingMore = state.loadingMore,
                 refreshing = state.loading && state.loadedOnce,
+                onSetUnreadOnly = onSetUnreadOnly,
                 onRefresh = onRefresh,
                 onLoadMore = onLoadMore,
                 onTap = onNotificationTap,
@@ -169,8 +178,11 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 private fun NotificationList(
     items: List<AirdropNotification>,
+    unreadOnly: Boolean,
+    emptyUnread: Boolean,
     loadingMore: Boolean,
     refreshing: Boolean,
+    onSetUnreadOnly: (Boolean) -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
     onTap: (AirdropNotification) -> Unit,
@@ -187,50 +199,133 @@ private fun NotificationList(
         if (shouldLoadMore) onLoadMore()
     }
 
-    // Swift FigmaNotificationsListViewController refresh control.
-    val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
-    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-        isRefreshing = refreshing,
-        onRefresh = onRefresh,
-        state = ptrState,
-        modifier = Modifier.fillMaxSize(),
-        indicator = {
-            androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
-                state = ptrState,
-                isRefreshing = refreshing,
-                color = com.ga.airdrop.core.designsystem.theme.BrandPalette.OrangeMain,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
-        },
-    ) {
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = Spacing.md, end = Spacing.md, top = Spacing.md, bottom = Spacing.xl,
-        ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        items(items.size, key = { items[it].id }) { index ->
-            NotificationRow(notification = items[index], onClick = { onTap(items[index]) })
-        }
-        if (loadingMore) {
-            item("loadingMore") {
-                Box(
+    Column(Modifier.fillMaxSize()) {
+        // Swift All | Unread segment (server-side unread_only filter).
+        NotificationsFilterSegment(unreadOnly = unreadOnly, onChange = onSetUnreadOnly)
+
+        // Swift FigmaNotificationsListViewController refresh control.
+        val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = onRefresh,
+            state = ptrState,
+            modifier = Modifier.fillMaxSize(),
+            indicator = {
+                androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                    state = ptrState,
+                    isRefreshing = refreshing,
+                    color = com.ga.airdrop.core.designsystem.theme.BrandPalette.OrangeMain,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            },
+        ) {
+            if (emptyUnread) {
+                // Swift filterEmptyLabel — scrollable so pull-to-refresh still fires.
+                Column(
                     Modifier
-                        .fillMaxWidth()
-                        .padding(Spacing.sm1),
-                    contentAlignment = Alignment.Center,
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    CircularProgressIndicator(
-                        color = BrandPalette.OrangeMain,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(24.dp),
+                    Text(
+                        text = "No unread notifications.",
+                        style = AirdropType.body2,
+                        color = AirdropTheme.colors.textDescription,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .padding(top = 60.dp, start = 32.dp, end = 32.dp)
+                            .testTag(NotificationsTags.FILTER_EMPTY),
                     )
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = Spacing.md, end = Spacing.md, top = Spacing.md, bottom = Spacing.xl,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    items(items.size, key = { items[it].id }) { index ->
+                        NotificationRow(notification = items[index], onClick = { onTap(items[index]) })
+                    }
+                    if (loadingMore) {
+                        item("loadingMore") {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(Spacing.sm1),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(
+                                    color = BrandPalette.OrangeMain,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+/** Swift FigmaNotificationsFilterControl — compact All | Unread segment. */
+@Composable
+private fun NotificationsFilterSegment(
+    unreadOnly: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .padding(start = Spacing.md, top = 14.dp, bottom = 4.dp)
+            .height(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(colors.gray300)
+            .padding(3.dp)
+            .testTag(NotificationsTags.FILTER),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        NotificationsFilterOption(
+            label = "All",
+            selected = !unreadOnly,
+            testTag = NotificationsTags.FILTER_ALL,
+            onClick = { onChange(false) },
+        )
+        NotificationsFilterOption(
+            label = "Unread",
+            selected = unreadOnly,
+            testTag = NotificationsTags.FILTER_UNREAD,
+            onClick = { onChange(true) },
+        )
+    }
+}
+
+@Composable
+private fun NotificationsFilterOption(
+    label: String,
+    selected: Boolean,
+    testTag: String,
+    onClick: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Box(
+        modifier = Modifier
+            .width(82.dp)
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (selected) BrandPalette.OrangeMain else androidx.compose.ui.graphics.Color.Transparent)
+            .clickable(onClick = onClick)
+            .testTag(testTag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = AirdropType.subtitle3,
+            color = if (selected) androidx.compose.ui.graphics.Color.White else colors.textDescription,
+        )
     }
 }
 
@@ -337,6 +432,10 @@ private fun NotificationRow(notification: AirdropNotification, onClick: () -> Un
 
 internal object NotificationsTags {
     const val ROOT = "notifications-root"
+    const val FILTER = "notifications-filter"
+    const val FILTER_ALL = "notifications-filter-all"
+    const val FILTER_UNREAD = "notifications-filter-unread"
+    const val FILTER_EMPTY = "notifications-filter-empty"
     fun row(id: String) = "notification-row-$id"
     fun icon(id: String) = "notification-icon-$id"
 }
