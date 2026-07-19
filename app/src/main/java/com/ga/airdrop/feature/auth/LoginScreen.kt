@@ -111,6 +111,41 @@ fun LoginScreen(
         }
     }
 
+    if (state.offerReactivation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissReactivation,
+            containerColor = colors.gray100,
+            title = {
+                Text(
+                    "Reactivate your account?",
+                    style = AirdropType.title2,
+                    color = colors.textDarkTitle,
+                )
+            },
+            text = {
+                Text(
+                    "This account was deactivated. You can reactivate it now " +
+                        "and pick up right where you left off.",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = viewModel::reactivateAccount,
+                    modifier = Modifier.testTag("login-reactivate-yes"),
+                ) {
+                    Text("Reactivate", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = viewModel::dismissReactivation) {
+                    Text("Not now", style = AirdropType.subtitle2, color = colors.textDescription)
+                }
+            },
+        )
+    }
+
     if (showEnrollOffer) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = {},

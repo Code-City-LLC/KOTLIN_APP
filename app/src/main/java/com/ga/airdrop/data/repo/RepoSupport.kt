@@ -21,7 +21,10 @@ internal suspend fun <T> apiResult(block: suspend () -> T): Result<T> =
     } catch (e: CancellationException) {
         throw e
     } catch (e: HttpException) {
-        Result.failure(ApiException(friendlyHttpMessage(e), e))
+        // errorBody() is single-consume — read ONCE, parse message + code.
+        val body = runCatching { e.response()?.errorBody()?.string().orEmpty() }
+            .getOrDefault("")
+        Result.failure(ApiException(friendlyHttpMessage(e, body), e, errorCodeFrom(body)))
     } catch (e: IOException) {
         Result.failure(
             ApiException("Can't reach AirDrop. Check your connection and try again.", e),
@@ -31,16 +34,19 @@ internal suspend fun <T> apiResult(block: suspend () -> T): Result<T> =
     }
 
 /** Carries a user-facing message; ViewModels display `message` directly. */
-internal class ApiException(message: String, cause: Throwable? = null) :
-    Exception(message, cause)
+internal class ApiException(
+    message: String,
+    cause: Throwable? = null,
+    /** Laravel `error_code` (e.g. ACCOUNT_DELETED) when the body carried one. */
+    val errorCode: String? = null,
+) : Exception(message, cause)
 
 /**
  * Prefer the backend's own `message` (Laravel returns it on 4xx/5xx); fall back
  * to a friendly, status-appropriate line — never the raw "HTTP <code>".
  */
-private fun friendlyHttpMessage(e: HttpException): String {
+private fun friendlyHttpMessage(e: HttpException, body: String): String {
     runCatching {
-        val body = e.response()?.errorBody()?.string().orEmpty()
         if (body.isNotBlank()) {
             val json = JSONObject(body)
             val msg = json.optString("message").ifBlank { json.optString("error") }
@@ -54,6 +60,15 @@ private fun friendlyHttpMessage(e: HttpException): String {
         else -> "Something went wrong. Please try again."
     }
 }
+
+/**
+ * Laravel error bodies carry a machine `error_code` beside `message`
+ * (AuthController ACCOUNT_DELETED / ACCOUNT_INACTIVE, VALIDATION_ERROR, …).
+ */
+internal fun errorCodeFrom(body: String): String? = runCatching {
+    if (body.isBlank()) return null
+    JSONObject(body).optString("error_code").takeIf(String::isNotBlank)
+}.getOrNull()
 
 // Swift's normalizedSearch: searches shorter than 3 chars are dropped.
 internal fun normalizedSearch(search: String?): String? =

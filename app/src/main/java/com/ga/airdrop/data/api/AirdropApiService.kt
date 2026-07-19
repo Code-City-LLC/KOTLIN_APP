@@ -494,6 +494,18 @@ interface AirdropApiService {
     @POST("delivery/search-places")
     suspend fun searchPlaces(@Body body: SearchPlacesRequest): DataEnvelope<PlaceSearchResults>
 
+    // Account security — Swift §D.1/D.2 parity; live on pre_staging.
+    @GET("user/sessions")
+    suspend fun activeSessions(): com.ga.airdrop.data.model.ActiveSessionsResponse
+
+    @DELETE("user/sessions/{id}")
+    suspend fun revokeSession(
+        @Path("id") sessionId: String,
+    ): kotlinx.serialization.json.JsonObject
+
+    @POST("user/export-data")
+    suspend fun requestPersonalDataExport(): com.ga.airdrop.data.model.ExportPersonalDataResponse
+
     /**
      * POST /diagnostics/crashes — anonymous-friendly crash intake
      * (DiagnosticsController; Swift CrashCapture parity). Raw Response so

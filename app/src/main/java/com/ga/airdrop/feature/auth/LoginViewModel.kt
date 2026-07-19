@@ -17,6 +17,13 @@ data class LoginUiState(
     val loading: Boolean = false,
     val error: String? = null,
     val loggedIn: Boolean = false,
+    /**
+     * Login hit Laravel's ACCOUNT_DELETED (deactivated account, 403) —
+     * offer reactivation (POST /user/reactivate-account with the same
+     * credentials returns a fresh LoginResponse). Swift shipped this API
+     * dark; Kotlin completes the flow.
+     */
+    val offerReactivation: Boolean = false,
 )
 
 class LoginViewModel(
@@ -74,10 +81,64 @@ class LoginViewModel(
                     }
                 }
                 .onFailure { e ->
+                    val deactivated =
+                        (e as? com.ga.airdrop.data.repo.ApiException)?.errorCode == "ACCOUNT_DELETED"
                     _state.update {
                         it.copy(
                             loading = false,
-                            error = e.message ?: "Unable to log in. Please try again.",
+                            offerReactivation = deactivated,
+                            error = if (deactivated) {
+                                null
+                            } else {
+                                e.message ?: "Unable to log in. Please try again."
+                            },
+                        )
+                    }
+                }
+        }
+    }
+
+    fun dismissReactivation() {
+        _state.update {
+            it.copy(
+                offerReactivation = false,
+                error = "Account is deactivated. Contact support if you need help.",
+            )
+        }
+    }
+
+    /** Reactivate with the just-typed credentials, then land logged in. */
+    fun reactivateAccount() {
+        val current = _state.value
+        if (current.loading) return
+        _state.update { it.copy(loading = true, offerReactivation = false, error = null) }
+        viewModelScope.launch {
+            repository.reactivateAccount(
+                email = current.email.trim(),
+                password = current.password,
+                passwordConfirmation = current.password,
+            )
+                .onSuccess { response ->
+                    val token = response.token
+                    if (token.isNullOrBlank()) {
+                        _state.update {
+                            it.copy(
+                                loading = false,
+                                error = response.message
+                                    ?: "Couldn't reactivate the account. Contact support.",
+                            )
+                        }
+                    } else {
+                        AuthTokenStore.save(token, response.user?.id)
+                        PushRegistrar.registerIfLoggedIn(force = true)
+                        _state.update { it.copy(loading = false, loggedIn = true) }
+                    }
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            error = e.message ?: "Couldn't reactivate the account.",
                         )
                     }
                 }

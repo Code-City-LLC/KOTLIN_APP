@@ -28,6 +28,18 @@ class UserRepository(private val service: AirdropApiService) {
     suspend fun updateProfile(request: ProfileUpdateRequest): Result<ProfileMutationResponse> =
         apiResult { service.updateProfile(request) }
 
+    /** Signed-in devices; revoking one signs that device out server-side. */
+    suspend fun activeSessions(): Result<List<com.ga.airdrop.data.model.ActiveSession>> =
+        apiResult { service.activeSessions().all }
+
+    suspend fun revokeSession(sessionId: String): Result<Unit> =
+        apiResult { service.revokeSession(sessionId); Unit }
+
+    /** GDPR-style export: returns a link now or an email-when-ready note. */
+    suspend fun requestPersonalDataExport():
+        Result<com.ga.airdrop.data.model.ExportPersonalDataResponse> =
+        apiResult { service.requestPersonalDataExport() }
+
     suspend fun userDocuments(): Result<UserDocuments> =
         apiResult { service.userDocuments() }
 

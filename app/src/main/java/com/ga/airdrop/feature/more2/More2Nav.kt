@@ -145,6 +145,10 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         )
     }
 
+    composable(Routes.ACTIVE_SESSIONS) {
+        ActiveSessionsScreen(onBack = { navController.popBackStack() })
+    }
+
     composable(Routes.ACCOUNT_DELETION_REASON) {
         AccountDeletionReasonScreen(
             onBack = { navController.popBackStack() },

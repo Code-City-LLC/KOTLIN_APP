@@ -15,6 +15,9 @@ data class SettingsUiState(
     val logoutError: String? = null,
     val loggedOut: Boolean = false,
     val cacheCleared: Boolean = false,
+    /** Download My Data (Swift §D.2): request in flight / result note. */
+    val exportingData: Boolean = false,
+    val exportResult: String? = null,
 )
 
 /**
@@ -46,6 +49,34 @@ class SettingsViewModel(
     }
 
     fun dismissCacheCleared() = _state.update { it.copy(cacheCleared = false) }
+
+    /** POST /user/export-data — link now, or an email-when-ready note. */
+    fun requestDataExport() {
+        if (_state.value.exportingData) return
+        _state.update { it.copy(exportingData = true) }
+        viewModelScope.launch {
+            com.ga.airdrop.data.repo.UserRepository(com.ga.airdrop.core.network.ApiClient.service)
+                .requestPersonalDataExport()
+                .onSuccess { response ->
+                    val note = response.downloadUrl?.takeIf(String::isNotBlank)
+                        ?.let { "Your data export is ready: $it" }
+                        ?: response.message?.takeIf(String::isNotBlank)
+                        ?: "Your data export was requested. We'll email you when it's ready."
+                    _state.update { it.copy(exportingData = false, exportResult = note) }
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            exportingData = false,
+                            exportResult = e.message
+                                ?: "The export request couldn't be sent. Try again later.",
+                        )
+                    }
+                }
+        }
+    }
+
+    fun dismissExportResult() = _state.update { it.copy(exportResult = null) }
 
     fun logout(context: Context) {
         if (_state.value.loggingOut) return

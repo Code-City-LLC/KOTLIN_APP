@@ -165,6 +165,19 @@ fun SettingsScreen(
                     trailing = { ThemeToggle(Modifier.testTag(SettingsTags.MODE_TOGGLE)) },
                     testTagPrefix = SettingsTags.MODE,
                 )
+                // Account security (Swift §D.1/D.2 parity, live endpoints).
+                MoreRowCard(
+                    iconRes = R.drawable.ic_more_privacy,
+                    title = "Active Sessions",
+                    onClick = { onNavigate(Routes.ACTIVE_SESSIONS) },
+                    testTagPrefix = "settings-active-sessions",
+                )
+                MoreRowCard(
+                    iconRes = R.drawable.ic_more_documents,
+                    title = if (state.exportingData) "Requesting…" else "Download My Data",
+                    onClick = { if (!state.exportingData) viewModel.requestDataExport() },
+                    testTagPrefix = "settings-export-data",
+                )
                 // Swift uses stack.spacing = 14 and setCustomSpacing(36)
                 // after Mode; account deletion is not pinned to the bottom.
                 Spacer(Modifier.height(36.dp))
@@ -205,6 +218,32 @@ fun SettingsScreen(
         // Swift FigmaSpecificPages.swift:1430-1444 — clearing cache shows an
         // OK-only confirmation and stays on Settings (no navigation home).
         CacheClearedSheet(onDismiss = viewModel::dismissCacheCleared)
+    }
+
+    if (state.exportResult != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissExportResult,
+            containerColor = colors.gray100,
+            title = {
+                Text("Download My Data", style = AirdropType.title2, color = colors.textDarkTitle)
+            },
+            text = {
+                Text(
+                    state.exportResult.orEmpty(),
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = viewModel::dismissExportResult) {
+                    Text(
+                        "OK",
+                        style = AirdropType.subtitle2,
+                        color = com.ga.airdrop.core.designsystem.theme.BrandPalette.OrangeMain,
+                    )
+                }
+            },
+        )
     }
 }
 

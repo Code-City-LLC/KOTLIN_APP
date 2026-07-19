@@ -75,6 +75,7 @@ object Routes {
     const val AUTHORIZED_USER_DETAIL = "authorizedUserDetail/{userId}"
     const val PAYMENT_METHODS = "paymentMethods"
     const val ACCOUNT_DELETION = "accountDeletion"
+    const val ACTIVE_SESSIONS = "activeSessions"
     const val ACCOUNT_DELETION_REASON = "accountDeletionReason"
     const val SHIPPING_RATES = "shippingRates"
     const val TERMS = "terms"
