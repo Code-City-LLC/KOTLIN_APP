@@ -118,6 +118,8 @@ internal fun NotificationsScreenContent(
             else -> NotificationList(
                 items = state.items,
                 loadingMore = state.loadingMore,
+                refreshing = state.loading && state.loadedOnce,
+                onRefresh = onRefresh,
                 onLoadMore = onLoadMore,
                 onTap = onNotificationTap,
             )
@@ -164,9 +166,12 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
 // ─── Live list ─────────────────────────────────────────────────────────────
 
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 private fun NotificationList(
     items: List<AirdropNotification>,
     loadingMore: Boolean,
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
     onTap: (AirdropNotification) -> Unit,
 ) {
@@ -182,6 +187,22 @@ private fun NotificationList(
         if (shouldLoadMore) onLoadMore()
     }
 
+    // Swift FigmaNotificationsListViewController refresh control.
+    val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = onRefresh,
+        state = ptrState,
+        modifier = Modifier.fillMaxSize(),
+        indicator = {
+            androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                state = ptrState,
+                isRefreshing = refreshing,
+                color = com.ga.airdrop.core.designsystem.theme.BrandPalette.OrangeMain,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        },
+    ) {
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -209,6 +230,7 @@ private fun NotificationList(
                 }
             }
         }
+    }
     }
 }
 

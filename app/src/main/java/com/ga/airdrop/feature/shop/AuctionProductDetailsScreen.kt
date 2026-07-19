@@ -113,17 +113,38 @@ fun AuctionProductDetailsScreen(
                     }
                 }
                 product == null -> {
-                    Box(
+                    // Swift onRetryProductLoad — failed load offers a Retry.
+                    androidx.compose.foundation.layout.Column(
                         Modifier
                             .fillMaxWidth()
                             .padding(Spacing.xl),
-                        contentAlignment = Alignment.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Text(
                             text = state.error ?: "Product unavailable",
                             style = AirdropType.body1,
                             color = colors.textDescription,
                         )
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier
+                                .height(40.dp)
+                                .border(
+                                    1.dp,
+                                    BrandPalette.OrangeMain,
+                                    androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                                )
+                                .clickable(onClick = viewModel::load)
+                                .padding(horizontal = 24.dp)
+                                .testTag("product-detail-retry"),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Retry",
+                                style = AirdropType.subtitle2,
+                                color = BrandPalette.OrangeMain,
+                            )
+                        }
                     }
                 }
                 else -> {
