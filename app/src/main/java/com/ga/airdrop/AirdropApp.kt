@@ -19,6 +19,7 @@ import com.ga.airdrop.feature.shipments.PackagesSortStore
 import com.ga.airdrop.feature.shipments.ShipmentsRepoBinding
 import com.ga.airdrop.feature.shop.ShopRecentSearches
 import com.ga.airdrop.feature.shop.ShopRepoBinding
+import com.ga.airdrop.feature.shop.ShopRepoProvider
 import okhttp3.OkHttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,12 +68,39 @@ class AirdropApp : Application(), ImageLoaderFactory {
         PackagesSortStore.init(this)
         ShopRepoBinding.install()
         ShipmentsRepoBinding.install(cacheDir)
+        com.ga.airdrop.feature.shop.NotifyInStockStore.init(this)
         // Ship any crash captured on a previous run (delete on acceptance).
         applicationScope.launch(Dispatchers.IO) {
             runCatching {
                 com.ga.airdrop.core.diagnostics.CrashCapture.flush { payload ->
                     com.ga.airdrop.core.network.ApiClient.service.reportCrash(payload).code()
                 }
+            }
+        }
+        // Notify-when-in-stock poll (Swift pollSubscribedProducts): a watched
+        // product back in stock fires a local notification, then unsubscribes.
+        applicationScope.launch(Dispatchers.IO) {
+            runCatching {
+                com.ga.airdrop.feature.shop.NotifyInStockStore.poll(
+                    snapshot = {
+                        // One pass over the live product lists (Swift polls the
+                        // same auctionProducts feed); build id → stock.
+                        val products = ShopRepoProvider.products
+                        val auction = products.auctionProducts(page = 1, perPage = 50)
+                            .getOrDefault(emptyList())
+                        val featured = products.featuredProducts(page = 1, perPage = 50)
+                            .getOrDefault(emptyList())
+                        (auction + featured).associate { p ->
+                            p.id to com.ga.airdrop.feature.shop.NotifyInStockStore.StockSnapshot(
+                                inventory = p.inventory,
+                                title = p.title,
+                            )
+                        }
+                    },
+                    notify = { id, title ->
+                        com.ga.airdrop.feature.shop.notifyBackInStock(this@AirdropApp, id, title)
+                    },
+                )
             }
         }
     }

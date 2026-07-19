@@ -445,6 +445,43 @@ private fun DetailsContent(
             style = AirdropType.subtitle2,
             color = BrandPalette.BlueAccentMain,
         )
+        // "Notify me when in stock" — Swift §C.7, shown only when out of
+        // stock. Local watch-list; a launch poll fires a notification when
+        // the product returns. State mirrors NotifyInStockStore so it
+        // survives config changes / re-entry.
+        if (showNotifyInStockCta(product.inventory, NotifyInStockStore.featureEnabled()) &&
+            product.id > 0
+        ) {
+            var watching by androidx.compose.runtime.remember(product.id) {
+                androidx.compose.runtime.mutableStateOf(NotifyInStockStore.isSubscribed(product.id))
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(
+                modifier = Modifier
+                    .height(40.dp)
+                    .background(
+                        if (watching) colors.gray150 else BrandPalette.OrangeMain,
+                        RoundedCornerShape(10.dp),
+                    )
+                    .clickable {
+                        if (watching) {
+                            NotifyInStockStore.unsubscribe(product.id)
+                        } else {
+                            NotifyInStockStore.subscribe(product.id)
+                        }
+                        watching = NotifyInStockStore.isSubscribed(product.id)
+                    }
+                    .padding(horizontal = 16.dp)
+                    .testTag("notify-in-stock"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (watching) "Watching for stock" else "Notify me when in stock",
+                    style = AirdropType.subtitle2,
+                    color = if (watching) colors.textDarkTitle else androidx.compose.ui.graphics.Color.White,
+                )
+            }
+        }
         Spacer(Modifier.height(16.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.iconShape))
         Spacer(Modifier.height(12.dp))
