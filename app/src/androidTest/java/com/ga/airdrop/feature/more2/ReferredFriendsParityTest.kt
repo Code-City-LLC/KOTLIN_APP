@@ -27,17 +27,19 @@ class ReferredFriendsParityTest {
     val compose = createComposeRule()
 
     @Test
-    fun historyLoadsWithSwiftLimit200() {
+    fun historyLoadsWithSwiftPageSize20() {
         val repository = FakeReferRepository(
             referrals = listOf(sampleFriend(id = 12)),
         )
         val viewModel = setReferredFriends(repository)
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            repository.referredFriendsCalls.get() == 1 && !viewModel.state.value.loading
+            repository.referredFriendsCalls.get() >= 1 && !viewModel.state.value.loading
         }
         compose.runOnIdle {
-            assertEquals(200, repository.lastLimit)
+            // Swift referredFriendsPage(page:1, limit:20) — paginated, not a 200-cap dump.
+            assertEquals(20, repository.lastLimit)
+            assertEquals(1, repository.lastPage)
             assertEquals(listOf("maya@example.com"), viewModel.state.value.referrals.map { it.friendEmail })
         }
     }
@@ -101,7 +103,7 @@ class ReferredFriendsParityTest {
             }
         }
         compose.waitUntil(timeoutMillis = 5_000) {
-            repository.referredFriendsCalls.get() == 1 && !viewModel.state.value.loading
+            repository.referredFriendsCalls.get() >= 1 && !viewModel.state.value.loading
         }
         compose.waitForIdle()
         return viewModel
@@ -131,14 +133,26 @@ class ReferredFriendsParityTest {
     ) : ReferAFriendRepository {
         val referredFriendsCalls = AtomicInteger()
         var lastLimit: Int? = null
+        var lastPage: Int? = null
 
         override suspend fun currentUser(): Result<AirdropUser> =
             Result.success(AirdropUser(accountNumber = "AD-2048"))
 
         override suspend fun referredFriends(limit: Int): Result<List<ReferredFriend>> {
-            referredFriendsCalls.incrementAndGet()
             lastLimit = limit
             return Result.success(referrals)
+        }
+
+        override suspend fun referredFriendsPage(
+            page: Int,
+            limit: Int,
+        ): Result<com.ga.airdrop.data.model.Paginated<ReferredFriend>> {
+            referredFriendsCalls.incrementAndGet()
+            lastLimit = limit
+            lastPage = page
+            // Swift paginates at 20/page; later pages are empty (end of history).
+            val items = if (page <= 1) referrals else emptyList()
+            return Result.success(com.ga.airdrop.data.model.Paginated(items))
         }
     }
 }

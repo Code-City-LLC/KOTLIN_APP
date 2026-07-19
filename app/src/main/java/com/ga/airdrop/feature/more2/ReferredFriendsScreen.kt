@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.more2
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,8 +19,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +41,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.feature.shipments.ShipmentsFormat
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ReferredFriendsScreen(
     onBack: () -> Unit,
@@ -44,6 +49,21 @@ fun ReferredFriendsScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+
+    // Swift load-more: fetch the next page as the scroll nears the bottom.
+    val scrollState = rememberScrollState()
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val max = scrollState.maxValue
+            max > 0 && scrollState.value >= max - 400
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) viewModel.loadMore()
+    }
+
+    val refreshing = state.loading && state.loadedOnce
+    val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
 
     Column(
         Modifier
@@ -53,45 +73,118 @@ fun ReferredFriendsScreen(
     ) {
         More2InnerHeader(title = "Referred Friends", onBack = onBack)
 
-        Box(
+        // Swift FigmaReferredFriendsViewController refresh control.
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = viewModel::refresh,
+            state = ptrState,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
+            indicator = {
+                androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                    state = ptrState,
+                    isRefreshing = refreshing,
+                    color = BrandPalette.OrangeMain,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            },
         ) {
             when {
-                state.loading -> {
-                    CircularProgressIndicator(
-                        color = BrandPalette.OrangeMain,
+                state.loading && !state.loadedOnce -> {
+                    Box(Modifier.fillMaxSize()) {
+                        CircularProgressIndicator(
+                            color = BrandPalette.OrangeMain,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 60.dp)
+                                .size(42.dp)
+                                .testTag("referred-friends-loading"),
+                        )
+                    }
+                }
+                state.error != null && state.referrals.isEmpty() -> {
+                    Column(
                         modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 60.dp)
-                            .size(42.dp)
-                            .testTag("referred-friends-loading"),
-                    )
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .padding(horizontal = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Spacer(Modifier.height(80.dp))
+                        Text(
+                            text = state.error ?: "Unable to load your referrals.",
+                            style = AirdropType.body1,
+                            color = colors.textDescription,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.testTag("referred-friends-error"),
+                        )
+                        Row(
+                            modifier = Modifier
+                                .height(40.dp)
+                                .border(
+                                    1.dp,
+                                    BrandPalette.OrangeMain,
+                                    RoundedCornerShape(10.dp),
+                                )
+                                .clickable(onClick = viewModel::refresh)
+                                .padding(horizontal = 24.dp)
+                                .testTag("referred-friends-retry"),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Retry",
+                                style = AirdropType.subtitle2,
+                                color = BrandPalette.OrangeMain,
+                            )
+                        }
+                    }
                 }
                 state.referrals.isEmpty() -> {
-                    Text(
-                        text = "You haven't referred any friends yet.",
-                        style = AirdropType.body1,
-                        color = colors.textDescription,
-                        textAlign = TextAlign.Center,
+                    Column(
                         modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 80.dp, start = 32.dp, end = 32.dp)
-                            .testTag("referred-friends-empty"),
-                    )
+                            .fillMaxSize()
+                            .verticalScroll(scrollState),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "You haven't referred any friends yet.",
+                            style = AirdropType.body1,
+                            color = colors.textDescription,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .padding(top = 80.dp, start = 32.dp, end = 32.dp)
+                                .testTag("referred-friends-empty"),
+                        )
+                    }
                 }
                 else -> {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(scrollState)
                             .padding(horizontal = 20.dp, vertical = 16.dp)
                             .testTag("referred-friends-list"),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         state.referrals.forEach { friend ->
                             ReferredFriendCard(friend)
+                        }
+                        if (state.loadingMore) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(
+                                    color = BrandPalette.OrangeMain,
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .testTag("referred-friends-loadmore"),
+                                )
+                            }
                         }
                         Spacer(Modifier.height(8.dp))
                     }

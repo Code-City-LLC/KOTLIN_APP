@@ -418,6 +418,15 @@ interface AirdropApiService {
         @Query("user_id") userId: Int?,
     ): Paginated<ReferredFriend>
 
+    // Swift AirdropAPI.referredFriendsPage(userID:page:limit:) — paginated history
+    // for the "View History" list (pull-to-refresh + load-more, pageSize 20).
+    @GET("refer-friend/history")
+    suspend fun referredFriendsPage(
+        @Query("page") page: Int,
+        @Query("limit") limit: Int,
+        @Query("user_id") userId: Int?,
+    ): Paginated<ReferredFriend>
+
     // ── Authorized users ──
 
     @GET("authorized-users")

@@ -11,6 +11,7 @@ import com.ga.airdrop.data.model.AuthorizedUsers
 import com.ga.airdrop.data.model.DeactivateAccountRequest
 import com.ga.airdrop.data.model.EmptyRequest
 import com.ga.airdrop.data.model.MutationResponse
+import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.ProfileAssetResponse
 import com.ga.airdrop.data.model.ProfileMutationResponse
 import com.ga.airdrop.data.model.ProfileUpdateRequest
@@ -132,4 +133,12 @@ class UserRepository(private val service: AirdropApiService) {
 
     suspend fun referredFriends(userId: Int? = null, limit: Int = 20): Result<List<ReferredFriend>> =
         apiResult { service.referredFriends(limit = limit, userId = userId).items }
+
+    /** Swift referredFriendsPage(page:limit:) — keeps pagination for load-more. */
+    suspend fun referredFriendsPage(
+        page: Int,
+        limit: Int = 20,
+        userId: Int? = null,
+    ): Result<Paginated<ReferredFriend>> =
+        apiResult { service.referredFriendsPage(page = page, limit = limit, userId = userId) }
 }
