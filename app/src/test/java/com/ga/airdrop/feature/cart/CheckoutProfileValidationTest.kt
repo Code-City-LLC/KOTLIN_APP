@@ -36,4 +36,13 @@ class CheckoutProfileValidationTest {
         assertNull(validatedHostedCheckoutUrl("https:///missing-host"))
         assertNull(validatedHostedCheckoutUrl("https://user:secret@checkout.airdropja.test/session"))
     }
+
+    @Test
+    fun `real Stripe checkout URL with a fragment is accepted`() {
+        // Stripe Checkout Session URLs carry a #fragment; rejecting fragments
+        // broke every USD checkout ("did not return a secure URL").
+        val stripeUrl =
+            "https://checkout.stripe.com/c/pay/cs_test_a1B2c3#fidkdWxOYHwnPyd1blpxYHZxWjA0"
+        assertEquals(stripeUrl, validatedHostedCheckoutUrl(stripeUrl))
+    }
 }

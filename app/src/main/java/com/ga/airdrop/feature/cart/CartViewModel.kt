@@ -956,6 +956,10 @@ internal fun validatedHostedCheckoutUrl(raw: String?): String? {
     val trimmed = raw?.trim()?.takeIf(String::isNotEmpty) ?: return null
     val uri = runCatching { URI(trimmed) }.getOrNull() ?: return null
     if (!uri.scheme.equals("https", ignoreCase = true) || uri.host.isNullOrBlank()) return null
-    if (uri.userInfo != null || uri.fragment != null) return null
+    // Reject only embedded credentials (userInfo) — the real security concern.
+    // Stripe Checkout Session URLs legitimately carry a #fragment
+    // (https://checkout.stripe.com/c/pay/cs_...#fid...); rejecting fragments
+    // broke every real USD checkout with "did not return a secure URL".
+    if (uri.userInfo != null) return null
     return uri.toASCIIString()
 }
