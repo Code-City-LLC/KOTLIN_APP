@@ -60,7 +60,16 @@ data class DropAlertSubmission(
     val invoices: List<DropAlertInvoice>,
 )
 
-data class DropAlertResult(val success: Boolean, val message: String?)
+/**
+ * Three-way drop-alert outcome (Swift code branching): [success] created,
+ * [warning] created-with-warning (e.g. duplicate courier — keep the form,
+ * show an error-style notice), else the repo throws for a rejection.
+ */
+data class DropAlertResult(
+    val success: Boolean,
+    val message: String?,
+    val warning: Boolean = false,
+)
 
 interface DropAlertRepository {
     /** Typed multipart POST /drop-alerts — Swift createDropAlert part names. */
@@ -97,8 +106,18 @@ class RemoteDropAlertRepository(
             },
         ).getOrElse { throw it }
             .let { response ->
+                // Swift code branching: 0/success=false = rejected (throw →
+                // submit-failed), 2 = created-with-warning (keep form), else ok.
+                val code = response.code
+                if (response.success == false || code == 0) {
+                    throw IllegalStateException(
+                        response.message?.trim()?.takeIf { it.isNotEmpty() }
+                            ?: "Drop alert was not created.",
+                    )
+                }
                 DropAlertResult(
-                    success = response.success ?: true,
+                    success = code != 2,
+                    warning = code == 2,
                     message = response.message,
                 )
             }

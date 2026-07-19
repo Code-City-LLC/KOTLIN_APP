@@ -138,6 +138,26 @@ class DropAlertViewModel(
                     )
                 )
             }.onSuccess { result ->
+                if (result.warning) {
+                    // Swift code==2: created-with-warning (e.g. duplicate courier).
+                    // Keep the form, show the warning as an error dialog — do NOT
+                    // celebrate and do NOT save the preset.
+                    val raw = result.message?.trim().orEmpty()
+                    val warning = if (raw.lowercase().contains("already orderd")) {
+                        "You've already created a drop alert for this courier number."
+                    } else {
+                        raw.ifEmpty {
+                            "Drop alert saved with a warning — please review it in your alerts."
+                        }
+                    }
+                    _state.update {
+                        it.copy(
+                            submitting = false,
+                            dialog = DropAlertDialog("Please check", warning),
+                        )
+                    }
+                    return@onSuccess
+                }
                 // Swift §B.5: persist the shipper/courier/method BEFORE the form
                 // resets so the next alert can auto-fill them.
                 DropAlertPreset.save(form.shipper, form.courierCompany, form.shippingMethod)

@@ -438,5 +438,9 @@ object DropAlertSerializer : KSerializer<DropAlert> {
 data class DropAlertResponse(
     val success: Boolean? = null,
     val message: String? = null,
+    // Legacy endpoint numeric outcome: 1 created, 2 created-with-warning
+    // (e.g. duplicate courier number), 0 rejected even when success is truthy.
+    @Serializable(with = FlexibleIntSerializer::class)
+    val code: Int? = null,
     val data: DropAlert? = null,
 )
