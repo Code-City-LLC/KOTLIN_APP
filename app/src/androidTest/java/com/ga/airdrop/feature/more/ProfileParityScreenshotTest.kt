@@ -51,20 +51,29 @@ class ProfileParityScreenshotTest {
     }
 
     @Test
-    fun dobSelectorRejectsFutureDatesLikeSwiftMaximumDate() {
+    fun dobSelectorEnforcesSwiftMinimumAge15() {
         val utc = TimeZone.getTimeZone("UTC")
         val today = Calendar.getInstance(utc).apply {
             clear()
             set(2026, Calendar.JULY, 5)
         }.timeInMillis
-        val yesterday = today - 24L * 60L * 60L * 1000L
-        val tomorrow = today + 24L * 60L * 60L * 1000L
+        // Swift maximumDOBDate: the latest allowed DOB is 15 years before today.
+        val fifteenthCutoff = Calendar.getInstance(utc).apply {
+            clear()
+            set(2011, Calendar.JULY, 5)
+        }.timeInMillis
+        val oneDayAfterCutoff = fifteenthCutoff + 24L * 60L * 60L * 1000L
+        val wellBeforeCutoff = Calendar.getInstance(utc).apply {
+            clear()
+            set(2000, Calendar.JANUARY, 1)
+        }.timeInMillis
 
-        assertTrue(isSelectableDobDate(yesterday, today))
-        assertTrue(isSelectableDobDate(today, today))
-        assertFalse(isSelectableDobDate(tomorrow, today))
-        assertTrue(isSelectableDobYear(2026, today))
-        assertFalse(isSelectableDobYear(2027, today))
+        assertTrue(isSelectableDobDate(fifteenthCutoff, today))    // exactly 15 → allowed
+        assertTrue(isSelectableDobDate(wellBeforeCutoff, today))   // older → allowed
+        assertFalse(isSelectableDobDate(oneDayAfterCutoff, today)) // under 15 → rejected
+        assertFalse(isSelectableDobDate(today, today))             // today → rejected
+        assertTrue(isSelectableDobYear(2011, today))               // cutoff year → allowed
+        assertFalse(isSelectableDobYear(2012, today))              // after cutoff → rejected
     }
 
     @Test

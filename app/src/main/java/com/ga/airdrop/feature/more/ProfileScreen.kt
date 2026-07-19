@@ -358,14 +358,24 @@ internal fun ProfileAvatar(
     }
 }
 
+/** Swift ProfileValidator minimum age — DOB must be at least 15 years ago. */
+internal const val PROFILE_MIN_AGE_YEARS = 15
+
+/** Swift maximumDOBDate — latest selectable DOB is today minus 15 years. */
+private fun maxSelectableDobMillis(todayMillis: Long): Long =
+    Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        timeInMillis = todayMillis
+        add(Calendar.YEAR, -PROFILE_MIN_AGE_YEARS)
+    }.timeInMillis
+
 internal fun isSelectableDobDate(utcTimeMillis: Long, todayMillis: Long): Boolean =
-    utcTimeMillis <= todayMillis
+    utcTimeMillis <= maxSelectableDobMillis(todayMillis)
 
 internal fun isSelectableDobYear(year: Int, todayMillis: Long): Boolean {
     val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
         timeInMillis = todayMillis
     }
-    return year <= calendar.get(Calendar.YEAR)
+    return year <= calendar.get(Calendar.YEAR) - PROFILE_MIN_AGE_YEARS
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

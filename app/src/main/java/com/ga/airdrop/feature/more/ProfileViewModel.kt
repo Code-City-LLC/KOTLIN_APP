@@ -12,6 +12,7 @@ import com.ga.airdrop.core.session.captureOwnedSession
 import com.ga.airdrop.core.session.AuthenticatedOwnerChange
 import com.ga.airdrop.core.session.changeTo
 import com.ga.airdrop.core.session.captureOwnedRequest
+import java.util.Calendar
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -286,6 +287,13 @@ class ProfileViewModel(
             }
             return
         }
+        // Swift ProfileValidator — email format, TRN 9-digit, DOB min-age 15.
+        ProfileFieldValidation.firstError(email = s.email, trn = s.taxId, dob = s.dob)?.let { error ->
+            sessionBoundary.apply(owner) {
+                _state.update { it.copy(alert = error) }
+            }
+            return
+        }
         if (s.password.isNotEmpty() && s.password != s.confirmPassword) {
             sessionBoundary.apply(owner) {
                 _state.update { it.copy(alert = "Passwords do not match" to "Confirm your password.") }
@@ -373,5 +381,52 @@ class ProfileViewModel(
             return "+${digits.take(codeLength)}" to digits.drop(codeLength)
         }
         return "+1" to cleaned.filter { it.isDigit() }
+    }
+}
+
+/**
+ * Swift ProfileValidator field checks (email / TRN / DOB). Presence of the
+ * required first/last/email fields is handled by the caller; these validate
+ * FORMAT and only when the optional field is non-blank. Returns the first
+ * failing (title, message) pair, or null when everything is valid.
+ */
+internal object ProfileFieldValidation {
+    // Swift isValidEmail SSOT regex.
+    private val EMAIL_REGEX = Regex("^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
+
+    fun firstError(email: String, trn: String, dob: String): Pair<String, String>? {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isNotEmpty() && !EMAIL_REGEX.matches(trimmedEmail)) {
+            return "Invalid email" to "Invalid email format"
+        }
+        val trimmedTrn = trn.trim()
+        if (trimmedTrn.isNotEmpty() && !isValidTrn(trimmedTrn)) {
+            return "Invalid TRN" to "TRN must be 9 digits"
+        }
+        val trimmedDob = dob.trim()
+        if (trimmedDob.isNotEmpty() && !isAtLeast15(trimmedDob)) {
+            return "Invalid date of birth" to "Must be at least 15 years old."
+        }
+        return null
+    }
+
+    /** Swift isValidTRN — exactly 9 digits. */
+    fun isValidTrn(trn: String): Boolean = trn.length == 9 && trn.all(Char::isDigit)
+
+    /**
+     * Swift isAtLeast15 — DOB (MM/dd/yyyy display) must be 15+ years ago.
+     * An unparseable value is not blocked here (the server is authoritative).
+     */
+    fun isAtLeast15(dobDisplay: String): Boolean {
+        val parts = dobDisplay.trim().split("/")
+        val month = parts.getOrNull(0)?.toIntOrNull()
+        val day = parts.getOrNull(1)?.toIntOrNull()
+        val year = parts.getOrNull(2)?.toIntOrNull()
+        if (parts.size != 3 || month == null || day == null || year == null) return true
+        val fifteenthBirthday = Calendar.getInstance().apply {
+            clear()
+            set(year + PROFILE_MIN_AGE_YEARS, month - 1, day)
+        }
+        return !fifteenthBirthday.after(Calendar.getInstance())
     }
 }
