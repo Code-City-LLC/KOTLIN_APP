@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.homedetails
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,7 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropColorScheme
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
@@ -66,14 +68,17 @@ fun AirCoinBalanceScreen(
         state = state,
         onBack = onBack,
         onOpenHistory = onOpenHistory,
+        onRefresh = viewModel::refresh,
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun AirCoinBalanceContent(
     state: AirCoinBalanceUiState,
     onBack: () -> Unit,
     onOpenHistory: () -> Unit,
+    onRefresh: () -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
 
@@ -102,6 +107,21 @@ internal fun AirCoinBalanceContent(
                 onTrailingClick = onOpenHistory,
             )
 
+            val ptrState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+            androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                isRefreshing = state.loading && state.loadedOnce,
+                onRefresh = onRefresh,
+                state = ptrState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                        state = ptrState,
+                        isRefreshing = state.loading && state.loadedOnce,
+                        color = BrandPalette.OrangeMain,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                },
+            ) {
             Column(
                 Modifier
                     .fillMaxSize()
@@ -117,14 +137,40 @@ internal fun AirCoinBalanceContent(
                 )
                 ConversionRow()
                 Spacer(Modifier.height(20.dp))
-                StatsCard(
-                    accumulated = state.accumulated,
-                    redeemed = state.redeemed,
-                    available = state.available,
-                )
-                Spacer(Modifier.height(10.dp))
-                TipCard()
+                if (state.error != null && state.status == null) {
+                    // Swift onRetryBalance — failed load offers a Retry.
+                    Text(
+                        text = state.error,
+                        style = AirdropType.body2,
+                        color = colors.textDescription,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .height(40.dp)
+                            .border(
+                                1.dp,
+                                BrandPalette.OrangeMain,
+                                androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                            )
+                            .clickable(onClick = onRefresh)
+                            .padding(horizontal = 24.dp)
+                            .testTag("aircoin-balance-retry"),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Retry", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
+                    }
+                } else {
+                    StatsCard(
+                        accumulated = state.accumulated,
+                        redeemed = state.redeemed,
+                        available = state.available,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    TipCard()
+                }
                 Spacer(Modifier.height(Spacing.md))
+            }
             }
         }
     }

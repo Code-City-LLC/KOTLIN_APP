@@ -18,6 +18,8 @@ internal const val AIRCOIN_HISTORY_PER_PAGE = 50
 data class AirCoinBalanceUiState(
     val status: AirCoinsStatus? = null,
     val loading: Boolean = false,
+    val error: String? = null,
+    val loadedOnce: Boolean = false,
 ) {
     val accumulated: Int get() = status?.accumulated ?: status?.balance ?: 0
     val redeemed: Int get() = status?.redeemed ?: 0
@@ -32,12 +34,27 @@ class AirCoinBalanceViewModel(
     val state: StateFlow<AirCoinBalanceUiState> = _state
 
     init {
+        refresh()
+    }
+
+    /** Swift onPullToRefresh / onRetryBalance — reload GET /aircoins/status. */
+    fun refresh() {
+        if (_state.value.loading) return
+        _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            _state.update { it.copy(loading = true) }
-            miscRepository.airCoinsStatus().onSuccess { status ->
-                _state.update { it.copy(status = status) }
-            }
-            _state.update { it.copy(loading = false) }
+            miscRepository.airCoinsStatus()
+                .onSuccess { status ->
+                    _state.update { it.copy(status = status, loading = false, loadedOnce = true) }
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            loadedOnce = true,
+                            error = e.message ?: "Couldn't load your AirCoins.",
+                        )
+                    }
+                }
         }
     }
 }
