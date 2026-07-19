@@ -72,6 +72,75 @@ data class CreateCheckoutRequest(
 /** Non-null signal that makes Laravel issue the mobile Stripe deep links. */
 const val MOBILE_CHECKOUT_RETURN_URL = "airdrop://payment-success"
 
+// ─── NCB PowerTranz (JMD) checkout — mirrors PaymentController::createNcbCheckout
+//     and Swift AirdropAPI NcbSessionRequest. The Laravel payload is FLAT:
+//     billing + card + delivery fields sit at the top level, delivery_location
+//     is a nested object. Card data is sent over TLS to Laravel which forwards
+//     it to PowerTranz; the app never stores it. ────────────────────────────────
+
+@Serializable
+data class NcbDeliveryLocation(
+    val address: String,
+    val latitude: Double,
+    val longitude: Double,
+)
+
+@Serializable
+data class CreateNcbSessionRequest(
+    @SerialName("package_ids") val packageIds: List<Int>,
+    val currency: String, // must be "JMD"
+    @SerialName("is_auction") val isAuction: Boolean,
+    // billing
+    @SerialName("first_name") val firstName: String,
+    @SerialName("last_name") val lastName: String,
+    val address: String,
+    val city: String,
+    val country: String, // "US" or "JM"
+    // card
+    @SerialName("card_name") val cardName: String,
+    @SerialName("card_number") val cardNumber: String,
+    @SerialName("card_month") val cardMonth: String,
+    @SerialName("card_year") val cardYear: String,
+    @SerialName("card_cvv") val cardCvv: String,
+    // delivery context (optional — pickup omits delivery_location)
+    @SerialName("delivery_mode") val deliveryMode: String? = null,
+    @SerialName("delivery_location") val deliveryLocation: NcbDeliveryLocation? = null,
+    @SerialName("pickup_location") val pickupLocation: String? = null,
+    @SerialName("delivery_distance_km") val deliveryDistanceKm: Double? = null,
+    @SerialName("delivery_charge_total") val deliveryChargeTotal: Double? = null,
+    @SerialName("delivery_charge_currency") val deliveryChargeCurrency: String? = null,
+)
+
+/**
+ * Response from /api/v1/payments/create-ncb-session. `redirect_data` is HTML the
+ * WebView must render to run 3DS; `spi_token` is posted to
+ * /ncb-complete-payment after the 3DS callback returns.
+ */
+@Serializable
+data class NcbSessionResponse(
+    @SerialName("spi_token")
+    @Serializable(with = FlexibleStringSerializer::class)
+    val spiToken: String? = null,
+    @SerialName("redirect_data")
+    @Serializable(with = FlexibleStringSerializer::class)
+    val redirectData: String? = null,
+    @SerialName("checkout_id")
+    @Serializable(with = FlexibleStringSerializer::class)
+    val checkoutId: String? = null,
+)
+
+@Serializable
+data class NcbCompletePaymentRequest(
+    @SerialName("spi_token") val spiToken: String,
+)
+
+@Serializable
+data class NcbCompletePaymentResponse(
+    @SerialName("invoice_id")
+    @Serializable(with = FlexibleIntSerializer::class)
+    val invoiceId: Int? = null,
+)
+
 @Serializable
 data class CheckoutResponse(
     @SerialName("checkout_url") val checkoutUrl: String? = null,

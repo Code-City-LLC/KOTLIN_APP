@@ -4,6 +4,10 @@ import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.api.AirdropJson
 import com.ga.airdrop.data.model.CheckoutResponse
+import com.ga.airdrop.data.model.CreateNcbSessionRequest
+import com.ga.airdrop.data.model.NcbCompletePaymentRequest
+import com.ga.airdrop.data.model.NcbCompletePaymentResponse
+import com.ga.airdrop.data.model.NcbSessionResponse
 import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
 import com.ga.airdrop.data.model.InvoiceUrlEnvelope
@@ -91,6 +95,62 @@ class PaymentsRepository(private val service: AirdropApiService) {
         }
         data
     }
+    }
+
+    /**
+     * NCB PowerTranz (JMD) — step 1: create the 3DS session. Mirrors
+     * PaymentController::createNcbCheckout. USD is Stripe-only; this endpoint
+     * requires JMD. Returns {spi_token, redirect_data, checkout_id}; the caller
+     * renders redirect_data in a WebView for 3DS, then calls
+     * [ncbCompletePayment] with the spi_token.
+     */
+    suspend fun createNcbSession(
+        request: CreateNcbSessionRequest,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<NcbSessionResponse> {
+        if (request.currency.trim().uppercase(Locale.US) != "JMD") {
+            return Result.failure(IllegalArgumentException("NCB PowerTranz is available in JMD only"))
+        }
+        if (request.packageIds.isEmpty() || request.packageIds.any { it <= 0 }) {
+            return Result.failure(IllegalArgumentException("Checkout package IDs must be positive"))
+        }
+        return apiResult {
+            val envelope = service.createNcbSession(
+                authRevision = expectedSession.revision.toString(),
+                sessionId = expectedSession.sessionId,
+                body = request,
+            )
+            val data = envelope.data
+            if (envelope.success == false || data == null ||
+                data.spiToken.isNullOrEmpty() || data.redirectData.isNullOrEmpty()
+            ) {
+                error(envelope.message ?: "Failed to start JMD checkout")
+            }
+            data
+        }
+    }
+
+    /** NCB PowerTranz (JMD) — step 2: complete after the 3DS round-trip. */
+    suspend fun ncbCompletePayment(
+        spiToken: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<NcbCompletePaymentResponse> {
+        val token = spiToken.trim()
+        if (token.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Missing NCB spi_token"))
+        }
+        return apiResult {
+            val envelope = service.ncbCompletePayment(
+                authRevision = expectedSession.revision.toString(),
+                sessionId = expectedSession.sessionId,
+                body = NcbCompletePaymentRequest(spiToken = token),
+            )
+            val data = envelope.data
+            if (envelope.success == false || data == null || data.invoiceId == null) {
+                error(envelope.message ?: "JMD payment could not be confirmed")
+            }
+            data
+        }
     }
 
     suspend fun checkoutSessionStatus(
