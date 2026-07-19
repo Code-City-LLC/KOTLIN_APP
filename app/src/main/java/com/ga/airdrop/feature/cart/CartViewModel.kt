@@ -910,6 +910,20 @@ class CartViewModel(
             _state.update { it.copy(paying = false) }
             return
         }
+        // Deadlock-truth fix: when an unexpired hosted checkout still owns the
+        // cart, say so — the old path fell through to a misleading "cart
+        // changed" alert while the user was actually blocked by a pending
+        // Stripe session (now also TTL-expired by CheckoutFlowStore).
+        if (CheckoutFlowStore.pending(owner) != null || CheckoutFlowStore.creating(owner) != null) {
+            _state.update {
+                it.copy(
+                    paying = false,
+                    errorTitle = "Payment still pending",
+                    errorMessage = "A checkout is already pending. Check Shipments before paying again.",
+                )
+            }
+            return
+        }
         val started = sessionBoundary.runWhileCurrent(owner) {
             val currentLines = guardedLines() ?: return@runWhileCurrent false
             val flow = CheckoutFlowStore.start(owner, currentLines)

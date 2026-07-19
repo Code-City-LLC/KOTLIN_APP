@@ -121,6 +121,9 @@ data class PendingHostedCheckout(
     val ownerAccountId: Int? = null,
     val checkoutSessionId: String,
     val cartKeys: List<CartStore.CartLineKey>,
+    // Stripe hosted sessions expire; without a timestamp an abandoned Custom
+    // Tab deadlocked checkout FOREVER. 0 on legacy persisted rows = expired.
+    val createdAtMs: Long = 0L,
 ) {
     fun matches(sessionId: String, owner: AuthenticatedSessionOwner): Boolean =
         checkoutSessionId == sessionId && ownerSessionId == owner.sessionId &&
@@ -144,6 +147,8 @@ data class PendingCheckoutCreation(
     val cartKeys: List<CartStore.CartLineKey>,
     val packageIds: List<Int>,
     val isAuction: Boolean,
+    // See PendingHostedCheckout.createdAtMs — 0 on legacy rows = expired.
+    val createdAtMs: Long = 0L,
 ) {
     fun isOwnedBy(owner: AuthenticatedSessionOwner): Boolean =
         ownerSessionId == owner.sessionId &&
@@ -196,6 +201,45 @@ object CheckoutFlowStore {
 
     /** Fault-injection seam for JVM durability tests; null in production. */
     internal var synchronousCommitOverrideForTests: (() -> Boolean)? = null
+
+    /** Clock seam for TTL tests; production = wall clock. */
+    internal var clockMsForTests: (() -> Long)? = null
+
+    private fun nowMs(): Long = clockMsForTests?.invoke() ?: System.currentTimeMillis()
+
+    // Stripe Checkout Sessions expire after 24h — after that no browser can
+    // complete the payment, so the pending authority is safe to release.
+    private const val HOSTED_PENDING_TTL_MS: Long = 24L * 60 * 60 * 1000
+
+    // A creation whose response never arrived: the customer never received a
+    // URL, so no browser holds the session. 30 minutes is generous.
+    private const val CREATION_PENDING_TTL_MS: Long = 30L * 60 * 1000
+
+    /**
+     * Deadlock fix: abandoned checkouts (closed Custom Tab, crashed return)
+     * previously blocked start() FOREVER because nothing ever cleared the
+     * pending records outside the payment-return deeplink. Expire them on
+     * Stripe's own lifetime instead. Legacy rows (createdAtMs=0) expire
+     * immediately, healing already-stuck installs.
+     */
+    @Synchronized
+    private fun expireStalePending() {
+        val now = nowMs()
+        var changed = false
+        pendingHosted?.let {
+            if (now - it.createdAtMs > HOSTED_PENDING_TTL_MS) {
+                pendingHosted = null
+                changed = true
+            }
+        }
+        pendingCreation?.let {
+            if (now - it.createdAtMs > CREATION_PENDING_TTL_MS) {
+                pendingCreation = null
+                changed = true
+            }
+        }
+        if (changed) persist()
+    }
 
     @Synchronized
     fun init(context: Context) {
@@ -264,6 +308,7 @@ object CheckoutFlowStore {
 
     @Synchronized
     fun start(owner: AuthenticatedSessionOwner, lines: List<CartStore.CartLine>): CheckoutFlow? {
+        expireStalePending()
         // A browser may still complete this exact Stripe session. Never orphan
         // it by silently replacing its owner/cart keys with a second flow.
         if (pendingHosted != null || pendingCreation != null) return null
@@ -397,6 +442,7 @@ object CheckoutFlowStore {
 
     @Synchronized
     fun beginHostedCheckoutCreation(owner: AuthenticatedSessionOwner): PendingCheckoutCreation? {
+        expireStalePending()
         if (pendingHosted != null || pendingCreation != null || !bindFlowOwner(owner)) return null
         val current = flow ?: return null
         if (current.phase != CheckoutPhase.ORDER_SUMMARY ||
@@ -412,6 +458,7 @@ object CheckoutFlowStore {
             cartKeys = current.cartKeys,
             packageIds = current.packageIds,
             isAuction = current.isAuction,
+            createdAtMs = nowMs(),
         )
         pendingCreation = creation
         // This commit is the duplicate-POST barrier. A failed commit means the
@@ -424,8 +471,10 @@ object CheckoutFlowStore {
     }
 
     @Synchronized
-    fun creating(owner: AuthenticatedSessionOwner): PendingCheckoutCreation? =
-        pendingCreation?.takeIf { bindCreationOwner(owner) }
+    fun creating(owner: AuthenticatedSessionOwner): PendingCheckoutCreation? {
+        expireStalePending()
+        return pendingCreation?.takeIf { bindCreationOwner(owner) }
+    }
 
     @Synchronized
     fun recordHostedCheckout(
@@ -454,6 +503,7 @@ object CheckoutFlowStore {
             ownerAccountId = current.ownerAccountId,
             checkoutSessionId = checkoutSessionId,
             cartKeys = current.cartKeys,
+            createdAtMs = nowMs(),
         )
         pendingHosted = recorded
         pendingCreation = null
@@ -477,8 +527,10 @@ object CheckoutFlowStore {
 
     /** Recover the sole exact pending identity for a bare Stripe cancel URL. */
     @Synchronized
-    fun pending(owner: AuthenticatedSessionOwner): PendingHostedCheckout? =
-        pendingHosted?.takeIf { bindPendingOwner(owner) }
+    fun pending(owner: AuthenticatedSessionOwner): PendingHostedCheckout? {
+        expireStalePending()
+        return pendingHosted?.takeIf { bindPendingOwner(owner) }
+    }
 
     /** Returns the exact initiating rows and consumes the verified checkout. */
     @Synchronized
