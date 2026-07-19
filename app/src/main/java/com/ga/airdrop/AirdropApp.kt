@@ -57,6 +57,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
         }
         DeliveryDefaultsStore.init(this)
         BiometricGate.init(this)
+        com.ga.airdrop.core.security.BiometricLoginVault.init(this)
         CalculatorHistory.init(this)
         com.ga.airdrop.core.prefs.ExchangeRateStore.init(this)
         com.ga.airdrop.core.push.PushDeepLink.init(this)

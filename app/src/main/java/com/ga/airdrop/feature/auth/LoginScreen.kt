@@ -2,8 +2,10 @@ package com.ga.airdrop.feature.auth
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
@@ -49,6 +52,7 @@ import com.ga.airdrop.core.designsystem.components.ThemeToggle
 import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
@@ -73,9 +77,98 @@ fun LoginScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as? androidx.fragment.app.FragmentActivity
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val biometricsAvailable = androidx.compose.runtime.remember {
+        com.ga.airdrop.core.security.BiometricGate.isAvailable(context)
+    }
+    var vaultEnabled by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            com.ga.airdrop.core.security.BiometricLoginVault.isEnabled(),
+        )
+    }
+    var showEnrollOffer by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
 
     if (state.loggedIn) {
-        androidx.compose.runtime.LaunchedEffect(Unit) { onLoggedIn() }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            // Offer biometric sign-in ONCE after a successful password login
+            // (Kemar 2026-07-19: biometrics must be usable for logging in).
+            if (com.ga.airdrop.core.security.shouldOfferBiometricLogin(
+                    biometricsAvailable = biometricsAvailable,
+                    vaultEnabled = com.ga.airdrop.core.security.BiometricLoginVault.isEnabled(),
+                    vaultEmail = com.ga.airdrop.core.security.BiometricLoginVault.savedEmail(),
+                    loginEmail = state.email,
+                    offerDeclined = com.ga.airdrop.core.security.BiometricLoginVault.offerDeclined(),
+                ) && state.password.isNotEmpty()
+            ) {
+                showEnrollOffer = true
+            } else {
+                onLoggedIn()
+            }
+        }
+    }
+
+    if (showEnrollOffer) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {},
+            containerColor = colors.gray100,
+            title = {
+                Text(
+                    "Sign in with biometrics?",
+                    style = AirdropType.title2,
+                    color = colors.textDarkTitle,
+                )
+            },
+            text = {
+                Text(
+                    "Use your fingerprint or face to sign in to Airdrop next " +
+                        "time — no password needed.",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        val host = activity
+                        if (host == null) {
+                            showEnrollOffer = false
+                            onLoggedIn()
+                        } else {
+                            scope.launch {
+                                // Confirm the sensor works before vaulting.
+                                val passed = com.ga.airdrop.core.security.BiometricGate
+                                    .authenticate(host, "Confirm to enable biometric sign-in")
+                                if (passed) {
+                                    com.ga.airdrop.core.security.BiometricLoginVault
+                                        .enable(state.email, state.password)
+                                }
+                                showEnrollOffer = false
+                                onLoggedIn()
+                            }
+                        }
+                    },
+                    modifier = Modifier.testTag("biometric-enroll-yes"),
+                ) {
+                    Text("Enable", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        com.ga.airdrop.core.security.BiometricLoginVault.setOfferDeclined()
+                        showEnrollOffer = false
+                        onLoggedIn()
+                    },
+                    modifier = Modifier.testTag("biometric-enroll-no"),
+                ) {
+                    Text("Not now", style = AirdropType.subtitle2, color = colors.textDescription)
+                }
+            },
+        )
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -205,6 +298,46 @@ fun LoginScreen(
                 loading = state.loading,
                 enabled = !state.loading,
             )
+            // Biometric sign-in — shown only once the customer opted in
+            // after a password login (vault holds their credentials).
+            if (vaultEnabled && biometricsAvailable && activity != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 30.dp)
+                        .padding(top = 12.dp)
+                        .height(44.dp)
+                        .border(
+                            1.dp,
+                            BrandPalette.OrangeMain,
+                            androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                        )
+                        .clickable(enabled = !state.loading) {
+                            scope.launch {
+                                val creds = com.ga.airdrop.core.security.BiometricLoginVault
+                                    .unlock(activity)
+                                if (creds != null) {
+                                    viewModel.loginWithVaultCredentials(
+                                        creds.email,
+                                        creds.password,
+                                    )
+                                }
+                                vaultEnabled = com.ga.airdrop.core.security.BiometricLoginVault
+                                    .isEnabled()
+                            }
+                        }
+                        .testTag("biometric-sign-in"),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Sign in with " +
+                            com.ga.airdrop.core.security.BiometricGate.biometricTypeName(context),
+                        style = AirdropType.subtitle2,
+                        color = colors.textDarkTitle,
+                    )
+                }
+            }
             // Swift FigmaLoginViewController.swift:218 — exactly 16 after Log In.
             // Keep that gap inside the full-width click target so it is not
             // accidentally doubled by a separate Spacer.

@@ -32,14 +32,28 @@ class LoginViewModel(
 
     fun login() {
         val current = _state.value
-        if (current.loading) return
-        if (current.email.isBlank() || current.password.isBlank()) {
+        doLogin(current.email, current.password)
+    }
+
+    /**
+     * Biometric sign-in path: the Login screen unlocks the vault
+     * (fingerprint/face) and replays the stored credentials through the
+     * exact same request; nothing else differs from a typed login.
+     */
+    fun loginWithVaultCredentials(email: String, password: String) {
+        _state.update { it.copy(email = email, password = password) }
+        doLogin(email, password)
+    }
+
+    private fun doLogin(email: String, password: String) {
+        if (_state.value.loading) return
+        if (email.isBlank() || password.isBlank()) {
             _state.update { it.copy(error = "Enter your email and password.") }
             return
         }
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            repository.login(current.email.trim(), current.password)
+            repository.login(email.trim(), password)
                 .onSuccess { response ->
                     val token = response.token
                     if (token.isNullOrBlank()) {
