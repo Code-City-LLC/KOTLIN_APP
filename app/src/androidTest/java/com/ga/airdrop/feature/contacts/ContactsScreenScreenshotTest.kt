@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.navigation.Routes
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -51,13 +52,16 @@ class ContactsScreenScreenshotTest {
     }
 
     @Test
-    fun helpUsesSwiftSeparateCardsAndNoLiveChat() {
+    fun helpUsesSwiftSeparateCardsWithLiveChat() {
         setHelpContent(ThemeController.Mode.LIGHT)
 
+        // Swift makeLiveChatCard is the first card (re-added 2026-07-11).
+        compose.onNodeWithTag("contacts-card-live-chat").assertIsDisplayed()
+        assertEquals(1, compose.onAllNodesWithText("Live Chat").fetchSemanticsNodes().size)
         compose.onNodeWithTag("contacts-card-contact-number").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-whatsapp").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-email").assertIsDisplayed()
-        assertEquals(0, compose.onAllNodesWithText("Live Chat").fetchSemanticsNodes().size)
+        // Live Chat is a nav card with no copy affordance — count stays 11.
         assertEquals(11, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
         compose.onNodeWithText("Monday-Friday: 9am-6pm\nSaturday: 10am-4pm\nSunday: Closed")
             .performScrollTo()
@@ -145,6 +149,62 @@ class ContactsScreenScreenshotTest {
                 listOf(
                     "whatsapp://send?phone=8765669339",
                     "https://wa.me/8765669339",
+                ),
+                opened,
+            )
+        }
+    }
+
+    @Test
+    fun liveChatCardNavigatesToLiveAgentChat() {
+        val routes = mutableListOf<String>()
+        setHelpContent(mode = ThemeController.Mode.LIGHT, onNavigate = { routes += it })
+
+        compose.onNodeWithTag("contacts-card-live-chat").performClick()
+
+        compose.runOnIdle {
+            assertEquals(listOf(Routes.LIVE_CHAT), routes)
+        }
+    }
+
+    @Test
+    fun tiktokPrefersAppSchemeWhenAvailable() {
+        val opened = mutableListOf<String>()
+        setHelpContent(
+            mode = ThemeController.Mode.LIGHT,
+            openExternal = {
+                opened += it
+                true
+            },
+        )
+
+        compose.onNodeWithText("Tiktok: @airdropja").performScrollTo()
+        compose.onNodeWithText("Tiktok: @airdropja").performClick()
+
+        compose.runOnIdle {
+            assertEquals(listOf("tiktok://user?unique_id=@airdropja"), opened)
+        }
+    }
+
+    @Test
+    fun tiktokFallsBackToWebWhenAppUnavailable() {
+        val opened = mutableListOf<String>()
+        setHelpContent(
+            mode = ThemeController.Mode.LIGHT,
+            openExternal = {
+                opened += it
+                it != "tiktok://user?unique_id=@airdropja"
+            },
+        )
+
+        compose.onNodeWithText("Tiktok: @airdropja").performScrollTo()
+        compose.onNodeWithText("Tiktok: @airdropja").performClick()
+
+        compose.runOnIdle {
+            assertEquals(
+                listOf(
+                    "tiktok://user?unique_id=@airdropja",
+                    "https://www.tiktok.com/@airdropja",
                 ),
                 opened,
             )

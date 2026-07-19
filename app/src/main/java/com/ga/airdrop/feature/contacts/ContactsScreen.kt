@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -57,11 +58,11 @@ import kotlinx.coroutines.delay
  * FigmaContactsViewController + RN ContactsView.
  *
  * Swift is the implementation-precedence guide where it conflicts with Figma:
- * the Figma node still includes a Live Chat row, groups Contact/WhatsApp/Email
- * in one card, and shows a Business Hours copy affordance. The Swift app ships
- * separate section cards, 20pt card gaps, 15pt card padding, no Live Chat row,
- * and no Business Hours copy button, so Android follows Swift for those
- * conflicts.
+ * Swift groups Contact/WhatsApp/Email in separate section cards (20pt gaps,
+ * 15pt padding) and drops the Business Hours copy affordance, so Android
+ * follows Swift for those. Swift's current build (makeLiveChatCard) leads with
+ * a Live Chat card routing to the Trengo web chat (LiveAgentChatView), and its
+ * TikTok social row is app-first (tiktok://…) with a web fallback — both mirrored here.
  */
 @Composable
 fun ContactsScreen(
@@ -108,6 +109,10 @@ fun ContactsScreen(
                 // Swift contentStack.spacing = 20.
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
+                // Swift makeLiveChatCard — first card, taps into the Trengo
+                // live-agent web chat (LiveAgentChatView).
+                LiveChatCard(onOpen = { onNavigate(Routes.LIVE_CHAT) })
+
                 SectionCard(
                     modifier = Modifier.testTag("contacts-card-contact-number"),
                     iconRes = R.drawable.ic_contact_number,
@@ -211,10 +216,12 @@ fun ContactsScreen(
                             title = "Tiktok: ",
                             handle = "@airdropja",
                             url = "https://www.tiktok.com/@airdropja",
+                            // Swift/RN parity: try the TikTok app first, web fallback.
+                            appScheme = "tiktok://user?unique_id=@airdropja",
                         ),
                     )
                     socials.forEachIndexed { index, social ->
-                        SocialRow(entry = social, onOpen = { open(social.url) }, onCopy = ::copy)
+                        SocialRow(entry = social, onOpen = { openSocial(social, ::open) }, onCopy = ::copy)
                         if (index != socials.lastIndex) RowDivider()
                     }
                 }
@@ -267,7 +274,57 @@ private data class SocialEntry(
     val title: String,
     val handle: String,
     val url: String,
+    /** Swift SocialEntry.appScheme — try the native app first, then web. */
+    val appScheme: String? = null,
 )
+
+/** Swift social open: app-first when a scheme is declared, else the web URL. */
+private fun openSocial(entry: SocialEntry, open: (String) -> Boolean) {
+    val scheme = entry.appScheme
+    if (scheme != null && open(scheme)) return
+    open(entry.url)
+}
+
+/** Swift makeLiveChatCard — single tappable card routing to Live Agent Chat. */
+@Composable
+private fun LiveChatCard(onOpen: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Spacing.sm1))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+            .clickable(onClick = onOpen)
+            .padding(Spacing.sm1)
+            .heightIn(min = 34.dp)
+            .testTag("contacts-card-live-chat"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(
+                if (colors.isDark) R.drawable.ic_contacts_chat_dark else R.drawable.ic_contacts_chat_light,
+            ),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+        )
+        Text(
+            text = "Live Chat",
+            style = AirdropType.subtitle1,
+            color = colors.textDarkTitle,
+            modifier = Modifier.weight(1f),
+        )
+        Image(
+            painter = painterResource(R.drawable.ic_chevron),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier
+                .size(24.dp)
+                .rotate(-90f),
+        )
+    }
+}
 
 private fun openPhone(phone: String, open: (String) -> Boolean) {
     val digits = phone
