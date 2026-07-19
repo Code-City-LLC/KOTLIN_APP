@@ -18,6 +18,7 @@ import com.ga.airdrop.data.repo.UserRepository
 import com.ga.airdrop.data.model.AirCoinsStatus
 import com.ga.airdrop.data.model.AirdropUser
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
@@ -104,45 +105,55 @@ class HomeViewModel(
             sessionBoundary.apply(owner) {
                 _state.update { if (isPull) it.copy(refreshing = true) else it.copy(loading = true) }
             }
-            repository.currentUser().onSuccess { user ->
-                val userId = user.id
-                if (userId != null && !sessionBoundary.bindAccountId(owner, userId)) return@onSuccess
-                sessionBoundary.apply(owner) {
-                    _state.update {
-                        it.copy(
-                            firstName = user.firstName.orEmpty(),
-                            tierName = user.customerTierName.orEmpty(),
-                        )
+            // Speed pass (Kemar "app must be faster"): the three Home calls
+            // are independent — run them CONCURRENTLY instead of the old
+            // 3×RTT waterfall. Each result still commits under the session
+            // guard, so a mid-flight logout/relogin drops stale paints.
+            kotlinx.coroutines.coroutineScope {
+                val userDeferred = async { repository.currentUser() }
+                val coinsDeferred = async { repository.airCoinsStatus() }
+                val shortlistDeferred = async { repository.auctionProductsShortlist() }
+
+                userDeferred.await().onSuccess { user ->
+                    val userId = user.id
+                    if (userId != null && !sessionBoundary.bindAccountId(owner, userId)) {
+                        return@onSuccess
                     }
-                    SessionStore.updateForSession(owner) {
-                        it.copy(
-                            greeting = _state.value.greeting,
-                            firstName = user.firstName.orEmpty(),
-                            tierName = user.customerTierName.orEmpty(),
-                        )
-                    }
-                }
-            }
-            if (!sessionBoundary.isCurrent(owner)) return@launch
-            repository.airCoinsStatus().onSuccess { status ->
-                val label = (status.available ?: status.balance)?.toString().orEmpty()
-                sessionBoundary.apply(owner) {
-                    _state.update { it.copy(airCoins = label) }
-                    SessionStore.updateForSession(owner) { it.copy(airCoins = label) }
-                }
-            }
-            if (!sessionBoundary.isCurrent(owner)) return@launch
-            repository.auctionProductsShortlist()
-                .onSuccess { products ->
                     sessionBoundary.apply(owner) {
-                        _state.update { it.copy(auctionHighlights = products) }
+                        _state.update {
+                            it.copy(
+                                firstName = user.firstName.orEmpty(),
+                                tierName = user.customerTierName.orEmpty(),
+                            )
+                        }
+                        SessionStore.updateForSession(owner) {
+                            it.copy(
+                                greeting = _state.value.greeting,
+                                firstName = user.firstName.orEmpty(),
+                                tierName = user.customerTierName.orEmpty(),
+                            )
+                        }
                     }
                 }
-                .onFailure {
+                coinsDeferred.await().onSuccess { status ->
+                    val label = (status.available ?: status.balance)?.toString().orEmpty()
                     sessionBoundary.apply(owner) {
-                        _state.update { it.copy(auctionHighlights = emptyList()) }
+                        _state.update { it.copy(airCoins = label) }
+                        SessionStore.updateForSession(owner) { it.copy(airCoins = label) }
                     }
                 }
+                shortlistDeferred.await()
+                    .onSuccess { products ->
+                        sessionBoundary.apply(owner) {
+                            _state.update { it.copy(auctionHighlights = products) }
+                        }
+                    }
+                    .onFailure {
+                        sessionBoundary.apply(owner) {
+                            _state.update { it.copy(auctionHighlights = emptyList()) }
+                        }
+                    }
+            }
             sessionBoundary.apply(owner) {
                 _state.update { it.copy(loading = false, refreshing = false) }
             }

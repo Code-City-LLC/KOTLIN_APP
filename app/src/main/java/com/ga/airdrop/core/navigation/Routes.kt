@@ -32,7 +32,6 @@ object Routes {
     const val GOLD_PRIORITY = "goldPriority"
     const val NOTIFICATIONS = "notifications"
     const val AIRCOIN_HISTORY = "airCoinHistory"
-    const val AIRCOIN_HISTORY_DETAIL = "airCoinHistoryDetail"
 
     // Shipments drill-downs
     const val PACKAGES = "packages"

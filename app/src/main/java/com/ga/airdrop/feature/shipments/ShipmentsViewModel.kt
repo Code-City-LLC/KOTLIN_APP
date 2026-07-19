@@ -9,6 +9,7 @@ import com.ga.airdrop.feature.cart.DataCartServerGateway
 import com.ga.airdrop.feature.cart.PackageCartMutationCoordinator
 import java.util.Locale
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -72,23 +73,34 @@ class ShipmentsViewModel(
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            repo.exchangeRate().onSuccess { rate ->
-                com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
-                _state.update { it.copy(exchangeRate = rate) }
-            }
-            repo.summary().onSuccess { summary ->
-                _state.update { it.copy(summary = summary) }
-            }.onFailure { e ->
-                _state.update { it.copy(error = e.message) }
-            }
-            repo.packagesShortlist().onSuccess { packages ->
-                _state.update { it.copy(packages = packages.take(10)) }
-            }
-            repo.paymentsShortlist().onSuccess { payments ->
-                _state.update { it.copy(payments = payments.take(4)) }
-            }
-            repo.ordersShortlist().onSuccess { orders ->
-                _state.update { it.copy(orders = orders.take(6)) }
+            // Speed pass (Kemar "app must be faster"): the five hub calls
+            // were a 5×RTT waterfall; they are independent — fetch them
+            // concurrently and apply each as it lands.
+            kotlinx.coroutines.coroutineScope {
+                val rateD = async { repo.exchangeRate() }
+                val summaryD = async { repo.summary() }
+                val packagesD = async { repo.packagesShortlist() }
+                val paymentsD = async { repo.paymentsShortlist() }
+                val ordersD = async { repo.ordersShortlist() }
+
+                rateD.await().onSuccess { rate ->
+                    com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
+                    _state.update { it.copy(exchangeRate = rate) }
+                }
+                summaryD.await().onSuccess { summary ->
+                    _state.update { it.copy(summary = summary) }
+                }.onFailure { e ->
+                    _state.update { it.copy(error = e.message) }
+                }
+                packagesD.await().onSuccess { packages ->
+                    _state.update { it.copy(packages = packages.take(10)) }
+                }
+                paymentsD.await().onSuccess { payments ->
+                    _state.update { it.copy(payments = payments.take(4)) }
+                }
+                ordersD.await().onSuccess { orders ->
+                    _state.update { it.copy(orders = orders.take(6)) }
+                }
             }
             _state.update { it.copy(loading = false) }
         }
