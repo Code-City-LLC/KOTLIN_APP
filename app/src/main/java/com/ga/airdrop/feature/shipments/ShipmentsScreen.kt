@@ -144,8 +144,19 @@ fun ShipmentsScreen(
                         )
                     }
                     if (state.packages.isEmpty()) {
-                        if (state.loading) ShipmentsLoadingIndicator()
-                        else ShipmentsEmptyLabel("No packages found")
+                        when {
+                            state.loading -> ShipmentsLoadingIndicator()
+                            // Swift 89fbb11: per-section failure card, only
+                            // while the section has nothing loaded.
+                            state.packagesFailed -> Box(Modifier.padding(horizontal = Spacing.md)) {
+                                com.ga.airdrop.core.designsystem.components.LoadFailureCard(
+                                    message = "Unable to load packages. Check your connection and try again.",
+                                    onRetry = viewModel::refresh,
+                                    testTagPrefix = "shipments-packages-load-failure",
+                                )
+                            }
+                            else -> ShipmentsEmptyLabel("No packages found")
+                        }
                     } else {
                         LazyRow(
                             modifier = Modifier.testTag("shipments-packages-row"),
@@ -186,8 +197,16 @@ fun ShipmentsScreen(
                     }
                     if (state.payments.isEmpty()) {
                         Box(Modifier.padding(horizontal = Spacing.md)) {
-                            if (state.loading) ShipmentsLoadingIndicator()
-                            else ShipmentsEmptyLabel("No payments found")
+                            when {
+                                state.loading -> ShipmentsLoadingIndicator()
+                                state.paymentsFailed ->
+                                    com.ga.airdrop.core.designsystem.components.LoadFailureCard(
+                                        message = "Unable to load payments. Check your connection and try again.",
+                                        onRetry = viewModel::refresh,
+                                        testTagPrefix = "shipments-payments-load-failure",
+                                    )
+                                else -> ShipmentsEmptyLabel("No payments found")
+                            }
                         }
                     } else {
                         LazyRow(
@@ -218,8 +237,17 @@ fun ShipmentsScreen(
                         )
                     }
                     if (state.orders.isEmpty()) {
-                        if (state.loading) ShipmentsLoadingIndicator()
-                        else Box(Modifier.padding(horizontal = Spacing.md)) { NoOrdersCard() }
+                        when {
+                            state.loading -> ShipmentsLoadingIndicator()
+                            state.ordersFailed -> Box(Modifier.padding(horizontal = Spacing.md)) {
+                                com.ga.airdrop.core.designsystem.components.LoadFailureCard(
+                                    message = "Unable to load orders. Check your connection and try again.",
+                                    onRetry = viewModel::refresh,
+                                    testTagPrefix = "shipments-orders-load-failure",
+                                )
+                            }
+                            else -> Box(Modifier.padding(horizontal = Spacing.md)) { NoOrdersCard() }
+                        }
                     } else {
                         LazyRow(
                             modifier = Modifier.testTag("shipments-orders-row"),

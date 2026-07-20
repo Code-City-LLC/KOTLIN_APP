@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
-import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
@@ -115,11 +114,20 @@ internal fun NotificationsScreenContent(
 
         when {
             state.loading && !state.loadedOnce -> LoadingState()
+            // Load failed with nothing cached → All|Unread filter stays, the
+            // shared failure card sits below it (Swift 89fbb11). A failure
+            // with cached rows falls through to the list — cached rows win.
             state.error != null && state.items.isEmpty() ->
-                ErrorState(message = state.error!!, onRetry = onRefresh)
+                LoadFailureBelowFilter(
+                    unreadOnly = state.showUnreadOnly,
+                    onSetUnreadOnly = onSetUnreadOnly,
+                    onRetry = onRefresh,
+                )
             // Genuinely no notifications (All mode) → Figma empty-state card.
             // Under the Unread filter, keep the segment + inline empty label.
-            state.items.isEmpty() && state.loadedOnce && !state.showUnreadOnly ->
+            // Not while loading: a Retry/refetch shows the list spinner, not
+            // a premature "no notifications" flash.
+            state.items.isEmpty() && state.loadedOnce && !state.showUnreadOnly && !state.loading ->
                 EmptyState(onOpenSettings = onOpenSettings)
             else -> NotificationList(
                 items = state.visibleItems,
@@ -145,30 +153,21 @@ private fun LoadingState() {
     }
 }
 
+/** Swift 89fbb11: refresh failure with an empty inbox — filter + shared card. */
 @Composable
-private fun ErrorState(message: String, onRetry: () -> Unit) {
-    val colors = AirdropTheme.colors
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(Spacing.md),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "Unable to load notifications",
-            style = AirdropType.title2,
-            color = colors.textDarkTitle,
-            textAlign = TextAlign.Center,
+private fun LoadFailureBelowFilter(
+    unreadOnly: Boolean,
+    onSetUnreadOnly: (Boolean) -> Unit,
+    onRetry: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        NotificationsFilterSegment(unreadOnly = unreadOnly, onChange = onSetUnreadOnly)
+        com.ga.airdrop.core.designsystem.components.LoadFailureCard(
+            message = "Unable to load notifications. Check your connection and try again.",
+            onRetry = onRetry,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.md),
+            testTagPrefix = "notifications-load-failure",
         )
-        Text(
-            text = message,
-            style = AirdropType.body2,
-            color = colors.textDescription,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.md),
-        )
-        OutlineButton(text = "Try Again", onClick = onRetry)
     }
 }
 

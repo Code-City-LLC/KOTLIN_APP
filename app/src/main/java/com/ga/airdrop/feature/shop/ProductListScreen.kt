@@ -150,12 +150,22 @@ private fun ProductListScreen(
         ) {
             if (!state.loading && state.products.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(Spacing.md), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = emptyText,
-                        style = AirdropType.body1,
-                        color = colors.textDescription,
-                        textAlign = TextAlign.Center,
-                    )
+                    if (state.failed) {
+                        // Swift 89fbb11: failure card only when nothing is
+                        // loaded; retry re-enters the loading/skeleton state.
+                        com.ga.airdrop.core.designsystem.components.LoadFailureCard(
+                            message = "Unable to load products. Check your connection and try again.",
+                            onRetry = { viewModel.loadFirstPage() },
+                            testTagPrefix = "product-list-load-failure",
+                        )
+                    } else {
+                        Text(
+                            text = emptyText,
+                            style = AirdropType.body1,
+                            color = colors.textDescription,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 }
             } else {
                 LazyVerticalGrid(

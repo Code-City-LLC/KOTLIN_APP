@@ -17,6 +17,8 @@ data class ProductListUiState(
     val hasMore: Boolean = true,
     val sort: ShopSort = ShopSort.ALL,
     val showSortSheet: Boolean = false,
+    /** Last fetch failed — drives the shared LoadFailureCard when empty. */
+    val failed: Boolean = false,
 )
 
 /**
@@ -99,7 +101,7 @@ open class ProductListViewModel(
 
     private fun fetchPage(page: Int, append: Boolean, refreshing: Boolean) {
         loadJob = viewModelScope.launch {
-            _state.update { it.copy(loading = true, refreshing = refreshing) }
+            _state.update { it.copy(loading = true, refreshing = refreshing, failed = false) }
             // RECONCILE: GET /products (auction) or GET /featured-products
             // (featured) — page, per_page=10, search?, order=created_at,
             // direction=desc, in_stock=1 (Swift AuctionView ProductFilters).
@@ -108,23 +110,44 @@ open class ProductListViewModel(
             } else {
                 products.auctionProducts(page = page, perPage = PER_PAGE, search = searchQuery())
             }
-            val fetched = result.getOrElse { emptyList() }
-            currentPage = page
-            _state.update {
-                it.copy(
-                    // Dedupe by id so repeated server rows can't break
-                    // LazyGrid keys across pages.
-                    products = if (append) {
-                        (it.products + fetched).distinctBy { p -> p.id }
-                    } else {
-                        fetched.distinctBy { p -> p.id }
-                    },
-                    loading = false,
-                    refreshing = false,
-                    // Swift: no more pages when a fetch returns < perPage.
-                    hasMore = fetched.size >= PER_PAGE,
-                )
-            }
+            result
+                .onSuccess { fetched ->
+                    currentPage = page
+                    _state.update {
+                        it.copy(
+                            // Dedupe by id so repeated server rows can't break
+                            // LazyGrid keys across pages.
+                            products = if (append) {
+                                (it.products + fetched).distinctBy { p -> p.id }
+                            } else {
+                                fetched.distinctBy { p -> p.id }
+                            },
+                            loading = false,
+                            refreshing = false,
+                            failed = false,
+                            // Swift: no more pages when a fetch returns < perPage.
+                            hasMore = fetched.size >= PER_PAGE,
+                        )
+                    }
+                }
+                .onFailure {
+                    // Swift 89fbb11 applyLoadFailure: a failed fetch must NOT
+                    // clear already-loaded pages (the old getOrElse-emptyList
+                    // wiped the grid on a reset failure). Loaded rows win; the
+                    // empty-grid case surfaces the shared failure card.
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            refreshing = false,
+                            failed = true,
+                            // A failed append stops infinite scroll from
+                            // re-firing into the same error (pre-change
+                            // behavior); a failed reset keeps the gate open
+                            // for the Retry reload.
+                            hasMore = if (append) false else it.hasMore,
+                        )
+                    }
+                }
         }
     }
 }

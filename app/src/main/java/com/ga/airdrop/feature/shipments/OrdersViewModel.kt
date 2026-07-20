@@ -15,6 +15,8 @@ data class OrdersUiState(
     val loadingMore: Boolean = false,
     val hasMorePages: Boolean = true,
     val searchText: String = "",
+    /** Last load failed — shared failure card shows only when items empty. */
+    val error: String? = null,
 )
 
 /**
@@ -67,6 +69,8 @@ class OrdersViewModel(
                 it.copy(
                     loading = reset,
                     loadingMore = !reset,
+                    // Retry re-enters loading cleanly — no stale failure card.
+                    error = null,
                     // A failed reset load must not leave a stale end-of-list
                     // gate (FuchsiaTower Pass-3b C1; matches PackagesViewModel).
                     hasMorePages = if (reset) true else it.hasMorePages,
@@ -93,11 +97,17 @@ class OrdersViewModel(
                     }
                     currentPage = requestedPage + 1
                 }
-                .onFailure {
-                    // Swift parity: list-load failures fall through to the
-                    // empty/list state (the old `error` write was never read
-                    // by OrdersScreen — FuchsiaTower Pass-3 C1).
-                    _state.update { it.copy(loading = false, loadingMore = false) }
+                .onFailure { err ->
+                    // Swift 89fbb11: record the failure so OrdersScreen can
+                    // show the shared LoadFailureCard — but only when no rows
+                    // are loaded; cached rows always win over the card.
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            loadingMore = false,
+                            error = err.message ?: "Unable to load orders.",
+                        )
+                    }
                 }
         }
     }

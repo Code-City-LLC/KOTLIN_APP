@@ -102,6 +102,17 @@ fun OrdersScreen(
             }
             if (state.loading && state.items.isEmpty()) {
                 item(key = "loading") { ShipmentsLoadingIndicator() }
+            } else if (state.items.isEmpty() && state.error != null) {
+                // Swift 89fbb11: failure card only for a failed load with no
+                // rows; the genuine-empty copy below stays for real empties.
+                item(key = "loadFailure") {
+                    com.ga.airdrop.core.designsystem.components.LoadFailureCard(
+                        message = "Unable to load orders. Check your connection and try again.",
+                        onRetry = viewModel::refresh,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                        testTagPrefix = "orders-load-failure",
+                    )
+                }
             } else if (state.items.isEmpty()) {
                 item(key = "empty") { ShipmentsEmptyLabel("No orders found") }
             } else {

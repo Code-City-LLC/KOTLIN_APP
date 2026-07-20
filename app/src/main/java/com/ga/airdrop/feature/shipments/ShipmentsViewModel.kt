@@ -26,6 +26,12 @@ data class ShipmentsUiState(
     val payments: List<ShipmentPayment> = emptyList(),
     val orders: List<ShipmentOrder> = emptyList(),
     val error: String? = null,
+    // Per-section shortlist failures (Swift 89fbb11): each drives the shared
+    // LoadFailureCard only while that section has nothing loaded — cached
+    // rows always win over the card.
+    val packagesFailed: Boolean = false,
+    val paymentsFailed: Boolean = false,
+    val ordersFailed: Boolean = false,
 )
 
 data class QuickTrackRecent(
@@ -72,7 +78,15 @@ class ShipmentsViewModel(
     fun refresh() {
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            _state.update {
+                it.copy(
+                    loading = true,
+                    error = null,
+                    packagesFailed = false,
+                    paymentsFailed = false,
+                    ordersFailed = false,
+                )
+            }
             // Speed pass (Kemar "app must be faster"): the five hub calls
             // were a 5×RTT waterfall; they are independent — fetch them
             // concurrently and apply each as it lands.
@@ -93,13 +107,21 @@ class ShipmentsViewModel(
                     _state.update { it.copy(error = e.message) }
                 }
                 packagesD.await().onSuccess { packages ->
-                    _state.update { it.copy(packages = packages.take(10)) }
+                    _state.update { it.copy(packages = packages.take(10), packagesFailed = false) }
+                }.onFailure {
+                    // Keep any cached rows — the flag only surfaces the
+                    // failure card when the section is empty.
+                    _state.update { it.copy(packagesFailed = true) }
                 }
                 paymentsD.await().onSuccess { payments ->
-                    _state.update { it.copy(payments = payments.take(4)) }
+                    _state.update { it.copy(payments = payments.take(4), paymentsFailed = false) }
+                }.onFailure {
+                    _state.update { it.copy(paymentsFailed = true) }
                 }
                 ordersD.await().onSuccess { orders ->
-                    _state.update { it.copy(orders = orders.take(6)) }
+                    _state.update { it.copy(orders = orders.take(6), ordersFailed = false) }
+                }.onFailure {
+                    _state.update { it.copy(ordersFailed = true) }
                 }
             }
             _state.update { it.copy(loading = false) }
