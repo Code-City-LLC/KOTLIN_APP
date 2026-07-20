@@ -1,24 +1,43 @@
 package com.ga.airdrop.feature.delivery
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ga.airdrop.BuildConfig
+import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.AirdropType
 import org.json.JSONObject
 import java.util.Locale
 
@@ -28,19 +47,17 @@ import java.util.Locale
  *
  * Renders the SAME Google Maps picker the Laravel web app and the Swift app
  * use: `GET {WEB_BASE}/api/v1/delivery/picker?embed=ios` inside a WebView. The
- * server injects the Google Maps JS with its own key (`GoogleMapsService`) —
- * the Static Maps / Android-SDK Maps products are disabled on the GCP project
- * and we can't enable them, but the **JS Maps API works from an airdropja.com
- * origin**, which a WebView loading that URL has. `embed=ios` hides the page's
- * own search / GPS / selected-card chrome so the native screen keeps its
- * controls and only the map fills the card.
+ * server injects the Google Maps JS with its own key — the JS Maps API works
+ * from an airdropja.com origin (which a WebView loading that URL has), even
+ * though Static Maps / Android-SDK Maps are disabled on the GCP project.
+ * `embed=ios` hides the page's own search / GPS / selected-card chrome so only
+ * the map fills the card; the native screen keeps its controls.
  *
  * Bridge: the page posts `{event:'location-selected', latitude, longitude,
- * address}` to `window.webkit.messageHandlers.deliveryPicker` (its iOS host
- * bridge). We shim that object to an Android `@JavascriptInterface` after page
- * load, so a map tap / marker drag flows to [onPointPicked] (native
- * reverse-geocode + fee validation). Native selections push back to the page
- * via its `window.moveMarkerTo(lat,lng)` hook.
+ * address}` to `window.webkit.messageHandlers.deliveryPicker` (its iOS host).
+ * We shim that object to an Android `@JavascriptInterface` after page load, so
+ * a map tap / marker drag flows to [onPointPicked] (native reverse-geocode +
+ * fee validation). Native selections push back via `window.moveMarkerTo`.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -59,12 +76,28 @@ fun DeliveryMapView(
     // One-shot self-heal for a transient main-frame load timeout (the Maps JS
     // payload is large; a flaky network can ERR_TIMED_OUT the first attempt).
     val loadRetries = remember { intArrayOf(0) }
+    // Read the CURRENT marker inside the once-built WebViewClient — capturing
+    // the composable param would freeze it at the first frame (always null on a
+    // fresh VM) and lose the pin after a reload.
+    val latestMarker = remember { arrayOfNulls<Pair<Double, Double>>(1) }
+    latestMarker[0] = marker
+    // Drop bridge posts that land after the card leaves the composition.
+    val disposed = remember { booleanArrayOf(false) }
+    // Rebuild the WebView after a renderer crash instead of leaving a dead one.
+    var crashKey by remember { mutableIntStateOf(0) }
+    var loadFailed by remember { mutableStateOf(false) }
+    val expectedHost = remember {
+        runCatching { Uri.parse(BuildConfig.WEB_BASE_URL).host }.getOrNull()
+    }
 
-    val webView = remember {
+    val webView = remember(crashKey) {
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
+        loadRetries[0] = 0
         WebView(context).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
             @Suppress("DEPRECATION")
             settings.setGeolocationEnabled(false)
             isVerticalScrollBarEnabled = false
@@ -79,6 +112,7 @@ fun DeliveryMapView(
                         val lng = obj.optDouble("longitude", Double.NaN)
                         if (lat.isNaN() || lng.isNaN()) return
                         mainHandler.post {
+                            if (disposed[0]) return@post
                             lastPushed[0] = lat
                             lastPushed[1] = lng
                             onPointPicked?.invoke(lat, lng)
@@ -88,82 +122,139 @@ fun DeliveryMapView(
                 "AndroidDeliveryPicker",
             )
             webViewClient = object : WebViewClient() {
+                // Keep the WebView pinned to our own origin — the JS bridge must
+                // never be exposed to a redirected/injected off-host page.
+                override fun shouldOverrideUrlLoading(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                ): Boolean {
+                    val host = request?.url?.host ?: return false
+                    return host != expectedHost
+                }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
+                    loadRetries[0] = 0
+                    loadFailed = false
                     view?.evaluateJavascript(BRIDGE_SHIM_JS, null)
-                    // The card is 0px tall in the compose pass that triggers
-                    // the load, so Google Maps can initialise into a zero-size
-                    // container and paint blank. Fire a few resizes once we're
-                    // laid out so the map re-reads its size and repaints.
                     view?.evaluateJavascript(RESIZE_NUDGE_JS, null)
-                    // Re-assert the current marker after a (re)load.
-                    val m = marker
-                    if (m != null) {
-                        view?.evaluateJavascript(moveMarkerJs(m.first, m.second), null)
+                    // Re-assert the CURRENT marker (not a stale captured one) and
+                    // reset the push-guard so update{} re-pushes after a reload.
+                    lastPushed[0] = Double.NaN
+                    lastPushed[1] = Double.NaN
+                    latestMarker[0]?.let { (lat, lng) ->
+                        lastPushed[0] = lat
+                        lastPushed[1] = lng
+                        view?.evaluateJavascript(moveMarkerJs(lat, lng), null)
                     }
                 }
 
                 override fun onReceivedError(
                     view: WebView?,
-                    request: android.webkit.WebResourceRequest?,
-                    error: android.webkit.WebResourceError?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?,
                 ) {
-                    if (request?.isForMainFrame == true && loadRetries[0] < 2) {
+                    if (request?.isForMainFrame != true) return
+                    if (loadRetries[0] < 2) {
                         loadRetries[0]++
                         view?.postDelayed({ view.reload() }, 800)
+                    } else {
+                        loadFailed = true
                     }
                 }
 
                 override fun onRenderProcessGone(
                     view: WebView?,
-                    detail: android.webkit.RenderProcessGoneDetail?,
+                    detail: RenderProcessGoneDetail?,
                 ): Boolean {
-                    // Survive a renderer crash (emulator WebGL can OOM) instead
-                    // of letting it kill the host Activity. Detach the dead view.
-                    (view?.parent as? android.view.ViewGroup)?.removeView(view)
-                    view?.destroy()
+                    // Survive a renderer crash (emulator WebGL can OOM) without
+                    // killing the host Activity, and rebuild a fresh WebView.
+                    (view?.parent as? ViewGroup)?.removeView(view)
+                    mainHandler.post { if (!disposed[0]) crashKey++ }
                     return true
                 }
             }
         }
     }
 
-    // Load once. Initial centre comes from the current marker (zoom 15), else
-    // the page falls back to a Jamaica-wide view.
+    // Mark disposed only when the card truly leaves (not on a crash rebuild).
+    DisposableEffect(Unit) {
+        disposed[0] = false
+        onDispose { disposed[0] = true }
+    }
+
+    // Load once per WebView instance. Initial centre comes from the current
+    // marker (zoom 15); with none the page falls back to a Jamaica-wide view.
     DisposableEffect(webView) {
         val base = "${BuildConfig.WEB_BASE_URL}/api/v1/delivery/picker?embed=ios"
-        val url = marker?.let { (lat, lng) -> "$base&lat=${fmt(lat)}&lng=${fmt(lng)}" } ?: base
-        marker?.let { lastPushed[0] = it.first; lastPushed[1] = it.second }
-        // Load AFTER the view is laid out — if Google Maps initialises into a
-        // 0-height card it paints blank, so wait until the WebView has real size.
+        val m = latestMarker[0]
+        val url = m?.let { (lat, lng) -> "$base&lat=${fmt(lat)}&lng=${fmt(lng)}" } ?: base
+        m?.let { lastPushed[0] = it.first; lastPushed[1] = it.second }
+        // Load AFTER layout so Maps doesn't initialise into a 0-height card.
         webView.post { webView.loadUrl(url) }
         onDispose { webView.destroy() }
     }
 
-    AndroidView(
-        factory = { webView },
+    Box(
         modifier = modifier
             .fillMaxWidth()
             // Swift buildMapCard — 201pt tall, rounded 5, NO border.
             .height(201.dp)
             .clip(RoundedCornerShape(5.dp))
             .testTag("delivery-map"),
-        update = { view ->
-            // Mirror native selections (search / use-current-location) onto the
-            // page — but not the ones the page itself just reported.
-            val m = marker ?: return@AndroidView
-            if (m.first != lastPushed[0] || m.second != lastPushed[1]) {
-                lastPushed[0] = m.first
-                lastPushed[1] = m.second
-                view.evaluateJavascript(moveMarkerJs(m.first, m.second), null)
+    ) {
+        AndroidView(
+            factory = { webView },
+            modifier = Modifier.fillMaxSize(),
+            update = { view ->
+                val m = marker
+                if (m == null) {
+                    // De-selected: hide the page pin if we had pushed one.
+                    if (!lastPushed[0].isNaN()) {
+                        lastPushed[0] = Double.NaN
+                        lastPushed[1] = Double.NaN
+                        view.evaluateJavascript(CLEAR_MARKER_JS, null)
+                    }
+                } else if (m.first != lastPushed[0] || m.second != lastPushed[1]) {
+                    // Mirror native selections (search / use-current-location)
+                    // onto the page — but not the ones the page itself reported.
+                    lastPushed[0] = m.first
+                    lastPushed[1] = m.second
+                    view.evaluateJavascript(moveMarkerJs(m.first, m.second), null)
+                }
+            },
+        )
+        if (loadFailed) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(AirdropTheme.colors.gray200)
+                    .clickable {
+                        loadRetries[0] = 0
+                        loadFailed = false
+                        crashKey++
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Map unavailable — tap to retry",
+                    style = AirdropType.body3,
+                    color = AirdropTheme.colors.textDescription,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                )
             }
-        },
-    )
+        }
+    }
 }
 
 private fun fmt(v: Double): String = String.format(Locale.US, "%.6f", v)
 
 private fun moveMarkerJs(lat: Double, lng: Double): String =
     "window.moveMarkerTo && window.moveMarkerTo(${fmt(lat)}, ${fmt(lng)});"
+
+/** Hide the page's marker when the app de-selects the delivery point. */
+private const val CLEAR_MARKER_JS =
+    "if (window.marker && window.marker.setVisible) { window.marker.setVisible(false); }"
 
 /**
  * The picker's `#map` uses `height:100%`, whose percentage chain collapses to
@@ -195,8 +286,7 @@ private const val RESIZE_NUDGE_JS = """
 /**
  * Shim the page's iOS host bridge onto our Android `@JavascriptInterface`, so
  * the unmodified Laravel picker's `postToNative(...)` reaches Kotlin. Injected
- * after each page load (the page only calls it on user interaction, well after
- * load).
+ * after each page load (the page only calls it on user interaction).
  */
 private const val BRIDGE_SHIM_JS = """
 (function(){
