@@ -16,7 +16,6 @@ biometric = "1.1.0"
 cameraX = "1.5.3"
 playServicesLocation = "21.3.0"
 zxing = "3.5.3"
-osmdroid = "6.1.20"
 firebaseBom = "33.13.0"
 googleServices = "4.4.2"
 junit = "4.13.2"
@@ -54,7 +53,6 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coil" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
-osmdroid-android = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

@@ -75,8 +75,8 @@ import kotlinx.coroutines.withContext
  * Information and USD to Order Summary without dispatching payment.
  *
  * LOCATION: "Use Current Location" is fully wired (runtime permission +
- * FusedLocationProvider); the interactive map is a real OpenStreetMap
- * (osmdroid, keyless) — tap to pick a point (see [DeliveryMapView]).
+ * FusedLocationProvider); the interactive map is Laravel's Google Maps
+ * picker (WebView, /api/v1/delivery/picker) — tap to pick (see [DeliveryMapView]).
  */
 @Composable
 fun DeliveryMethodScreen(

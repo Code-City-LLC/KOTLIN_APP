@@ -166,11 +166,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
     implementation(libs.zxing.core)
-    // Delivery map — OpenStreetMap raster tiles (keyless; no Google Cloud
-    // dependency, since Static Maps / Android SDK enablement on the project
-    // is not available to us). Swap to Google Maps Compose later behind the
-    // same DeliveryMapView signature once the GCP key is provisioned for it.
-    implementation(libs.osmdroid.android)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
