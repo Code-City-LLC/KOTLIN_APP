@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -148,7 +149,7 @@ fun ContactsScreen(
                     title = "Location",
                 ) {
                     val addresses = listOf(
-                        "Unit #1, Toma Place, 9-11 Phoenix Avenue, Kingston 10",
+                        "Unit 19 Pristine Plaza, 15 Eastwood Park Rd, Kingston, Jamaica",
                         "Unit #14, Annex Complex, Fairview Shopping Center, Montego Bay",
                         "Unit 8, Beckford Plaza, 33-35 Beckford Street, Savanna La Mar, Westmoreland",
                     )
@@ -172,7 +173,7 @@ fun ContactsScreen(
                 ) {
                     Text(
                         text = hoursText,
-                        style = AirdropType.subtitle1,
+                        style = AirdropType.body1,
                         color = colors.iconSelected,
                     )
                 }
@@ -378,7 +379,7 @@ private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Un
     ) {
         Text(
             text = text,
-            style = AirdropType.subtitle1,
+            style = AirdropType.body1,
             color = colors.iconSelected,
             modifier = Modifier
                 .weight(1f)
@@ -413,14 +414,19 @@ private fun SocialRow(entry: SocialEntry, onOpen: () -> Unit, onCopy: (String) -
             )
             Text(
                 text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = colors.textDarkTitle)) {
+                    withStyle(
+                        SpanStyle(
+                            color = colors.textDarkTitle,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                    ) {
                         append(entry.title)
                     }
                     withStyle(SpanStyle(color = colors.iconSelected)) {
                         append(entry.handle)
                     }
                 },
-                style = AirdropType.subtitle1,
+                style = AirdropType.body1,
             )
         }
         CopyButton(entry.handle, onCopy)

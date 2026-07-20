@@ -125,14 +125,14 @@ fun ShopInnerHeader(
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(R.drawable.ic_arrow_back_figma),
+                    // Unified app back arrow (Kemar 2026-07-20): the Swift-equivalent
+                    // left chevron, consistent with every other header — not the
+                    // tailed arrow glyph.
+                    painter = painterResource(R.drawable.ic_more2_back_chevron),
                     contentDescription = "Back",
                     colorFilter = ColorFilter.tint(colors.iconSelected),
                     modifier = Modifier
-                        // Live Figma My Cart 40008798:29430: the 24dp
-                        // control contains an 18x15 glyph; never scale the
-                        // glyph itself to the full touch frame.
-                        .size(width = 18.dp, height = 15.dp)
+                        .size(24.dp)
                         .testTag(ShopInnerHeaderTags.BACK_GLYPH),
                 )
             }

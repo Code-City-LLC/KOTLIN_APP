@@ -169,6 +169,12 @@ class GoldPriorityViewModel(
             val publicationOwner = continuedRequestOwner(confirmationOwner)?.session ?: return@launch
             val confirmed = confirmation.getOrNull()
             if (confirmed?.currentTier?.equals(requestedTierCode, ignoreCase = true) == true) {
+                // Mirror Swift FigmaGoldPriorityViewController.tierChangeConfirmed →
+                // UserStateCache.applyCustomerTier: push the confirmed tier into the
+                // shared session header so the Home tab chip updates immediately,
+                // instead of showing the pre-change tier until relaunch (the
+                // in-session staleness bug — backend/API were always correct).
+                com.ga.airdrop.core.session.SessionStore.updateForSession(publicationOwner) { it.copy(tierName = targetName) }
                 loadTierDataNow(
                     owner = publicationOwner,
                     prefetchedTier = confirmed,

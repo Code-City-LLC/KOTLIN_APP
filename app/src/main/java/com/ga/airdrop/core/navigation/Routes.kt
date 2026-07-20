@@ -62,6 +62,7 @@ object Routes {
     const val DOCUMENTS = "documents"
     const val NOTIFICATION_SETTINGS = "notificationSettings"
     const val BACKGROUNDS = "backgrounds"
+    const val ACTIVE_SESSIONS = "activeSessions"
     const val REFER_A_FRIEND = "referAFriend"
     const val INVITE_FRIEND = "inviteFriend"
     const val REFERRED_FRIENDS = "referredFriends"

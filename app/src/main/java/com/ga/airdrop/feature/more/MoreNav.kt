@@ -49,6 +49,9 @@ fun NavGraphBuilder.moreGraph(navController: NavHostController) {
     composable(Routes.BACKGROUNDS) {
         BackgroundImagesScreen(onBack = { navController.popBackStack() })
     }
+    composable(Routes.ACTIVE_SESSIONS) {
+        ActiveSessionsScreen(onBack = { navController.popBackStack() })
+    }
     composable(Routes.PAYMENT_METHODS) {
         PaymentMethodsScreen(
             onBack = { navController.popBackStack() },

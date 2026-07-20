@@ -34,6 +34,7 @@ import com.ga.airdrop.feature.more.moreGraph
 import com.ga.airdrop.feature.more2.more2Graph
 import com.ga.airdrop.feature.shipments.shipmentsGraph
 import com.ga.airdrop.feature.shop.shopGraph
+import kotlinx.coroutines.launch
 
 /** Routes where a null bearer is expected — exempt from reactive logout. */
 private val AUTH_GRAPH_ROUTES = setOf(
@@ -44,6 +45,13 @@ private val AUTH_GRAPH_ROUTES = setOf(
     Routes.SIGN_UP,
     Routes.FORGOT_PASSWORD,
     Routes.REGISTRATION_SUCCESS,
+)
+
+/** Stripe return-pipeline routes; the resume reconciler must not re-enter them. */
+private val PAYMENT_ROUTES = setOf(
+    Routes.PAYMENT_RETURN,
+    Routes.PAYMENT_SUCCESS,
+    Routes.PAYMENT_CANCELLED,
 )
 
 /**
@@ -108,6 +116,68 @@ fun AppRoot(
                 launchSingleTop = true
             }
         }
+    }
+
+    // Foreground checkout reconciliation (Kemar: payment-pending loop).
+    // On each real resume with a persisted pending session, VERIFY IT SILENTLY
+    // — no navigation. PaymentReturnViewModel.verify() commits a paid result
+    // (durably clears the paid cart rows + the pending record) and releases a
+    // terminal-not-paid one; only a genuinely PAID outcome surfaces UI, routing
+    // to Shipments so the now-paid order is visible. A still-pending/unconfirmed
+    // result does nothing and is simply re-checked on the next resume, so a
+    // late/async settlement is never missed AND the user is never repeatedly
+    // yanked to a verifier. The old trap (stuck on Order Summary) is already
+    // handled by onOrderSummaryBack() + the "Go to Shipments" escape, so the
+    // reconciler no longer needs to navigate on a non-paid outcome. The happy
+    // path (real payment-success deep link) is captured into PushDeepLink.pending
+    // before ON_RESUME, so the pending-push effect wins and we defer.
+    val reconcileScope = androidx.compose.runtime.rememberCoroutineScope()
+    val paymentReconciler = androidx.compose.runtime.remember {
+        com.ga.airdrop.feature.cart.PaymentReturnViewModel()
+    }
+    val reconcileInFlight = androidx.compose.runtime.remember {
+        java.util.concurrent.atomic.AtomicBoolean(false)
+    }
+    val paymentLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(paymentLifecycleOwner, navController, navigationUnlocked) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event != androidx.lifecycle.Lifecycle.Event.ON_RESUME) return@LifecycleEventObserver
+            if (!navigationUnlocked) return@LifecycleEventObserver
+            if (com.ga.airdrop.core.push.PushDeepLink.pending.value != null) return@LifecycleEventObserver
+            val activeRoute = navController.currentDestination?.route
+            if (activeRoute == null ||
+                activeRoute in AUTH_GRAPH_ROUTES ||
+                activeRoute in PAYMENT_ROUTES
+            ) {
+                return@LifecycleEventObserver
+            }
+            val sessionId = com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary.capture()
+                ?.let { com.ga.airdrop.feature.cart.CheckoutFlowStore.pending(it)?.checkoutSessionId }
+                ?: return@LifecycleEventObserver
+            // One verify at a time (overlapping resumes must not double-commit).
+            if (!reconcileInFlight.compareAndSet(false, true)) return@LifecycleEventObserver
+            reconcileScope.launch {
+                try {
+                    val result = paymentReconciler.verify(sessionId)
+                    if (result is com.ga.airdrop.feature.cart.PaymentReturnResult.Success) {
+                        val route = navController.currentDestination?.route
+                        if (route != null &&
+                            route !in AUTH_GRAPH_ROUTES &&
+                            route !in PAYMENT_ROUTES
+                        ) {
+                            navController.navigate(Routes.SHIPMENTS) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                } finally {
+                    reconcileInFlight.set(false)
+                }
+            }
+        }
+        paymentLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { paymentLifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Box(

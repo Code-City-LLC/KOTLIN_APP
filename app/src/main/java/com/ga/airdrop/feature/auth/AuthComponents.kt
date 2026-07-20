@@ -77,7 +77,8 @@ fun AuthDetailHeader(
                 .padding(horizontal = Spacing.md, vertical = 4.dp),
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_arrow),
+                // Unified back arrow — Swift left chevron (was the tailed ic_arrow).
+                painter = painterResource(R.drawable.ic_more2_back_chevron),
                 contentDescription = "Back",
                 colorFilter = ColorFilter.tint(colors.textDarkTitle),
                 modifier = Modifier

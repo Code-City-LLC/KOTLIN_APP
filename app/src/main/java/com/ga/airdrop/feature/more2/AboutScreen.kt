@@ -296,13 +296,18 @@ private fun AboutRow(
     val colors = AirdropTheme.colors
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val borderColor = when {
-        pressHighlight && isPressed -> colors.orangeMain.copy(
-            alpha = if (colors.isDark) 0.48f else 0.42f,
-        )
-        leadingIcon != null -> colors.cardHairline
-        else -> colors.iconShape
-    }
+    val restingBorder = if (leadingIcon != null) colors.cardHairline else colors.iconShape
+    // Kemar: the orange press outline lingers on release (snap in ~90ms, fade
+    // out ~380ms) instead of vanishing the instant the finger lifts.
+    val borderColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (pressHighlight && isPressed) {
+            colors.orangeMain.copy(alpha = if (colors.isDark) 0.48f else 0.42f)
+        } else {
+            restingBorder
+        },
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = if (isPressed) 90 else 380),
+        label = "aboutPressOutline",
+    )
     val clickModifier = if (pressHighlight) {
         Modifier.clickable(
             interactionSource = interactionSource,

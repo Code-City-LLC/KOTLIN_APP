@@ -86,10 +86,11 @@ fun HomeDetailsHeader(
                 .height(56.dp)
         ) {
             HeaderIconButton(
-                iconRes = R.drawable.ic_small_arrow_down,
+                // Unified back arrow — Swift left chevron (no rotation).
+                iconRes = R.drawable.ic_more2_back_chevron,
                 contentDescription = "Back",
                 tint = tint,
-                rotation = 90f,
+                rotation = 0f,
                 onClick = onBack,
                 modifier = Modifier
                     .align(Alignment.CenterStart)

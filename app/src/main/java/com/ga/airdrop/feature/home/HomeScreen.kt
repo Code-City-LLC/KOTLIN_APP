@@ -233,7 +233,11 @@ fun HomeScreen(
             greeting = listOf(state.greeting, state.firstName)
                 .filter { it.isNotBlank() }
                 .joinToString(" "),
-            tierName = state.tierName.ifBlank { " " },
+            // Read the tier from the shared SessionStore header (like cartCount),
+            // not HomeViewModel's one-time state — so an in-app tier change (which
+            // writes SessionStore) refreshes the chip immediately. Swift parity:
+            // the tab header reads UserStateCache, not a per-screen snapshot.
+            tierName = header.tierName.ifBlank { " " },
             cartCount = header.cartCount,
             airCoins = state.airCoins,
             onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },
@@ -278,7 +282,9 @@ private val warehouseCards = listOf(
         type = "standard",
         shadow = WarehouseFloorShadowSpec(
             leading = 3.8f,
-            top = 59f,
+            // Swift override (WarehouseIconShadow.standard=72) — the raw Figma
+            // inset (59) sits behind the parcel; 72 clears it so it shows.
+            top = 72f,
             width = 83.1f,
             height = 13.5f,
             rotation = 0.16f,
@@ -294,7 +300,9 @@ private val warehouseCards = listOf(
         type = "seadrop",
         shadow = WarehouseFloorShadowSpec(
             leading = 0.1f,
-            top = 57.5f,
+            // Swift override (WarehouseIconShadow.seaDrop=70) — clears the
+            // boat hull that otherwise covers the ellipse at the Figma inset.
+            top = 70f,
             width = 74.6f,
             height = 15.2f,
             rotation = 12.54f,
@@ -808,11 +816,14 @@ private fun Modifier.homePressOutline(
     } else {
         HOME_PRESSED_OUTLINE_ALPHA_LIGHT
     }
-    val borderColor = if (isPressed) {
-        colors.orangeMain.copy(alpha = pressedAlpha)
-    } else {
-        normalBorder
-    }
+    // Kemar: the orange press outline should "last a little bit longer" — snap in
+    // on press (~90ms) but fade back out over ~380ms on release instead of
+    // vanishing the instant the finger lifts.
+    val borderColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (isPressed) colors.orangeMain.copy(alpha = pressedAlpha) else normalBorder,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = if (isPressed) 90 else 380),
+        label = "homePressOutline",
+    )
 
     return border(1.dp, borderColor, shape)
         .pointerInput(Unit) {

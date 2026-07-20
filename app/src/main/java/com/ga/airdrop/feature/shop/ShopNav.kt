@@ -204,14 +204,23 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 paying = state.orderPaying,
                 errorTitle = state.errorTitle,
                 errorMessage = state.errorMessage,
+                errorShowShipments = state.errorTitle != null &&
+                    cartViewModel.hasPendingPaymentAuthority(),
             ),
             onBack = {
-                if (cartViewModel.rewindOrderSummary()) navController.popBackStack()
+                if (cartViewModel.onOrderSummaryBack()) navController.popBackStack()
             },
             onNoteChange = cartViewModel::updateNote,
             onRemoveItem = cartViewModel::removeOrderSummaryItem,
             onMakePayment = cartViewModel::payOrderSummary,
             onDismissError = cartViewModel::dismissError,
+            onGoToShipments = {
+                cartViewModel.dismissError()
+                navController.navigate(Routes.SHIPMENTS) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
         )
     }
 }

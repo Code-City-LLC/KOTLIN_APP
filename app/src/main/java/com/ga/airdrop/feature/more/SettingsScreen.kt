@@ -48,6 +48,7 @@ internal object SettingsTags {
     const val CACHE = "settings-cache"
     const val NOTIFICATIONS = "settings-notifications"
     const val BACKGROUNDS = "settings-backgrounds"
+    const val ACTIVE_SESSIONS = "settings-active-sessions"
     const val MODE = "settings-mode"
     const val MODE_TOGGLE = "settings-mode-toggle"
     const val TEXT_SIZE = "settings-text-size"
@@ -76,6 +77,7 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showTextSizePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.loggedOut) {
         if (state.loggedOut) onLoggedOut()
@@ -116,7 +118,7 @@ fun SettingsScreen(
                 MoreRowCard(
                     iconRes = R.drawable.ic_settings_notifications,
                     title = "Notification Settings",
-                    tint = colors.iconSelected,
+                    tint = null, // duotone icon — keep its orange+white accents (Figma)
                     onClick = { onNavigate(Routes.NOTIFICATION_SETTINGS) },
                     testTagPrefix = SettingsTags.NOTIFICATIONS,
                 )
@@ -124,20 +126,30 @@ fun SettingsScreen(
                 MoreRowCard(
                     iconRes = R.drawable.ic_background,
                     title = "Background Images",
-                    tint = colors.iconSelected,
+                    tint = null, // duotone icon — keep its orange+white accents (Figma)
                     onClick = { onNavigate(Routes.BACKGROUNDS) },
                     testTagPrefix = SettingsTags.BACKGROUNDS,
                 )
                 Spacer(Modifier.height(14.dp))
-                // Kemar directive 2026-07-12 + gate #24601 routing parity:
-                // Settings' Text Size row NAVIGATES to Preferences, which
-                // owns the single controller-backed editor (current Swift
-                // routes Settings → Preferences for this control).
+                MoreRowCard(
+                    iconRes = R.drawable.ic_lock,
+                    title = "Active Sessions",
+                    // ic_lock is a monochrome glyph — needs an adaptive tint or
+                    // it renders black/invisible on dark (same as Text Size).
+                    tint = colors.iconSelected,
+                    onClick = { onNavigate(Routes.ACTIVE_SESSIONS) },
+                    testTagPrefix = SettingsTags.ACTIVE_SESSIONS,
+                )
+                Spacer(Modifier.height(14.dp))
+                // Kemar 2026-07-20: Text Size opens an in-place picker sheet here
+                // instead of jumping to the whole Preferences page.
                 MoreRowCard(
                     iconRes = R.drawable.ic_text_size,
                     title = "Text Size",
+                    // ic_text_size is a monochrome glyph (no baked orange) — it needs an
+                    // adaptive tint or it renders black/invisible on dark. Verified on-device.
                     tint = colors.iconSelected,
-                    onClick = { onNavigate(Routes.PREFERENCES) },
+                    onClick = { showTextSizePicker = true },
                     trailing = {
                         Text(
                             text = TextSizeController.level.displayName,
@@ -151,7 +163,7 @@ fun SettingsScreen(
                 MoreRowCard(
                     iconRes = R.drawable.ic_color_theme,
                     title = "Mode",
-                    tint = colors.iconSelected,
+                    tint = null, // duotone icon — keep its orange+white accents (Figma)
                     // Swift flips the theme when the whole row is tapped.
                     onClick = {
                         com.ga.airdrop.core.designsystem.theme.ThemeController.set(
@@ -205,6 +217,22 @@ fun SettingsScreen(
         // Swift FigmaSpecificPages.swift:1430-1444 — clearing cache shows an
         // OK-only confirmation and stays on Settings (no navigation home).
         CacheClearedSheet(onDismiss = viewModel::dismissCacheCleared)
+    }
+    if (showTextSizePicker) {
+        // In-place Text Size picker (same MoreOptionSheet used by Preferences),
+        // applied app-wide instantly via TextSizeController.
+        MoreOptionSheet(
+            title = "Text Size",
+            options = TextSizeController.Level.entries.map { it.displayName },
+            selected = TextSizeController.level.displayName,
+            onSelect = { picked ->
+                TextSizeController.Level.entries
+                    .firstOrNull { it.displayName == picked }
+                    ?.let(TextSizeController::set)
+                showTextSizePicker = false
+            },
+            onDismiss = { showTextSizePicker = false },
+        )
     }
 }
 

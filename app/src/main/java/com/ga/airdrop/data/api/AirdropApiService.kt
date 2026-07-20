@@ -1,5 +1,7 @@
 package com.ga.airdrop.data.api
 
+import com.ga.airdrop.data.model.ActiveSession
+import com.ga.airdrop.data.model.RevokeSessionsResult
 import com.ga.airdrop.data.model.AirCoinTransaction
 import com.ga.airdrop.data.model.AirCoinsStatus
 import com.ga.airdrop.data.model.AirdropNotification
@@ -168,6 +170,16 @@ interface AirdropApiService {
 
     @DELETE("user/documents/{id}")
     suspend fun deleteUserDocument(@Path("id") id: String): MutationResponse
+
+    // Active Sessions (signed-in devices) — Laravel UserController sessions.
+    @GET("user/sessions")
+    suspend fun activeSessions(): DataEnvelope<List<ActiveSession>>
+
+    @DELETE("user/sessions/{id}")
+    suspend fun revokeSession(@Path("id") id: String): MutationResponse
+
+    @POST("user/sessions/revoke")
+    suspend fun revokeOtherSessions(): DataEnvelope<RevokeSessionsResult>
 
     @GET("user/profile/image")
     suspend fun profileImage(): ProfileAssetResponse
