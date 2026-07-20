@@ -34,6 +34,7 @@ import com.ga.airdrop.feature.more.moreGraph
 import com.ga.airdrop.feature.more2.more2Graph
 import com.ga.airdrop.feature.shipments.shipmentsGraph
 import com.ga.airdrop.feature.shop.shopGraph
+import kotlinx.coroutines.launch
 
 /** Routes where a null bearer is expected — exempt from reactive logout. */
 private val AUTH_GRAPH_ROUTES = setOf(
@@ -117,23 +118,26 @@ fun AppRoot(
         }
     }
 
-    // Foreground checkout reconciliation (Kemar: payment-pending loop). If the
-    // user abandoned the Stripe Chrome Custom Tab (Back/swipe) no airdrop://
-    // return deep link ever fires, so the pending hosted record would stick
-    // forever and trap the user on Order Summary. On each real resume — when no
-    // return deep link is already queued and we're inside the authenticated
-    // graph — replay the exact PAYMENT_RETURN verifier for the persisted pending
-    // session. It clears on paid/terminal and routes to Shipments on
-    // unconfirmed, so nothing stays stuck. The happy path (real payment-success
-    // deep link) is captured into PushDeepLink.pending before ON_RESUME, so the
-    // pending-push effect wins and we defer.
-    // Reconcile each abandoned checkout session at most once per process. An
-    // abandoned Stripe session stays non-terminal ("open"/"unpaid") for ~24h,
-    // so without this guard the verifier below would re-hijack navigation on
-    // every single foreground until the session expires. Once we've replayed
-    // the verifier for a given checkoutSessionId (which itself routes to
-    // Shipments on "still pending"), we must not drag the user back again.
-    val reconciledCheckoutSessions = androidx.compose.runtime.remember { mutableSetOf<String>() }
+    // Foreground checkout reconciliation (Kemar: payment-pending loop).
+    // On each real resume with a persisted pending session, VERIFY IT SILENTLY
+    // — no navigation. PaymentReturnViewModel.verify() commits a paid result
+    // (durably clears the paid cart rows + the pending record) and releases a
+    // terminal-not-paid one; only a genuinely PAID outcome surfaces UI, routing
+    // to Shipments so the now-paid order is visible. A still-pending/unconfirmed
+    // result does nothing and is simply re-checked on the next resume, so a
+    // late/async settlement is never missed AND the user is never repeatedly
+    // yanked to a verifier. The old trap (stuck on Order Summary) is already
+    // handled by onOrderSummaryBack() + the "Go to Shipments" escape, so the
+    // reconciler no longer needs to navigate on a non-paid outcome. The happy
+    // path (real payment-success deep link) is captured into PushDeepLink.pending
+    // before ON_RESUME, so the pending-push effect wins and we defer.
+    val reconcileScope = androidx.compose.runtime.rememberCoroutineScope()
+    val paymentReconciler = androidx.compose.runtime.remember {
+        com.ga.airdrop.feature.cart.PaymentReturnViewModel()
+    }
+    val reconcileInFlight = androidx.compose.runtime.remember {
+        java.util.concurrent.atomic.AtomicBoolean(false)
+    }
     val paymentLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(paymentLifecycleOwner, navController, navigationUnlocked) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -150,9 +154,27 @@ fun AppRoot(
             val sessionId = com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary.capture()
                 ?.let { com.ga.airdrop.feature.cart.CheckoutFlowStore.pending(it)?.checkoutSessionId }
                 ?: return@LifecycleEventObserver
-            // add() is false when already reconciled → skip the repeat hijack.
-            if (!reconciledCheckoutSessions.add(sessionId)) return@LifecycleEventObserver
-            navController.navigate(Routes.paymentReturn(sessionId)) { launchSingleTop = true }
+            // One verify at a time (overlapping resumes must not double-commit).
+            if (!reconcileInFlight.compareAndSet(false, true)) return@LifecycleEventObserver
+            reconcileScope.launch {
+                try {
+                    val result = paymentReconciler.verify(sessionId)
+                    if (result is com.ga.airdrop.feature.cart.PaymentReturnResult.Success) {
+                        val route = navController.currentDestination?.route
+                        if (route != null &&
+                            route !in AUTH_GRAPH_ROUTES &&
+                            route !in PAYMENT_ROUTES
+                        ) {
+                            navController.navigate(Routes.SHIPMENTS) {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                } finally {
+                    reconcileInFlight.set(false)
+                }
+            }
         }
         paymentLifecycleOwner.lifecycle.addObserver(observer)
         onDispose { paymentLifecycleOwner.lifecycle.removeObserver(observer) }
