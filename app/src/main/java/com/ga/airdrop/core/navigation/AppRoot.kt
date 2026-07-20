@@ -127,6 +127,13 @@ fun AppRoot(
     // unconfirmed, so nothing stays stuck. The happy path (real payment-success
     // deep link) is captured into PushDeepLink.pending before ON_RESUME, so the
     // pending-push effect wins and we defer.
+    // Reconcile each abandoned checkout session at most once per process. An
+    // abandoned Stripe session stays non-terminal ("open"/"unpaid") for ~24h,
+    // so without this guard the verifier below would re-hijack navigation on
+    // every single foreground until the session expires. Once we've replayed
+    // the verifier for a given checkoutSessionId (which itself routes to
+    // Shipments on "still pending"), we must not drag the user back again.
+    val reconciledCheckoutSessions = androidx.compose.runtime.remember { mutableSetOf<String>() }
     val paymentLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(paymentLifecycleOwner, navController, navigationUnlocked) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -143,6 +150,8 @@ fun AppRoot(
             val sessionId = com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary.capture()
                 ?.let { com.ga.airdrop.feature.cart.CheckoutFlowStore.pending(it)?.checkoutSessionId }
                 ?: return@LifecycleEventObserver
+            // add() is false when already reconciled → skip the repeat hijack.
+            if (!reconciledCheckoutSessions.add(sessionId)) return@LifecycleEventObserver
             navController.navigate(Routes.paymentReturn(sessionId)) { launchSingleTop = true }
         }
         paymentLifecycleOwner.lifecycle.addObserver(observer)
