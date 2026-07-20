@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -413,14 +414,19 @@ private fun SocialRow(entry: SocialEntry, onOpen: () -> Unit, onCopy: (String) -
             )
             Text(
                 text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = colors.textDarkTitle)) {
+                    withStyle(
+                        SpanStyle(
+                            color = colors.textDarkTitle,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                    ) {
                         append(entry.title)
                     }
                     withStyle(SpanStyle(color = colors.iconSelected)) {
                         append(entry.handle)
                     }
                 },
-                style = AirdropType.subtitle1,
+                style = AirdropType.body1,
             )
         }
         CopyButton(entry.handle, onCopy)
