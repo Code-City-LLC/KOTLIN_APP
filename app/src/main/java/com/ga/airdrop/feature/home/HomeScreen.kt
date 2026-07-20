@@ -282,7 +282,9 @@ private val warehouseCards = listOf(
         type = "standard",
         shadow = WarehouseFloorShadowSpec(
             leading = 3.8f,
-            top = 59f,
+            // Swift override (WarehouseIconShadow.standard=72) — the raw Figma
+            // inset (59) sits behind the parcel; 72 clears it so it shows.
+            top = 72f,
             width = 83.1f,
             height = 13.5f,
             rotation = 0.16f,
@@ -298,7 +300,9 @@ private val warehouseCards = listOf(
         type = "seadrop",
         shadow = WarehouseFloorShadowSpec(
             leading = 0.1f,
-            top = 57.5f,
+            // Swift override (WarehouseIconShadow.seaDrop=70) — clears the
+            // boat hull that otherwise covers the ellipse at the Figma inset.
+            top = 70f,
             width = 74.6f,
             height = 15.2f,
             rotation = 12.54f,
