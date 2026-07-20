@@ -104,13 +104,38 @@ class DeliveryMethodViewModel(
     /** GET /delivery/settings; on failure fall back to the 4 Swift hard-coded warehouses. */
     fun loadSettings() {
         settingsJob?.cancel()
+        // Swift 2e3f879 "instant warehouse paint": synchronous stale-while-
+        // revalidate — paint the cached snapshot before the network answers.
+        com.ga.airdrop.core.prefs.DeliverySettingsCache.read()
+            ?.settings?.warehouses.orEmpty()
+            .filter { it.supportsPickup != false && isPickupCounter(it.name) }
+            .takeIf { it.isNotEmpty() }
+            ?.let { cached ->
+                _state.update {
+                    it.copy(
+                        warehouses = cached,
+                        selectedWarehouseId = resolveSelectedWarehouseId(
+                            warehouses = cached,
+                            currentSelectedId = it.selectedWarehouseId,
+                            pickupLabel = it.pickupLabel,
+                        ),
+                    )
+                }
+            }
         settingsJob = viewModelScope.launch {
             // Pickup ruling (Kemar 2026-07-19): the PICKUP list shows only the
             // three counters. Delivery is untouched — validation/routing use
             // every active warehouse server-side.
             val warehouses = repo.deliverySettings()
+                .onSuccess { com.ga.airdrop.core.prefs.DeliverySettingsCache.write(it) }
                 .map { it.settings?.warehouses.orEmpty() }
-                .getOrElse { fallbackWarehouses() }
+                .getOrElse {
+                    // Network failed: keep the cached paint; hard-code only
+                    // when the list is still empty (Swift fallback order:
+                    // cache → live → bundled three).
+                    if (_state.value.warehouses.isNotEmpty()) return@launch
+                    fallbackWarehouses()
+                }
                 .filter { it.supportsPickup != false && isPickupCounter(it.name) }
             _state.update {
                 it.copy(
@@ -283,6 +308,17 @@ class DeliveryMethodViewModel(
     fun onSubmitSearch() {
         val trimmed = _state.value.searchQuery.trim()
         if (trimmed.isEmpty()) return
+        // Swift cd732f5: Laravel's search-places validator requires q min:2 —
+        // a 1-char lookup 422s. Guard client-side with a friendly alert.
+        if (trimmed.length < SEARCH_MIN_CHARS) {
+            _state.update {
+                it.copy(
+                    errorTitle = "Address not found",
+                    errorMessage = "Enter at least 2 characters to search for an address.",
+                )
+            }
+            return
+        }
         searchJob?.cancel()
         latestQuery = trimmed
         _state.update { it.copy(searchResults = emptyList(), ctaState = DeliveryCtaState.LookingUp) }
