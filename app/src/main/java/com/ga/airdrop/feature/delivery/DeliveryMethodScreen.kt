@@ -74,9 +74,9 @@ import kotlinx.coroutines.withContext
  * from My Cart "Choose Delivery"; the currency popup routes JMD to Profile
  * Information and USD to Order Summary without dispatching payment.
  *
- * LOCATION (Phase-1): "Use Current Location" is fully wired (runtime permission +
- * FusedLocationProvider); only the interactive map remains Phase-1 static
- * pending a MAPS_API_KEY (see [DeliveryMapView]).
+ * LOCATION: "Use Current Location" is fully wired (runtime permission +
+ * FusedLocationProvider); the interactive map is a real OpenStreetMap
+ * (osmdroid, keyless) — tap to pick a point (see [DeliveryMapView]).
  */
 @Composable
 fun DeliveryMethodScreen(
@@ -568,7 +568,7 @@ internal fun DeliverySection(
             }
         }
 
-        // Map card — 201dp, radius 5 (Phase-1 static, see DeliveryMapView).
+        // Map card — 201dp, radius 5 (real OSM map, see DeliveryMapView).
         DeliveryMapView(
             center = state.mapCenter,
             marker = state.markerCoord,

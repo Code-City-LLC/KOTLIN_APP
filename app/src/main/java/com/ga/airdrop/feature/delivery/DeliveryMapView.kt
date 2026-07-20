@@ -1,46 +1,45 @@
 package com.ga.airdrop.feature.delivery
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.ga.airdrop.R
-import com.ga.airdrop.core.designsystem.theme.AirdropTheme
-import com.ga.airdrop.core.designsystem.theme.AirdropType
-import com.ga.airdrop.core.designsystem.theme.BrandPalette
-import java.util.Locale
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.CustomZoomButtonsController
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
+import org.osmdroid.views.overlay.Marker
+import java.io.File
 
 /**
  * Map card for the Delivery Method screen — Swift buildMapCard parity slot
  * (335×201, rounded 5, no border; Figma 40008740:28298).
  *
- * Phase-1 static — swap to Google Maps Compose behind this exact signature
- * once a MAPS_API_KEY is provisioned (Kemar follow-up); all geocoding is
- * server-side so the flow is fully functional without the interactive map.
+ * Renders a real, interactive OpenStreetMap (osmdroid) map — keyless, so it
+ * has no Google Cloud dependency (the provisioned Google key has the Maps
+ * Static API disabled at the project level and we cannot enable it). The
+ * signature is deliberately GoogleMap-swap-ready: swap the AndroidView body
+ * to Google Maps Compose behind this exact API once a MAPS_API_KEY is
+ * provisioned for the Android SDK.
  *
- * The GoogleMap swap maps 1:1 onto these parameters:
- * [center] → rememberCameraPositionState, [marker] → Marker(draggable),
- * [addressLabel] → marker title, [onPointPicked] → onMapClick + drag-end.
- * In Phase-1 the card renders a stylized theme-colored placeholder (pin +
- * selected address) and [onPointPicked] is intentionally not invoked — the
- * user selects a point via search or Use Current Location instead.
+ * [center] → initial camera, [marker] → draggable-style pin, [addressLabel] →
+ * marker title, [onPointPicked] → single-tap on the map (reverse-geocode +
+ * fee validation in the ViewModel). All heavy geocoding is server-side, so
+ * the map is a selection aid, not the source of truth.
  */
 @Composable
 fun DeliveryMapView(
@@ -50,68 +49,89 @@ fun DeliveryMapView(
     onPointPicked: ((Double, Double) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AirdropTheme.colors
-    // Phase-1: onPointPicked/center are part of the stable GoogleMap-ready
-    // API but unused by the static card.
-    @Suppress("UNUSED_EXPRESSION")
-    onPointPicked
+    val context = LocalContext.current
 
-    Box(
+    // osmdroid needs a non-default User-Agent (OSM tile servers reject the
+    // default) and a writable cache; pin both before the first tile request.
+    val mapView = remember {
+        Configuration.getInstance().apply {
+            userAgentValue = context.packageName
+            osmdroidBasePath = context.cacheDir
+            osmdroidTileCache = File(context.cacheDir, "osmdroid-tiles")
+        }
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            setUseDataConnection(true)
+            zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
+            isHorizontalMapRepetitionEnabled = false
+            isVerticalMapRepetitionEnabled = false
+        }
+    }
+
+    // MapView is a plain Android View — drive its lifecycle off the composition.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            mapView.onDetach()
+        }
+    }
+
+    AndroidView(
+        factory = { mapView },
         modifier = modifier
             .fillMaxWidth()
             // Swift buildMapCard — 201pt tall, rounded 5, NO border.
             .height(201.dp)
             .clip(RoundedCornerShape(5.dp))
-            .background(colors.gray200)
             .testTag("delivery-map"),
-        contentAlignment = Alignment.Center,
-    ) {
-        // Faint horizon band — keeps the card reading as a "map" surface
-        // rather than an empty box, using only theme tokens.
-        Column(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(colors.gray200)
-            )
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(colors.gray150)
-            )
-        }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Image(
-                painter = painterResource(R.drawable.ic_location),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
-                modifier = Modifier.size(32.dp),
-            )
-            Text(
-                text = addressLabel
-                    ?: "Search or use your location to select a delivery point",
-                style = AirdropType.body3,
-                color = colors.textDescription,
-                textAlign = TextAlign.Center,
-                maxLines = 3,
-            )
+        update = { mv ->
             val coord = marker ?: center
-            if (marker != null && coord != null) {
-                Text(
-                    text = String.format(Locale.US, "%.5f, %.5f", coord.first, coord.second),
-                    style = AirdropType.subtitle3,
-                    color = colors.textDarkTitle,
-                    textAlign = TextAlign.Center,
+            if (coord != null) {
+                mv.controller.setZoom(if (marker != null) 15.0 else 8.5)
+                mv.controller.setCenter(GeoPoint(coord.first, coord.second))
+            }
+
+            // Refresh the selected-point pin.
+            mv.overlays.removeAll { it is Marker }
+            if (marker != null) {
+                mv.overlays.add(
+                    Marker(mv).apply {
+                        position = GeoPoint(marker.first, marker.second)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        title = addressLabel
+                        setInfoWindow(null)
+                    },
                 )
             }
-        }
-    }
+
+            // Single-tap → pick a delivery point (server reverse-geocode + fee).
+            mv.overlays.removeAll { it is MapEventsOverlay }
+            if (onPointPicked != null) {
+                mv.overlays.add(
+                    0,
+                    MapEventsOverlay(
+                        object : MapEventsReceiver {
+                            override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
+                                if (p != null) onPointPicked(p.latitude, p.longitude)
+                                return true
+                            }
+
+                            override fun longPressHelper(p: GeoPoint?): Boolean = false
+                        },
+                    ),
+                )
+            }
+            mv.invalidate()
+        },
+    )
 }
