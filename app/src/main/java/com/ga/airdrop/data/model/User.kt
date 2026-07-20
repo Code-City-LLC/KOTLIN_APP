@@ -30,6 +30,14 @@ data class AirdropUser(
     val pickupLocation: String? = null,
     val paymentCurrency: String? = null,
     val customerTierName: String? = null,
+    /**
+     * Server-truth identity completeness (Kemar 2026-07-19, Swift 44a9c5f):
+     * true when BOTH TRN and identity number are on file. null on older
+     * backend payloads — callers fall back to inspecting trnNumber/identityNumber.
+     */
+    val identityComplete: Boolean? = null,
+    val trnNumber: String? = null,
+    val identityNumber: String? = null,
 ) {
     val countryCode: String
         get() = when (country) {
@@ -100,6 +108,9 @@ object AirdropUserSerializer : KSerializer<AirdropUser> {
             paymentCurrency = obj.flexString("payment_currency"),
             customerTierName = (obj["customer_tier"] as? JsonObject)?.flexString("name")
                 ?: obj.flexString("customer_tier"),
+            identityComplete = obj.flexBool("identity_complete"),
+            trnNumber = obj.flexString("user_trn_number", "trn_number"),
+            identityNumber = obj.flexString("user_identity_number", "identity_number"),
         )
     }
 }

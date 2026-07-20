@@ -3,7 +3,9 @@ package com.ga.airdrop.core.navigation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,7 +22,9 @@ import com.ga.airdrop.core.designsystem.components.AirdropBottomBar
 import com.ga.airdrop.core.designsystem.components.AirdropTab
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.feature.auth.AuthLandingScreen
+import com.ga.airdrop.feature.auth.IdentityReminder
 import com.ga.airdrop.feature.auth.LoginScreen
 import com.ga.airdrop.feature.auth.OnboardingStore
 import com.ga.airdrop.feature.auth.authenticatedEntryDestination
@@ -134,6 +138,52 @@ fun AppRoot(
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
+
+        // Swift AirdropIdentityReminder (Kemar 2026-07-19): once-per-account
+        // post-login nudge to add ID/TRN via Profile.
+        val showIdentityReminder by IdentityReminder.showPrompt.collectAsState()
+        if (showIdentityReminder) {
+            val colors = AirdropTheme.colors
+            AlertDialog(
+                onDismissRequest = IdentityReminder::dismiss,
+                containerColor = colors.gray100,
+                title = {
+                    Text(
+                        text = IdentityReminder.TITLE,
+                        style = AirdropType.title2,
+                        color = colors.textDarkTitle,
+                    )
+                },
+                text = {
+                    Text(
+                        text = IdentityReminder.MESSAGE,
+                        style = AirdropType.body2,
+                        color = colors.textDescription,
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        IdentityReminder.dismiss()
+                        navController.navigate(Routes.PROFILE)
+                    }) {
+                        Text(
+                            text = IdentityReminder.CONFIRM,
+                            style = AirdropType.button,
+                            color = BrandPalette.OrangeMain,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = IdentityReminder::dismiss) {
+                        Text(
+                            text = IdentityReminder.DISMISS,
+                            style = AirdropType.button,
+                            color = colors.textDescription,
+                        )
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -181,6 +231,10 @@ private fun androidx.navigation.NavGraphBuilder.authGraph(navController: NavHost
                     popUpTo(0) { inclusive = true }
                     launchSingleTop = true
                 }
+                // Kemar 2026-07-19 (Swift 2a3cf04): after login (password or
+                // biometric), remind accounts with no ID/TRN on file. Once
+                // per account; silent on any failure.
+                IdentityReminder.checkAfterLogin(context)
             },
             onRegister = { navController.navigate(Routes.SIGN_UP) },
             onForgotPassword = { navController.navigate(Routes.FORGOT_PASSWORD) },
