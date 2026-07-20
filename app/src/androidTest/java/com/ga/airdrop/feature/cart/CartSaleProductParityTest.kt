@@ -108,10 +108,10 @@ class CartSaleProductParityTest {
         compose.onNodeWithText("Basket (1 Item)").assertIsDisplayed()
         compose.onNodeWithTag("cart-your-note-row").assertIsDisplayed()
         compose.onNodeWithTag("cart-frosted-totals-footer").assertIsDisplayed()
-        compose.onNodeWithText("Fax").assertIsDisplayed()
+        compose.onNodeWithText("Tax").assertIsDisplayed()
         compose.onNodeWithText("$ 5.00").assertIsDisplayed()
         compose.onNodeWithText("USD 1 = JMD 161.00").assertIsDisplayed()
-        compose.onNodeWithText("Choose Delivery").assertIsDisplayed()
+        compose.onNodeWithText("Continue").assertIsDisplayed()
 
         val hero = compose.onNodeWithTag("cart-apple-hero").getUnclippedBoundsInRoot()
         val card = compose.onNodeWithTag("cart-sale-line-815").getUnclippedBoundsInRoot()
@@ -172,7 +172,7 @@ class CartSaleProductParityTest {
         )
 
         compose.onNodeWithTag("cart-frosted-totals-footer").assertIsDisplayed()
-        compose.onNodeWithText("Choose Delivery").assertIsDisplayed()
+        compose.onNodeWithText("Continue").assertIsDisplayed()
         compose.waitForIdle()
         // onSizeChanged publishes the measured 2x-font footer inset through a
         // second composition. Scroll only after that state has settled.

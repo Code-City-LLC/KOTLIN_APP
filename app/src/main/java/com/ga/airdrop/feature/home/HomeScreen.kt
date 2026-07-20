@@ -233,7 +233,11 @@ fun HomeScreen(
             greeting = listOf(state.greeting, state.firstName)
                 .filter { it.isNotBlank() }
                 .joinToString(" "),
-            tierName = state.tierName.ifBlank { " " },
+            // Read the tier from the shared SessionStore header (like cartCount),
+            // not HomeViewModel's one-time state — so an in-app tier change (which
+            // writes SessionStore) refreshes the chip immediately. Swift parity:
+            // the tab header reads UserStateCache, not a per-screen snapshot.
+            tierName = header.tierName.ifBlank { " " },
             cartCount = header.cartCount,
             airCoins = state.airCoins,
             onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },

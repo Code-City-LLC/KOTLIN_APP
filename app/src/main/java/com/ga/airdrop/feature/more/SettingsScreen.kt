@@ -116,7 +116,7 @@ fun SettingsScreen(
                 MoreRowCard(
                     iconRes = R.drawable.ic_settings_notifications,
                     title = "Notification Settings",
-                    tint = colors.iconSelected,
+                    tint = null, // duotone icon — keep its orange+white accents (Figma)
                     onClick = { onNavigate(Routes.NOTIFICATION_SETTINGS) },
                     testTagPrefix = SettingsTags.NOTIFICATIONS,
                 )
@@ -124,7 +124,7 @@ fun SettingsScreen(
                 MoreRowCard(
                     iconRes = R.drawable.ic_background,
                     title = "Background Images",
-                    tint = colors.iconSelected,
+                    tint = null, // duotone icon — keep its orange+white accents (Figma)
                     onClick = { onNavigate(Routes.BACKGROUNDS) },
                     testTagPrefix = SettingsTags.BACKGROUNDS,
                 )
@@ -136,6 +136,8 @@ fun SettingsScreen(
                 MoreRowCard(
                     iconRes = R.drawable.ic_text_size,
                     title = "Text Size",
+                    // ic_text_size is a monochrome glyph (no baked orange) — it needs an
+                    // adaptive tint or it renders black/invisible on dark. Verified on-device.
                     tint = colors.iconSelected,
                     onClick = { onNavigate(Routes.PREFERENCES) },
                     trailing = {
@@ -151,7 +153,7 @@ fun SettingsScreen(
                 MoreRowCard(
                     iconRes = R.drawable.ic_color_theme,
                     title = "Mode",
-                    tint = colors.iconSelected,
+                    tint = null, // duotone icon — keep its orange+white accents (Figma)
                     // Swift flips the theme when the whole row is tapped.
                     onClick = {
                         com.ga.airdrop.core.designsystem.theme.ThemeController.set(

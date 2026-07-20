@@ -413,7 +413,6 @@ internal fun GoldPriorityContent(
                 // Kemar ruling: "Your Tier" ONLY on the customer's actual
                 // tier page; any other page is just "Tier".
                 title = if (relation == TierRelation.CURRENT) "Your Tier" else "Tier",
-                hairline = activeTier.hairline,
                 onBack = onBack,
             )
             SwipeIndicator(activeIndex = activeIndex, activeTier = activeTier)
@@ -582,7 +581,7 @@ private fun TierLinesBackdrop() {
 // ─── Header (transparent chrome + per-tier hairline, page-relative title) ─
 
 @Composable
-private fun TierHeader(title: String, hairline: Color, onBack: () -> Unit) {
+private fun TierHeader(title: String, onBack: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -596,14 +595,8 @@ private fun TierHeader(title: String, hairline: Color, onBack: () -> Unit) {
             titleStyle = AirdropType.subtitle1,
             showDivider = false,
         )
-        // Per-tier 1px bottom border — the "…3" token of each page's set.
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(hairline)
-                .testTag("gold-priority-hairline")
-        )
+        // Kemar 2026-07-20: the per-tier top hairline was removed on Swift (it is
+        // not in Figma) — removed here too so the stray black line doesn't return.
     }
 }
 

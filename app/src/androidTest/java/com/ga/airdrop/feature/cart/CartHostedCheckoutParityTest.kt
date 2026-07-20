@@ -515,13 +515,13 @@ class CartHostedCheckoutParityTest {
         )
 
         waitForCart()
-        compose.onNodeWithText("Choose Delivery").performClick()
+        compose.onNodeWithText("Continue").performClick()
 
         compose.waitUntil(timeoutMillis = 5_000) {
             navigated.get() == Routes.DELIVERY_METHOD
         }
 
-        assertEquals("Choose Delivery must route to Delivery Method", Routes.DELIVERY_METHOD, navigated.get())
+        assertEquals("Continue must route to Delivery Method", Routes.DELIVERY_METHOD, navigated.get())
         assertEquals("Cart must never create hosted checkout", 0, repo.checkoutCalls.get())
         assertEquals("Routing to Delivery Method must not touch the cart", 2, CartStore.count)
     }
@@ -691,7 +691,7 @@ class CartHostedCheckoutParityTest {
 
     private fun waitForCart() {
         compose.waitUntil(timeoutMillis = 5_000) {
-            compose.onAllNodesWithText("Choose Delivery").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
         }
     }
 

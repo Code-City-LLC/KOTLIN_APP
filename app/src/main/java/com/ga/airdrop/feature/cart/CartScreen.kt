@@ -45,7 +45,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
@@ -407,7 +406,7 @@ private fun CartTotalsFooter(
                 label = "Exchange Rate",
                 value = String.format(Locale.US, "USD 1 = JMD %.2f", exchangeUsdToJmd),
             )
-            BottomBarRow(label = "Fax", value = "$ 5.00")
+            BottomBarRow(label = "Tax", value = "$ 5.00")
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -426,7 +425,7 @@ private fun CartTotalsFooter(
             }
             Spacer(Modifier.height(6.dp))
             CheckoutSolidButton(
-                text = "Choose Delivery",
+                text = "Continue",
                 loading = paying,
                 enabled = !paying,
                 onClick = onChooseDelivery,
@@ -461,27 +460,11 @@ internal fun CheckoutSolidButton(
                 strokeWidth = 2.dp,
             )
         } else {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                CheckoutArrow()
-                Text(text = text, style = AirdropType.button, color = BrandPalette.White)
-                CheckoutArrow()
-            }
+            // Swift renders a centered label with NO arrows (FigmaCTAArrows.decorate
+            // is an intentional no-op) — a single centered Text, not a double chevron.
+            Text(text = text, style = AirdropType.button, color = BrandPalette.White)
         }
     }
-}
-
-@Composable
-private fun CheckoutArrow() {
-    Image(
-        painter = painterResource(R.drawable.ic_small_arrow_down),
-        contentDescription = null,
-        colorFilter = ColorFilter.tint(BrandPalette.White),
-        modifier = Modifier.size(20.dp).rotate(-90f),
-    )
 }
 
 @Composable

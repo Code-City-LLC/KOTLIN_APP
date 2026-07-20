@@ -148,7 +148,7 @@ fun ContactsScreen(
                     title = "Location",
                 ) {
                     val addresses = listOf(
-                        "Unit #1, Toma Place, 9-11 Phoenix Avenue, Kingston 10",
+                        "Unit 19 Pristine Plaza, 15 Eastwood Park Rd, Kingston, Jamaica",
                         "Unit #14, Annex Complex, Fairview Shopping Center, Montego Bay",
                         "Unit 8, Beckford Plaza, 33-35 Beckford Street, Savanna La Mar, Westmoreland",
                     )

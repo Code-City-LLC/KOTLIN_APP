@@ -61,8 +61,8 @@ class SettingsParityTest {
         assertIconContainsColor("${SettingsTags.NOTIFICATIONS}-icon", DARK_ICON, "notifications icon is iconSelected in light mode")
         assertIconContainsColor("${SettingsTags.BACKGROUNDS}-icon", DARK_ICON, "background icon is iconSelected in light mode")
         assertIconContainsColor("${SettingsTags.MODE}-icon", DARK_ICON, "mode icon is iconSelected in light mode")
-        assertIconDoesNotContainColor("${SettingsTags.NOTIFICATIONS}-icon", ORANGE, "Swift templates notifications icon, so Figma orange accent is not retained")
-        assertIconDoesNotContainColor("${SettingsTags.BACKGROUNDS}-icon", ORANGE, "Swift templates background icon, so Figma orange accent is not retained")
+        assertIconContainsColor("${SettingsTags.NOTIFICATIONS}-icon", ORANGE, "duotone notifications icon retains its Figma orange accent (Kemar directive: orange+white icons)")
+        assertIconContainsColor("${SettingsTags.BACKGROUNDS}-icon", ORANGE, "duotone background icon retains its Figma orange accent (Kemar directive: orange+white icons)")
         assertIconContainsColor("${SettingsTags.ACCOUNT_DELETION}-icon", ERROR_RED, "account deletion keeps the Swift destructive red icon")
         saveRootScreenshot("settings_swift_light.png")
     }
@@ -75,9 +75,9 @@ class SettingsParityTest {
         assertIconContainsColor("${SettingsTags.NOTIFICATIONS}-icon", WHITE_ICON, "notifications icon follows app-dark iconSelected")
         assertIconContainsColor("${SettingsTags.BACKGROUNDS}-icon", WHITE_ICON, "background icon follows app-dark iconSelected")
         assertIconContainsColor("${SettingsTags.MODE}-icon", WHITE_ICON, "mode icon follows app-dark iconSelected")
-        assertIconDoesNotContainColor("${SettingsTags.NOTIFICATIONS}-icon", ORANGE, "Swift templates notifications icon in dark mode, so Figma orange accent is not retained")
-        assertIconDoesNotContainColor("${SettingsTags.BACKGROUNDS}-icon", ORANGE, "Swift templates background icon in dark mode, so Figma orange accent is not retained")
-        assertIconDoesNotContainColor("${SettingsTags.MODE}-icon", ORANGE, "Swift templates mode icon in dark mode, so Figma orange accent is not retained")
+        assertIconContainsColor("${SettingsTags.NOTIFICATIONS}-icon", ORANGE, "duotone notifications icon retains its Figma orange accent (Kemar directive: orange+white icons)")
+        assertIconContainsColor("${SettingsTags.BACKGROUNDS}-icon", ORANGE, "duotone background icon retains its Figma orange accent (Kemar directive: orange+white icons)")
+        assertIconContainsColor("${SettingsTags.MODE}-icon", ORANGE, "duotone mode icon retains its Figma orange accent (Kemar directive: orange+white icons)")
         assertIconContainsColor("${SettingsTags.ACCOUNT_DELETION}-icon", ERROR_RED, "account deletion keeps the Swift destructive red icon")
         saveRootScreenshot("settings_swift_dark.png")
     }
@@ -220,19 +220,39 @@ class SettingsParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
         }
+        // Match MainActivity.attachBaseContext: force the RESOURCE uiMode night bit
+        // from the in-app theme so drawable @color/icon_duotone resolves to the dark
+        // value (white) under the app's dark theme, instead of the emulator's system
+        // light config. Without this, tint=null duotone icons render their light color
+        // in the "dark" test.
+        val baseContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val nightBit = if (mode == ThemeController.Mode.DARK) {
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        } else {
+            android.content.res.Configuration.UI_MODE_NIGHT_NO
+        }
+        val themedConfig = android.content.res.Configuration(baseContext.resources.configuration).apply {
+            uiMode = (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or nightBit
+        }
+        val themedContext = baseContext.createConfigurationContext(themedConfig)
         compose.setContent {
-            AirdropTheme {
-                Box(
-                    Modifier
-                        .width(375.dp)
-                        .height(812.dp)
-                        .background(AirdropTheme.colors.gray200),
-                ) {
-                    SettingsScreen(
-                        onBack = { backClicks += 1 },
-                        onNavigate = navigatedRoutes::add,
-                        onLoggedOut = { loggedOut += 1 },
-                    )
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalContext provides themedContext,
+                androidx.compose.ui.platform.LocalConfiguration provides themedConfig,
+            ) {
+                AirdropTheme {
+                    Box(
+                        Modifier
+                            .width(375.dp)
+                            .height(812.dp)
+                            .background(AirdropTheme.colors.gray200),
+                    ) {
+                        SettingsScreen(
+                            onBack = { backClicks += 1 },
+                            onNavigate = navigatedRoutes::add,
+                            onLoggedOut = { loggedOut += 1 },
+                        )
+                    }
                 }
             }
         }
@@ -247,6 +267,7 @@ class SettingsParityTest {
     private fun assertSwiftRowGeometry() {
         val notifications = bounds("${SettingsTags.NOTIFICATIONS}-row")
         val backgrounds = bounds("${SettingsTags.BACKGROUNDS}-row")
+        val textSize = bounds("${SettingsTags.TEXT_SIZE}-row")
         val mode = bounds("${SettingsTags.MODE}-row")
         val accountDeletion = bounds("${SettingsTags.ACCOUNT_DELETION}-row")
         val notificationIcon = bounds("${SettingsTags.NOTIFICATIONS}-icon")
@@ -254,6 +275,7 @@ class SettingsParityTest {
         listOf(
             "Notification Settings" to notifications,
             "Background Images" to backgrounds,
+            "Text Size" to textSize,
             "Mode" to mode,
             "Account Deletion" to accountDeletion,
         ).forEach { (label, row) ->
@@ -261,8 +283,12 @@ class SettingsParityTest {
             assertClose(59f, boundsHeight(row), "$label row height")
         }
 
+        // Row order is Notification → Background → Text Size → Mode → Account Deletion;
+        // the Text Size row was added (Kemar 2026-07-12) but this geometry check still
+        // measured Background→Mode directly, skipping it. Measure each adjacent gap.
         assertClose(14f, verticalGap(notifications, backgrounds), "Swift stack spacing after Notification Settings")
-        assertClose(14f, verticalGap(backgrounds, mode), "Swift stack spacing after Background Images")
+        assertClose(14f, verticalGap(backgrounds, textSize), "Swift stack spacing after Background Images")
+        assertClose(14f, verticalGap(textSize, mode), "Swift stack spacing after Text Size")
         assertClose(36f, verticalGap(mode, accountDeletion), "Swift custom spacing after Mode")
         assertClose(20f, (notificationIcon.left - notifications.left).value, "Settings icon leading inset")
         assertClose(24f, boundsWidth(notificationIcon), "Settings icon width")
@@ -277,11 +303,6 @@ class SettingsParityTest {
     private fun assertIconContainsColor(tag: String, target: Int, label: String) {
         val bitmap = iconBitmap(tag)
         assertTrue(label, bitmap.hasPixelNear(target))
-    }
-
-    private fun assertIconDoesNotContainColor(tag: String, target: Int, label: String) {
-        val bitmap = iconBitmap(tag)
-        assertFalse(label, bitmap.hasPixelNear(target))
     }
 
     private fun iconBitmap(tag: String): Bitmap =
