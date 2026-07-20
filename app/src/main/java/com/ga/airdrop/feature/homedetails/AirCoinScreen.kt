@@ -86,7 +86,10 @@ internal fun AirCoinBalanceContent(
         Image(
             painter = painterResource(R.drawable.img_homedet_aircoin_bg),
             contentDescription = null,
-            contentScale = ContentScale.FillBounds,
+            // Swift .scaleAspectFill: preserve aspect + top-anchor the baked-in coin
+            // cluster + crop, instead of FillBounds stretching the 1125×2436 art.
+            contentScale = ContentScale.Crop,
+            alignment = Alignment.TopCenter,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -137,16 +140,18 @@ private fun ConversionRow() {
     val colors = AirdropTheme.colors
     Row(
         modifier = Modifier
-            .width(336.dp)
+            .fillMaxWidth()
             .height(51.dp)
             .testTag("aircoin-balance-conversion-row"),
-        horizontalArrangement = Arrangement.Center,
+        // Swift equalCentering: pills pinned to the strip edges, real air around
+        // the arrow — not two weighted pills fused to it.
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ConversionPill(
             text = "1 AirCoin",
             testTag = "aircoin-balance-left-pill",
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(120.dp),
         )
         Box(
             modifier = Modifier
@@ -169,7 +174,7 @@ private fun ConversionRow() {
         ConversionPill(
             text = "1 USD",
             testTag = "aircoin-balance-right-pill",
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(120.dp),
         )
     }
 }
@@ -179,7 +184,6 @@ private fun ConversionPill(text: String, testTag: String, modifier: Modifier = M
     val colors = AirdropTheme.colors
     Box(
         modifier = modifier
-            .fillMaxWidth()
             .height(51.dp)
             .testTag(testTag)
             .clip(RoundedCornerShape(100.dp))
@@ -202,7 +206,7 @@ private fun StatsCard(accumulated: Int, redeemed: Int, available: Int) {
     val colors = AirdropTheme.colors
     Column(
         Modifier
-            .width(336.dp)
+            .fillMaxWidth()
             .height(170.dp)
             .testTag("aircoin-balance-stats-card")
             .clip(RoundedCornerShape(Radius.s))
@@ -273,7 +277,7 @@ private fun TipCard() {
     val colors = AirdropTheme.colors
     Row(
         Modifier
-            .width(336.dp)
+            .fillMaxWidth()
             .height(82.dp)
             .testTag("aircoin-balance-tip-card")
             .clip(RoundedCornerShape(Radius.s))
