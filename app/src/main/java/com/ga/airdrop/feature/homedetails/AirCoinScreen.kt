@@ -358,14 +358,17 @@ fun AirCoinHistoryDetailScreen(
         state = state,
         onBack = onBack,
         onLoadMore = viewModel::loadMore,
+        onRefresh = viewModel::refresh,
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun AirCoinHistoryDetailContent(
     state: AirCoinHistoryUiState,
     onBack: () -> Unit,
     onLoadMore: () -> Unit,
+    onRefresh: () -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
 
@@ -406,6 +409,25 @@ internal fun AirCoinHistoryDetailContent(
                     onLoadMore()
                 }
             }
+            // Swift bf0b83b — pull-to-refresh on the transactions ledger;
+            // the spinner is driven off the actual load state (both terminal
+            // points clear `loading`), reentrancy guarded in the VM.
+            val historyRefreshing = state.loading && state.loadedOnce
+            val historyPtr = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+            androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                isRefreshing = historyRefreshing,
+                onRefresh = onRefresh,
+                state = historyPtr,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                        state = historyPtr,
+                        isRefreshing = historyRefreshing,
+                        color = BrandPalette.OrangeMain,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                },
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -450,6 +472,7 @@ internal fun AirCoinHistoryDetailContent(
                 }
                 Spacer(Modifier.height(24.dp))
             }
+            }
         }
     }
 }
@@ -467,6 +490,7 @@ private fun LedgerCard(state: AirCoinHistoryUiState, modifier: Modifier = Modifi
     ) {
         LedgerRow(
             invoice = "Invoice No.",
+            tracking = "Tracking No.",
             amount = "Air Coin Used",
             date = "Date",
             isHeader = true,
@@ -484,6 +508,7 @@ private fun LedgerCard(state: AirCoinHistoryUiState, modifier: Modifier = Modifi
             }
             LedgerRow(
                 invoice = row.invoice,
+                tracking = row.tracking,
                 amount = row.amount,
                 date = row.date,
                 modifier = Modifier.testTag("aircoin-history-row-$index"),
@@ -495,6 +520,7 @@ private fun LedgerCard(state: AirCoinHistoryUiState, modifier: Modifier = Modifi
 @Composable
 private fun LedgerRow(
     invoice: String,
+    tracking: String,
     amount: String,
     date: String,
     isHeader: Boolean = false,
@@ -514,6 +540,14 @@ private fun LedgerRow(
             text = invoice,
             style = style,
             color = colors.textDarkTitle,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+        )
+        Text(
+            text = tracking,
+            style = style,
+            color = colors.textDarkTitle,
+            textAlign = TextAlign.Center,
             modifier = Modifier.weight(1f),
             maxLines = 2,
         )
@@ -538,6 +572,7 @@ private fun LedgerRow(
 
 private data class LedgerDisplayRow(
     val invoice: String,
+    val tracking: String,
     val amount: String,
     val date: String,
 )
@@ -546,14 +581,16 @@ private fun ledgerRows(state: AirCoinHistoryUiState): List<LedgerDisplayRow> {
     val fromTransactions = state.transactions.map { tx ->
         LedgerDisplayRow(
             invoice = tx.referenceId ?: "-",
+            // Swift ba98785 — RN's Courier Tracking column restored.
+            tracking = tx.trackingNo?.takeIf { it.isNotBlank() } ?: "-",
             amount = formatCoinAmount(abs(tx.amount ?: 0.0)),
             date = formatLedgerDate(tx.createdAt),
         )
     }
     if (fromTransactions.isNotEmpty()) return fromTransactions
     return when {
-        state.error != null -> listOf(LedgerDisplayRow("Unable to load", "-", state.error))
-        state.loadedOnce -> listOf(LedgerDisplayRow("No transactions found", "-", "-"))
+        state.error != null -> listOf(LedgerDisplayRow("Unable to load", "-", "-", state.error))
+        state.loadedOnce -> listOf(LedgerDisplayRow("No transactions found", "-", "-", "-"))
         else -> emptyList()
     }
 }

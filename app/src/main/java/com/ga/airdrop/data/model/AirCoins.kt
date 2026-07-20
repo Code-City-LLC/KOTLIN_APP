@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package com.ga.airdrop.data.model
 
 import kotlinx.serialization.KSerializer
@@ -72,6 +74,11 @@ data class AirCoinTransaction(
     @SerialName("reference_id")
     @Serializable(with = FlexibleStringSerializer::class)
     val referenceId: String? = null,
+    // Swift ba98785 — RN's Courier Tracking column; server key varies.
+    @SerialName("tracking_no")
+    @kotlinx.serialization.json.JsonNames("trackingNo", "courier_tracking")
+    @Serializable(with = FlexibleStringSerializer::class)
+    val trackingNo: String? = null,
     @SerialName("created_at")
     @Serializable(with = FlexibleStringSerializer::class)
     val createdAt: String? = null,
