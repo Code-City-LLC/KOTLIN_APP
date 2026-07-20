@@ -812,11 +812,14 @@ private fun Modifier.homePressOutline(
     } else {
         HOME_PRESSED_OUTLINE_ALPHA_LIGHT
     }
-    val borderColor = if (isPressed) {
-        colors.orangeMain.copy(alpha = pressedAlpha)
-    } else {
-        normalBorder
-    }
+    // Kemar: the orange press outline should "last a little bit longer" — snap in
+    // on press (~90ms) but fade back out over ~380ms on release instead of
+    // vanishing the instant the finger lifts.
+    val borderColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (isPressed) colors.orangeMain.copy(alpha = pressedAlpha) else normalBorder,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = if (isPressed) 90 else 380),
+        label = "homePressOutline",
+    )
 
     return border(1.dp, borderColor, shape)
         .pointerInput(Unit) {

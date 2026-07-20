@@ -191,7 +191,7 @@ fun DeliveryMethodScreen(
                 ModeTile(
                     title = "Pickup",
                     subtitle = "Collect from warehouse",
-                    iconRes = R.drawable.ic_building,
+                    iconRes = R.drawable.img_delivery_pickup,
                     selected = state.mode == DeliveryMode.Pickup,
                     onClick = { viewModel.onModeSelected(DeliveryMode.Pickup) },
                     modifier = Modifier
@@ -201,7 +201,7 @@ fun DeliveryMethodScreen(
                 ModeTile(
                     title = "Delivery",
                     subtitle = "Deliver to your location",
-                    iconRes = R.drawable.ic_standard_shipping,
+                    iconRes = R.drawable.img_delivery_deliver,
                     selected = state.mode == DeliveryMode.Delivery,
                     onClick = { viewModel.onModeSelected(DeliveryMode.Delivery) },
                     modifier = Modifier
@@ -316,11 +316,14 @@ private fun ModeTile(
                 .background(colors.gray150, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
+            // Figma 40008740:28273/28279 — photographic pickup/delivery
+            // illustrations rendered untinted (Swift uses .alwaysOriginal),
+            // not orange-tinted line icons.
             Image(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(BrandPalette.OrangeMain),
-                modifier = Modifier.size(32.dp),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.size(46.dp),
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
