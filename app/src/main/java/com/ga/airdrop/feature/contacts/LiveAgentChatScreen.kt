@@ -292,12 +292,11 @@ private fun LiveChatHeader(
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(R.drawable.ic_small_arrow_down),
+                    // Unified back arrow — Swift left chevron.
+                    painter = painterResource(R.drawable.ic_more2_back_chevron),
                     contentDescription = "Back",
                     colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                    modifier = Modifier
-                        .size(24.dp)
-                        .rotate(90f),
+                    modifier = Modifier.size(24.dp),
                 )
             }
             Text(

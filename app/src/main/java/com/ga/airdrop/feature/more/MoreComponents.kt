@@ -75,15 +75,14 @@ fun MoreDetailHeader(
                 .padding(horizontal = Spacing.md, vertical = 4.dp),
         ) {
             Image(
-                // Swift inner headers draw a left-pointing CHEVRON, not the
-                // tailed arrow glyph.
-                painter = painterResource(R.drawable.ic_small_arrow_down),
+                // Unified left-pointing CHEVRON back arrow (ic_more2_back_chevron),
+                // consistent across every header — no rotation hack.
+                painter = painterResource(R.drawable.ic_more2_back_chevron),
                 contentDescription = "Back",
                 colorFilter = ColorFilter.tint(colors.textDarkTitle),
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .size(24.dp)
-                    .rotate(90f)
                     .clickable(onClick = onBack),
             )
             Text(
