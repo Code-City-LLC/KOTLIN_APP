@@ -267,6 +267,7 @@ class SettingsParityTest {
     private fun assertSwiftRowGeometry() {
         val notifications = bounds("${SettingsTags.NOTIFICATIONS}-row")
         val backgrounds = bounds("${SettingsTags.BACKGROUNDS}-row")
+        val activeSessions = bounds("${SettingsTags.ACTIVE_SESSIONS}-row")
         val textSize = bounds("${SettingsTags.TEXT_SIZE}-row")
         val mode = bounds("${SettingsTags.MODE}-row")
         val accountDeletion = bounds("${SettingsTags.ACCOUNT_DELETION}-row")
@@ -275,6 +276,7 @@ class SettingsParityTest {
         listOf(
             "Notification Settings" to notifications,
             "Background Images" to backgrounds,
+            "Active Sessions" to activeSessions,
             "Text Size" to textSize,
             "Mode" to mode,
             "Account Deletion" to accountDeletion,
@@ -283,11 +285,12 @@ class SettingsParityTest {
             assertClose(59f, boundsHeight(row), "$label row height")
         }
 
-        // Row order is Notification → Background → Text Size → Mode → Account Deletion;
-        // the Text Size row was added (Kemar 2026-07-12) but this geometry check still
-        // measured Background→Mode directly, skipping it. Measure each adjacent gap.
+        // Row order: Notification → Background → Active Sessions → Text Size →
+        // Mode → Account Deletion. Active Sessions added (Kemar 2026-07-20).
+        // Measure each adjacent gap (14 between rows, 36 custom after Mode).
         assertClose(14f, verticalGap(notifications, backgrounds), "Swift stack spacing after Notification Settings")
-        assertClose(14f, verticalGap(backgrounds, textSize), "Swift stack spacing after Background Images")
+        assertClose(14f, verticalGap(backgrounds, activeSessions), "Swift stack spacing after Background Images")
+        assertClose(14f, verticalGap(activeSessions, textSize), "Swift stack spacing after Active Sessions")
         assertClose(14f, verticalGap(textSize, mode), "Swift stack spacing after Text Size")
         assertClose(36f, verticalGap(mode, accountDeletion), "Swift custom spacing after Mode")
         assertClose(20f, (notificationIcon.left - notifications.left).value, "Settings icon leading inset")

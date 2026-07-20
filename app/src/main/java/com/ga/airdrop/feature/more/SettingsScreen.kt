@@ -48,6 +48,7 @@ internal object SettingsTags {
     const val CACHE = "settings-cache"
     const val NOTIFICATIONS = "settings-notifications"
     const val BACKGROUNDS = "settings-backgrounds"
+    const val ACTIVE_SESSIONS = "settings-active-sessions"
     const val MODE = "settings-mode"
     const val MODE_TOGGLE = "settings-mode-toggle"
     const val TEXT_SIZE = "settings-text-size"
@@ -128,6 +129,16 @@ fun SettingsScreen(
                     tint = null, // duotone icon — keep its orange+white accents (Figma)
                     onClick = { onNavigate(Routes.BACKGROUNDS) },
                     testTagPrefix = SettingsTags.BACKGROUNDS,
+                )
+                Spacer(Modifier.height(14.dp))
+                MoreRowCard(
+                    iconRes = R.drawable.ic_lock,
+                    title = "Active Sessions",
+                    // ic_lock is a monochrome glyph — needs an adaptive tint or
+                    // it renders black/invisible on dark (same as Text Size).
+                    tint = colors.iconSelected,
+                    onClick = { onNavigate(Routes.ACTIVE_SESSIONS) },
+                    testTagPrefix = SettingsTags.ACTIVE_SESSIONS,
                 )
                 Spacer(Modifier.height(14.dp))
                 // Kemar 2026-07-20: Text Size opens an in-place picker sheet here
