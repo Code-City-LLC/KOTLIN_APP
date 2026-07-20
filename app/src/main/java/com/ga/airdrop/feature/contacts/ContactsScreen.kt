@@ -172,7 +172,7 @@ fun ContactsScreen(
                 ) {
                     Text(
                         text = hoursText,
-                        style = AirdropType.subtitle1,
+                        style = AirdropType.body1,
                         color = colors.iconSelected,
                     )
                 }
@@ -378,7 +378,7 @@ private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Un
     ) {
         Text(
             text = text,
-            style = AirdropType.subtitle1,
+            style = AirdropType.body1,
             color = colors.iconSelected,
             modifier = Modifier
                 .weight(1f)
