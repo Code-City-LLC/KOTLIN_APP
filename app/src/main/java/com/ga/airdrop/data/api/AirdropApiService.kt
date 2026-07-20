@@ -25,6 +25,7 @@ import com.ga.airdrop.data.model.DeactivateAccountRequest
 import com.ga.airdrop.data.model.DeliveryPreference
 import com.ga.airdrop.data.model.DeliverySettingsPayload
 import com.ga.airdrop.data.model.DeliveryValidationResponse
+import com.ga.airdrop.data.model.DeactivateDeviceTokenRequest
 import com.ga.airdrop.data.model.DeviceToken
 import com.ga.airdrop.data.model.DropAlertResponse
 import com.ga.airdrop.data.model.EmptyRequest
@@ -240,6 +241,15 @@ interface AirdropApiService {
         @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String? = null,
         @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String? = null,
         @Body body: RegisterDeviceTokenRequest,
+    ): MutationResponse
+
+    // Swift deactivateFCMToken (b43cec6): best-effort server-side deactivation
+    // on master-toggle-off and logout. Deliberately NOT session-bound — this
+    // often runs during teardown when the session is already rotating, and a
+    // 401/stale session must never surface or block the local disable.
+    @POST("device-tokens/deactivate")
+    suspend fun deactivateDeviceToken(
+        @Body body: DeactivateDeviceTokenRequest,
     ): MutationResponse
 
     @GET("device-tokens")

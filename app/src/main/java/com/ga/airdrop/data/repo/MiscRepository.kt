@@ -166,6 +166,14 @@ class MiscRepository(private val service: AirdropApiService) {
     suspend fun deviceTokens(): Result<List<DeviceToken>> =
         apiResult { service.deviceTokens().items }
 
+    /** Swift deactivateFCMToken — best-effort, callers ignore the result. */
+    suspend fun deactivateFcmToken(deviceToken: String): Result<MutationResponse> =
+        apiResult {
+            service.deactivateDeviceToken(
+                com.ga.airdrop.data.model.DeactivateDeviceTokenRequest(deviceToken),
+            )
+        }
+
     suspend fun sendTestNotification(
         deviceToken: String,
         title: String = "Test Notification",

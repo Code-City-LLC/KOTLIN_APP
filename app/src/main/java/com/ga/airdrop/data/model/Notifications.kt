@@ -124,6 +124,12 @@ data class RegisterDeviceTokenRequest(
     @SerialName("device_info") val deviceInfo: String? = null,
 )
 
+/** Swift deactivateFCMToken (b43cec6) — POST /device-tokens/deactivate. */
+@Serializable
+data class DeactivateDeviceTokenRequest(
+    @SerialName("device_token") val deviceToken: String,
+)
+
 @Serializable
 data class DeviceToken(
     @Serializable(with = FlexibleStringSerializer::class)

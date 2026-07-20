@@ -72,6 +72,8 @@ class PackagesViewModel(
 
     companion object {
         const val PER_PAGE = 15
+        /** Swift c108581 — server search fires after a 500ms typing pause. */
+        const val SEARCH_DEBOUNCE_MS = 500L
     }
 
     // §B.4: the saved sort survives launches (Swift currentSort seed).
@@ -82,6 +84,7 @@ class PackagesViewModel(
 
     private var currentPage = 1
     private var loadJob: Job? = null
+    private var searchDebounceJob: Job? = null
     private val cartMutations = PackageCartMutationCoordinator(cartServer, sessionBoundary)
 
     init {
@@ -103,10 +106,21 @@ class PackagesViewModel(
 
     fun onSearchTextChange(text: String) {
         _state.update { it.copy(searchText = text) }
+        // Swift c108581 (RN usePagination parity): the instant local filter
+        // above stays per-keystroke; a 500ms-debounced SERVER refetch surfaces
+        // packages not yet paged in. Each keystroke cancels the prior job.
+        searchDebounceJob?.cancel()
+        searchDebounceJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
+            load(reset = true)
+        }
     }
 
-    /** Return-key: re-query the server with the search term (Swift parity). */
-    fun onSearchSubmit() = load(reset = true)
+    /** Return-key: cancel the pending debounce and re-query immediately. */
+    fun onSearchSubmit() {
+        searchDebounceJob?.cancel()
+        load(reset = true)
+    }
 
     fun openFilterSheet() = _state.update { it.copy(showFilterSheet = true) }
 

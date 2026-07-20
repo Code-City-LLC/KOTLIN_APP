@@ -118,7 +118,7 @@ class RemoteDropAlertRepository(
                 DropAlertResult(
                     success = code != 2,
                     warning = code == 2,
-                    message = response.message,
+                    message = if (code == 2) friendlyWarningCopy(response.message) else response.message,
                 )
             }
 
@@ -151,3 +151,20 @@ private fun DropAlertShippingMethod.toDataModel(): com.ga.airdrop.data.model.Dro
         DropAlertShippingMethod.EXPRESS ->
             com.ga.airdrop.data.model.DropAlertShippingMethod.EXPRESS
     }
+
+/**
+ * Swift b43cec6 warning-copy mapping for code==2: the server's duplicate-
+ * courier message (with its "already orderd" misspelling) becomes a friendly
+ * line; a blank message gets a generic fallback; anything else shows raw.
+ */
+internal fun friendlyWarningCopy(raw: String?): String {
+    val trimmed = raw?.trim().orEmpty()
+    val lower = trimmed.lowercase()
+    return when {
+        lower.contains("already orderd") || lower.contains("already ordered") ->
+            "You've already created a drop alert for this courier number."
+        trimmed.isEmpty() ->
+            "Drop alert saved with a warning — please review it in your alerts."
+        else -> trimmed
+    }
+}

@@ -132,7 +132,7 @@ fun WarehousesScreen(
 
     if (toast != null) {
         LaunchedEffect(toast) {
-            delay(2000)
+            delay(2150)
             toast = null
         }
     }

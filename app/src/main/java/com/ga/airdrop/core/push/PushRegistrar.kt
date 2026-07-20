@@ -136,6 +136,12 @@ object PushRegistrar {
                     check(registered) { "Device registration could not be completed. Tap Retry." }
                     DevicePushOutcome.RegistrationRequested
                 } else {
+                    // Swift b43cec6: deactivate server-side FIRST, while the
+                    // token and a valid session still exist. Best-effort —
+                    // the local disable proceeds even if the network fails.
+                    prefs?.getString(KEY_TOKEN, null)?.takeIf { it.isNotEmpty() }?.let { token ->
+                        runCatching { MiscRepository(ApiClient.service).deactivateFcmToken(token) }
+                    }
                     clearRegistrationMarkers(deleteCachedToken = false)
                     deleteToken().getOrThrow()
                     clearRegistrationMarkers(deleteCachedToken = true)
@@ -182,6 +188,14 @@ object PushRegistrar {
         deleteToken: suspend () -> Result<Unit>,
         onComplete: (Result<Unit>) -> Unit = {},
     ) {
+        // Swift b43cec6 stopForSessionEnd: deactivate server-side IMMEDIATELY
+        // (not queued behind the serial chain — teardown revokes the bearer
+        // right after this returns). Capture the token now; fire-and-forget.
+        prefs?.getString(KEY_TOKEN, null)?.takeIf { it.isNotEmpty() }?.let { token ->
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                runCatching { MiscRepository(ApiClient.service).deactivateFcmToken(token) }
+            }
+        }
         synchronized(stateLock) {
             commandGeneration += 1
             inFlightKey = null

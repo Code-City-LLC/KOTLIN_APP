@@ -89,7 +89,7 @@ fun ContactsScreen(
 
     if (showCopiedToast) {
         LaunchedEffect(showCopiedToast) {
-            delay(2000)
+            delay(2150)
             showCopiedToast = false
         }
     }
