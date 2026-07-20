@@ -352,6 +352,12 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
             },
         ),
     ) { entry ->
+        // Funnel step 4 (Swift 89fbb11): PaymentSuccess is only reachable
+        // after a verified PAID (Stripe return verify or NCB completion) —
+        // one log per showing covers both rails.
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            com.ga.airdrop.core.analytics.AirdropFunnel.log("checkout_payment_success")
+        }
         com.ga.airdrop.feature.cart.PaymentSuccessScreen(
             orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
             formattedAmount = entry.arguments?.getString("amount")?.takeIf { it.isNotBlank() },

@@ -588,6 +588,12 @@ class DeliveryMethodViewModel(
                         if (updated == null) {
                             showCheckoutContextError()
                         } else {
+                            // Funnel step 2 (Swift 89fbb11): preference
+                            // persisted, currency popup about to show.
+                            com.ga.airdrop.core.analytics.AirdropFunnel.log(
+                                "checkout_delivery_saved",
+                                mapOf("mode" to mode.wire),
+                            )
                             _state.update {
                                 it.copy(ctaState = DeliveryCtaState.Idle, showCurrencyPopup = true)
                             }

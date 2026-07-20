@@ -37,6 +37,32 @@ class AirdropApp : Application(), ImageLoaderFactory {
         super.onCreate()
         // First: crashes during the rest of startup must still be captured.
         com.ga.airdrop.core.diagnostics.CrashCapture.install(this)
+        // Checkout funnel diagnostics (Swift 89fbb11): arm the buffer and
+        // flush it whenever the last started activity stops (app background).
+        com.ga.airdrop.core.analytics.AirdropFunnel.install()
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            private var startedActivities = 0
+            override fun onActivityStarted(activity: android.app.Activity) {
+                startedActivities += 1
+            }
+            override fun onActivityStopped(activity: android.app.Activity) {
+                startedActivities = (startedActivities - 1).coerceAtLeast(0)
+                if (startedActivities == 0) {
+                    com.ga.airdrop.core.analytics.AirdropFunnel.flush()
+                }
+            }
+            override fun onActivityCreated(
+                activity: android.app.Activity,
+                savedInstanceState: android.os.Bundle?,
+            ) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = Unit
+            override fun onActivityPaused(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(
+                activity: android.app.Activity,
+                outState: android.os.Bundle,
+            ) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
         AuthTokenStore.init(this)
         ThemeController.init(this)
         TextSizeController.init(this)

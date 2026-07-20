@@ -729,6 +729,9 @@ class CartViewModel(
     }
 
     fun consumeCheckoutUrl() {
+        // Funnel step 3a (Swift 89fbb11): only caller is the Order Summary
+        // launch effect, AFTER the hosted Stripe URL opened successfully.
+        com.ga.airdrop.core.analytics.AirdropFunnel.log("checkout_stripe_handoff")
         _state.update { it.copy(checkoutUrl = null, checkoutSessionId = null) }
     }
 
@@ -834,6 +837,9 @@ class CartViewModel(
                             }
                             return@runWhileCurrent true
                         }
+                        // Funnel step 3b (Swift 89fbb11): 3DS session created,
+                        // 3DS screen about to show.
+                        com.ga.airdrop.core.analytics.AirdropFunnel.log("checkout_ncb_session_created")
                         _state.update {
                             it.copy(
                                 ncbPaying = false,
@@ -1156,6 +1162,12 @@ class CartViewModel(
             val flow = CheckoutFlowStore.start(owner, currentLines)
                 ?: return@runWhileCurrent false
             _state.update { it.copy(navToDeliveryMethod = true) }
+            // Funnel step 1 (Swift 89fbb11): Continue passed every guard and
+            // the checkout flow started.
+            com.ga.airdrop.core.analytics.AirdropFunnel.log(
+                "checkout_cart_continue",
+                mapOf("item_count" to currentLines.size),
+            )
             flow.ownerSessionId == owner.sessionId
         }
         if (!started) {
