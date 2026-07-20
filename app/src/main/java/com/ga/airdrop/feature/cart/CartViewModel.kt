@@ -557,6 +557,47 @@ class CartViewModel(
         return true
     }
 
+    /**
+     * Order Summary Back. The happy path persists the phase rewind before the
+     * caller pops. A durable Stripe authority (pending hosted session or an
+     * in-flight creation) may NOT rewind the captured flow — but the user must
+     * never be trapped on Order Summary, so Back still leaves the screen while
+     * the pending record stays recorded and surfaces under Shipments. Only the
+     * brief in-flight createCheckout network call blocks Back.
+     */
+    fun onOrderSummaryBack(): Boolean {
+        if (_state.value.orderPaying) {
+            _state.update {
+                it.copy(
+                    errorTitle = "Checkout in progress",
+                    errorMessage = "Wait for the secure checkout request to finish before going back.",
+                )
+            }
+            return false
+        }
+        val owner = currentOwner() ?: return true
+        // Pending hosted session / in-flight creation cannot rewind the flow;
+        // leave without rewinding so the user is never trapped.
+        if (hasDurablePaymentAuthority(owner)) return true
+        val flow = CheckoutFlowStore.current(owner) ?: return true
+        CheckoutFlowStore.rewindOrderSummary(owner, flow.id)
+        _state.update {
+            it.copy(
+                profileSummaryNav = false,
+                orderPaying = false,
+                checkoutUrl = null,
+                checkoutSessionId = null,
+            )
+        }
+        return true
+    }
+
+    /** True while a durable Stripe authority (pending hosted / in-flight creation) exists. */
+    fun hasPendingPaymentAuthority(): Boolean {
+        val owner = currentOwner() ?: return false
+        return hasDurablePaymentAuthority(owner)
+    }
+
     /** Final Order Summary dispatch. Delivery/Profile never create Stripe. */
     fun payOrderSummary() {
         if (_state.value.orderPaying) return

@@ -46,6 +46,13 @@ private val AUTH_GRAPH_ROUTES = setOf(
     Routes.REGISTRATION_SUCCESS,
 )
 
+/** Stripe return-pipeline routes; the resume reconciler must not re-enter them. */
+private val PAYMENT_ROUTES = setOf(
+    Routes.PAYMENT_RETURN,
+    Routes.PAYMENT_SUCCESS,
+    Routes.PAYMENT_CANCELLED,
+)
+
 /**
  * App entry. Mirrors the Swift SceneDelegate + FigmaRouteResolver:
  * token → Home tab shell, else auth landing. One shared back stack with the
@@ -108,6 +115,38 @@ fun AppRoot(
                 launchSingleTop = true
             }
         }
+    }
+
+    // Foreground checkout reconciliation (Kemar: payment-pending loop). If the
+    // user abandoned the Stripe Chrome Custom Tab (Back/swipe) no airdrop://
+    // return deep link ever fires, so the pending hosted record would stick
+    // forever and trap the user on Order Summary. On each real resume — when no
+    // return deep link is already queued and we're inside the authenticated
+    // graph — replay the exact PAYMENT_RETURN verifier for the persisted pending
+    // session. It clears on paid/terminal and routes to Shipments on
+    // unconfirmed, so nothing stays stuck. The happy path (real payment-success
+    // deep link) is captured into PushDeepLink.pending before ON_RESUME, so the
+    // pending-push effect wins and we defer.
+    val paymentLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(paymentLifecycleOwner, navController, navigationUnlocked) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event != androidx.lifecycle.Lifecycle.Event.ON_RESUME) return@LifecycleEventObserver
+            if (!navigationUnlocked) return@LifecycleEventObserver
+            if (com.ga.airdrop.core.push.PushDeepLink.pending.value != null) return@LifecycleEventObserver
+            val activeRoute = navController.currentDestination?.route
+            if (activeRoute == null ||
+                activeRoute in AUTH_GRAPH_ROUTES ||
+                activeRoute in PAYMENT_ROUTES
+            ) {
+                return@LifecycleEventObserver
+            }
+            val sessionId = com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary.capture()
+                ?.let { com.ga.airdrop.feature.cart.CheckoutFlowStore.pending(it)?.checkoutSessionId }
+                ?: return@LifecycleEventObserver
+            navController.navigate(Routes.paymentReturn(sessionId)) { launchSingleTop = true }
+        }
+        paymentLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { paymentLifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Box(

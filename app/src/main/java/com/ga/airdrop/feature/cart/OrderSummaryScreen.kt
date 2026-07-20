@@ -57,6 +57,8 @@ data class OrderSummaryUiModel(
     val paying: Boolean = false,
     val errorTitle: String? = null,
     val errorMessage: String? = null,
+    /** When a durable pending Stripe authority exists, offer a Shipments escape. */
+    val errorShowShipments: Boolean = false,
 )
 
 /**
@@ -72,6 +74,7 @@ fun OrderSummaryScreen(
     onRemoveItem: (CartStore.CartLine) -> Unit,
     onMakePayment: () -> Unit,
     onDismissError: () -> Unit = {},
+    onGoToShipments: () -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     val colors = AirdropTheme.colors
@@ -156,9 +159,27 @@ fun OrderSummaryScreen(
                 Text(model.errorMessage.orEmpty(), style = AirdropType.body2, color = colors.textDescription)
             },
             confirmButton = {
-                TextButton(onClick = onDismissError) {
-                    Text("OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                if (model.errorShowShipments) {
+                    // Always-available escape while a durable Stripe authority
+                    // blocks re-pay and Back — never strand the user on Order
+                    // Summary. The pending record stays recorded under Shipments.
+                    TextButton(onClick = onGoToShipments) {
+                        Text("Go to Shipments", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                    }
+                } else {
+                    TextButton(onClick = onDismissError) {
+                        Text("OK", style = AirdropType.button, color = BrandPalette.OrangeMain)
+                    }
                 }
+            },
+            dismissButton = if (model.errorShowShipments) {
+                {
+                    TextButton(onClick = onDismissError) {
+                        Text("OK", style = AirdropType.button, color = colors.textDescription)
+                    }
+                }
+            } else {
+                null
             },
         )
     }
