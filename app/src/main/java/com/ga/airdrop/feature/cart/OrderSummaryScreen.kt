@@ -50,7 +50,10 @@ data class OrderSummaryUiModel(
     val note: String = "",
     val currency: String = "USD",
     val exchangeUsdToJmd: Double = com.ga.airdrop.feature.shipments.DEFAULT_USD_TO_JMD,
-    val taxUsd: Double = 5.0,
+    // Tax is shown ONLY when applicable (> 0). Swift's order summary has no tax
+    // line; the old flat 5.0 was a placeholder. A real value flows from the
+    // backend when it computes one (see Laravel handoff) — 0 hides the row.
+    val taxUsd: Double = 0.0,
     val totalCharges: Double = 0.0,
     val removingKeys: Set<CartStore.CartLineKey> = emptySet(),
     val removalLocked: Boolean = false,
@@ -436,7 +439,10 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 SummaryChargeRow("Payment Currency", model.currency)
-                SummaryChargeRow("Tax", String.format(Locale.US, "USD %.2f", model.taxUsd))
+                // Tax only if applicable (Swift parity — no fake placeholder).
+                if (model.taxUsd > 0.0) {
+                    SummaryChargeRow("Tax", String.format(Locale.US, "USD %.2f", model.taxUsd))
+                }
                 SummaryChargeRow(
                     "Exchange Rate (USD)",
                     String.format(Locale.US, "USD 1 = JMD %.2f", model.exchangeUsdToJmd),
@@ -453,14 +459,25 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Total Charges", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+                // Show BOTH currencies side by side (Kemar) — derive the other
+                // from the exchange rate so the total reads in JMD and USD.
+                val rate = model.exchangeUsdToJmd
+                val jmdTotal = if (model.currency == "JMD") {
+                    model.totalCharges
+                } else {
+                    model.totalCharges * rate
+                }
+                val usdTotal = if (model.currency == "JMD") {
+                    if (rate > 0.0) model.totalCharges / rate else 0.0
+                } else {
+                    model.totalCharges
+                }
                 Text(
-                    if (model.currency == "JMD") {
-                        String.format(Locale.US, "JMD %.2f", model.totalCharges)
-                    } else {
-                        String.format(Locale.US, "USD %.2f", model.totalCharges)
-                    },
+                    text = String.format(Locale.US, "JMD %,.2f · USD %,.2f", jmdTotal, usdTotal),
                     style = AirdropType.subtitle1,
                     color = BrandPalette.OrangeMain,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    modifier = Modifier.weight(1f).padding(start = 8.dp),
                 )
             }
         }

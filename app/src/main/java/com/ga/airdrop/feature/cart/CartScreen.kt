@@ -406,21 +406,21 @@ private fun CartTotalsFooter(
                 label = "Exchange Rate",
                 value = String.format(Locale.US, "USD 1 = JMD %.2f", exchangeUsdToJmd),
             )
-            BottomBarRow(label = "Tax", value = "$ 5.00")
+            // Tax shows only when applicable — the old flat "$ 5.00" was a fake
+            // placeholder with no data source (Swift has no tax line).
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = "Order Total", style = AirdropType.title2, color = colors.textDarkTitle)
+                // Both currencies side by side (Kemar).
                 Text(
-                    text = if (currency.equals("JMD", ignoreCase = true)) {
-                        String.format(Locale.US, "JMD %.2f", totalJmd)
-                    } else {
-                        String.format(Locale.US, "USD %.2f", totalUsd)
-                    },
+                    text = String.format(Locale.US, "JMD %,.2f · USD %,.2f", totalJmd, totalUsd),
                     style = AirdropType.title2,
                     color = colors.textDarkTitle,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    modifier = Modifier.weight(1f).padding(start = 8.dp),
                 )
             }
             Spacer(Modifier.height(6.dp))

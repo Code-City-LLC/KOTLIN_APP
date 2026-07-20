@@ -108,8 +108,9 @@ class CartSaleProductParityTest {
         compose.onNodeWithText("Basket (1 Item)").assertIsDisplayed()
         compose.onNodeWithTag("cart-your-note-row").assertIsDisplayed()
         compose.onNodeWithTag("cart-frosted-totals-footer").assertIsDisplayed()
-        compose.onNodeWithText("Tax").assertIsDisplayed()
-        compose.onNodeWithText("$ 5.00").assertIsDisplayed()
+        // Tax only shows when applicable — the flat "$ 5.00" placeholder is gone.
+        compose.onNodeWithText("Tax").assertDoesNotExist()
+        compose.onNodeWithText("$ 5.00").assertDoesNotExist()
         compose.onNodeWithText("USD 1 = JMD 161.00").assertIsDisplayed()
         compose.onNodeWithText("Continue").assertIsDisplayed()
 
