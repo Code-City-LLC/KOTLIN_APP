@@ -69,7 +69,7 @@ fun LiveAgentChatScreen(onBack: () -> Unit) {
     var status by remember { mutableStateOf("Connecting…") }
     var sending by remember { mutableStateOf(false) }
 
-    var identity by remember { mutableStateOf<LiveAgentChatRepository.ChatIdentity?>() }
+    var identity by remember { mutableStateOf<LiveAgentChatRepository.ChatIdentity?>(null) }
     var user by remember { mutableStateOf<AirdropUser?>(null) }
     var conversationId by remember { mutableStateOf<String?>(null) }
     var pollJob by remember { mutableStateOf<Job?>(null) }
