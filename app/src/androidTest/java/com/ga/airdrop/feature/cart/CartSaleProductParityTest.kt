@@ -112,6 +112,9 @@ class CartSaleProductParityTest {
         compose.onNodeWithText("Tax").assertDoesNotExist()
         compose.onNodeWithText("$ 5.00").assertDoesNotExist()
         compose.onNodeWithText("USD 1 = JMD 161.00").assertIsDisplayed()
+        // Order Total shows BOTH currencies side by side (Kemar) — the "· USD"
+        // separator appears only in the dual total, not the exchange-rate row.
+        compose.onNodeWithText(" · USD ", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Continue").assertIsDisplayed()
 
         val hero = compose.onNodeWithTag("cart-apple-hero").getUnclippedBoundsInRoot()
