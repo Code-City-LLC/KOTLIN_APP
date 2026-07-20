@@ -4,16 +4,20 @@ import com.ga.airdrop.data.api.AirdropJson
 import com.ga.airdrop.data.model.SignUpRequest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SignUpRequestSerializationTest {
 
+    /**
+     * KEMAR RULING 2026-07-19 (Swift 64f4fdc): TRN + identity documents are
+     * deliberately NOT collected at sign-up. Customers add them via Profile
+     * after shipping a package. This test locks the ruling — the sign-up
+     * payload must never carry identity keys again.
+     */
     @Test
-    fun signUpIdentityFieldsUseCanonicalKeyWithCurrentLaravelAlias() {
+    fun signUpPayloadCarriesNoIdentityFieldsPerKemarRuling() {
         val request = SignUpRequest(
             firstName = "Kemar",
             lastName = "Campbell",
@@ -27,10 +31,6 @@ class SignUpRequestSerializationTest {
             userAddressCity = "Miami",
             userAddressState = "Florida",
             userAddressCountry = "United States",
-            userTrnNumber = "123456789",
-            userIdentityType = "Passport",
-            userIdentityNumber = "P-4242",
-            legacyIdentityType = "Passport",
             userHearType = "Other",
             userPickupLocation = "Kingston",
             userTnc = true,
@@ -40,11 +40,12 @@ class SignUpRequestSerializationTest {
         val encoded = AirdropJson.encodeToString(request)
         val fields = AirdropJson.parseToJsonElement(encoded) as JsonObject
 
-        assertEquals("123456789", fields["user_trn_number"]?.jsonPrimitive?.content)
-        assertEquals("Passport", fields["user_identity_type"]?.jsonPrimitive?.content)
-        assertEquals("P-4242", fields["user_identity_number"]?.jsonPrimitive?.content)
-        assertEquals("Passport", fields["indentity_type"]?.jsonPrimitive?.content)
-        assertTrue(fields.containsKey("comfirm_passsord"))
+        assertFalse(fields.containsKey("user_trn_number"))
+        assertFalse(fields.containsKey("user_identity_type"))
+        assertFalse(fields.containsKey("user_identity_number"))
+        assertFalse(fields.containsKey("indentity_type"))
         assertFalse(fields.containsKey("identity_type"))
+        // The intentionally misspelled backend password field stays verbatim.
+        assertTrue(fields.containsKey("comfirm_passsord"))
     }
 }

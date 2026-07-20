@@ -20,8 +20,13 @@ class SignUpScreenIdentityParityTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /**
+     * KEMAR RULING 2026-07-19 (Swift 64f4fdc): sign-up must NOT collect
+     * TRN/identity — customers add identity via Profile after shipping a
+     * package. This test locks the ruling so no parity pass re-adds the fields.
+     */
     @Test
-    fun signUpRendersIdentityFieldsAndIdTypePicker() {
+    fun signUpRendersNoIdentityFieldsPerKemarRuling() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
@@ -37,13 +42,12 @@ class SignUpScreenIdentityParityTest {
             }
         }
 
-        compose.onNodeWithText("Tax Registration Number").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("signup-trn-card").assertIsDisplayed()
-        compose.onNodeWithText("ID Type").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("signup-identity-type").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Passport").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Passport").assertIsDisplayed()
-        compose.onNodeWithText("ID Number").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("signup-identity-number-card").assertIsDisplayed()
+        compose.onNodeWithText("First Name").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Tax Registration Number").assertDoesNotExist()
+        compose.onNodeWithTag("signup-trn-card").assertDoesNotExist()
+        compose.onNodeWithText("ID Type").assertDoesNotExist()
+        compose.onNodeWithTag("signup-identity-type").assertDoesNotExist()
+        compose.onNodeWithText("ID Number").assertDoesNotExist()
+        compose.onNodeWithTag("signup-identity-number-card").assertDoesNotExist()
     }
 }

@@ -116,30 +116,9 @@ fun SignUpScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
-            TypeInputField(
-                label = "Tax Registration Number",
-                value = state.trnNumber,
-                onValueChange = { v -> viewModel.set { it.copy(trnNumber = v) } },
-                placeholder = "e.g. 194049512",
-                required = true,
-                testTagPrefix = "signup-trn",
-            )
-            AuthSelectField(
-                label = "ID Type",
-                value = state.identityType,
-                required = true,
-                placeholder = "Select",
-                onClick = { pickerFor = "identityType" },
-                testTag = "signup-identity-type",
-            )
-            TypeInputField(
-                label = "ID Number",
-                value = state.identityNumber,
-                onValueChange = { v -> viewModel.set { it.copy(identityNumber = v) } },
-                placeholder = "e.g. P-4242",
-                required = true,
-                testTagPrefix = "signup-identity-number",
-            )
+            // KEMAR RULING 2026-07-19 (Swift 64f4fdc): no TRN/identity fields
+            // at sign-up — customers add identity via Profile after shipping
+            // a package. Do not re-add.
             TypeInputField(
                 label = "Password",
                 value = state.password,
@@ -319,13 +298,6 @@ fun SignUpScreen(
             options = state.stateOptions,
             selected = state.state.ifEmpty { null },
             onSelect = { v -> viewModel.set { it.copy(state = v) } },
-            onDismiss = { pickerFor = null },
-        )
-        "identityType" -> AuthOptionSheet(
-            title = "ID Type",
-            options = signUpIdTypeOptions,
-            selected = state.identityType.ifEmpty { null },
-            onSelect = { v -> viewModel.set { it.copy(identityType = v) } },
             onDismiss = { pickerFor = null },
         )
         "pickup" -> AuthOptionSheet(

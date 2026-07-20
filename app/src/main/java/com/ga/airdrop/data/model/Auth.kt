@@ -31,12 +31,11 @@ data class SignUpRequest(
     @SerialName("user_address_city") val userAddressCity: String,
     @SerialName("user_address_state") val userAddressState: String,
     @SerialName("user_address_country") val userAddressCountry: String,
-    @SerialName("user_trn_number") val userTrnNumber: String? = null,
-    @SerialName("user_identity_type") val userIdentityType: String? = null,
-    @SerialName("user_identity_number") val userIdentityNumber: String? = null,
-    // Current Laravel RegisterRequest still consumes this misspelled alias
-    // while the profile/update rail uses user_identity_type.
-    @SerialName("indentity_type") val legacyIdentityType: String? = null,
+    // KEMAR RULING 2026-07-19 (Swift 64f4fdc): TRN + identity documents are
+    // deliberately NOT collected at sign-up (RN did; that was wrong).
+    // Customers add them via Profile once they ship a package and need it
+    // logged to their account. Do not re-add these fields here — the Profile
+    // update path owns them.
     @SerialName("user_hear_type") val userHearType: String,
     @SerialName("user_pickup_location") val userPickupLocation: String,
     @SerialName("user_tnc") val userTnc: Boolean,
