@@ -107,6 +107,10 @@ class DeliveryMethodViewModel(
             val warehouses = repo.deliverySettings()
                 .map { it.settings?.warehouses.orEmpty() }
                 .getOrElse { fallbackWarehouses() }
+                // Fall back on an empty-but-successful response too, not only
+                // on failure — a 200 that yields no warehouses (parse-shape
+                // drift) must never leave "Select Pickup Location" blank.
+                .ifEmpty { fallbackWarehouses() }
             _state.update {
                 it.copy(
                     warehouses = warehouses,
