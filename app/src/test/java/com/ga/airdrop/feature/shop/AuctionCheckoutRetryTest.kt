@@ -5,6 +5,9 @@ import com.ga.airdrop.core.session.AuthenticatedRequestOwner
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.data.model.CheckoutResponse
+import com.ga.airdrop.feature.more.MoreProfileRepository
+import com.ga.airdrop.feature.more.MoreUser
+import com.ga.airdrop.feature.more.ProfileAsset
 import com.ga.airdrop.feature.cart.CartNoteStore
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.cart.CheckoutFlowStore
@@ -53,7 +56,7 @@ class AuctionCheckoutRetryTest {
     fun `failed launch retries same auction session with one create call`() = runTest {
         assertTrue(CartNoteStore.save(owner, "  call on arrival  "))
         val checkout = FakeCheckout()
-        val viewModel = AuctionCheckoutViewModel(checkout, FakeProducts, FakeBoundary(owner))
+        val viewModel = AuctionCheckoutViewModel(checkout, FakeProducts, FakeBoundary(owner), FakeProfileRepository)
 
         viewModel.pay()
         advanceUntilIdle()
@@ -79,7 +82,7 @@ class AuctionCheckoutRetryTest {
     @Test
     fun `known session with insecure hosted URL is pending and never exposed or posted twice`() = runTest {
         val checkout = FakeCheckout(url = "http://checkout.airdropja.test/auction")
-        val viewModel = AuctionCheckoutViewModel(checkout, FakeProducts, FakeBoundary(owner))
+        val viewModel = AuctionCheckoutViewModel(checkout, FakeProducts, FakeBoundary(owner), FakeProfileRepository)
 
         viewModel.pay()
         advanceUntilIdle()
@@ -97,7 +100,7 @@ class AuctionCheckoutRetryTest {
     fun `ambiguous auction failure survives recreation and blocks second POST`() = runTest {
         val checkout = FakeCheckout(failure = IllegalStateException("connection dropped"))
         val boundary = FakeBoundary(owner)
-        val first = AuctionCheckoutViewModel(checkout, FakeProducts, boundary)
+        val first = AuctionCheckoutViewModel(checkout, FakeProducts, boundary, FakeProfileRepository)
 
         first.pay()
         advanceUntilIdle()
@@ -106,7 +109,7 @@ class AuctionCheckoutRetryTest {
 
         CheckoutFlowStore.dropProcessStateForTests()
         CheckoutFlowStore.restoreForTests(checkoutPrefs, owner)
-        val recreated = AuctionCheckoutViewModel(checkout, FakeProducts, boundary)
+        val recreated = AuctionCheckoutViewModel(checkout, FakeProducts, boundary, FakeProfileRepository)
         recreated.pay()
         advanceUntilIdle()
 
@@ -119,7 +122,7 @@ class AuctionCheckoutRetryTest {
     fun `auction creation commit failure sends zero POSTs`() = runTest {
         checkoutPrefs.failNextCommit = true
         val checkout = FakeCheckout()
-        val viewModel = AuctionCheckoutViewModel(checkout, FakeProducts, FakeBoundary(owner))
+        val viewModel = AuctionCheckoutViewModel(checkout, FakeProducts, FakeBoundary(owner), FakeProfileRepository)
 
         viewModel.pay()
         advanceUntilIdle()
@@ -165,6 +168,15 @@ class AuctionCheckoutRetryTest {
             spiToken: String,
             expectedSession: AuthTokenStore.RequestProvenance,
         ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> = Result.failure(RuntimeException("unused"))
+    }
+
+    private object FakeProfileRepository : MoreProfileRepository {
+        override suspend fun currentUser(expectedSession: AuthTokenStore.RequestProvenance?): Result<MoreUser> = Result.success(MoreUser())
+        override suspend fun updateProfile(fields: Map<String, String?>, expectedSession: AuthTokenStore.RequestProvenance): Result<String?> = Result.success(null)
+        override suspend fun profileImage(): Result<ProfileAsset> = Result.success(ProfileAsset(null, null))
+        override suspend fun uploadProfileImage(bytes: ByteArray, fileName: String, mimeType: String, expectedSession: AuthTokenStore.RequestProvenance): Result<ProfileAsset> = Result.success(ProfileAsset(null, null))
+        override suspend fun deleteProfileImage(expectedSession: AuthTokenStore.RequestProvenance): Result<Unit> = Result.success(Unit)
+        override suspend fun fetchImage(url: String): Result<ByteArray> = Result.success(byteArrayOf())
     }
 
     private object FakeProducts : ShopProductsRepository {
