@@ -3,6 +3,8 @@ package com.ga.airdrop.feature.cart
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.location.CountryCatalog
+import com.ga.airdrop.data.model.CreateNcbSessionRequest
+import com.ga.airdrop.data.model.NcbDeliveryLocation
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionJobs
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
@@ -63,6 +65,14 @@ data class CartUiState(
     val checkoutUrl: String? = null,
     val checkoutSessionId: String? = null,
     val checkoutLaunchAttempt: Long = 0L,
+    // NCB (JMD) PowerTranz checkout — Swift FigmaCheckoutPaymentMethod + 3DS parity.
+    val ncbBusy: Boolean = false,
+    val ncbRedirectData: String? = null,
+    val ncbSpiToken: String? = null,
+    val ncbInvoiceId: String? = null,
+    val navToNcbCardEntry: Boolean = false,
+    val navToNcb3DS: Boolean = false,
+    val navToNcbSuccess: Boolean = false,
     /** First eligible tagged Apple/Mac product from the shared featured feed. */
     val appleHero: ShopProduct? = null,
 )
@@ -638,10 +648,14 @@ class CartViewModel(
             return orderError("Cart update in progress", "Wait for your cart changes to finish before paying.")
         }
         when (checkoutPaymentRail(flow.currency)) {
-            CheckoutPaymentRail.NCB_POWERTRANZ -> return orderError(
-                "JMD checkout unavailable",
-                "JMD payment is not available yet. No payment was started.",
-            )
+            CheckoutPaymentRail.NCB_POWERTRANZ -> {
+                // JMD → collect the card in the NCB card-entry screen, which calls
+                // createNcbSession. No Stripe session is created here.
+                _state.update {
+                    it.copy(navToNcbCardEntry = true, errorTitle = null, errorMessage = null)
+                }
+                return
+            }
             CheckoutPaymentRail.STRIPE -> Unit
             null -> return orderError("Checkout unavailable", "The selected payment currency is invalid.")
         }
@@ -751,6 +765,134 @@ class CartViewModel(
 
     fun consumeCheckoutUrl() {
         _state.update { it.copy(checkoutUrl = null, checkoutSessionId = null) }
+    }
+
+    fun consumeNcbCardEntryNav() = _state.update { it.copy(navToNcbCardEntry = false) }
+    fun consumeNcb3DSNav() = _state.update { it.copy(navToNcb3DS = false) }
+    fun consumeNcbSuccessNav() = _state.update { it.copy(navToNcbSuccess = false) }
+
+    /**
+     * NCB (JMD) step 1 — create the 3-D Secure session from the card + the saved
+     * billing + delivery context. Card fields are passed straight through and are
+     * never persisted. The ncbBusy guard prevents a double-tap double-charge.
+     */
+    fun createNcbSession(
+        cardName: String,
+        cardNumber: String,
+        cardMonth: String,
+        cardYear: String,
+        cardCvv: String,
+    ) {
+        if (_state.value.ncbBusy) return
+        val owner = currentOwner() ?: return orderError(
+            "Sign in required",
+            "Log in to your Airdropja account before paying.",
+        )
+        val flow = CheckoutFlowStore.current(owner)?.takeIf { it.phase == CheckoutPhase.ORDER_SUMMARY }
+            ?: return orderError("Checkout unavailable", "Return to your cart and restart checkout.")
+        val lines = capturedLines(flow)
+            ?: return orderError("Checkout unavailable", "The cart changed. Restart checkout.")
+        val requestOwner = sessionBoundary.requestOwner(owner)
+            ?: return orderError("Sign in required", "Log in to your Airdropja account before paying.")
+        val form = _state.value.form
+        val request = CreateNcbSessionRequest(
+            packageIds = lines.mapNotNull(CartStore.CartLine::packageId),
+            currency = "JMD",
+            isAuction = flow.isAuction,
+            firstName = form.firstName.trim(),
+            lastName = form.lastName.trim(),
+            address = listOf(form.address1, form.address2).filter { it.isNotBlank() }
+                .joinToString(", ").trim(),
+            city = form.city.trim(),
+            country = ncbCountryCode(form.country),
+            cardName = cardName.trim(),
+            cardNumber = cardNumber.filter(Char::isDigit),
+            cardMonth = cardMonth.trim(),
+            cardYear = cardYear.trim(),
+            cardCvv = cardCvv.trim(),
+            deliveryMode = flow.deliveryMode ?: "pickup",
+            deliveryLocation = flow.deliveryAddress
+                ?.takeIf { flow.deliveryMode == "delivery" && flow.deliveryLatitude != null && flow.deliveryLongitude != null }
+                ?.let { NcbDeliveryLocation(it, flow.deliveryLatitude!!, flow.deliveryLongitude!!) },
+            pickupLocation = flow.pickupLocation,
+            deliveryChargeTotal = flow.deliveryFee,
+            deliveryChargeCurrency = flow.deliveryFeeCurrency,
+        )
+        _state.update { it.copy(ncbBusy = true, errorTitle = null, errorMessage = null) }
+        sessionJobs.launch {
+            checkout.createNcbSession(request, requestOwner.provenance)
+                .onSuccess { resp ->
+                    sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(
+                                ncbBusy = false,
+                                ncbRedirectData = resp.redirectData,
+                                ncbSpiToken = resp.spiToken,
+                                navToNcb3DS = true,
+                            )
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(
+                                ncbBusy = false,
+                                errorTitle = "Payment failed",
+                                errorMessage = e.message ?: "We couldn't start the payment. Please try again.",
+                            )
+                        }
+                    }
+                }
+        }
+    }
+
+    /**
+     * NCB (JMD) step 3 — finalize after the 3-D Secure callback. On success the
+     * paid cart lines are durably removed and the flow cleared (mirrors the
+     * Stripe paid commit). Guarded so an overlapping callback can't double-complete.
+     */
+    fun completeNcbPayment() {
+        if (_state.value.ncbBusy) return
+        val spiToken = _state.value.ncbSpiToken?.trim()?.takeIf(String::isNotEmpty) ?: return
+        val owner = currentOwner() ?: return
+        val requestOwner = sessionBoundary.requestOwner(owner) ?: return
+        val flow = CheckoutFlowStore.current(owner)
+        _state.update { it.copy(ncbBusy = true, errorTitle = null, errorMessage = null) }
+        sessionJobs.launch {
+            checkout.ncbCompletePayment(spiToken, requestOwner.provenance)
+                .onSuccess { resp ->
+                    flow?.cartKeys?.toSet()?.let { CartStore.removePaidKeysDurably(it) }
+                    CheckoutFlowStore.clear()
+                    sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(
+                                ncbBusy = false,
+                                ncbInvoiceId = resp.invoiceId,
+                                ncbRedirectData = null,
+                                navToNcbSuccess = true,
+                            )
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    sessionBoundary.apply(owner) {
+                        _state.update {
+                            it.copy(
+                                ncbBusy = false,
+                                errorTitle = "Payment not confirmed",
+                                errorMessage = e.message
+                                    ?: "We couldn't confirm your payment. Check Shipments before paying again.",
+                            )
+                        }
+                    }
+                }
+        }
+    }
+
+    private fun ncbCountryCode(country: String): String {
+        val c = country.trim()
+        return if (c.equals("Jamaica", ignoreCase = true) || c.equals("JM", ignoreCase = true)) "JM" else "US"
     }
 
     private fun currentOwner(): AuthenticatedSessionOwner? {

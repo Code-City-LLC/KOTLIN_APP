@@ -138,4 +138,16 @@ private class DataShopCheckoutRepository(
                 country = it.country.orEmpty(),
             )
         }
+
+    override suspend fun createNcbSession(
+        request: com.ga.airdrop.data.model.CreateNcbSessionRequest,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbSessionResponse> =
+        payments.createNcbSession(request, expectedSession)
+
+    override suspend fun ncbCompletePayment(
+        spiToken: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> =
+        payments.ncbCompletePayment(spiToken, expectedSession)
 }
