@@ -206,13 +206,17 @@ fun NcbCardEntryScreen(
                     options = CHECKOUT_STATE_OPTIONS,
                     onSelect = { v -> host.updateNcbForm { it.copy(state = v) } },
                 )
-                TypeInputField(
-                    label = "Zip Code",
-                    value = form.postal,
-                    onValueChange = { v -> host.updateNcbForm { it.copy(postal = v) } },
-                    placeholder = "e.g. 123456",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
+                // ZIP only matters for the US (Jamaica + other Caribbean islands don't
+                // use postal codes) — hide it for non-postal countries per the ruling.
+                if (CountryCatalog.requiresPostalCode(form.country)) {
+                    TypeInputField(
+                        label = "Zip Code",
+                        value = form.postal,
+                        onValueChange = { v -> host.updateNcbForm { it.copy(postal = v) } },
+                        placeholder = "e.g. 123456",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                }
 
                 (localError ?: ui.errorMessage)?.let {
                     Text(it, style = AirdropType.body2, color = AlertPalette.Error)
