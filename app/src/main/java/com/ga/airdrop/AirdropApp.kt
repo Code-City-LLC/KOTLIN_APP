@@ -19,6 +19,7 @@ import com.ga.airdrop.feature.shipments.PackagesSortStore
 import com.ga.airdrop.feature.shipments.ShipmentsRepoBinding
 import com.ga.airdrop.feature.shop.ShopRecentSearches
 import com.ga.airdrop.feature.shop.ShopRepoBinding
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import okhttp3.OkHttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,9 @@ class AirdropApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        // Report crashes on real builds only; debug crashes stay off the prod
+        // Crashlytics dashboard (project airdrop-app-b9423).
+        FirebaseCrashlytics.getInstance().isCrashlyticsCollectionEnabled = !BuildConfig.DEBUG
         AuthTokenStore.init(this)
         ThemeController.init(this)
         TextSizeController.init(this)

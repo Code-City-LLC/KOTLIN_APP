@@ -395,20 +395,3 @@ fun NavHostController.switchTab(tab: AirdropTab) {
         launchSingleTop = true
     }
 }
-
-/** Temporary stand-in while screens are being built out; never shipped. */
-@Composable
-internal fun PlaceholderScreen(name: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AirdropTheme.colors.gray200),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = name,
-            style = AirdropType.h5,
-            color = AirdropTheme.colors.textDarkTitle,
-        )
-    }
-}

@@ -503,9 +503,10 @@ private data class LedgerDisplayRow(
 private fun ledgerRows(state: AirCoinHistoryUiState): List<LedgerDisplayRow> {
     val fromTransactions = state.transactions.map { tx ->
         LedgerDisplayRow(
-            invoice = tx.referenceId ?: "-",
+            invoice = tx.invoiceNumber?.takeIf { it.isNotBlank() }
+                ?: tx.referenceId?.takeIf { it.isNotBlank() } ?: "-",
             amount = formatCoinAmount(abs(tx.amount ?: 0.0)),
-            date = formatLedgerDate(tx.createdAt),
+            date = formatLedgerDate(tx.date ?: tx.createdAt),
         )
     }
     if (fromTransactions.isNotEmpty()) return fromTransactions

@@ -19,6 +19,9 @@ data class ShopUiState(
     val showSortSheet: Boolean = false,
     /** Swift §C.7 — the last 5 explicitly-submitted queries, newest first. */
     val recentSearches: List<String> = emptyList(),
+    /** Set when a product load fails, so the UI shows a retry instead of a
+     *  misleading "No products" that looks like an empty catalog. */
+    val loadError: String? = null,
 )
 
 /**
@@ -35,6 +38,11 @@ class ShopViewModel(
     val state: StateFlow<ShopUiState> = _state
 
     private var searchJob: Job? = null
+
+    // A newer search (or refresh) cancels the in-flight load so a slow older
+    // response can never overwrite fresher results — the stale-response race.
+    private var auctionJob: Job? = null
+    private var featuredJob: Job? = null
 
     /** Unsorted server order kept so ShopSort.ALL can restore it. */
     private var auctionOriginal: List<ShopProduct> = emptyList()
@@ -102,30 +110,44 @@ class ShopViewModel(
         _state.value.query.trim().takeIf { it.length >= 3 }
 
     private fun loadAuction() {
-        viewModelScope.launch {
+        auctionJob?.cancel()
+        auctionJob = viewModelScope.launch {
             _state.update { it.copy(auctionLoading = true) }
             // RECONCILE: GET /products?page=1&per_page=4&order=created_at&
             // direction=desc&in_stock=1[&search=] (Swift auctionProductsShortlist)
-            val result = products.auctionProducts(page = 1, perPage = 4, search = searchQuery())
-            val items = result.getOrElse { emptyList() }
-            auctionOriginal = items
-            _state.update {
-                it.copy(auction = sortList(items, it.sort), auctionLoading = false)
-            }
+            products.auctionProducts(page = 1, perPage = 4, search = searchQuery())
+                .onSuccess { items ->
+                    auctionOriginal = items
+                    _state.update {
+                        it.copy(auction = sortList(items, it.sort), auctionLoading = false, loadError = null)
+                    }
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(auctionLoading = false, loadError = e.message ?: "Couldn't load products.")
+                    }
+                }
         }
     }
 
     private fun loadFeatured() {
-        viewModelScope.launch {
+        featuredJob?.cancel()
+        featuredJob = viewModelScope.launch {
             _state.update { it.copy(featuredLoading = true) }
             // RECONCILE: GET /featured-products?page=1&per_page=4&order=created_at&
             // direction=desc[&search=&in_stock=1&on_sale=1] (Swift featuredProductsShortlist)
-            val result = products.featuredProducts(page = 1, perPage = 4, search = searchQuery())
-            val items = result.getOrElse { emptyList() }
-            featuredOriginal = items
-            _state.update {
-                it.copy(featured = sortList(items, it.sort).take(10), featuredLoading = false)
-            }
+            products.featuredProducts(page = 1, perPage = 4, search = searchQuery())
+                .onSuccess { items ->
+                    featuredOriginal = items
+                    _state.update {
+                        it.copy(featured = sortList(items, it.sort).take(10), featuredLoading = false, loadError = null)
+                    }
+                }
+                .onFailure { e ->
+                    _state.update {
+                        it.copy(featuredLoading = false, loadError = e.message ?: "Couldn't load products.")
+                    }
+                }
         }
     }
 

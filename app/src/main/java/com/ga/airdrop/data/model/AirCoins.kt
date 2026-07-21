@@ -72,6 +72,13 @@ data class AirCoinTransaction(
     @SerialName("reference_id")
     @Serializable(with = FlexibleStringSerializer::class)
     val referenceId: String? = null,
+    // Live /aircoins/history sends `invoice_number` + `date` (not reference_id /
+    // created_at). Keep the older names as fallbacks for older payloads.
+    @SerialName("invoice_number")
+    @Serializable(with = FlexibleStringSerializer::class)
+    val invoiceNumber: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    val date: String? = null,
     @SerialName("created_at")
     @Serializable(with = FlexibleStringSerializer::class)
     val createdAt: String? = null,

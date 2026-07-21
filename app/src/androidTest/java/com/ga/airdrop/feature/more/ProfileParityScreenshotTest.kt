@@ -107,8 +107,6 @@ class ProfileParityScreenshotTest {
                     idNumber = " P-4242 ",
                     dob = "07/04/1990",
                     email = " ada@example.com ",
-                    password = "",
-                    confirmPassword = "",
                     language = "English",
                     addressLine1 = " 1 Computing Way ",
                     addressLine2 = "   ",

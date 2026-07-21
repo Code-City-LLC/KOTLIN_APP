@@ -20,6 +20,8 @@ internal data class LiveAgentChatTurn(
     val role: LiveChatRole,
     val body: String,
     val senderName: String? = null,
+    /** A customer turn whose send failed — the UI offers a tap-to-retry. */
+    val failed: Boolean = false,
 )
 
 internal data class LiveAgentChatUiState(
@@ -76,19 +78,29 @@ internal class LiveAgentChatViewModel(
         val body = _state.value.input.trim()
         if (body.isEmpty() || _state.value.sending) return
 
-        _state.update {
-            it.copy(
-                input = "",
-                sending = true,
-                error = null,
-                messages = it.messages + LiveAgentChatTurn(
-                    role = LiveChatRole.Customer,
-                    body = body,
-                    senderName = it.customerDisplayName,
-                ),
-            )
-        }
+        val turn = LiveAgentChatTurn(
+            role = LiveChatRole.Customer,
+            body = body,
+            senderName = _state.value.customerDisplayName,
+        )
+        _state.update { it.copy(input = "", messages = it.messages + turn) }
+        deliver(turn)
+    }
 
+    /** Re-attempt a customer message whose earlier send failed. */
+    fun resend(turnId: String) {
+        if (_state.value.sending) return
+        val turn = _state.value.messages.firstOrNull { it.id == turnId && it.failed } ?: return
+        // Clear the failed marker while the retry is in flight.
+        _state.update {
+            it.copy(messages = it.messages.map { m -> if (m.id == turnId) m.copy(failed = false) else m })
+        }
+        deliver(turn.copy(failed = false))
+    }
+
+    private fun deliver(turn: LiveAgentChatTurn) {
+        val body = turn.body
+        _state.update { it.copy(sending = true, error = null) }
         viewModelScope.launch {
             runCatching {
                 val user = resolveCurrentUser()
@@ -111,8 +123,12 @@ internal class LiveAgentChatViewModel(
                 }
                 pollForReply(conversationId)
             }.onFailure { err ->
+                // Mark this specific turn failed so it can be resent, and surface the banner.
                 _state.update {
-                    it.copy(error = LiveAgentChatRepository.userFacingStatus(err))
+                    it.copy(
+                        error = LiveAgentChatRepository.userFacingStatus(err),
+                        messages = it.messages.map { m -> if (m.id == turn.id) m.copy(failed = true) else m },
+                    )
                 }
             }
             _state.update { it.copy(sending = false) }
