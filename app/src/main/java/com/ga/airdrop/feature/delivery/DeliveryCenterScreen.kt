@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -178,22 +180,39 @@ private fun ActiveDeliveryCard(orderReference: String) {
             .testTag("delivery-center-active"),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        // Delivery illustration (1000x667) inside a soft rounded well.
+        // Delivery illustration (1000x667) inside a soft rounded well. A blurred,
+        // darkened copy offset downward sits behind it as a soft drop shadow so
+        // the truck lifts off the surface.
         Box(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(Radius.xs))
-                .background(colors.gray150),
+                .background(colors.gray150)
+                .padding(bottom = 6.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Image(
-                painter = painterResource(R.drawable.img_delivery_deliver),
-                contentDescription = null,
-                modifier = Modifier
+            Box(
+                Modifier
                     .fillMaxWidth()
                     .aspectRatio(1000f / 667f),
-                contentScale = ContentScale.Fit,
-            )
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.img_delivery_deliver),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.20f)),
+                    modifier = Modifier
+                        .matchParentSize()
+                        .offset(y = 7.dp)
+                        .blur(13.dp),
+                )
+                Image(
+                    painter = painterResource(R.drawable.img_delivery_deliver),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
         }
 
         // Order heading — the stage below carries the live status, so no pill.
@@ -436,7 +455,7 @@ private fun ContactAction(onContactUs: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Image(
-            painter = painterResource(R.drawable.ic_message),
+            painter = painterResource(R.drawable.ic_phone_outline),
             contentDescription = null,
             colorFilter = ColorFilter.tint(colors.orangeMain),
             modifier = Modifier.size(22.dp),
