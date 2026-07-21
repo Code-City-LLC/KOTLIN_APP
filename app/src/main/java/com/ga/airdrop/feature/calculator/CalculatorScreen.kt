@@ -262,6 +262,7 @@ fun CalculatorScreen(
 
     if (methodPicker) {
         OptionPickerSheet(
+            title = "Shipping Method",
             options = ShippingMethod.entries.map { it.label },
             selected = state.method.label,
             onSelect = { label ->
@@ -273,6 +274,7 @@ fun CalculatorScreen(
     }
     if (lengthUnitPicker) {
         OptionPickerSheet(
+            title = "Length Unit",
             options = LengthUnit.entries.map { it.label },
             selected = state.lengthUnit.label,
             onSelect = { label ->
@@ -284,6 +286,7 @@ fun CalculatorScreen(
     }
     if (weightUnitPicker) {
         OptionPickerSheet(
+            title = "Weight Unit",
             options = WeightUnit.entries.map { it.label },
             selected = state.weightUnit.label,
             onSelect = { label ->

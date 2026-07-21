@@ -251,6 +251,7 @@ fun DropAlertScreen(
 
     if (methodPicker) {
         OptionPickerSheet(
+            title = "Shipping Method",
             options = DropAlertViewModel.SHIPPING_METHOD_OPTIONS,
             selected = state.shippingMethod.ifBlank { null },
             onSelect = viewModel::onShippingMethodSelected,
@@ -259,6 +260,7 @@ fun DropAlertScreen(
     }
     if (courierPicker) {
         OptionPickerSheet(
+            title = "Courier Company",
             options = DropAlertViewModel.COURIER_COMPANY_OPTIONS,
             selected = state.courierCompany.ifBlank { null },
             onSelect = viewModel::onCourierCompanySelected,

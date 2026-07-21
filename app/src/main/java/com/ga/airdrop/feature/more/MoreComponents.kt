@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.AirdropOptionPicker
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
@@ -384,7 +385,6 @@ fun MoreConfirmDialog(
  * Bottom-sheet option picker — Android counterpart of the Swift/RN action
  * sheets used across Preferences and Profile.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreOptionSheet(
     title: String,
@@ -392,47 +392,4 @@ fun MoreOptionSheet(
     selected: String?,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
-) {
-    val colors = AirdropTheme.colors
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.gray100,
-    ) {
-        Column(Modifier.padding(bottom = Spacing.lg)) {
-            Text(
-                text = title,
-                style = AirdropType.title2,
-                color = colors.textDarkTitle,
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-            )
-            options.forEach { option ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            onSelect(option)
-                            onDismiss()
-                        }
-                        .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = option,
-                        style = if (option == selected) AirdropType.subtitle1 else AirdropType.body1,
-                        color = colors.textDarkTitle,
-                    )
-                    if (option == selected) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_check),
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(colors.iconSelected),
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
+) = AirdropOptionPicker(title, options, selected, onSelect, onDismiss)
