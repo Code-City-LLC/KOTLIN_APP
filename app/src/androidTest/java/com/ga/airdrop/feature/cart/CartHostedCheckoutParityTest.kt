@@ -224,9 +224,9 @@ class CartHostedCheckoutParityTest {
             viewModel.updateForm { it.copy(currency = "JMD") }
             viewModel.showCheckoutPaymentMethodNotice()
         }
-        assertEquals("JMD checkout unavailable", viewModel.state.value.errorTitle)
+        assertEquals("Payment method", viewModel.state.value.errorTitle)
         assertEquals(
-            "JMD payment is not available yet. No payment was started.",
+            "JMD orders collect your card on the next step, secured by NCB. No payment was started.",
             viewModel.state.value.errorMessage,
         )
     }
@@ -574,7 +574,7 @@ class CartHostedCheckoutParityTest {
     }
 
     @Test
-    fun orderSummaryJmdFailsClosedWithoutCreatingStripeCheckout() {
+    fun orderSummaryJmdRoutesToNcbWithoutCreatingStripeCheckout() {
         val repo = FakeCartCheckoutRepository()
         val viewModel = prepareOrderSummaryViewModel(
             repo = repo,
@@ -594,8 +594,12 @@ class CartHostedCheckoutParityTest {
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewModel::payOrderSummary)
 
+        // JMD now routes to the NCB (PowerTranz) card-entry screen — NOT the Stripe
+        // hosted checkout, and NOT an error. No Stripe checkout is created, no error
+        // surfaces, and the cart is preserved until the NCB payment actually completes.
         assertEquals(0, repo.checkoutCalls.get())
-        assertEquals("JMD checkout unavailable", viewModel.state.value.errorTitle)
+        assertTrue(viewModel.state.value.navToNcbCardEntry)
+        assertNull(viewModel.state.value.errorTitle)
         assertNull(viewModel.state.value.checkoutUrl)
         assertEquals(1, CartStore.count)
     }
