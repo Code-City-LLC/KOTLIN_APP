@@ -372,10 +372,22 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
             },
         ),
     ) { entry ->
+        val successRef = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() }
         com.ga.airdrop.feature.cart.PaymentSuccessScreen(
-            orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
+            orderReference = successRef,
             formattedAmount = entry.arguments?.getString("amount")?.takeIf { it.isNotBlank() },
             fulfillment = entry.arguments?.getString("fulfillment")?.takeIf { it.isNotBlank() },
+            onTrackPackage = {
+                // "Track your package" → Delivery Center for this order. Reset the
+                // checkout funnel to Home as the root, then push the tracking hub
+                // so Back returns Home (where the Delivery Center tile also lives),
+                // never a stale cart / cleared checkout screen.
+                navController.navigate(Routes.HOME) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+                navController.navigate(Routes.deliveryCenter(successRef))
+            },
             onContinueShopping = {
                 // "Continue Shopping" → Shop tab, clearing the checkout stack.
                 navController.navigate(Routes.SHOP) {
@@ -383,6 +395,22 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
                     launchSingleTop = true
                 }
             },
+        )
+    }
+    // Delivery / tracking hub.
+    composable(
+        Routes.DELIVERY_CENTER,
+        arguments = listOf(
+            androidx.navigation.navArgument("ref") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
+        ),
+    ) { entry ->
+        com.ga.airdrop.feature.delivery.DeliveryCenterScreen(
+            orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
+            onBack = { navController.popBackStack() },
+            onContactUs = { navController.navigate(Routes.LIVE_CHAT) },
         )
     }
 }

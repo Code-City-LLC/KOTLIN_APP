@@ -28,6 +28,10 @@ object Routes {
     // Home drill-downs
     const val WAREHOUSES = "warehouses"
     const val SERVICES = "services"
+    // Delivery / tracking hub — reached from the Home "Delivery Center" tile and
+    // the payment-success "Track your package" action. Optional ref = the order
+    // whose journey to open on.
+    const val DELIVERY_CENTER = "deliveryCenter?ref={ref}"
     const val SALES_TAXES = "salesTaxes"
     const val GOLD_PRIORITY = "goldPriority"
     const val NOTIFICATIONS = "notifications"
@@ -120,6 +124,11 @@ object Routes {
     const val AUCTION_NCB_3DS = "auctionNcb3ds"
 
     fun paymentReturn(sessionId: String?) = "paymentReturn/${sessionId.orEmpty()}"
+
+    fun deliveryCenter(ref: String? = null): String {
+        val encoded = java.net.URLEncoder.encode(ref.orEmpty(), "UTF-8").replace("+", "%20")
+        return "deliveryCenter?ref=$encoded"
+    }
 
     fun paymentSuccess(ref: String?, amount: String?, fulfillment: String? = null): String {
         val encodedRef = java.net.URLEncoder.encode(ref.orEmpty(), "UTF-8").replace("+", "%20")
