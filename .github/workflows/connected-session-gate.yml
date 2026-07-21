@@ -10,6 +10,7 @@ on:
       - "app/src/main/java/com/ga/airdrop/core/prefs/**"
       - "app/src/main/java/com/ga/airdrop/core/push/**"
       - "app/src/main/java/com/ga/airdrop/core/session/**"
+      - "app/src/main/java/com/ga/airdrop/feature/auth/**"
       - "app/src/main/java/com/ga/airdrop/feature/home/**"
       - "app/src/main/java/com/ga/airdrop/feature/homedetails/GoldPriorityViewModel.kt"
       - "app/src/main/java/com/ga/airdrop/feature/homedetails/NotificationsScreen.kt"
