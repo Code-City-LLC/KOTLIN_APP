@@ -247,6 +247,24 @@ interface ShopCheckoutRepository {
      * billing form).
      */
     suspend fun billingProfile(): Result<ShopBillingProfile>
+
+    /**
+     * RECONCILE: POST /payments/create-ncb-session (NCB PowerTranz JMD).
+     * Returns { spi_token, redirect_data (HTML 3DS challenge), checkout_id }.
+     * Defaulted so only the real data-backed repository must implement it.
+     */
+    suspend fun createNcbSession(
+        request: com.ga.airdrop.data.model.CreateNcbSessionRequest,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbSessionResponse> =
+        Result.failure(NotImplementedError("NCB checkout not wired for this repository"))
+
+    /** RECONCILE: POST /payments/ncb-complete-payment { spi_token } → { invoice_id }. */
+    suspend fun ncbCompletePayment(
+        spiToken: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> =
+        Result.failure(NotImplementedError("NCB checkout not wired for this repository"))
 }
 
 /**
@@ -290,6 +308,16 @@ private object UnboundShopCheckoutRepository : ShopCheckoutRepository {
     override suspend fun exchangeRate(): Result<Double> = Result.failure(unbound)
 
     override suspend fun billingProfile(): Result<ShopBillingProfile> = Result.failure(unbound)
+
+    override suspend fun createNcbSession(
+        request: com.ga.airdrop.data.model.CreateNcbSessionRequest,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbSessionResponse> = Result.failure(unbound)
+
+    override suspend fun ncbCompletePayment(
+        spiToken: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> = Result.failure(unbound)
 }
 
 /**

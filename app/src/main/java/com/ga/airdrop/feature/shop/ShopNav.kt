@@ -192,6 +192,14 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
             }
         }
 
+        // JMD → route into the NCB card-entry screen (Stripe stays hosted-checkout).
+        LaunchedEffect(state.navToNcbCardEntry) {
+            if (state.navToNcbCardEntry) {
+                cartViewModel.consumeNcbCardEntryNav()
+                navController.navigate(Routes.NCB_CARD_ENTRY) { launchSingleTop = true }
+            }
+        }
+
         OrderSummaryScreen(
             model = OrderSummaryUiModel(
                 lines = capturedLines,
@@ -221,6 +229,36 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                     launchSingleTop = true
                 }
             },
+        )
+    }
+
+    // NCB (JMD) card entry — shares the CART-scoped CartViewModel.
+    composable(Routes.NCB_CARD_ENTRY) { entry ->
+        val cartEntry = remember(entry) { navController.getBackStackEntry(Routes.CART) }
+        val cartViewModel: CartViewModel = viewModel(cartEntry)
+        com.ga.airdrop.feature.cart.NcbCardEntryScreen(
+            onBack = { navController.popBackStack() },
+            onNavigateTo3DS = {
+                navController.navigate(Routes.NCB_3DS) { launchSingleTop = true }
+            },
+            viewModel = cartViewModel,
+        )
+    }
+
+    // NCB (JMD) 3-D Secure WebView → PaymentSuccess on completion.
+    composable(Routes.NCB_3DS) { entry ->
+        val cartEntry = remember(entry) { navController.getBackStackEntry(Routes.CART) }
+        val cartViewModel: CartViewModel = viewModel(cartEntry)
+        com.ga.airdrop.feature.cart.NcbThreeDSScreen(
+            onBack = { navController.popBackStack() },
+            onPaid = {
+                val ref = cartViewModel.state.value.ncbInvoiceId?.let { "Invoice #$it" }
+                navController.navigate(Routes.paymentSuccess(ref = ref, amount = null)) {
+                    popUpTo(Routes.CART) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
+            viewModel = cartViewModel,
         )
     }
 }

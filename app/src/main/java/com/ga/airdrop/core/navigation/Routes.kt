@@ -110,6 +110,10 @@ object Routes {
     const val PAYMENT_SUCCESS = "paymentSuccess?ref={ref}&amount={amount}"
     const val PAYMENT_CANCELLED = "paymentCancelled"
 
+    // NCB (JMD) PowerTranz checkout: card entry → 3-D Secure WebView.
+    const val NCB_CARD_ENTRY = "ncbCardEntry"
+    const val NCB_3DS = "ncb3ds"
+
     fun paymentReturn(sessionId: String?) = "paymentReturn/${sessionId.orEmpty()}"
 
     fun paymentSuccess(ref: String?, amount: String?): String {

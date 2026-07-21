@@ -157,6 +157,14 @@ class AuctionCheckoutRetryTest {
 
         override suspend fun exchangeRate(): Result<Double> = Result.success(161.0)
         override suspend fun billingProfile(): Result<ShopBillingProfile> = Result.success(ShopBillingProfile())
+        override suspend fun createNcbSession(
+            request: com.ga.airdrop.data.model.CreateNcbSessionRequest,
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<com.ga.airdrop.data.model.NcbSessionResponse> = Result.failure(RuntimeException("unused"))
+        override suspend fun ncbCompletePayment(
+            spiToken: String,
+            expectedSession: AuthTokenStore.RequestProvenance,
+        ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> = Result.failure(RuntimeException("unused"))
     }
 
     private object FakeProducts : ShopProductsRepository {
