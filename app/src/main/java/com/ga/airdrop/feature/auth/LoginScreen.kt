@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -73,6 +74,10 @@ fun LoginScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    // When the soft keyboard is up, grow the sheet so the email/password fields
+    // and the Log In button stay visible above the IME instead of being squeezed
+    // into a fixed 65% panel (the fields used to disappear behind the keyboard).
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     if (state.loggedIn) {
         androidx.compose.runtime.LaunchedEffect(Unit) { onLoggedIn() }
@@ -122,7 +127,10 @@ fun LoginScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.65f)
+                // 65% when idle; expands to 94% while typing so the union(ime)
+                // padding below has room to lift the fields + Log In clear of the
+                // keyboard instead of collapsing the scroll area to nothing.
+                .fillMaxHeight(if (imeVisible) 0.94f else 0.65f)
                 .background(
                     if (colors.isDark) colors.gray150 else colors.gray100,
                     RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
