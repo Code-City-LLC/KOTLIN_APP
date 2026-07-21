@@ -61,18 +61,16 @@ class LoginViewModel(
                 }
                 .onFailure { e ->
                     val raw = e.message.orEmpty()
-                    // A rate-limit lockout is a dead end without a way out — give the
-                    // user the alternative (wait + reset) instead of just "too many
-                    // requests". The backend sends "Too many requests…"/RATE_LIMIT_EXCEEDED.
-                    val rateLimited = raw.contains("too many", ignoreCase = true) ||
-                        raw.contains("rate limit", ignoreCase = true) ||
-                        raw.contains("rate_limit", ignoreCase = true)
+                    // The account-lockout responses are already specific and
+                    // actionable (attempts remaining, timeout minutes, "reset your
+                    // password") — pass them straight through. Only the bare IP
+                    // rate-limit ("Too many requests. Please try again later.") needs
+                    // a nudge toward the recovery path.
+                    val bareRateLimit = raw.contains("too many requests", ignoreCase = true)
                     val friendly = when {
-                        rateLimited ->
-                            "Too many attempts. Please wait a minute and try again — " +
-                                "or tap “Forgot Password?” below to reset it."
-                        raw.isNotBlank() -> raw
-                        else -> "Unable to log in. Please try again."
+                        raw.isBlank() -> "Unable to log in. Please try again."
+                        bareRateLimit -> "$raw You can also reset your password below."
+                        else -> raw
                     }
                     _state.update { it.copy(loading = false, error = friendly) }
                 }
