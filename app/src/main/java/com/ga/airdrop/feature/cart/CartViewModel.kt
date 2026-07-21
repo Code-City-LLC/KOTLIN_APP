@@ -19,8 +19,11 @@ import com.ga.airdrop.feature.shop.eligibleAppleAmazonProducts
 import java.net.URI
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -92,7 +95,7 @@ class CartViewModel(
     private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
     private val profileRepository: MoreProfileRepository = MoreRepository(),
     private val products: ShopProductsRepository = ShopRepoProvider.products,
-) : ViewModel() {
+) : ViewModel(), NcbCheckoutHost {
 
     val countryOptions: List<String> get() = CountryCatalog.displayOptions
 
@@ -100,6 +103,23 @@ class CartViewModel(
         CartUiState(exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current),
     )
     val state: StateFlow<CartUiState> = _state
+
+    // NcbCheckoutHost: project the NCB slice of CartUiState for the shared screens.
+    override val ncbUi: StateFlow<NcbUiModel> = _state
+        .map {
+            NcbUiModel(
+                form = it.form,
+                busy = it.ncbBusy,
+                redirectData = it.ncbRedirectData,
+                invoiceId = it.ncbInvoiceId,
+                navTo3DS = it.navToNcb3DS,
+                navToSuccess = it.navToNcbSuccess,
+                errorMessage = it.errorMessage,
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, NcbUiModel())
+
+    override fun updateNcbForm(transform: (CartBillingForm) -> CartBillingForm) = updateForm(transform)
 
     /** Live cart lines (Swift re-reads FigmaCartStore on every appearance). */
     val items: StateFlow<List<CartStore.CartLine>> = CartStore.items
@@ -768,15 +788,15 @@ class CartViewModel(
     }
 
     fun consumeNcbCardEntryNav() = _state.update { it.copy(navToNcbCardEntry = false) }
-    fun consumeNcb3DSNav() = _state.update { it.copy(navToNcb3DS = false) }
-    fun consumeNcbSuccessNav() = _state.update { it.copy(navToNcbSuccess = false) }
+    override fun consumeNcb3DSNav() = _state.update { it.copy(navToNcb3DS = false) }
+    override fun consumeNcbSuccessNav() = _state.update { it.copy(navToNcbSuccess = false) }
 
     /**
      * NCB (JMD) step 1 — create the 3-D Secure session from the card + the saved
      * billing + delivery context. Card fields are passed straight through and are
      * never persisted. The ncbBusy guard prevents a double-tap double-charge.
      */
-    fun createNcbSession(
+    override fun createNcbSession(
         cardName: String,
         cardNumber: String,
         cardMonth: String,
@@ -852,7 +872,7 @@ class CartViewModel(
      * paid cart lines are durably removed and the flow cleared (mirrors the
      * Stripe paid commit). Guarded so an overlapping callback can't double-complete.
      */
-    fun completeNcbPayment() {
+    override fun completeNcbPayment() {
         if (_state.value.ncbBusy) return
         val spiToken = _state.value.ncbSpiToken?.trim()?.takeIf(String::isNotEmpty) ?: return
         val owner = currentOwner() ?: return

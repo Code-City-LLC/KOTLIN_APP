@@ -114,6 +114,11 @@ object Routes {
     const val NCB_CARD_ENTRY = "ncbCardEntry"
     const val NCB_3DS = "ncb3ds"
 
+    // Auction "Buy Now" NCB (JMD): the direct-purchase path's own card entry + 3DS,
+    // scoped to the AUCTION_CHECKOUT VM (separate from the cart-scoped NCB routes).
+    const val AUCTION_NCB_CARD_ENTRY = "auctionNcbCardEntry"
+    const val AUCTION_NCB_3DS = "auctionNcb3ds"
+
     fun paymentReturn(sessionId: String?) = "paymentReturn/${sessionId.orEmpty()}"
 
     fun paymentSuccess(ref: String?, amount: String?): String {

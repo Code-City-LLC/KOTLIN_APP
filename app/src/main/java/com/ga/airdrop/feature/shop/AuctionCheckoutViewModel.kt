@@ -7,11 +7,17 @@ import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.core.session.AuthenticatedOwnerChange
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.changeTo
+import com.ga.airdrop.data.model.CreateNcbSessionRequest
+import com.ga.airdrop.feature.cart.CartBillingForm
 import com.ga.airdrop.feature.cart.CheckoutCurrency
 import com.ga.airdrop.feature.cart.CheckoutFlowStore
 import com.ga.airdrop.feature.cart.CheckoutPhase
+import com.ga.airdrop.feature.cart.NcbCheckoutHost
+import com.ga.airdrop.feature.cart.NcbUiModel
 import com.ga.airdrop.feature.cart.parseCheckoutCurrency
 import com.ga.airdrop.feature.cart.validatedHostedCheckoutUrl
+import com.ga.airdrop.feature.more.MoreProfileRepository
+import com.ga.airdrop.feature.more.MoreRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
@@ -33,6 +39,8 @@ data class AuctionCheckoutUiState(
     /** Kept with the URL until dispatch; never persisted. */
     val checkoutSessionId: String? = null,
     val checkoutLaunchAttempt: Long = 0L,
+    /** JMD → route into the NCB (PowerTranz) card-entry screen (one-shot). */
+    val navToNcbCardEntry: Boolean = false,
 )
 
 /**
@@ -48,7 +56,8 @@ class AuctionCheckoutViewModel(
     private val checkout: ShopCheckoutRepository = ShopRepoProvider.checkout,
     private val products: ShopProductsRepository = ShopRepoProvider.products,
     private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
-) : ViewModel() {
+    private val profileRepository: MoreProfileRepository = MoreRepository(),
+) : ViewModel(), NcbCheckoutHost {
 
     val currencyOptions = listOf("USD", "JMD")
 
@@ -62,6 +71,14 @@ class AuctionCheckoutViewModel(
         )
     )
     val state: StateFlow<AuctionCheckoutUiState> = _state
+
+    // NCB (JMD) — the auction "Buy Now" path's own copy of the NcbCheckoutHost
+    // contract (the cart flow has its equivalent in CartViewModel). Billing is
+    // prefilled from the profile below; the spi token is transient/private.
+    private val _ncb = MutableStateFlow(NcbUiModel())
+    override val ncbUi: StateFlow<NcbUiModel> = _ncb
+    private var ncbSpiToken: String? = null
+
     private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
 
     init {
@@ -135,6 +152,41 @@ class AuctionCheckoutViewModel(
                 if (rate > 0) {
                     com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
                     _state.update { it.copy(exchangeUsdToJmd = rate) }
+                }
+            }
+        }
+        prefillNcbBillingFromProfile()
+    }
+
+    /**
+     * Prefill the NCB billing form from the saved profile ahead of time (the
+     * auction "Buy Now" path has no profile step). Country is coerced to JM/US
+     * on load so the card-entry field honestly shows what create-ncb-session
+     * transmits (NCB accepts country in [US, JM] only).
+     */
+    private fun prefillNcbBillingFromProfile() {
+        val owner = sessionBoundary.capture() ?: return
+        val requestOwner = sessionBoundary.requestOwner(owner) ?: return
+        viewModelScope.launch {
+            profileRepository.currentUser(requestOwner.provenance).onSuccess { user ->
+                applyCurrentOwner(owner) {
+                    val jm = user.country?.trim()?.let {
+                        it.equals("Jamaica", ignoreCase = true) || it.equals("JM", ignoreCase = true)
+                    } == true
+                    _ncb.update {
+                        it.copy(
+                            form = CartBillingForm(
+                                firstName = user.firstName.orEmpty(),
+                                lastName = user.lastName.orEmpty(),
+                                currency = CheckoutCurrency.JMD.wireValue,
+                                address1 = user.addressLine1.orEmpty(),
+                                address2 = user.addressLine2.orEmpty(),
+                                state = user.state.orEmpty(),
+                                city = user.city.orEmpty(),
+                                country = if (jm) "Jamaica" else "United States",
+                            ),
+                        )
+                    }
                 }
             }
         }
@@ -213,12 +265,10 @@ class AuctionCheckoutViewModel(
         }
         when (parseCheckoutCurrency(s.currency)) {
             CheckoutCurrency.JMD -> {
+                // JMD → the NCB (PowerTranz) card-entry screen (is_auction=true,
+                // this single package). No Stripe hosted checkout / pending record.
                 _state.update {
-                    it.copy(
-                        errorTitle = "JMD payment unavailable",
-                        errorMessage = "JMD checkout requires NCB PowerTranz, which is not available yet. " +
-                            "Choose USD to continue.",
-                    )
+                    it.copy(navToNcbCardEntry = true, errorTitle = null, errorMessage = null)
                 }
                 return
             }
@@ -361,6 +411,129 @@ class AuctionCheckoutViewModel(
 
     fun dismissError() {
         _state.update { it.copy(errorTitle = null, errorMessage = null) }
+    }
+
+    // --- NcbCheckoutHost (auction "Buy Now" JMD) -------------------------------
+
+    override fun updateNcbForm(transform: (CartBillingForm) -> CartBillingForm) {
+        _ncb.update { it.copy(form = transform(it.form)) }
+    }
+
+    override fun consumeNcb3DSNav() {
+        _ncb.update { it.copy(navTo3DS = false) }
+    }
+
+    override fun consumeNcbSuccessNav() {
+        _ncb.update { it.copy(navToSuccess = false) }
+    }
+
+    fun consumeNcbCardEntryNav() {
+        _state.update { it.copy(navToNcbCardEntry = false) }
+    }
+
+    override fun createNcbSession(
+        cardName: String,
+        cardNumber: String,
+        cardMonth: String,
+        cardYear: String,
+        cardCvv: String,
+    ) {
+        if (_ncb.value.busy) return
+        val product = _state.value.product
+        val packageId = product?.packageId?.takeIf { it > 0 }
+        if (product == null || packageId == null || product.id <= 0) {
+            _ncb.update { it.copy(errorMessage = "This product can't be purchased right now.") }
+            return
+        }
+        val owner = sessionBoundary.capture()?.takeIf { it.sessionId == sessionOwner?.sessionId }
+        val requestOwner = owner?.let { sessionBoundary.requestOwner(it) }
+        if (owner == null || requestOwner == null) {
+            _ncb.update { it.copy(errorMessage = "Log in to your Airdropja account before paying.") }
+            return
+        }
+        val form = _ncb.value.form
+        val request = CreateNcbSessionRequest(
+            packageIds = listOf(packageId),
+            currency = CheckoutCurrency.JMD.wireValue,
+            isAuction = true,
+            firstName = form.firstName.trim(),
+            lastName = form.lastName.trim(),
+            address = listOf(form.address1, form.address2).filter { it.isNotBlank() }
+                .joinToString(", ").trim(),
+            city = form.city.trim(),
+            country = ncbCountryCode(form.country),
+            cardName = cardName.trim(),
+            cardNumber = cardNumber.filter(Char::isDigit),
+            cardMonth = cardMonth.trim(),
+            cardYear = cardYear.trim(),
+            cardCvv = cardCvv.trim(),
+            deliveryMode = "pickup",
+        )
+        _ncb.update { it.copy(busy = true, errorMessage = null) }
+        viewModelScope.launch {
+            checkout.createNcbSession(request, requestOwner.provenance)
+                .onSuccess { resp ->
+                    applyCurrentOwner(owner) {
+                        ncbSpiToken = resp.spiToken
+                        _ncb.update {
+                            it.copy(busy = false, redirectData = resp.redirectData, navTo3DS = true)
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    applyCurrentOwner(owner) {
+                        _ncb.update {
+                            it.copy(
+                                busy = false,
+                                errorMessage = e.message ?: "We couldn't start the payment. Please try again.",
+                            )
+                        }
+                    }
+                }
+        }
+    }
+
+    override fun completeNcbPayment() {
+        if (_ncb.value.busy) return
+        val spiToken = ncbSpiToken?.trim()?.takeIf(String::isNotEmpty) ?: return
+        val owner = sessionBoundary.capture()?.takeIf { it.sessionId == sessionOwner?.sessionId } ?: return
+        val requestOwner = sessionBoundary.requestOwner(owner) ?: return
+        _ncb.update { it.copy(busy = true, errorMessage = null) }
+        viewModelScope.launch {
+            checkout.ncbCompletePayment(spiToken, requestOwner.provenance)
+                .onSuccess { resp ->
+                    applyCurrentOwner(owner) {
+                        // Auction Buy-Now buys a single package directly — there is no
+                        // cart row to clear. Consume the token so a late 3DS callback
+                        // can't re-POST ncb-complete-payment.
+                        ncbSpiToken = null
+                        _ncb.update {
+                            it.copy(
+                                busy = false,
+                                invoiceId = resp.invoiceId,
+                                redirectData = null,
+                                navToSuccess = true,
+                            )
+                        }
+                    }
+                }
+                .onFailure { e ->
+                    applyCurrentOwner(owner) {
+                        _ncb.update {
+                            it.copy(
+                                busy = false,
+                                errorMessage = e.message
+                                    ?: "We couldn't confirm your payment. Check Shipments before paying again.",
+                            )
+                        }
+                    }
+                }
+        }
+    }
+
+    private fun ncbCountryCode(country: String): String {
+        val c = country.trim()
+        return if (c.equals("Jamaica", ignoreCase = true) || c.equals("JM", ignoreCase = true)) "JM" else "US"
     }
 
     private fun applyCurrentOwner(owner: AuthenticatedSessionOwner, action: () -> Unit): Boolean =

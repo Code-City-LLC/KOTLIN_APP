@@ -63,6 +63,7 @@ import java.util.Locale
 fun AuctionCheckoutScreen(
     onBack: () -> Unit,
     onCheckoutOpened: () -> Unit,
+    onNavigateToNcb: () -> Unit = {},
     viewModel: AuctionCheckoutViewModel = viewModel(),
 ) {
     val colors = AirdropTheme.colors
@@ -70,6 +71,14 @@ fun AuctionCheckoutScreen(
     val context = LocalContext.current
     val product = state.product
     val heroImageUrl = product?.imageUrl
+
+    // JMD "Continue to pay" → the NCB (PowerTranz) card-entry screen.
+    LaunchedEffect(state.navToNcbCardEntry) {
+        if (state.navToNcbCardEntry) {
+            viewModel.consumeNcbCardEntryNav()
+            onNavigateToNcb()
+        }
+    }
 
     // Open the Stripe hosted checkout in a Custom Tab, then pop back
     // (Swift pops checkout + details after presenting Safari). Only consume the

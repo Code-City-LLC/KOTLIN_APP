@@ -35,7 +35,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
@@ -55,36 +54,36 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 fun NcbThreeDSScreen(
     onBack: () -> Unit,
     onPaid: () -> Unit,
-    viewModel: CartViewModel = viewModel(),
+    host: NcbCheckoutHost,
 ) {
     val colors = AirdropTheme.colors
-    val state by viewModel.state.collectAsState()
-    val redirectData = state.ncbRedirectData
+    val ui by host.ncbUi.collectAsState()
+    val redirectData = ui.redirectData
     var showLeaveWarning by remember { mutableStateOf(false) }
 
     // Idempotent: dedup of the near-simultaneous WebView callbacks AND the
-    // post-success guard both live in the VM — completeNcbPayment early-returns
-    // while ncbBusy, and it consumes ncbSpiToken on success so a late callback
-    // can't re-POST. On FAILURE ncbBusy clears and the token survives, so the
+    // post-success guard both live in the host — completeNcbPayment early-returns
+    // while busy, and it consumes the spi token on success so a late callback
+    // can't re-POST. On FAILURE busy clears and the token survives, so the
     // manual button below re-enables and a retry works (no permanent lockout).
     fun finalize() {
-        viewModel.completeNcbPayment()
+        host.completeNcbPayment()
     }
 
-    // The VM flips navToNcbSuccess once ncb-complete-payment returns the invoice.
-    LaunchedEffect(state.navToNcbSuccess) {
-        if (state.navToNcbSuccess) {
-            viewModel.consumeNcbSuccessNav()
+    // The host flips navToSuccess once ncb-complete-payment returns the invoice.
+    LaunchedEffect(ui.navToSuccess) {
+        if (ui.navToSuccess) {
+            host.consumeNcbSuccessNav()
             onPaid()
         }
     }
 
     // Leaving mid-3DS may strand an already-authorized charge → warn first.
     // Disabled only once we've succeeded and are navigating away.
-    BackHandler(enabled = !state.navToNcbSuccess) { showLeaveWarning = true }
+    BackHandler(enabled = !ui.navToSuccess) { showLeaveWarning = true }
 
     fun requestLeave() {
-        if (!state.navToNcbSuccess) showLeaveWarning = true
+        if (!ui.navToSuccess) showLeaveWarning = true
     }
 
     Box(
@@ -172,15 +171,15 @@ fun NcbThreeDSScreen(
             // Manual fallback (Swift's "Complete Payment" button). Re-enables
             // after a failed confirm so the user can retry the still-valid token.
             GradientButton(
-                text = if (state.ncbBusy) "Confirming…" else "I've completed verification",
+                text = if (ui.busy) "Confirming…" else "I've completed verification",
                 onClick = { finalize() },
-                loading = state.ncbBusy,
-                enabled = !state.ncbBusy,
+                loading = ui.busy,
+                enabled = !ui.busy,
                 modifier = Modifier
                     .padding(Spacing.md)
                     .fillMaxWidth(),
             )
-            state.errorMessage?.let {
+            ui.errorMessage?.let {
                 Text(
                     it,
                     style = AirdropType.body2,
