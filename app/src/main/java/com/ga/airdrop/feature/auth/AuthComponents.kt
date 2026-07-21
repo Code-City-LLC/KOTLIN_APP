@@ -20,10 +20,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.AirdropOptionPicker
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -199,8 +197,7 @@ fun AuthSelectField(
     }
 }
 
-/** Bottom-sheet option picker — Android counterpart of the RN MainPicker sheets. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Sign Up option picker — delegates to the shared [AirdropOptionPicker]. */
 @Composable
 fun AuthOptionSheet(
     title: String,
@@ -208,53 +205,7 @@ fun AuthOptionSheet(
     selected: String?,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
-) {
-    val colors = AirdropTheme.colors
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.gray100,
-    ) {
-        Column(Modifier.padding(bottom = Spacing.lg)) {
-            Text(
-                text = title,
-                style = AirdropType.title2,
-                color = colors.textDarkTitle,
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-            )
-            androidx.compose.foundation.lazy.LazyColumn {
-                items(count = options.size) { index ->
-                    val option = options[index]
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onSelect(option)
-                                onDismiss()
-                            }
-                            .padding(horizontal = Spacing.md, vertical = Spacing.sm1),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = option,
-                            style = if (option == selected) AirdropType.subtitle1 else AirdropType.body1,
-                            color = colors.textDarkTitle,
-                        )
-                        if (option == selected) {
-                            Image(
-                                painter = painterResource(R.drawable.ic_check),
-                                contentDescription = null,
-                                colorFilter = ColorFilter.tint(colors.iconSelected),
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+) = AirdropOptionPicker(title, options, selected, onSelect, onDismiss)
 
 /** Simple OK alert — counterpart of the RN/Swift auth Alert calls. */
 @Composable

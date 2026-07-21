@@ -98,7 +98,10 @@ fun TypeInputField(
                     Text(
                         text = placeholder,
                         style = AirdropType.body1,
-                        color = colors.textDescription,
+                        // Faint hint (Swift textPlaceholder #999/#5c5c5c), NOT the
+                        // darker textDescription — the placeholder must read clearly
+                        // lighter than typed input.
+                        color = colors.textPlaceholder,
                     )
                 }
                 BasicTextField(

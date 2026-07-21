@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -78,7 +80,15 @@ fun LoginScreen(
         androidx.compose.runtime.LaunchedEffect(Unit) { onLoggedIn() }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Reactive keyboard tracking. The sheet grows by exactly the IME height so
+        // its usable content stays a constant ~65% of the screen while it rides up
+        // above the keyboard, then settles back to 65% as the keyboard closes.
+        // IME insets animate, so the sheet reads as following the keyboard 1:1 —
+        // not a jump, and never "up while the keyboard is down".
+        val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
+        val screenHpx = constraints.maxHeight.coerceAtLeast(1)
+        val sheetFraction = ((screenHpx * 0.65f + imeBottomPx) / screenHpx).coerceIn(0.65f, 0.98f)
         Image(
             painter = painterResource(
                 if (colors.isDark) R.drawable.bg_auth_dark else R.drawable.bg_auth_light
@@ -122,7 +132,11 @@ fun LoginScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.65f)
+                // 65% at rest; grows by exactly the IME height as the keyboard
+                // animates in (sheetFraction) so the union(ime) padding below lifts
+                // the fields + Log In clear of it with the content area unchanged,
+                // then settles back to 65% as it closes.
+                .fillMaxHeight(sheetFraction)
                 .background(
                     if (colors.isDark) colors.gray150 else colors.gray100,
                     RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),

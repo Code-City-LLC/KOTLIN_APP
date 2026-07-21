@@ -37,6 +37,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.AirdropOptionPicker
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
@@ -285,54 +286,14 @@ internal fun CalcSelectField(
  * Bottom-sheet option picker — gray150 sheet, 15dp top radius, 100×6 pill
  * indicator (Figma "Bottom-sheet" 40001817:20339 chrome).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun OptionPickerSheet(
     options: List<String>,
     selected: String?,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
-) {
-    val colors = AirdropTheme.colors
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = colors.gray150,
-        shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
-        dragHandle = {
-            Box(
-                Modifier
-                    .padding(top = Spacing.sm)
-                    .size(width = 100.dp, height = 6.dp)
-                    .background(colors.gray300, RoundedCornerShape(Radius.full))
-            )
-        },
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.md)
-                .padding(top = Spacing.sm, bottom = Spacing.lg)
-                .navigationBarsPadding()
-        ) {
-            options.forEach { option ->
-                val isSelected = option == selected
-                Text(
-                    text = option,
-                    style = if (isSelected) AirdropType.title2 else AirdropType.subtitle1,
-                    color = if (isSelected) BrandPalette.OrangeMain else colors.textDarkTitle,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            onSelect(option)
-                            onDismiss()
-                        }
-                        .padding(vertical = Spacing.sm),
-                )
-            }
-        }
-    }
-}
+    title: String = "",
+) = AirdropOptionPicker(title, options, selected, onSelect, onDismiss)
 
 /** Swift presentSimpleAlert equivalent — title/message/OK. */
 @Composable
