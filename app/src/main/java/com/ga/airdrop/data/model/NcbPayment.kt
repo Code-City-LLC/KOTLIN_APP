@@ -18,8 +18,12 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class CreateNcbSessionRequest(
     @SerialName("package_ids") val packageIds: List<Int>,
-    val currency: String = "JMD",
-    @SerialName("is_auction") val isAuction: Boolean = false,
+    // NO defaults on currency/is_auction: AirdropJson uses encodeDefaults=false, which
+    // omits any property whose value equals its default. "JMD"/false are exactly the
+    // values we send, so a default here silently drops these required fields from the
+    // wire → Laravel 422. (Matches the Stripe CreateCheckoutRequest discipline.)
+    val currency: String,
+    @SerialName("is_auction") val isAuction: Boolean,
     // Billing (Laravel: required, country in US|JM)
     @SerialName("first_name") val firstName: String,
     @SerialName("last_name") val lastName: String,

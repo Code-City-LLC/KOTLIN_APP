@@ -870,6 +870,10 @@ class CartViewModel(
                                 ncbBusy = false,
                                 ncbInvoiceId = resp.invoiceId,
                                 ncbRedirectData = null,
+                                // Consume the token so a stray post-success finalize()
+                                // (e.g. a late WebView callback) short-circuits instead
+                                // of re-POSTing ncb-complete-payment.
+                                ncbSpiToken = null,
                                 navToNcbSuccess = true,
                             )
                         }

@@ -66,6 +66,15 @@ fun NcbCardEntryScreen(
     var cvv by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
+    // The NCB (JMD) rail only accepts country in [US, JM]; offering the full
+    // catalogue would silently coerce e.g. "United Kingdom" → "US" (ncbCountryCode).
+    val ncbCountryOptions = remember {
+        listOf(
+            CountryCatalog.displayNameFor("Jamaica"),
+            CountryCatalog.displayNameFor("United States"),
+        )
+    }
+
     LaunchedEffect(state.navToNcb3DS) {
         if (state.navToNcb3DS) {
             viewModel.consumeNcb3DSNav()
@@ -122,7 +131,9 @@ fun NcbCardEntryScreen(
                     label = "Card Name",
                     required = true,
                     value = cardName,
-                    onValueChange = { cardName = it },
+                    // Laravel caps card_name at 70; enforce here so an over-long
+                    // name can't round-trip into a 422.
+                    onValueChange = { cardName = it.take(70) },
                     placeholder = "e.g. Joshua Ricketts",
                 )
                 TypeInputField(
@@ -172,22 +183,23 @@ fun NcbCardEntryScreen(
                 ShopDropdownField(
                     label = "Country",
                     value = CountryCatalog.displayNameFor(form.country),
-                    options = viewModel.countryOptions,
+                    options = ncbCountryOptions,
                     onSelect = { selected ->
                         viewModel.updateForm { it.copy(country = CountryCatalog.canonicalName(selected)) }
                     },
                     required = true,
                 )
+                // State + Zip are shown for Swift-form parity but are NOT part of the
+                // create-ncb-session contract, so they carry no required marker (they
+                // are never validated or transmitted).
                 ShopDropdownField(
                     label = "State",
                     value = form.state,
                     options = CHECKOUT_STATE_OPTIONS,
                     onSelect = { v -> viewModel.updateForm { it.copy(state = v) } },
-                    required = true,
                 )
                 TypeInputField(
                     label = "Zip Code",
-                    required = true,
                     value = form.postal,
                     onValueChange = { v -> viewModel.updateForm { it.copy(postal = v) } },
                     placeholder = "e.g. 123456",
@@ -203,6 +215,7 @@ fun NcbCardEntryScreen(
                 text = "Save",
                 onClick = {
                     localError = validateNcbCard(cardName, cardNumber, expiry, cvv)
+                        ?: validateNcbBilling(form)
                     if (localError == null) {
                         val mm = expiry.substringBefore("/")
                         val yy = expiry.substringAfter("/")
@@ -241,5 +254,16 @@ internal fun validateNcbCard(name: String, number: String, expiry: String, cvv: 
     val mm = parts.getOrNull(0)?.toIntOrNull()
     if (parts.size != 2 || parts[1].length != 2 || mm == null || mm !in 1..12) return "Enter the expiry as MM/YY."
     if (cvv.length < 3 || cvv.length > 4) return "Enter a valid CVV."
+    return null
+}
+
+/**
+ * Billing is prefilled from the checkout profile but editable here; the
+ * create-ncb-session contract requires a non-empty `address`, so guard the one
+ * editable required billing field before we POST (avoids a server-side 422 for
+ * a locally-detectable-empty address).
+ */
+internal fun validateNcbBilling(form: CartBillingForm): String? {
+    if (form.address1.isBlank()) return "Enter your billing address."
     return null
 }
