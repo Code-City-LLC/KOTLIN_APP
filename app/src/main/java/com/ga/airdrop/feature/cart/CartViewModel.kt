@@ -815,6 +815,10 @@ class CartViewModel(
         val requestOwner = sessionBoundary.requestOwner(owner)
             ?: return orderError("Sign in required", "Log in to your Airdropja account before paying.")
         val form = _state.value.form
+        val countryCode = ncbCountryCode(form.country) ?: return orderError(
+            "Billing country",
+            "Select Jamaica or United States as your billing country for JMD payments.",
+        )
         val request = CreateNcbSessionRequest(
             packageIds = lines.mapNotNull(CartStore.CartLine::packageId),
             currency = "JMD",
@@ -824,7 +828,7 @@ class CartViewModel(
             address = listOf(form.address1, form.address2).filter { it.isNotBlank() }
                 .joinToString(", ").trim(),
             city = form.city.trim(),
-            country = ncbCountryCode(form.country),
+            country = countryCode,
             cardName = cardName.trim(),
             cardNumber = cardNumber.filter(Char::isDigit),
             cardMonth = cardMonth.trim(),
@@ -920,9 +924,15 @@ class CartViewModel(
         }
     }
 
-    private fun ncbCountryCode(country: String): String {
+    // JM|US only, else null → the caller REJECTS (no silent coerce-to-US; Laravel
+    // ruling 2026-07-21, so a non-JM/US billing country is never sent as "US").
+    private fun ncbCountryCode(country: String): String? {
         val c = country.trim()
-        return if (c.equals("Jamaica", ignoreCase = true) || c.equals("JM", ignoreCase = true)) "JM" else "US"
+        return when {
+            c.equals("Jamaica", ignoreCase = true) || c.equals("JM", ignoreCase = true) -> "JM"
+            c.equals("United States", ignoreCase = true) || c.equals("US", ignoreCase = true) -> "US"
+            else -> null
+        }
     }
 
     private fun currentOwner(): AuthenticatedSessionOwner? {

@@ -77,18 +77,11 @@ fun NcbCardEntryScreen(
         )
     }
 
-    // A profile can carry ANY catalogue country (Canada, UK, …). Since NCB will
-    // send ncbCountryCode(country) = "US" for anything but Jamaica, coerce a
-    // non-JM prefill to "United States" up front so the field HONESTLY shows what
-    // gets transmitted instead of silently displaying a country we won't send.
-    LaunchedEffect(Unit) {
-        val c = form.country.trim()
-        if (!c.equals("Jamaica", true) && !c.equals("JM", true) &&
-            !c.equals("United States", true) && !c.equals("US", true)
-        ) {
-            host.updateNcbForm { it.copy(country = "United States") }
-        }
-    }
+    // NCB accepts country in [US, JM] only. Per the Laravel ruling we do NOT
+    // coerce a non-JM/US prefill to US (that would send a wrong billing country
+    // to the processor) — the field shows the profile country honestly, the
+    // picker offers only Jamaica/US, and the host REJECTS a non-JM/US value
+    // before POST (see ncbCountryCode → error). The user must pick explicitly.
 
     LaunchedEffect(ui.navTo3DS) {
         if (ui.navTo3DS) {

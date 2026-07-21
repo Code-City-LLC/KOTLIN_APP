@@ -176,9 +176,6 @@ class AuctionCheckoutViewModel(
                 applyCurrentOwner(owner) {
                     if (ncbPrefillApplied) return@applyCurrentOwner
                     ncbPrefillApplied = true
-                    val jm = user.country?.trim()?.let {
-                        it.equals("Jamaica", ignoreCase = true) || it.equals("JM", ignoreCase = true)
-                    } == true
                     _ncb.update { s ->
                         val f = s.form
                         s.copy(
@@ -190,12 +187,10 @@ class AuctionCheckoutViewModel(
                                 address2 = f.address2.ifBlank { user.addressLine2.orEmpty() },
                                 state = f.state.ifBlank { user.state.orEmpty() },
                                 city = f.city.ifBlank { user.city.orEmpty() },
-                                // Only override the untouched default; preserve a user's pick.
-                                country = if (f.country.isBlank() || f.country.equals("United States", true)) {
-                                    if (jm) "Jamaica" else "United States"
-                                } else {
-                                    f.country
-                                },
+                                // Honest profile country (NO coerce-to-US per the Laravel
+                                // ruling) — the JM/US picker + the pre-POST guard enforce
+                                // a valid choice; we never silently send a wrong country.
+                                country = user.country?.trim()?.takeIf(String::isNotEmpty) ?: f.country,
                             ),
                         )
                     }
@@ -485,6 +480,15 @@ class AuctionCheckoutViewModel(
             }
             return
         }
+        val countryCode = ncbCountryCode(form.country)
+        if (countryCode == null) {
+            _ncb.update {
+                it.copy(
+                    errorMessage = "Select Jamaica or United States as your billing country for JMD payments.",
+                )
+            }
+            return
+        }
         val request = CreateNcbSessionRequest(
             packageIds = listOf(packageId),
             currency = CheckoutCurrency.JMD.wireValue,
@@ -494,7 +498,7 @@ class AuctionCheckoutViewModel(
             address = listOf(form.address1, form.address2).filter { it.isNotBlank() }
                 .joinToString(", ").trim(),
             city = city,
-            country = ncbCountryCode(form.country),
+            country = countryCode,
             cardName = cardName.trim(),
             cardNumber = cardNumber.filter(Char::isDigit),
             cardMonth = cardMonth.trim(),
@@ -564,9 +568,15 @@ class AuctionCheckoutViewModel(
         }
     }
 
-    private fun ncbCountryCode(country: String): String {
+    // JM|US only, else null → createNcbSession REJECTS (no coerce-to-US; Laravel
+    // ruling 2026-07-21). A non-JM/US billing country is never sent as "US".
+    private fun ncbCountryCode(country: String): String? {
         val c = country.trim()
-        return if (c.equals("Jamaica", ignoreCase = true) || c.equals("JM", ignoreCase = true)) "JM" else "US"
+        return when {
+            c.equals("Jamaica", ignoreCase = true) || c.equals("JM", ignoreCase = true) -> "JM"
+            c.equals("United States", ignoreCase = true) || c.equals("US", ignoreCase = true) -> "US"
+            else -> null
+        }
     }
 
     private fun applyCurrentOwner(owner: AuthenticatedSessionOwner, action: () -> Unit): Boolean =
