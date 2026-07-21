@@ -724,9 +724,9 @@ data class DeliveryUiState(
     val errorTitle: String? = null,
     val errorMessage: String? = null,
     /**
-     * One-shot route to push after currency choice. UNUSED in Phase-1: the
-     * currency branch runs Stripe checkout directly (see class KDoc) —
-     * restore JMD→Profile / USD→Order Summary when those screens land.
+     * One-shot route to push after the currency choice commits: JMD →
+     * Profile Information, USD → Order Summary. The screen consumes it in a
+     * LaunchedEffect and calls consumeNav() to clear it.
      */
     val navTarget: String? = null,
 )

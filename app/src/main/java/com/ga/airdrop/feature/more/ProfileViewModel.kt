@@ -27,10 +27,6 @@ data class ProfileUiState(
     val idNumber: String = "",
     val dob: String = "",           // display format MM/dd/yyyy
     val email: String = "",
-    val password: String = "",
-    val confirmPassword: String = "",
-    val passwordVisible: Boolean = false,
-    val confirmPasswordVisible: Boolean = false,
     val language: String = "",
     val addressLine1: String = "",
     val addressLine2: String = "",
@@ -136,10 +132,6 @@ class ProfileViewModel(
 
     fun set(transform: (ProfileUiState) -> ProfileUiState) = _state.update(transform)
 
-    fun togglePasswordVisible() = _state.update { it.copy(passwordVisible = !it.passwordVisible) }
-    fun toggleConfirmVisible() =
-        _state.update { it.copy(confirmPasswordVisible = !it.confirmPasswordVisible) }
-
     fun dismissAlert() = _state.update { it.copy(alert = null) }
 
     // ─── Avatar ───
@@ -239,12 +231,6 @@ class ProfileViewModel(
                 _state.update {
                     it.copy(alert = "Missing fields" to "Please fill the required fields marked with *.")
                 }
-            }
-            return
-        }
-        if (s.password.isNotEmpty() && s.password != s.confirmPassword) {
-            sessionBoundary.apply(owner) {
-                _state.update { it.copy(alert = "Passwords do not match" to "Confirm your password.") }
             }
             return
         }

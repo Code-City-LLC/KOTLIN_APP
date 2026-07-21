@@ -148,24 +148,10 @@ fun ProfileScreen(
                     required = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 )
-                TypeInputField(
-                    label = "Password",
-                    value = state.password,
-                    onValueChange = { v -> viewModel.set { it.copy(password = v) } },
-                    required = true,
-                    isPassword = true,
-                    passwordVisible = state.passwordVisible,
-                    onTogglePasswordVisibility = viewModel::togglePasswordVisible,
-                )
-                TypeInputField(
-                    label = "Confirm Password",
-                    value = state.confirmPassword,
-                    onValueChange = { v -> viewModel.set { it.copy(confirmPassword = v) } },
-                    required = true,
-                    isPassword = true,
-                    passwordVisible = state.confirmPasswordVisible,
-                    onTogglePasswordVisibility = viewModel::toggleConfirmVisible,
-                )
+                // Password change is a separate flow (RN's edit-profile has no
+                // password fields); the old fields validated + showed success
+                // but were never sent to PUT /user/profile — removed to avoid a
+                // false "password updated".
                 MoreSelectField(
                     label = "Language",
                     value = state.language,

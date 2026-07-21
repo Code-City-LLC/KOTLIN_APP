@@ -41,6 +41,7 @@ import com.ga.airdrop.core.designsystem.components.AirdropHeaderStyle
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.Radius
+import androidx.compose.ui.text.style.TextAlign
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.session.SessionStore
@@ -135,6 +136,8 @@ fun ShopScreen(
                                 }
                             }
                         }
+                    } else if (state.auction.isEmpty() && state.loadError != null) {
+                        ShopEmptyCard(text = state.loadError!!, onRetry = viewModel::refresh)
                     } else if (state.auction.isEmpty()) {
                         ShopEmptyCard(text = "No sale products")
                     } else {
@@ -176,6 +179,12 @@ fun ShopScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                             repeat(3) { ShopSkeletonCard(Modifier.width(160.dp)) }
                         }
+                    } else if (state.featured.isEmpty() && state.loadError != null) {
+                        ShopEmptyCard(
+                            text = state.loadError!!,
+                            modifier = Modifier.width(240.dp),
+                            onRetry = viewModel::refresh,
+                        )
                     } else if (state.featured.isEmpty()) {
                         // Swift: fixed 240pt-wide empty card inside the row.
                         ShopEmptyCard(text = "No featured products", modifier = Modifier.width(240.dp))
@@ -236,7 +245,7 @@ fun ShopScreen(
 }
 
 @Composable
-internal fun ShopEmptyCard(text: String, modifier: Modifier = Modifier) {
+internal fun ShopEmptyCard(text: String, modifier: Modifier = Modifier, onRetry: (() -> Unit)? = null) {
     val colors = AirdropTheme.colors
     Box(
         modifier = modifier
@@ -244,14 +253,29 @@ internal fun ShopEmptyCard(text: String, modifier: Modifier = Modifier) {
             .height(200.dp)
             .background(colors.gray100, RoundedCornerShape(Radius.s))
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .then(if (onRetry != null) Modifier.clickable { onRetry() } else Modifier)
             .padding(Spacing.sm1),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = text,
-            style = AirdropType.body1,
-            color = colors.textDescription,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Text(
+                text = text,
+                style = AirdropType.body1,
+                color = colors.textDescription,
+                textAlign = TextAlign.Center,
+            )
+            // A failed load offers a retry, so it never masquerades as an empty catalog.
+            if (onRetry != null) {
+                Text(
+                    text = "Tap to retry",
+                    style = AirdropType.body2,
+                    color = colors.orangeMain,
+                )
+            }
+        }
     }
 }
 

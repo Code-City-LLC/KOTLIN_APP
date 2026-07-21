@@ -96,6 +96,7 @@ internal fun LiveAgentChatRoute(
         onBack = onBack,
         onInputChange = viewModel::onInputChange,
         onSend = viewModel::send,
+        onResend = viewModel::resend,
     )
 
     if (!consentAccepted) {
@@ -134,6 +135,7 @@ internal fun LiveAgentChatContent(
     onBack: () -> Unit,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
+    onResend: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
@@ -168,6 +170,7 @@ internal fun LiveAgentChatContent(
                         turn = turn,
                         customerName = state.customerDisplayName,
                         agentName = state.agentDisplayName,
+                        onResend = onResend,
                     )
                 }
             }
@@ -492,6 +495,7 @@ private fun LiveChatBubble(
     turn: LiveAgentChatTurn,
     customerName: String,
     agentName: String,
+    onResend: (String) -> Unit = {},
 ) {
     val isCustomer = turn.role == LiveChatRole.Customer
     Column(
@@ -523,6 +527,20 @@ private fun LiveChatBubble(
                 style = AirdropType.body2,
                 color = AirdropTheme.colors.textDarkTitle,
                 textAlign = TextAlign.Start,
+            )
+        }
+        // A customer message that failed to send keeps a tap-to-retry affordance
+        // so it is never silently dropped (the earlier gap).
+        if (turn.failed) {
+            Text(
+                text = "Failed to send · Tap to retry",
+                style = AirdropType.body3,
+                color = BrandPalette.OrangeMain,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onResend(turn.id) }
+                    .padding(vertical = 2.dp),
             )
         }
     }
