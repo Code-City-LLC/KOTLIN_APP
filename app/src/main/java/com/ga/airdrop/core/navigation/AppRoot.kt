@@ -366,13 +366,19 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
                 type = androidx.navigation.NavType.StringType
                 defaultValue = ""
             },
+            androidx.navigation.navArgument("fulfillment") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
         ),
     ) { entry ->
         com.ga.airdrop.feature.cart.PaymentSuccessScreen(
             orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
             formattedAmount = entry.arguments?.getString("amount")?.takeIf { it.isNotBlank() },
-            onDone = {
-                navController.navigate(Routes.HOME) {
+            fulfillment = entry.arguments?.getString("fulfillment")?.takeIf { it.isNotBlank() },
+            onContinueShopping = {
+                // "Continue Shopping" → Shop tab, clearing the checkout stack.
+                navController.navigate(Routes.SHOP) {
                     popUpTo(0) { inclusive = true }
                     launchSingleTop = true
                 }

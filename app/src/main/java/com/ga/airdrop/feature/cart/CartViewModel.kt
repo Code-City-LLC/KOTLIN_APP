@@ -73,6 +73,10 @@ data class CartUiState(
     val ncbRedirectData: String? = null,
     val ncbSpiToken: String? = null,
     val ncbInvoiceId: String? = null,
+    // Captured at NCB-session time (the flow is cleared on success) so the
+    // payment-success screen can show the right fulfillment variant + amount.
+    val ncbDeliveryMode: String? = null,
+    val ncbPaidAmount: String? = null,
     val navToNcbCardEntry: Boolean = false,
     val navToNcb3DS: Boolean = false,
     val navToNcbSuccess: Boolean = false,
@@ -842,7 +846,23 @@ class CartViewModel(
             deliveryChargeTotal = flow.deliveryFee,
             deliveryChargeCurrency = flow.deliveryFeeCurrency,
         )
-        _state.update { it.copy(ncbBusy = true, errorTitle = null, errorMessage = null) }
+        // Capture fulfillment + the JMD total now — the flow is cleared on success,
+        // but the payment-success screen needs both to render the right variant.
+        val rate = _state.value.exchangeUsdToJmd
+        val subtotalJmd = lines.sumOf { it.qty * it.priceUsd } * rate
+        val feeJmd = (flow.deliveryFee ?: 0.0).let { fee ->
+            if (flow.deliveryFeeCurrency?.uppercase(java.util.Locale.US) == "JMD") fee else fee * rate
+        }
+        val paidAmount = "JMD " + String.format(java.util.Locale.US, "%,.2f", subtotalJmd + feeJmd)
+        _state.update {
+            it.copy(
+                ncbBusy = true,
+                errorTitle = null,
+                errorMessage = null,
+                ncbDeliveryMode = flow.deliveryMode ?: "pickup",
+                ncbPaidAmount = paidAmount,
+            )
+        }
         sessionJobs.launch {
             checkout.createNcbSession(request, requestOwner.provenance)
                 .onSuccess { resp ->
