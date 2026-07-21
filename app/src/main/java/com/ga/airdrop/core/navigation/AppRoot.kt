@@ -395,4 +395,3 @@ fun NavHostController.switchTab(tab: AirdropTab) {
         launchSingleTop = true
     }
 }
-
