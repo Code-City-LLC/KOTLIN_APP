@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
@@ -80,9 +81,12 @@ fun DeliveryCenterScreen(
     ) {
         HomeDetailsHeader(title = "Delivery Center", onBack = onBack)
 
+        // Scrollable content takes the remaining space; the Contact CTA is
+        // pinned below it so it always clears the system gesture bar.
         Column(
             Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.md)
                 .padding(top = Spacing.md),
@@ -90,16 +94,27 @@ fun DeliveryCenterScreen(
         ) {
             if (hasActiveDelivery) {
                 ActiveDeliveryCard(orderReference = orderReference!!)
-                ContactCard(onContactUs = onContactUs)
             } else {
                 EmptyDeliveryCard()
             }
-            Spacer(Modifier.height(Spacing.md).navigationBarsPadding())
+            Spacer(Modifier.height(Spacing.sm))
+        }
+
+        if (hasActiveDelivery) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md)
+                    .padding(top = Spacing.sm, bottom = Spacing.md)
+                    .navigationBarsPadding(),
+            ) {
+                ContactCard(onContactUs = onContactUs)
+            }
         }
     }
 }
 
-// ─── Active delivery — illustration + status pill + journey timeline ──────────
+// ─── Active delivery — illustration + journey timeline ───────────────────────
 
 @Composable
 private fun ActiveDeliveryCard(orderReference: String) {
@@ -130,8 +145,14 @@ private fun ActiveDeliveryCard(orderReference: String) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.s))
-            .background(colors.gray100)
+            // Drop shadow underneath the card (0/12 @10%), theme-neutral.
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(Radius.s),
+                ambientColor = Color.Black.copy(alpha = 0.10f),
+                spotColor = Color.Black.copy(alpha = 0.10f),
+            )
+            .background(colors.gray100, RoundedCornerShape(Radius.s))
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .padding(Spacing.md)
             .testTag("delivery-center-active"),
@@ -155,26 +176,19 @@ private fun ActiveDeliveryCard(orderReference: String) {
             )
         }
 
-        // Order ref + "In Progress" status pill.
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Your Delivery",
-                    style = AirdropType.title2,
-                    color = colors.textDarkTitle,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = orderReference,
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                )
-            }
-            StatusPill(text = "In Progress")
+        // Order heading — the stage below carries the live status, so no pill.
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                text = "Your Delivery",
+                style = AirdropType.title2,
+                color = colors.textDarkTitle,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = orderReference,
+                style = AirdropType.body2,
+                color = colors.textDescription,
+            )
         }
 
         // Journey timeline.
@@ -190,26 +204,9 @@ private fun ActiveDeliveryCard(orderReference: String) {
 
         Text(
             text = "We'll notify you as your package moves through each stage. " +
-                "Need an update sooner? Contact us anytime.",
+                "Contact us any time if you need more delivery details.",
             style = AirdropType.body2,
             color = colors.textDescription,
-        )
-    }
-}
-
-@Composable
-private fun StatusPill(text: String) {
-    val colors = AirdropTheme.colors
-    Box(
-        Modifier
-            .clip(CircleShape)
-            .background(colors.orangeMain.copy(alpha = 0.12f))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = text,
-            style = AirdropType.body3,
-            color = colors.orangeMain,
         )
     }
 }
@@ -335,7 +332,7 @@ private fun ContactCard(onContactUs: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "Contact us for delivery details",
+            text = "Contact us for a detailed delivery breakdown",
             style = AirdropType.subtitle1,
             color = colors.textDarkTitle,
         )
@@ -350,8 +347,13 @@ private fun EmptyDeliveryCard() {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.s))
-            .background(colors.gray100)
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(Radius.s),
+                ambientColor = Color.Black.copy(alpha = 0.10f),
+                spotColor = Color.Black.copy(alpha = 0.10f),
+            )
+            .background(colors.gray100, RoundedCornerShape(Radius.s))
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
             .padding(horizontal = Spacing.md, vertical = 30.dp)
             .testTag("delivery-center-empty"),
