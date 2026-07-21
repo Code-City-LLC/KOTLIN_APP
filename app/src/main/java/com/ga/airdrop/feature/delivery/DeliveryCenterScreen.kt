@@ -234,6 +234,14 @@ private fun ActiveDeliveryCard(orderReference: String) {
 
 private val NODE_SIZE = 44.dp
 
+// Timeline stage palette (shared with Swift for parity). Nodes are OUTLINED (no
+// solid fill) for a chic, understated look:
+//   • passed stage  → green
+//   • current stage → a softened orange (the brand #F15114 reads too bright here)
+//   • pending stage → grey (theme iconShape / textDescription)
+private val StagePassedGreen = Color(0xFF2E9E5B)
+private val StageCurrentOrange = Color(0xFFE06B3E)
+
 /**
  * One timeline row: an icon node + a connector down to the next node (drawn to
  * the content's intrinsic height) on the left, title + detail on the right.
@@ -303,7 +311,17 @@ private fun TimelineStep(
 @Composable
 private fun StageNode(stage: DeliveryStage) {
     val colors = AirdropTheme.colors
-    val active = stage.state != DeliveryStageState.PENDING
+    // Outlined nodes — ring + icon carry the colour, the inside stays empty.
+    val accent = when (stage.state) {
+        DeliveryStageState.DONE -> StagePassedGreen
+        DeliveryStageState.CURRENT -> StageCurrentOrange
+        DeliveryStageState.PENDING -> colors.iconShape
+    }
+    val iconColor = when (stage.state) {
+        DeliveryStageState.DONE -> StagePassedGreen
+        DeliveryStageState.CURRENT -> StageCurrentOrange
+        DeliveryStageState.PENDING -> colors.textDescription
+    }
     Box(
         Modifier.size(NODE_SIZE),
         contentAlignment = Alignment.Center,
@@ -321,7 +339,7 @@ private fun StageNode(stage: DeliveryStage) {
                 label = "pulse-scale",
             )
             val ringAlpha by pulse.animateFloat(
-                initialValue = 0.45f,
+                initialValue = 0.4f,
                 targetValue = 0f,
                 animationSpec = infiniteRepeatable(
                     tween(1300, easing = LinearEasing),
@@ -337,26 +355,22 @@ private fun StageNode(stage: DeliveryStage) {
                         scaleY = scale
                         alpha = ringAlpha
                     }
-                    .border(2.dp, colors.orangeMain, CircleShape),
+                    .border(2.dp, StageCurrentOrange, CircleShape),
             )
         }
-        // The node badge — orange for reached stages, outlined grey for pending.
+        // Outlined badge — the inside stays the card surface (no fill).
         Box(
             Modifier
                 .size(NODE_SIZE)
                 .clip(CircleShape)
-                .background(if (active) colors.orangeMain else colors.gray100)
-                .then(
-                    if (active) Modifier else Modifier.border(1.5.dp, colors.iconShape, CircleShape),
-                ),
+                .background(colors.gray100)
+                .border(2.dp, accent, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 painter = painterResource(stage.iconRes),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(
-                    if (active) Color.White else colors.textDescription,
-                ),
+                colorFilter = ColorFilter.tint(iconColor),
                 modifier = Modifier.size(22.dp),
             )
         }
@@ -374,7 +388,6 @@ private enum class ConnectorMode { DONE, FLOWING, PENDING }
 private fun Connector(modifier: Modifier, mode: ConnectorMode) {
     val colors = AirdropTheme.colors
     val track = colors.iconShape
-    val orange = colors.orangeMain
     val flow by rememberInfiniteTransition(label = "flow").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -385,8 +398,9 @@ private fun Connector(modifier: Modifier, mode: ConnectorMode) {
         val cx = size.width / 2f
         val lineW = 2.dp.toPx()
         when (mode) {
+            // Behind the front = passed = green.
             ConnectorMode.DONE -> drawLine(
-                orange, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round,
+                StagePassedGreen, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round,
             )
             ConnectorMode.PENDING -> drawLine(
                 track, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round,
@@ -399,7 +413,7 @@ private fun Connector(modifier: Modifier, mode: ConnectorMode) {
                     val y = frac * size.height
                     // Fade the dots in and out at the ends of the segment.
                     val a = sin(frac * Math.PI).toFloat().coerceIn(0.15f, 1f)
-                    drawCircle(orange.copy(alpha = a), r, Offset(cx, y))
+                    drawCircle(StageCurrentOrange.copy(alpha = a), r, Offset(cx, y))
                 }
             }
         }
