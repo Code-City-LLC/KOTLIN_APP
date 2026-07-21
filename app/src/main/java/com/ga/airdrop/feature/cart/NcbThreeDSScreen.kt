@@ -5,11 +5,18 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,11 +27,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.BuildConfig
+import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -68,8 +81,48 @@ fun NcbThreeDSScreen(
     // Leaving mid-3DS may strand an already-authorized charge → warn first.
     BackHandler(enabled = !completed && !state.navToNcbSuccess) { showLeaveWarning = true }
 
-    Box(Modifier.fillMaxSize()) {
+    // Back either dismisses (before completion) via the leave-warning, or is a
+    // no-op once we've handed off to ncb-complete-payment.
+    fun requestLeave() {
+        if (!completed && !state.navToNcbSuccess) showLeaveWarning = true
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(colors.gray150),
+    ) {
         Column(Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = ::requestLeave),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_more2_back_chevron),
+                        contentDescription = "Back",
+                        colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+                Text(
+                    text = "Card Authentication",
+                    style = AirdropType.subtitle1,
+                    color = colors.textDarkTitle,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.size(40.dp))
+            }
+
             if (redirectData.isNullOrBlank()) {
                 Text(
                     "Preparing secure verification…",

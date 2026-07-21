@@ -10,13 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -43,11 +41,13 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.location.CountryCatalog
+import com.ga.airdrop.feature.shop.ShopDropdownField
 
 /**
- * NCB (JMD) card-entry — Swift FigmaCheckoutPaymentMethodViewController parity.
- * Collects the card (billing is already captured on Profile Information and
- * shown read-only here), validates, and calls createNcbSession. Card fields live
+ * NCB (JMD) card-entry — Swift FigmaCheckoutPaymentMethodViewController parity:
+ * title "Payment Method", card fields, then the editable billing (prefilled from
+ * the checkout profile) with Country/State dropdowns and Zip. Card fields live
  * only in this screen's transient state and are never persisted or logged.
  */
 @Composable
@@ -58,14 +58,14 @@ fun NcbCardEntryScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    val form = state.form
 
-    var cardName by remember { mutableStateOf(state.form.let { "${it.firstName} ${it.lastName}".trim() }) }
+    var cardName by remember { mutableStateOf("${form.firstName} ${form.lastName}".trim()) }
     var cardNumber by remember { mutableStateOf("") }
     var expiry by remember { mutableStateOf("") } // MM/YY
     var cvv by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
-    // The VM flips navToNcb3DS once the session (redirect_data) is created.
     LaunchedEffect(state.navToNcb3DS) {
         if (state.navToNcb3DS) {
             viewModel.consumeNcb3DSNav()
@@ -80,7 +80,6 @@ fun NcbCardEntryScreen(
             .imePadding(),
     ) {
         Column(Modifier.fillMaxSize()) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -102,7 +101,7 @@ fun NcbCardEntryScreen(
                     )
                 }
                 Text(
-                    text = "Payment Details",
+                    text = "Payment Method",
                     style = AirdropType.subtitle1,
                     color = colors.textDarkTitle,
                     textAlign = TextAlign.Center,
@@ -119,29 +118,24 @@ fun NcbCardEntryScreen(
                     .padding(horizontal = Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Text(
-                    text = "Pay in JMD with your NCB / Visa / Mastercard. Your card is sent securely to the bank and never stored.",
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                )
                 TypeInputField(
-                    label = "Cardholder Name",
+                    label = "Card Name",
                     required = true,
                     value = cardName,
                     onValueChange = { cardName = it },
-                    placeholder = "Name on card",
+                    placeholder = "e.g. Joshua Ricketts",
                 )
                 TypeInputField(
                     label = "Card Number",
                     required = true,
                     value = formatCardNumber(cardNumber),
                     onValueChange = { cardNumber = it.filter(Char::isDigit).take(19) },
-                    placeholder = "1234 5678 9012 3456",
+                    placeholder = "e.g. 1234 5678 9012 3456",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     TypeInputField(
-                        label = "Expiry (MM/YY)",
+                        label = "Expiry Date",
                         required = true,
                         value = expiry,
                         onValueChange = { expiry = formatExpiry(it) },
@@ -154,33 +148,51 @@ fun NcbCardEntryScreen(
                         required = true,
                         value = cvv,
                         onValueChange = { cvv = it.filter(Char::isDigit).take(4) },
-                        placeholder = "123",
+                        placeholder = "e.g. 123",
                         isPassword = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         modifier = Modifier.weight(1f),
                     )
                 }
 
-                // Billing (captured on Profile Information) — shown read-only.
-                Text("Billing", style = AirdropType.subtitle2, color = colors.textDarkTitle)
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.gray100)
-                        .padding(Spacing.md),
-                ) {
-                    val f = state.form
-                    Text(
-                        text = listOf(
-                            "${f.firstName} ${f.lastName}".trim(),
-                            listOf(f.address1, f.address2).filter { it.isNotBlank() }.joinToString(", "),
-                            listOf(f.city, f.state, f.country).filter { it.isNotBlank() }.joinToString(", "),
-                        ).filter { it.isNotBlank() }.joinToString("\n"),
-                        style = AirdropType.body2,
-                        color = colors.textDarkTitle,
-                    )
-                }
+                // Billing — prefilled from the checkout profile, editable (Swift parity).
+                TypeInputField(
+                    label = "Billing Address 1",
+                    required = true,
+                    value = form.address1,
+                    onValueChange = { v -> viewModel.updateForm { it.copy(address1 = v) } },
+                    placeholder = "e.g. 22 Paradise Ave, Ironshore, Montego Bay",
+                )
+                TypeInputField(
+                    label = "Billing Address 2",
+                    value = form.address2,
+                    onValueChange = { v -> viewModel.updateForm { it.copy(address2 = v) } },
+                    placeholder = "e.g. 22 Paradise Ave, Ironshore, Montego Bay",
+                )
+                ShopDropdownField(
+                    label = "Country",
+                    value = CountryCatalog.displayNameFor(form.country),
+                    options = viewModel.countryOptions,
+                    onSelect = { selected ->
+                        viewModel.updateForm { it.copy(country = CountryCatalog.canonicalName(selected)) }
+                    },
+                    required = true,
+                )
+                ShopDropdownField(
+                    label = "State",
+                    value = form.state,
+                    options = CHECKOUT_STATE_OPTIONS,
+                    onSelect = { v -> viewModel.updateForm { it.copy(state = v) } },
+                    required = true,
+                )
+                TypeInputField(
+                    label = "Zip Code",
+                    required = true,
+                    value = form.postal,
+                    onValueChange = { v -> viewModel.updateForm { it.copy(postal = v) } },
+                    placeholder = "e.g. 123456",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
 
                 (localError ?: state.errorMessage)?.let {
                     Text(it, style = AirdropType.body2, color = AlertPalette.Error)
@@ -188,11 +200,12 @@ fun NcbCardEntryScreen(
             }
 
             GradientButton(
-                text = "Pay with NCB",
+                text = "Save",
                 onClick = {
                     localError = validateNcbCard(cardName, cardNumber, expiry, cvv)
                     if (localError == null) {
-                        val (mm, yy) = expiry.split("/").let { (it.getOrNull(0) ?: "") to (it.getOrNull(1) ?: "") }
+                        val mm = expiry.substringBefore("/")
+                        val yy = expiry.substringAfter("/")
                         viewModel.createNcbSession(
                             cardName = cardName.trim(),
                             cardNumber = cardNumber,
