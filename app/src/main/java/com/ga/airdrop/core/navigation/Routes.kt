@@ -107,7 +107,7 @@ object Routes {
     // to PAYMENT_SUCCESS (verified paid), the cart (not paid / cancelled), or
     // Shipments (unconfirmed).
     const val PAYMENT_RETURN = "paymentReturn/{sessionId}"
-    const val PAYMENT_SUCCESS = "paymentSuccess?ref={ref}&amount={amount}"
+    const val PAYMENT_SUCCESS = "paymentSuccess?ref={ref}&amount={amount}&fulfillment={fulfillment}"
     const val PAYMENT_CANCELLED = "paymentCancelled"
 
     // NCB (JMD) PowerTranz checkout: card entry → 3-D Secure WebView.
@@ -121,11 +121,13 @@ object Routes {
 
     fun paymentReturn(sessionId: String?) = "paymentReturn/${sessionId.orEmpty()}"
 
-    fun paymentSuccess(ref: String?, amount: String?): String {
+    fun paymentSuccess(ref: String?, amount: String?, fulfillment: String? = null): String {
         val encodedRef = java.net.URLEncoder.encode(ref.orEmpty(), "UTF-8").replace("+", "%20")
         val encodedAmount =
             java.net.URLEncoder.encode(amount.orEmpty(), "UTF-8").replace("+", "%20")
-        return "paymentSuccess?ref=$encodedRef&amount=$encodedAmount"
+        val encodedFulfillment =
+            java.net.URLEncoder.encode(fulfillment.orEmpty(), "UTF-8").replace("+", "%20")
+        return "paymentSuccess?ref=$encodedRef&amount=$encodedAmount&fulfillment=$encodedFulfillment"
     }
 
     /**

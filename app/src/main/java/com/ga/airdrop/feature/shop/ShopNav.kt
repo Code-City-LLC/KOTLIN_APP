@@ -255,8 +255,15 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
         com.ga.airdrop.feature.cart.NcbThreeDSScreen(
             onBack = { navController.popBackStack() },
             onPaid = {
-                val ref = cartViewModel.state.value.ncbInvoiceId?.let { "Invoice #$it" }
-                navController.navigate(Routes.paymentSuccess(ref = ref, amount = null)) {
+                val s = cartViewModel.state.value
+                val ref = s.ncbInvoiceId?.let { "Invoice #$it" }
+                navController.navigate(
+                    Routes.paymentSuccess(
+                        ref = ref,
+                        amount = s.ncbPaidAmount,
+                        fulfillment = s.ncbDeliveryMode,
+                    ),
+                ) {
                     popUpTo(Routes.CART) { inclusive = true }
                     launchSingleTop = true
                 }
@@ -287,7 +294,14 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
             onBack = { navController.popBackStack() },
             onPaid = {
                 val ref = auctionViewModel.ncbUi.value.invoiceId?.let { "Invoice #$it" }
-                navController.navigate(Routes.paymentSuccess(ref = ref, amount = null)) {
+                // Auction "Buy Now" is always pickup (no delivery step).
+                val st = auctionViewModel.state.value
+                val amt = st.product?.let {
+                    "JMD " + String.format(java.util.Locale.US, "%,.2f", it.priceUsd * st.exchangeUsdToJmd)
+                }
+                navController.navigate(
+                    Routes.paymentSuccess(ref = ref, amount = amt, fulfillment = "pickup"),
+                ) {
                     popUpTo(Routes.SHOP) { inclusive = false }
                     launchSingleTop = true
                 }
