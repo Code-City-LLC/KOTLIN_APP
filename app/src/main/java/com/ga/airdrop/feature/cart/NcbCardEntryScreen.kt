@@ -60,7 +60,7 @@ fun NcbCardEntryScreen(
     val state by viewModel.state.collectAsState()
     val form = state.form
 
-    var cardName by remember { mutableStateOf("${form.firstName} ${form.lastName}".trim()) }
+    var cardName by remember { mutableStateOf("${form.firstName} ${form.lastName}".trim().take(70)) }
     var cardNumber by remember { mutableStateOf("") }
     var expiry by remember { mutableStateOf("") } // MM/YY
     var cvv by remember { mutableStateOf("") }
@@ -73,6 +73,19 @@ fun NcbCardEntryScreen(
             CountryCatalog.displayNameFor("Jamaica"),
             CountryCatalog.displayNameFor("United States"),
         )
+    }
+
+    // A profile can carry ANY catalogue country (Canada, UK, …). Since NCB will
+    // send ncbCountryCode(country) = "US" for anything but Jamaica, coerce a
+    // non-JM prefill to "United States" up front so the field HONESTLY shows what
+    // gets transmitted instead of silently displaying a country we won't send.
+    LaunchedEffect(Unit) {
+        val c = form.country.trim()
+        if (!c.equals("Jamaica", true) && !c.equals("JM", true) &&
+            !c.equals("United States", true) && !c.equals("US", true)
+        ) {
+            viewModel.updateForm { it.copy(country = "United States") }
+        }
     }
 
     LaunchedEffect(state.navToNcb3DS) {

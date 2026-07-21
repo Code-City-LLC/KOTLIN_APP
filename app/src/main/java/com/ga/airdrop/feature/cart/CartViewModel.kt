@@ -422,8 +422,8 @@ class CartViewModel(
         val (title, message) = when (parseCheckoutCurrency(_state.value.form.currency)) {
             CheckoutCurrency.USD -> "Payment method" to
                 "USD orders use secure Stripe checkout after Order Summary. No payment was started."
-            CheckoutCurrency.JMD -> "JMD checkout unavailable" to
-                "JMD payment is not available yet. No payment was started."
+            CheckoutCurrency.JMD -> "Payment method" to
+                "JMD orders collect your card on the next step, secured by NCB. No payment was started."
             null -> "Payment method unavailable" to
                 "Select a supported payment currency before continuing. No payment was started."
         }
@@ -862,9 +862,15 @@ class CartViewModel(
         sessionJobs.launch {
             checkout.ncbCompletePayment(spiToken, requestOwner.provenance)
                 .onSuccess { resp ->
-                    flow?.cartKeys?.toSet()?.let { CartStore.removePaidKeysDurably(it) }
-                    CheckoutFlowStore.clear()
+                    // Durable cart clear + flow clear are owner-scoped (inside apply)
+                    // so a session swap can't wipe the wrong session's cart/flow —
+                    // mirrors the Stripe paid-commit's session discipline. The charge
+                    // is already settled server-side (invoice returned), so success is
+                    // shown regardless; server-side idempotency blocks a re-charge of
+                    // an already-invoiced package/auction if a durable removal fails.
                     sessionBoundary.apply(owner) {
+                        flow?.cartKeys?.toSet()?.let { CartStore.removePaidKeysDurably(it) }
+                        CheckoutFlowStore.clear()
                         _state.update {
                             it.copy(
                                 ncbBusy = false,
