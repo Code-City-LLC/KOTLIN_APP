@@ -78,6 +78,7 @@ class AuctionCheckoutViewModel(
     private val _ncb = MutableStateFlow(NcbUiModel())
     override val ncbUi: StateFlow<NcbUiModel> = _ncb
     private var ncbSpiToken: String? = null
+    private var ncbPrefillApplied = false
 
     private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
 
@@ -160,30 +161,41 @@ class AuctionCheckoutViewModel(
 
     /**
      * Prefill the NCB billing form from the saved profile ahead of time (the
-     * auction "Buy Now" path has no profile step). Country is coerced to JM/US
-     * on load so the card-entry field honestly shows what create-ncb-session
-     * transmits (NCB accepts country in [US, JM] only).
+     * auction "Buy Now" path has no profile step). Applied at most once, and only
+     * fills BLANK fields so a late-completing fetch can't clobber billing the user
+     * already edited on the card-entry screen. Country is coerced to JM/US so the
+     * field honestly shows what create-ncb-session transmits (NCB is [US, JM] only).
+     * Leaves [ncbPrefillApplied] false on failure so pay() can retry it.
      */
     private fun prefillNcbBillingFromProfile() {
+        if (ncbPrefillApplied) return
         val owner = sessionBoundary.capture() ?: return
         val requestOwner = sessionBoundary.requestOwner(owner) ?: return
         viewModelScope.launch {
             profileRepository.currentUser(requestOwner.provenance).onSuccess { user ->
                 applyCurrentOwner(owner) {
+                    if (ncbPrefillApplied) return@applyCurrentOwner
+                    ncbPrefillApplied = true
                     val jm = user.country?.trim()?.let {
                         it.equals("Jamaica", ignoreCase = true) || it.equals("JM", ignoreCase = true)
                     } == true
-                    _ncb.update {
-                        it.copy(
-                            form = CartBillingForm(
-                                firstName = user.firstName.orEmpty(),
-                                lastName = user.lastName.orEmpty(),
+                    _ncb.update { s ->
+                        val f = s.form
+                        s.copy(
+                            form = f.copy(
+                                firstName = f.firstName.ifBlank { user.firstName.orEmpty() },
+                                lastName = f.lastName.ifBlank { user.lastName.orEmpty() },
                                 currency = CheckoutCurrency.JMD.wireValue,
-                                address1 = user.addressLine1.orEmpty(),
-                                address2 = user.addressLine2.orEmpty(),
-                                state = user.state.orEmpty(),
-                                city = user.city.orEmpty(),
-                                country = if (jm) "Jamaica" else "United States",
+                                address1 = f.address1.ifBlank { user.addressLine1.orEmpty() },
+                                address2 = f.address2.ifBlank { user.addressLine2.orEmpty() },
+                                state = f.state.ifBlank { user.state.orEmpty() },
+                                city = f.city.ifBlank { user.city.orEmpty() },
+                                // Only override the untouched default; preserve a user's pick.
+                                country = if (f.country.isBlank() || f.country.equals("United States", true)) {
+                                    if (jm) "Jamaica" else "United States"
+                                } else {
+                                    f.country
+                                },
                             ),
                         )
                     }
@@ -267,6 +279,9 @@ class AuctionCheckoutViewModel(
             CheckoutCurrency.JMD -> {
                 // JMD → the NCB (PowerTranz) card-entry screen (is_auction=true,
                 // this single package). No Stripe hosted checkout / pending record.
+                // Retry the billing prefill in case the init fetch failed, so the
+                // card entry has name/address/city (self-guards if already applied).
+                prefillNcbBillingFromProfile()
                 _state.update {
                     it.copy(navToNcbCardEntry = true, errorTitle = null, errorMessage = null)
                 }
@@ -452,15 +467,33 @@ class AuctionCheckoutViewModel(
             return
         }
         val form = _ncb.value.form
+        // The Buy-Now path has no profile step and the card-entry screen has no
+        // first/last/city fields, so those come only from the profile prefill. Fall
+        // back to the (required, validated) cardholder name for first/last, and hard-
+        // guard first/last/city so we never POST an unrecoverable-422 empty required
+        // field — mirrors the cart path's validateCheckoutProfile gate.
+        val holder = cardName.trim()
+        val firstName = form.firstName.trim().ifBlank { holder.substringBefore(' ').trim() }
+        val lastName = form.lastName.trim().ifBlank { holder.substringAfter(' ', "").trim() }
+        val city = form.city.trim()
+        if (firstName.isBlank() || lastName.isBlank() || city.isBlank()) {
+            _ncb.update {
+                it.copy(
+                    errorMessage = "Add your full billing name and city in More → Profile " +
+                        "before paying with JMD, or choose USD.",
+                )
+            }
+            return
+        }
         val request = CreateNcbSessionRequest(
             packageIds = listOf(packageId),
             currency = CheckoutCurrency.JMD.wireValue,
             isAuction = true,
-            firstName = form.firstName.trim(),
-            lastName = form.lastName.trim(),
+            firstName = firstName,
+            lastName = lastName,
             address = listOf(form.address1, form.address2).filter { it.isNotBlank() }
                 .joinToString(", ").trim(),
-            city = form.city.trim(),
+            city = city,
             country = ncbCountryCode(form.country),
             cardName = cardName.trim(),
             cardNumber = cardNumber.filter(Char::isDigit),
