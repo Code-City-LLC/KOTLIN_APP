@@ -88,6 +88,9 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 navController.popBackStack()
                 navController.popBackStack()
             },
+            onNavigateToNcb = {
+                navController.navigate(Routes.AUCTION_NCB_CARD_ENTRY) { launchSingleTop = true }
+            },
         )
     }
 
@@ -241,7 +244,7 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
             onNavigateTo3DS = {
                 navController.navigate(Routes.NCB_3DS) { launchSingleTop = true }
             },
-            viewModel = cartViewModel,
+            host = cartViewModel,
         )
     }
 
@@ -258,7 +261,38 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                     launchSingleTop = true
                 }
             },
-            viewModel = cartViewModel,
+            host = cartViewModel,
+        )
+    }
+
+    // Auction "Buy Now" NCB (JMD) card entry — shares the AUCTION_CHECKOUT VM.
+    composable(Routes.AUCTION_NCB_CARD_ENTRY) { entry ->
+        val auctionEntry = remember(entry) { navController.getBackStackEntry(Routes.AUCTION_CHECKOUT) }
+        val auctionViewModel: AuctionCheckoutViewModel = viewModel(auctionEntry)
+        com.ga.airdrop.feature.cart.NcbCardEntryScreen(
+            onBack = { navController.popBackStack() },
+            onNavigateTo3DS = {
+                navController.navigate(Routes.AUCTION_NCB_3DS) { launchSingleTop = true }
+            },
+            host = auctionViewModel,
+        )
+    }
+
+    // Auction "Buy Now" NCB 3-D Secure → PaymentSuccess; clears the whole
+    // auction-checkout stack back to the Shop tab on completion.
+    composable(Routes.AUCTION_NCB_3DS) { entry ->
+        val auctionEntry = remember(entry) { navController.getBackStackEntry(Routes.AUCTION_CHECKOUT) }
+        val auctionViewModel: AuctionCheckoutViewModel = viewModel(auctionEntry)
+        com.ga.airdrop.feature.cart.NcbThreeDSScreen(
+            onBack = { navController.popBackStack() },
+            onPaid = {
+                val ref = auctionViewModel.ncbUi.value.invoiceId?.let { "Invoice #$it" }
+                navController.navigate(Routes.paymentSuccess(ref = ref, amount = null)) {
+                    popUpTo(Routes.SHOP) { inclusive = false }
+                    launchSingleTop = true
+                }
+            },
+            host = auctionViewModel,
         )
     }
 }

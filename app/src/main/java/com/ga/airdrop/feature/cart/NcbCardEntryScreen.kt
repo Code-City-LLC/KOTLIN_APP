@@ -33,7 +33,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.TypeInputField
@@ -49,16 +48,19 @@ import com.ga.airdrop.feature.shop.ShopDropdownField
  * title "Payment Method", card fields, then the editable billing (prefilled from
  * the checkout profile) with Country/State dropdowns and Zip. Card fields live
  * only in this screen's transient state and are never persisted or logged.
+ *
+ * Driven by an [NcbCheckoutHost] so both the cart and the auction "Buy Now"
+ * checkouts reuse this screen.
  */
 @Composable
 fun NcbCardEntryScreen(
     onBack: () -> Unit,
     onNavigateTo3DS: () -> Unit,
-    viewModel: CartViewModel = viewModel(),
+    host: NcbCheckoutHost,
 ) {
     val colors = AirdropTheme.colors
-    val state by viewModel.state.collectAsState()
-    val form = state.form
+    val ui by host.ncbUi.collectAsState()
+    val form = ui.form
 
     var cardName by remember { mutableStateOf("${form.firstName} ${form.lastName}".trim().take(70)) }
     var cardNumber by remember { mutableStateOf("") }
@@ -84,13 +86,13 @@ fun NcbCardEntryScreen(
         if (!c.equals("Jamaica", true) && !c.equals("JM", true) &&
             !c.equals("United States", true) && !c.equals("US", true)
         ) {
-            viewModel.updateForm { it.copy(country = "United States") }
+            host.updateNcbForm { it.copy(country = "United States") }
         }
     }
 
-    LaunchedEffect(state.navToNcb3DS) {
-        if (state.navToNcb3DS) {
-            viewModel.consumeNcb3DSNav()
+    LaunchedEffect(ui.navTo3DS) {
+        if (ui.navTo3DS) {
+            host.consumeNcb3DSNav()
             onNavigateTo3DS()
         }
     }
@@ -184,13 +186,13 @@ fun NcbCardEntryScreen(
                     label = "Billing Address 1",
                     required = true,
                     value = form.address1,
-                    onValueChange = { v -> viewModel.updateForm { it.copy(address1 = v) } },
+                    onValueChange = { v -> host.updateNcbForm { it.copy(address1 = v) } },
                     placeholder = "e.g. 22 Paradise Ave, Ironshore, Montego Bay",
                 )
                 TypeInputField(
                     label = "Billing Address 2",
                     value = form.address2,
-                    onValueChange = { v -> viewModel.updateForm { it.copy(address2 = v) } },
+                    onValueChange = { v -> host.updateNcbForm { it.copy(address2 = v) } },
                     placeholder = "e.g. 22 Paradise Ave, Ironshore, Montego Bay",
                 )
                 ShopDropdownField(
@@ -198,7 +200,7 @@ fun NcbCardEntryScreen(
                     value = CountryCatalog.displayNameFor(form.country),
                     options = ncbCountryOptions,
                     onSelect = { selected ->
-                        viewModel.updateForm { it.copy(country = CountryCatalog.canonicalName(selected)) }
+                        host.updateNcbForm { it.copy(country = CountryCatalog.canonicalName(selected)) }
                     },
                     required = true,
                 )
@@ -209,17 +211,17 @@ fun NcbCardEntryScreen(
                     label = "State",
                     value = form.state,
                     options = CHECKOUT_STATE_OPTIONS,
-                    onSelect = { v -> viewModel.updateForm { it.copy(state = v) } },
+                    onSelect = { v -> host.updateNcbForm { it.copy(state = v) } },
                 )
                 TypeInputField(
                     label = "Zip Code",
                     value = form.postal,
-                    onValueChange = { v -> viewModel.updateForm { it.copy(postal = v) } },
+                    onValueChange = { v -> host.updateNcbForm { it.copy(postal = v) } },
                     placeholder = "e.g. 123456",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
 
-                (localError ?: state.errorMessage)?.let {
+                (localError ?: ui.errorMessage)?.let {
                     Text(it, style = AirdropType.body2, color = AlertPalette.Error)
                 }
             }
@@ -232,7 +234,7 @@ fun NcbCardEntryScreen(
                     if (localError == null) {
                         val mm = expiry.substringBefore("/")
                         val yy = expiry.substringAfter("/")
-                        viewModel.createNcbSession(
+                        host.createNcbSession(
                             cardName = cardName.trim(),
                             cardNumber = cardNumber,
                             cardMonth = mm,
@@ -241,8 +243,8 @@ fun NcbCardEntryScreen(
                         )
                     }
                 },
-                loading = state.ncbBusy,
-                enabled = !state.ncbBusy,
+                loading = ui.busy,
+                enabled = !ui.busy,
                 modifier = Modifier
                     .padding(Spacing.md)
                     .fillMaxWidth(),
