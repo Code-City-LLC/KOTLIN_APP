@@ -407,6 +407,38 @@ if [ "${1:-}" = "--validate-apk" ]; then
   exit 0
 fi
 
+if [ "${1:-}" = "--bundle" ]; then
+  # Produce a Play-ready Android App Bundle (.aab). Deliberately SEPARATE from the
+  # APK publication ledger below: an AAB is a Play-Console upload artifact, not a
+  # sideload APK, so it does not enter the airdrop-vN.apk numbering/retention.
+  #
+  # Usage: scripts/build-apk.sh --bundle [staging-release | prod-release]
+  #   prod-release  -> the real Play upload. Requires keystore.properties (upload
+  #                    key) AND PLAY_VERSION_CODE (> 21); optionally PLAY_VERSION_NAME.
+  #   staging-release -> debug-signed smoke test of the bundle path (no keystore).
+  case "${2:-prod-release}" in
+    staging-release) BUNDLE_TASK="bundleStagingRelease"; BUNDLE_SUBDIR="stagingRelease" ;;
+    prod-release)    BUNDLE_TASK="bundleProdRelease";    BUNDLE_SUBDIR="prodRelease"     ;;
+    *) die "unknown bundle variant '${2:-}' (use: staging-release | prod-release)" ;;
+  esac
+  step "Pre-flight (bundle: $BUNDLE_TASK)"
+  resolve_toolchain
+  if [ "$BUNDLE_TASK" = "bundleProdRelease" ]; then
+    [ -f "$REPO_ROOT/keystore.properties" ] || die "prodRelease is gated: keystore.properties (Play upload key) is required.
+       Provision it, export PLAY_VERSION_CODE (> 21), then re-run. For a signing-free
+       smoke test of the bundle path use: scripts/build-apk.sh --bundle staging-release"
+    [ -n "${PLAY_VERSION_CODE:-}" ] || die "prodRelease needs an owner-verified PLAY_VERSION_CODE (> 21).
+       Export PLAY_VERSION_CODE=<n> (optionally PLAY_VERSION_NAME=<x.y>) and re-run."
+  fi
+  step "Building  ($BUNDLE_TASK) …"
+  ( cd "$REPO_ROOT" && ./gradlew "$BUNDLE_TASK" )
+  aab="$(ls -1t "$REPO_ROOT/app/build/outputs/bundle/$BUNDLE_SUBDIR"/*.aab 2>/dev/null | head -1 || true)"
+  [ -n "${aab:-}" ] || die "no .aab produced in app/build/outputs/bundle/$BUNDLE_SUBDIR (is the variant enabled?)"
+  step "Bundle ready — upload this .aab to the Play Console (not a sideload APK):"
+  log "AAB: $aab"
+  exit 0
+fi
+
 if [ "${1:-}" = "--check-publication-store" ]; then
   [ -d "$APK_DIR" ] || die "publication directory does not exist: $APK_DIR"
   validate_numeric_inputs

@@ -9,6 +9,11 @@ plugins {
     // Firebase project every AIRDROP client uses) is committed at app/. Covers
     // com.ga.airdrop.app + the .staging flavor. Kotlin push is no longer inert.
     alias(libs.plugins.google.services)
+    // Crashlytics: auto-init via the Firebase ContentProvider. For minified
+    // release builds the plugin uploads the R8 mapping to airdrop-app-b9423, so
+    // Play (prodRelease) crash reports arrive deobfuscated. Debug builds do no
+    // upload; debug collection is disabled at runtime (AirdropApplication).
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 val playUploadPropertiesFile = rootProject.file("keystore.properties")
@@ -37,6 +42,14 @@ val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orNull
     ?.trim()
     ?.toIntOrNull()
+// Optional marketing version for the Play build (e.g. "8.1"). When absent the
+// prodRelease keeps the defaultConfig versionName below. Lets a Play upload bump
+// the user-visible version without editing this file each release.
+val requestedPlayVersionName = providers.gradleProperty("playVersionName")
+    .orElse(providers.environmentVariable("PLAY_VERSION_NAME"))
+    .orNull
+    ?.trim()
+    ?.takeIf(String::isNotEmpty)
 val playReleaseConfigured =
     playUploadSigningConfigured &&
         requestedPlayVersionCode != null &&
@@ -131,6 +144,7 @@ androidComponents {
         variant.signingConfig.setConfig(android.signingConfigs.getByName("playUpload"))
         variant.outputs.forEach { output ->
             output.versionCode.set(requireNotNull(requestedPlayVersionCode))
+            requestedPlayVersionName?.let { output.versionName.set(it) }
         }
     }
 }
@@ -169,6 +183,7 @@ dependencies {
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.crashlytics)
 
     testImplementation(libs.junit)
     // ViewModel request-order/zero-call proofs (tier change flow, gate #22836-4).

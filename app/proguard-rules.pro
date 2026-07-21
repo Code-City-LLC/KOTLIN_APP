@@ -16,6 +16,12 @@
 # kotlinx-serialization runtime
 -dontwarn kotlinx.serialization.**
 
+# Crashlytics: keep source file + line numbers so uploaded R8 mappings resolve to
+# readable, correctly-lined stack traces. -renamesourcefileattribute hides the
+# original file names while preserving the mapping the plugin uploads.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
 -dontwarn okhttp3.internal.platform.**
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**

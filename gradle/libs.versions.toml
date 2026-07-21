@@ -18,6 +18,7 @@ playServicesLocation = "21.3.0"
 zxing = "3.5.3"
 firebaseBom = "33.13.0"
 googleServices = "4.4.2"
+firebaseCrashlyticsPlugin = "3.0.2"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
@@ -55,6 +56,7 @@ coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coil" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
@@ -62,6 +64,7 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
