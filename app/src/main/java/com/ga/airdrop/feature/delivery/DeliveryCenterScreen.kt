@@ -1,5 +1,13 @@
 package com.ga.airdrop.feature.delivery
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,17 +33,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlin.math.sin
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -62,6 +75,7 @@ private data class DeliveryStage(
     val title: String,
     val detail: String,
     val state: DeliveryStageState,
+    val iconRes: Int,
 )
 
 @Composable
@@ -104,11 +118,11 @@ fun DeliveryCenterScreen(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.md)
                     .padding(top = Spacing.sm, bottom = Spacing.md)
                     .navigationBarsPadding(),
+                contentAlignment = Alignment.Center,
             ) {
-                ContactCard(onContactUs = onContactUs)
+                ContactAction(onContactUs = onContactUs)
             }
         }
     }
@@ -119,26 +133,32 @@ fun DeliveryCenterScreen(
 @Composable
 private fun ActiveDeliveryCard(orderReference: String) {
     val colors = AirdropTheme.colors
+    // Stage icons reuse the Figma-exported shipment-status set so the timeline
+    // speaks the same visual language as the rest of the app.
     val stages = listOf(
         DeliveryStage(
             "Order Confirmed",
             "Payment received and your order is booked.",
             DeliveryStageState.DONE,
+            R.drawable.ic_shipments_status_shipment_received,
         ),
         DeliveryStage(
             "Preparing for Dispatch",
             "Our team is packing your items for the courier.",
             DeliveryStageState.CURRENT,
+            R.drawable.ic_shipments_status_processing_warehouse,
         ),
         DeliveryStage(
             "Out for Delivery",
             "Your package is on its way to your address.",
             DeliveryStageState.PENDING,
+            R.drawable.ic_shipments_status_in_transit_counter,
         ),
         DeliveryStage(
             "Delivered",
             "Package handed over at your delivery location.",
             DeliveryStageState.PENDING,
+            R.drawable.ic_shipments_status_delivered,
         ),
     )
 
@@ -191,13 +211,14 @@ private fun ActiveDeliveryCard(orderReference: String) {
             )
         }
 
-        // Journey timeline.
+        // Journey timeline — icon nodes joined by connectors; the segment
+        // leaving the current stage animates a downward flow, showing the
+        // package moving in that direction.
         Column(Modifier.fillMaxWidth()) {
             stages.forEachIndexed { index, stage ->
                 TimelineStep(
                     stage = stage,
                     isLast = index == stages.lastIndex,
-                    connectorDone = stage.state == DeliveryStageState.DONE,
                 )
             }
         }
@@ -211,15 +232,17 @@ private fun ActiveDeliveryCard(orderReference: String) {
     }
 }
 
+private val NODE_SIZE = 44.dp
+
 /**
- * One timeline row: a status node + a connector down to the next node (drawn to
+ * One timeline row: an icon node + a connector down to the next node (drawn to
  * the content's intrinsic height) on the left, title + detail on the right.
+ * The connector leaving the CURRENT stage animates a downward flow.
  */
 @Composable
 private fun TimelineStep(
     stage: DeliveryStage,
     isLast: Boolean,
-    connectorDone: Boolean,
 ) {
     val colors = AirdropTheme.colors
     Row(
@@ -227,36 +250,40 @@ private fun TimelineStep(
             .fillMaxWidth()
             .height(IntrinsicSize.Min),
     ) {
-        // Rail: node + vertical connector.
+        // Rail: icon node + vertical connector.
         Column(
             Modifier
-                .width(24.dp)
+                .width(NODE_SIZE)
                 .fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            StageNode(stage.state)
+            StageNode(stage)
             if (!isLast) {
-                Box(
-                    Modifier
-                        .width(2.dp)
-                        .weight(1f)
-                        .background(if (connectorDone) colors.orangeMain else colors.iconShape),
+                Connector(
+                    modifier = Modifier.weight(1f),
+                    // Segment leaving a DONE stage is solid orange; leaving the
+                    // CURRENT stage flows; ahead of the front it is grey.
+                    mode = when (stage.state) {
+                        DeliveryStageState.DONE -> ConnectorMode.DONE
+                        DeliveryStageState.CURRENT -> ConnectorMode.FLOWING
+                        DeliveryStageState.PENDING -> ConnectorMode.PENDING
+                    },
                 )
             }
         }
 
         Spacer(Modifier.width(12.dp))
 
-        // Content — pad the bottom so consecutive rows breathe (and the
-        // connector spans that gap).
+        // Content — top padding aligns the title with the node centre; bottom
+        // padding gives consecutive rows breathing room (the connector spans it).
         Column(
             Modifier
                 .weight(1f)
-                .padding(bottom = if (isLast) 0.dp else Spacing.md),
+                .padding(top = 10.dp, bottom = if (isLast) 0.dp else Spacing.md),
         ) {
             Text(
                 text = stage.title,
-                style = AirdropType.subtitle2,
+                style = AirdropType.subtitle1,
                 color = if (stage.state == DeliveryStageState.PENDING) {
                     colors.textDescription
                 } else {
@@ -274,65 +301,134 @@ private fun TimelineStep(
 }
 
 @Composable
-private fun StageNode(state: DeliveryStageState) {
+private fun StageNode(stage: DeliveryStage) {
     val colors = AirdropTheme.colors
-    when (state) {
-        DeliveryStageState.DONE -> Box(
+    val active = stage.state != DeliveryStageState.PENDING
+    Box(
+        Modifier.size(NODE_SIZE),
+        contentAlignment = Alignment.Center,
+    ) {
+        // A soft pulsing ring radiates from the current stage.
+        if (stage.state == DeliveryStageState.CURRENT) {
+            val pulse = rememberInfiniteTransition(label = "node-pulse")
+            val scale by pulse.animateFloat(
+                initialValue = 1f,
+                targetValue = 1.45f,
+                animationSpec = infiniteRepeatable(
+                    tween(1300, easing = FastOutSlowInEasing),
+                    RepeatMode.Restart,
+                ),
+                label = "pulse-scale",
+            )
+            val ringAlpha by pulse.animateFloat(
+                initialValue = 0.45f,
+                targetValue = 0f,
+                animationSpec = infiniteRepeatable(
+                    tween(1300, easing = LinearEasing),
+                    RepeatMode.Restart,
+                ),
+                label = "pulse-alpha",
+            )
+            Box(
+                Modifier
+                    .size(NODE_SIZE)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = ringAlpha
+                    }
+                    .border(2.dp, colors.orangeMain, CircleShape),
+            )
+        }
+        // The node badge — orange for reached stages, outlined grey for pending.
+        Box(
             Modifier
-                .size(24.dp)
+                .size(NODE_SIZE)
                 .clip(CircleShape)
-                .background(colors.orangeMain),
+                .background(if (active) colors.orangeMain else colors.gray100)
+                .then(
+                    if (active) Modifier else Modifier.border(1.5.dp, colors.iconShape, CircleShape),
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_check),
+                painter = painterResource(stage.iconRes),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(Color.White),
-                modifier = Modifier.size(12.dp),
+                colorFilter = ColorFilter.tint(
+                    if (active) Color.White else colors.textDescription,
+                ),
+                modifier = Modifier.size(22.dp),
             )
         }
-        DeliveryStageState.CURRENT -> Box(
-            Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(colors.orangeMain.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(colors.orangeMain),
-            )
-        }
-        DeliveryStageState.PENDING -> Box(
-            Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(colors.gray100)
-                .border(2.dp, colors.iconShape, CircleShape),
-        )
     }
 }
 
-// ─── Contact card ────────────────────────────────────────────────────────────
+private enum class ConnectorMode { DONE, FLOWING, PENDING }
 
+/**
+ * Vertical connector between two nodes. DONE = solid orange, PENDING = solid
+ * grey, FLOWING = grey track with orange dots streaming downward (the package
+ * is moving toward the next stage).
+ */
 @Composable
-private fun ContactCard(onContactUs: () -> Unit) {
+private fun Connector(modifier: Modifier, mode: ConnectorMode) {
     val colors = AirdropTheme.colors
-    Box(
+    val track = colors.iconShape
+    val orange = colors.orangeMain
+    val flow by rememberInfiniteTransition(label = "flow").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
+        label = "flow-pos",
+    )
+    Canvas(modifier.width(NODE_SIZE)) {
+        val cx = size.width / 2f
+        val lineW = 2.dp.toPx()
+        when (mode) {
+            ConnectorMode.DONE -> drawLine(
+                orange, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round,
+            )
+            ConnectorMode.PENDING -> drawLine(
+                track, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round,
+            )
+            ConnectorMode.FLOWING -> {
+                drawLine(track, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round)
+                val r = 3.5.dp.toPx()
+                repeat(3) { k ->
+                    val frac = (flow + k / 3f) % 1f
+                    val y = frac * size.height
+                    // Fade the dots in and out at the ends of the segment.
+                    val a = sin(frac * Math.PI).toFloat().coerceIn(0.15f, 1f)
+                    drawCircle(orange.copy(alpha = a), r, Offset(cx, y))
+                }
+            }
+        }
+    }
+}
+
+// ─── Contact affordance ──────────────────────────────────────────────────────
+
+/** Compact icon + label (no heavy button) — taps through to live chat. */
+@Composable
+private fun ContactAction(onContactUs: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
         Modifier
-            .fillMaxWidth()
-            .height(52.dp)
             .clip(RoundedCornerShape(Radius.xs))
-            .background(colors.gray100)
-            .border(1.dp, colors.orangeMain, RoundedCornerShape(Radius.xs))
             .clickable(onClick = onContactUs)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag("delivery-center-contact"),
-        contentAlignment = Alignment.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        Image(
+            painter = painterResource(R.drawable.ic_message),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.orangeMain),
+            modifier = Modifier.size(22.dp),
+        )
         Text(
-            text = "Contact us for a detailed delivery breakdown",
+            text = "Contact us for more information",
             style = AirdropType.subtitle1,
             color = colors.textDarkTitle,
         )
