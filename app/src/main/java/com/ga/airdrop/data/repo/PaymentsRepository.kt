@@ -6,6 +6,10 @@ import com.ga.airdrop.data.api.AirdropJson
 import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
+import com.ga.airdrop.data.model.CreateNcbSessionRequest
+import com.ga.airdrop.data.model.NcbCompleteRequest
+import com.ga.airdrop.data.model.NcbCompleteResponse
+import com.ga.airdrop.data.model.NcbSessionResponse
 import com.ga.airdrop.data.model.InvoiceUrlEnvelope
 import com.ga.airdrop.data.model.MOBILE_CHECKOUT_RETURN_URL
 import com.ga.airdrop.data.model.Paginated
@@ -134,5 +138,53 @@ class PaymentsRepository(private val service: AirdropApiService) {
             error(envelope.message ?: "Failed to fetch payment status")
         }
         envelope.data
+    }
+
+    // ── NCB PowerTranz (JMD) ──
+
+    /** Step 1: create the NCB session; returns the 3DS redirect_data + spi_token. */
+    suspend fun createNcbSession(
+        request: CreateNcbSessionRequest,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<NcbSessionResponse> {
+        if (request.packageIds.isEmpty() || request.packageIds.any { it <= 0 }) {
+            return Result.failure(IllegalArgumentException("Checkout package IDs must be positive"))
+        }
+        return apiResult {
+            val envelope = service.createNcbSession(
+                authRevision = expectedSession.revision.toString(),
+                sessionId = expectedSession.sessionId,
+                body = request,
+            )
+            val data = envelope.data
+            if (envelope.success == false || data == null ||
+                data.spiToken.isNullOrBlank() || data.redirectData.isNullOrBlank()
+            ) {
+                error(envelope.message ?: "Unable to start the JMD payment. Please try again.")
+            }
+            data
+        }
+    }
+
+    /** Step 3: finalize after the 3DS callback; returns the invoice id. */
+    suspend fun ncbCompletePayment(
+        spiToken: String,
+        expectedSession: AuthTokenStore.RequestProvenance,
+    ): Result<NcbCompleteResponse> {
+        if (spiToken.isBlank()) {
+            return Result.failure(IllegalArgumentException("Missing NCB payment token"))
+        }
+        return apiResult {
+            val envelope = service.ncbCompletePayment(
+                authRevision = expectedSession.revision.toString(),
+                sessionId = expectedSession.sessionId,
+                body = NcbCompleteRequest(spiToken = spiToken),
+            )
+            val data = envelope.data
+            if (envelope.success == false || data == null || data.invoiceId.isNullOrBlank()) {
+                error(envelope.message ?: "We couldn't confirm your payment. Please contact support.")
+            }
+            data
+        }
     }
 }

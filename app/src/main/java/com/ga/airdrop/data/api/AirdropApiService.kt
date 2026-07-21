@@ -13,6 +13,10 @@ import com.ga.airdrop.data.model.CartSnapshot
 import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
+import com.ga.airdrop.data.model.CreateNcbSessionRequest
+import com.ga.airdrop.data.model.NcbCompleteRequest
+import com.ga.airdrop.data.model.NcbCompleteResponse
+import com.ga.airdrop.data.model.NcbSessionResponse
 import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.CustomerTier
 import com.ga.airdrop.data.model.TierChangeRequest
@@ -375,6 +379,22 @@ interface AirdropApiService {
     suspend fun paymentIntentStatus(
         @Path("paymentIntentId") paymentIntentId: String,
     ): DataEnvelope<PaymentIntentStatus>
+
+    // NCB PowerTranz (JMD). create-ncb-session returns the 3DS redirect_data +
+    // spi_token; ncb-complete-payment finalizes after the 3DS callback.
+    @POST("payments/create-ncb-session")
+    suspend fun createNcbSession(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+        @Body body: CreateNcbSessionRequest,
+    ): DataEnvelope<NcbSessionResponse>
+
+    @POST("payments/ncb-complete-payment")
+    suspend fun ncbCompletePayment(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+        @Body body: NcbCompleteRequest,
+    ): DataEnvelope<NcbCompleteResponse>
 
     // ── Cart ──
 
