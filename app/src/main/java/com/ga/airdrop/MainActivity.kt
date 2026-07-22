@@ -29,6 +29,13 @@ import com.ga.airdrop.core.push.PushDeepLink
 import com.ga.airdrop.core.push.PushRegistrar
 import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.data.model.EmptyRequest
+import com.ga.airdrop.data.repo.ActiveDeliveriesPage
+import com.ga.airdrop.data.repo.ActiveDelivery
+import com.ga.airdrop.data.repo.DeliveryTrackingGateway
+import com.ga.airdrop.data.repo.DeliveryTrackingResult
+import com.ga.airdrop.data.repo.TrackedDelivery
+import com.ga.airdrop.data.repo.TrackedDeliveryStage
+import com.ga.airdrop.feature.delivery.DeliveryCenterViewModel
 import com.ga.airdrop.feature.auth.OnboardingStore
 import com.ga.airdrop.feature.security.BiometricLockScreen
 import kotlinx.coroutines.launch
@@ -94,6 +101,38 @@ class MainActivity : FragmentActivity() {
         // Cold-launch biometric gate (Swift SceneDelegate.presentBiometricLockIfNeeded).
         // Opt-in + default OFF + falls back to no-gate when biometry is
         // unavailable, so this is inert unless the user enabled it.
+        // TEMP-PREVIEW (Kemar): demo tracking data behind the REAL app so the
+        // Delivery Center is fully browsable before Laravel ships. Remove.
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("demo_tracking", false) == true) {
+            DeliveryCenterViewModel.debugGateway = object : DeliveryTrackingGateway {
+                private val active = listOf(
+                    ActiveDelivery(11, "AIR-2041", "Two boxes - electronics", "out_for_delivery", null, "out_for_delivery", null),
+                    ActiveDelivery(22, "AIR-2044", "Barrel - household items", "assigned", null, "assigned", null),
+                    ActiveDelivery(33, "AIR-2050", "Envelope - documents", "assigned", null, "assigned", null),
+                )
+                override suspend fun activeDeliveries(page: Int, perPage: Int) =
+                    Result.success(ActiveDeliveriesPage(active, currentPage = page, hasNextPage = false))
+                override suspend fun deliveryTracking(packageId: Int): Result<DeliveryTrackingResult> {
+                    val outNow = packageId == 11
+                    return Result.success(
+                        DeliveryTrackingResult(
+                            packageId = packageId,
+                            delivery = TrackedDelivery(
+                                status = if (outNow) "out_for_delivery" else "assigned",
+                                scheduledDate = null, assignedAt = null,
+                                outForDeliveryAt = null, deliveredAt = null,
+                                stages = listOf(
+                                    TrackedDeliveryStage("assigned", "Assigned to Courier", if (outNow) "done" else "current", "2026-07-22T09:15:00-05:00"),
+                                    TrackedDeliveryStage("out_for_delivery", "Out for Delivery", if (outNow) "current" else "pending", if (outNow) "2026-07-22T11:40:00-05:00" else null),
+                                    TrackedDeliveryStage("delivered", "Delivered", "pending", null),
+                                ),
+                            ),
+                        ),
+                    )
+                }
+            }
+        }
+
         val lockedAtLaunch = BiometricGate.requiresAuthOnLaunch(this)
         setContent {
             AirdropTheme {

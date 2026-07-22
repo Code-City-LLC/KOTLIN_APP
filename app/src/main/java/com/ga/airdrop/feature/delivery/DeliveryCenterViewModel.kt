@@ -335,11 +335,25 @@ class DeliveryCenterViewModel(
         private const val ACTIVE_PAGE_SIZE = 50
         private const val MAX_ACTIVE_PAGES = 100
 
+        // TEMP-PREVIEW (Kemar interactive demo): when set, the factory uses this
+        // gateway instead of the live repository. Remove before shipping.
+        @Volatile
+        var debugGateway: DeliveryTrackingGateway? = null
+
         fun factory(initialPackageId: Int?): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    DeliveryCenterViewModel(initialPackageId = initialPackageId) as T
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    val gateway = debugGateway
+                    return if (gateway != null) {
+                        DeliveryCenterViewModel(
+                            initialPackageId = initialPackageId,
+                            gateway = gateway,
+                        ) as T
+                    } else {
+                        DeliveryCenterViewModel(initialPackageId = initialPackageId) as T
+                    }
+                }
             }
     }
 }
