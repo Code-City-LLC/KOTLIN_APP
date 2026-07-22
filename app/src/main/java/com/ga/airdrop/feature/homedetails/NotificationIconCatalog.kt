@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.homedetails
 
 import com.ga.airdrop.R
+import com.ga.airdrop.core.push.isRecognizedAppUpdateType
 import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.feature.shipments.ShipmentStatusCatalog
 
@@ -17,6 +18,7 @@ object NotificationIconCatalog {
     fun iconRes(notification: AirdropNotification, dark: Boolean): Int {
         val text = normalizedText(notification)
         return when {
+            isRecognizedAppUpdateType(notification.type) -> R.drawable.ic_notifications
             "invoice" in text ->
                 if (dark) R.drawable.ic_notification_mail_dark else R.drawable.ic_notification_mail
             "paid" in text && ("pickup" in text || "ready_for_pickup" in text) ->
@@ -57,6 +59,7 @@ object NotificationIconCatalog {
     fun actionTitle(notification: AirdropNotification): String {
         val text = normalizedText(notification)
         return when {
+            isRecognizedAppUpdateType(notification.type) -> "Update App"
             "invoice" in text -> "Check Mail"
             "payment" in text || "storage_fee" in text -> "View Payment"
             "document" in text -> "View Document"

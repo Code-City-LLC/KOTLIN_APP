@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.push.NotificationHeaderSync
+import com.ga.airdrop.core.push.isVisibleForInstalledApp
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.data.repo.MiscRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,13 +98,20 @@ class NotificationsViewModel internal constructor(
                         return@onSuccess
                     }
                     contentSessionId = expectedSession.sessionId
+                    val visibleBatch = batch
+                        .filter { it.isVisibleForInstalledApp() }
+                        .map(AirdropNotification::customerFacingCopy)
+                    val endReached = batch.size < perPage
                     _state.update {
                         it.copy(
-                            items = batch.map(AirdropNotification::customerFacingCopy),
+                            items = visibleBatch,
                             loading = false,
                             loadedOnce = true,
-                            endReached = batch.size < perPage,
+                            endReached = endReached,
                         )
+                    }
+                    expectedSession.authenticatedOwner()?.let { owner ->
+                        NotificationHeaderSync.publishPage(owner, visibleBatch, endReached)
                     }
                 }
                 .onFailure { err ->
@@ -142,12 +152,19 @@ class NotificationsViewModel internal constructor(
                         return@onSuccess
                     }
                     page = requestedPage
+                    val visibleBatch = batch
+                        .filter { it.isVisibleForInstalledApp() }
+                        .map(AirdropNotification::customerFacingCopy)
+                    val endReached = batch.size < perPage
                     _state.update {
                         it.copy(
-                            items = it.items + batch.map(AirdropNotification::customerFacingCopy),
+                            items = it.items + visibleBatch,
                             loadingMore = false,
-                            endReached = batch.size < perPage,
+                            endReached = endReached,
                         )
+                    }
+                    expectedSession.authenticatedOwner()?.let { owner ->
+                        NotificationHeaderSync.publishPage(owner, _state.value.items, endReached)
                     }
                 }
                 .onFailure {
@@ -193,6 +210,13 @@ class NotificationsViewModel internal constructor(
                     }
                 )
             }
+            expectedSession.authenticatedOwner()?.let { owner ->
+                NotificationHeaderSync.publishAfterRead(
+                    owner = owner,
+                    notifications = _state.value.items,
+                    endReached = _state.value.endReached,
+                )
+            }
             viewModelScope.launch {
                 if (sessionSnapshot() != expectedSession) return@launch
                 dataSource.markNotificationRead(ownedNotification.id, expectedSession)
@@ -201,6 +225,9 @@ class NotificationsViewModel internal constructor(
         return resolveNotificationRoute(ownedNotification)
     }
 }
+
+private fun AuthTokenStore.Snapshot.authenticatedOwner(): AuthenticatedSessionOwner? =
+    sessionId?.takeIf { token != null }?.let { AuthenticatedSessionOwner(it, accountId) }
 
 internal fun AirdropNotification.customerFacingCopy(): AirdropNotification = copy(
     title = customerFacingSaleCopy(title),

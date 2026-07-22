@@ -8,26 +8,28 @@ import com.ga.airdrop.core.designsystem.theme.TextSizeController
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.network.HttpsImageInterceptor
 import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
+import com.ga.airdrop.core.push.InstalledAppVersionProvider
+import com.ga.airdrop.core.push.NotificationHeaderSync
 import com.ga.airdrop.core.security.BiometricGate
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.feature.calculator.CalculatorHistory
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.cart.CheckoutFlowStore
 import com.ga.airdrop.feature.cart.SavedForLaterStore
-import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.feature.dropalert.DropAlertPreset
 import com.ga.airdrop.feature.shipments.PackagesSortStore
 import com.ga.airdrop.feature.shipments.ShipmentsRepoBinding
 import com.ga.airdrop.feature.shop.ShopRecentSearches
 import com.ga.airdrop.feature.shop.ShopRepoBinding
 import com.google.firebase.crashlytics.FirebaseCrashlytics
-import okhttp3.OkHttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 
 class AirdropApp : Application(), ImageLoaderFactory {
 
@@ -39,6 +41,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
         // Crashlytics dashboard (project airdrop-app-b9423).
         FirebaseCrashlytics.getInstance().isCrashlyticsCollectionEnabled = !BuildConfig.DEBUG
         AuthTokenStore.init(this)
+        InstalledAppVersionProvider.initialize(this)
         ThemeController.init(this)
         TextSizeController.init(this)
         CartStore.init(this)
@@ -55,6 +58,7 @@ class AirdropApp : Application(), ImageLoaderFactory {
                     CartStore.onAuthenticatedSessionChanged(owner)
                     SavedForLaterStore.onAuthenticatedSessionChanged(owner)
                     CheckoutFlowStore.onAuthenticatedSessionChanged(owner)
+                    NotificationHeaderSync.onAuthenticatedSessionChanged(owner)
                 }
         }
         DeliveryDefaultsStore.init(this)

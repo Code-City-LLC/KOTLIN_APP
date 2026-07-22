@@ -29,11 +29,19 @@ class AirdropMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // App-update eligibility must run in our process, including while the
+        // app is backgrounded. The Laravel producer therefore has to send
+        // these as data-only FCM messages; notification-block messages are
+        // rendered directly by Android and bypass this callback.
+        val pushData = flattenPushPayload(message.data)
+        val updateEvaluation = evaluateAppUpdatePush(pushData)
+        if (updateEvaluation == AppUpdateEvaluation.Suppressed) return
+
         // Swift AirdropPushNotificationRouter parses deep fallback chains for
         // every field — a payload keyed "message"/"screen"/"package_id" must
         // not lose its title/body/route/reference on Android (round-3 sweep).
         fun data(vararg keys: String): String? =
-            keys.firstNotNullOfOrNull { key -> message.data[key]?.takeIf { it.isNotBlank() } }
+            keys.firstNotNullOfOrNull { key -> pushData[key]?.takeIf { it.isNotBlank() } }
         val title = message.notification?.title
             ?: data("title", "notification_title", "message_title")
             ?: getString(R.string.app_name)
@@ -51,11 +59,14 @@ class AirdropMessagingService : FirebaseMessagingService() {
         // the same type→route map the in-app inbox uses (Audit#7 C3).
         val notificationType = data("type", "notification_type")
 
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            route?.let { putExtra(EXTRA_ROUTE, it) }
-            referenceId?.let { putExtra(EXTRA_REFERENCE_ID, it) }
-            notificationType?.let { putExtra(EXTRA_NOTIFICATION_TYPE, it) }
+        val intent = when (updateEvaluation) {
+            is AppUpdateEvaluation.Eligible -> googlePlayUpdateIntent()
+            else -> Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                route?.let { putExtra(EXTRA_ROUTE, it) }
+                referenceId?.let { putExtra(EXTRA_REFERENCE_ID, it) }
+                notificationType?.let { putExtra(EXTRA_NOTIFICATION_TYPE, it) }
+            }
         }
         val pending = PendingIntent.getActivity(
             this,
@@ -91,6 +102,7 @@ class AirdropMessagingService : FirebaseMessagingService() {
         // Monotonic id — identityHashCode could collide and overwrite a
         // still-visible earlier notification.
         manager.notify(nextNotificationId.incrementAndGet(), notification)
+        NotificationHeaderSync.markUnread()
     }
 
     // No local coroutine scope: token registration moved to PushRegistrar's

@@ -25,6 +25,7 @@ import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.network.TokenRefresher
 import com.ga.airdrop.core.push.AirdropMessagingService
+import com.ga.airdrop.core.push.NotificationHeaderSync
 import com.ga.airdrop.core.push.PushDeepLink
 import com.ga.airdrop.core.push.PushRegistrar
 import com.ga.airdrop.core.security.BiometricGate
@@ -126,6 +127,7 @@ class MainActivity : FragmentActivity() {
         // in (dedupes on last-registered) — covers login-before-token installs,
         // permission grants, and app updates that predate PushRegistrar.
         PushRegistrar.registerIfLoggedIn()
+        NotificationHeaderSync.refresh()
     }
 
     private fun maybeRequestNotificationPermission() {

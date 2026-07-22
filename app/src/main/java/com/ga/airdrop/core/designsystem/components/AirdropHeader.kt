@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -75,6 +76,7 @@ fun AirdropHeader(
     style: AirdropHeaderStyle = AirdropHeaderStyle.OverImage,
     cartCount: Int = 0,
     airCoins: String = "",
+    hasUnreadNotifications: Boolean = false,
     onTierClick: () -> Unit = {},
     onBellClick: () -> Unit = {},
     onCartClick: () -> Unit = {},
@@ -143,14 +145,28 @@ fun AirdropHeader(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(R.drawable.ic_header_bell),
-                    contentDescription = "Notifications",
-                    colorFilter = ColorFilter.tint(headerIcon),
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable(onClick = onBellClick),
-                )
+                Box {
+                    Image(
+                        painter = painterResource(R.drawable.ic_header_bell),
+                        contentDescription = "Notifications",
+                        colorFilter = ColorFilter.tint(
+                            if (hasUnreadNotifications) colors.orangeMain else headerIcon,
+                        ),
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable(onClick = onBellClick),
+                    )
+                    if (hasUnreadNotifications) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 2.dp, y = (-2).dp)
+                                .size(8.dp)
+                                .background(colors.orangeMain, CircleShape)
+                                .testTag("header-notification-unread")
+                        )
+                    }
+                }
                 Box(Modifier.padding(start = 20.dp)) {
                     Image(
                         painter = painterResource(R.drawable.ic_header_cart),

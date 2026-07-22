@@ -237,6 +237,7 @@ interface AirdropApiService {
     suspend fun notifications(
         @Query("page") page: Int,
         @Query("per_page") perPage: Int,
+        @Query("unread_only") unreadOnly: Boolean? = null,
     ): Paginated<AirdropNotification>
 
     @POST("user/notifications/mark-read")
