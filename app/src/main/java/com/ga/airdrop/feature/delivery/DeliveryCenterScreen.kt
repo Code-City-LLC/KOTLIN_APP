@@ -261,6 +261,49 @@ private val JUST_PAID_STAGES = listOf(
     ),
 )
 
+/**
+ * Kemar's approved FOUR-stage journey is the canonical tracking display. Live
+ * server data maps onto it (assigned → Preparing for Dispatch) so the customer
+ * always sees the same four-step path, with server states + timestamps driving
+ * each step. Unknown server projections fall back to the raw server stages.
+ */
+private data class CanonicalStage(
+    val key: String,
+    val label: String,
+    val copy: String,
+    val state: String,
+    val at: String?,
+)
+
+private fun canonicalJourney(delivery: TrackedDelivery): List<CanonicalStage>? {
+    val byKey = delivery.stages.associateBy(TrackedDeliveryStage::key)
+    val assigned = byKey["assigned"]
+    val outForDelivery = byKey["out_for_delivery"]
+    val delivered = byKey["delivered"]
+    if (assigned == null && outForDelivery == null && delivered == null) return null
+    return listOf(
+        CanonicalStage(
+            "order_confirmed", "Order Confirmed",
+            "Payment received, order booked.", "done", null,
+        ),
+        CanonicalStage(
+            "preparing_dispatch", "Preparing for Dispatch",
+            "Packing your items for the courier.",
+            assigned?.state ?: "done", assigned?.at,
+        ),
+        CanonicalStage(
+            "out_for_delivery", "Out for Delivery",
+            "On its way to your address.",
+            outForDelivery?.state ?: "pending", outForDelivery?.at,
+        ),
+        CanonicalStage(
+            "delivered", "Delivered",
+            "Handed over at your location.",
+            delivered?.state ?: "pending", delivered?.at,
+        ),
+    )
+}
+
 @Composable
 private fun JustPaidJourney(
     orderReference: String,
@@ -290,7 +333,7 @@ private fun JustPaidJourney(
                     .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
                     .padding(20.dp)
                     .testTag(DeliveryCenterTags.JOURNEY),
-                verticalArrangement = Arrangement.spacedBy(26.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 CircularDeliveryHero()
                 Column(Modifier.fillMaxWidth()) {
@@ -336,23 +379,17 @@ private fun JustPaidJourney(
 
 @Composable
 private fun CircularDeliveryHero() {
-    val colors = AirdropTheme.colors
+    // Kemar: no container at all — the delivery art floats free at the top of
+    // the card, full illustration visible, nothing cropping it.
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .size(168.dp)
-                .shadow(6.dp, CircleShape)
-                .clip(CircleShape)
-                .background(colors.gray150),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                painter = painterResource(R.drawable.img_delivery_deliver),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize(),
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.img_delivery_deliver),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth(0.55f)
+                .aspectRatio(1000f / 667f),
+        )
     }
 }
 
@@ -632,7 +669,7 @@ private fun DeliveryDetail(
                     .background(colors.gray100, RoundedCornerShape(Radius.s))
                     .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
                     .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(26.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 CircularDeliveryHero()
                 Column(Modifier.fillMaxWidth()) {
@@ -656,11 +693,30 @@ private fun DeliveryDetail(
                     }
                 }
                 Column(Modifier.fillMaxWidth()) {
-                    delivery.stages.forEachIndexed { index, stage ->
-                        DeliveryTimelineStep(
-                            stage = stage,
-                            isLast = index == delivery.stages.lastIndex,
-                        )
+                    val canonical = canonicalJourney(delivery)
+                    if (canonical != null) {
+                        // The approved four-stage journey, driven by live data.
+                        canonical.forEachIndexed { index, stage ->
+                            DeliveryTimelineStep(
+                                stage = TrackedDeliveryStage(
+                                    key = stage.key,
+                                    label = stage.label,
+                                    state = stage.state,
+                                    at = stage.at,
+                                ),
+                                isLast = index == canonical.lastIndex,
+                                detail = stage.copy,
+                            )
+                        }
+                    } else {
+                        // Defensive fallback: unrecognised server projection —
+                        // render the ordered server stages verbatim.
+                        delivery.stages.forEachIndexed { index, stage ->
+                            DeliveryTimelineStep(
+                                stage = stage,
+                                isLast = index == delivery.stages.lastIndex,
+                            )
+                        }
                     }
                 }
             }
@@ -723,15 +779,22 @@ private fun DeliveryTimelineStep(
         Column(
             Modifier
                 .weight(1f)
-                .padding(top = 10.dp, bottom = if (isLast) 0.dp else 30.dp),
+                .padding(top = 10.dp, bottom = if (isLast) 0.dp else 18.dp),
         ) {
             Text(
                 text = stage.label,
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
             )
-            val detailText = detail ?: formatDeliveryTimestamp(stage.at)
-            detailText?.let {
+            detail?.let {
+                Text(
+                    text = it,
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            formatDeliveryTimestamp(stage.at)?.let {
                 Text(
                     text = it,
                     style = AirdropType.body2,
