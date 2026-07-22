@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -59,6 +60,9 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.push.AppUpdateEvaluation
+import com.ga.airdrop.core.push.evaluateAppUpdateNotification
+import com.ga.airdrop.core.push.launchGooglePlayUpdate
 import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 import java.text.SimpleDateFormat
@@ -78,6 +82,7 @@ fun NotificationsScreen(
     viewModel: NotificationsViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
 
     NotificationsScreenContent(
         state = state,
@@ -86,7 +91,12 @@ fun NotificationsScreen(
         onRefresh = viewModel::refresh,
         onLoadMore = viewModel::loadMore,
         onNotificationTap = { notification ->
-            viewModel.onNotificationTapped(notification)?.let(onNavigate)
+            val route = viewModel.onNotificationTapped(notification)
+            if (evaluateAppUpdateNotification(notification) is AppUpdateEvaluation.Eligible) {
+                launchGooglePlayUpdate(context)
+            } else {
+                route?.let(onNavigate)
+            }
         },
     )
 }
@@ -101,6 +111,19 @@ internal fun NotificationsScreenContent(
     onNotificationTap: (AirdropNotification) -> Unit,
 ) {
     val colors = AirdropTheme.colors
+    LaunchedEffect(
+        state.loadedOnce,
+        state.items.size,
+        state.endReached,
+        state.loading,
+        state.loadingMore,
+    ) {
+        if (state.loadedOnce && state.items.isEmpty() && !state.endReached &&
+            !state.loading && !state.loadingMore
+        ) {
+            onLoadMore()
+        }
+    }
     Column(
         Modifier
             .fillMaxSize()

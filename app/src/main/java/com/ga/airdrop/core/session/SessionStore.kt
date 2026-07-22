@@ -17,6 +17,7 @@ object SessionStore {
         val tierName: String = "",
         val airCoins: String = "",
         val cartCount: Int = 0,
+        val hasUnreadNotifications: Boolean = false,
     )
 
     private val _header = MutableStateFlow(HeaderInfo())

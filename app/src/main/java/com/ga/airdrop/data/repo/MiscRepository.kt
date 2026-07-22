@@ -120,8 +120,17 @@ class MiscRepository(private val service: AirdropApiService) {
 
     // ── Notifications / device tokens ──
 
-    suspend fun notifications(page: Int = 1, limit: Int = 20): Result<List<AirdropNotification>> =
-        apiResult { service.notifications(page = page, perPage = limit).items }
+    suspend fun notifications(
+        page: Int = 1,
+        limit: Int = 20,
+        unreadOnly: Boolean = false,
+    ): Result<List<AirdropNotification>> = apiResult {
+        service.notifications(
+            page = page,
+            perPage = limit,
+            unreadOnly = true.takeIf { unreadOnly },
+        ).items
+    }
 
     suspend fun markNotificationRead(
         id: String,
@@ -140,6 +149,8 @@ class MiscRepository(private val service: AirdropApiService) {
         deviceToken: String,
         deviceType: String = "android",
         deviceInfo: String? = null,
+        appVersion: String? = null,
+        buildNumber: String? = null,
         expectedSession: AuthTokenStore.RequestProvenance? = null,
     ): Result<MutationResponse> = apiResult {
         service.registerDeviceToken(
@@ -149,6 +160,8 @@ class MiscRepository(private val service: AirdropApiService) {
                 deviceToken = deviceToken,
                 deviceType = deviceType,
                 deviceInfo = deviceInfo,
+                appVersion = appVersion,
+                buildNumber = buildNumber,
             ),
         )
     }

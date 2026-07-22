@@ -56,4 +56,48 @@ class AirdropNotificationDecodingTest {
         assertEquals("12345", notification.payload["packageId"])
         assertEquals("TYPO-TRACKING", notification.payload["package_couirer_number"])
     }
+
+    @Test
+    fun `decodes update contract from data-payload and top-level aliases`() {
+        val nested = AirdropJson.decodeFromString<AirdropNotification>(
+            """
+            {
+              "id": "update-1",
+              "data_payload": {
+                "type": "app_update_available",
+                "platform": "android",
+                "latest_version": "8.1",
+                "minimum_supported_version": "8.0"
+              }
+            }
+            """.trimIndent()
+        )
+        assertEquals("app_update_available", nested.type)
+        assertEquals("android", nested.payload["platform"])
+        assertEquals("8.1", nested.payload["latest_version"])
+
+        val topLevel = AirdropJson.decodeFromString<AirdropNotification>(
+            """
+            {
+              "id": "update-2",
+              "type": "app_update",
+              "platform": "android",
+              "latestVersion": 9.0
+            }
+            """.trimIndent()
+        )
+        assertEquals("android", topLevel.payload["platform"])
+        assertEquals("9.0", topLevel.payload["latestVersion"])
+
+        val encodedWrapper = AirdropJson.decodeFromString<AirdropNotification>(
+            """
+            {
+              "id": "update-3",
+              "data_payload": "{\"type\":\"app_update\",\"platform\":\"android\",\"latest_version\":\"9.1\"}"
+            }
+            """.trimIndent()
+        )
+        assertEquals("app_update", encodedWrapper.type)
+        assertEquals("9.1", encodedWrapper.payload["latest_version"])
+    }
 }

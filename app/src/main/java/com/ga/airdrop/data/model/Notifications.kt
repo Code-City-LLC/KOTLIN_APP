@@ -52,9 +52,28 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
             ?: false
 
         val topRoute = obj.flexString("screen", "navigate_to", "route", "screen_name")
-        val dataPayload = obj["data"] as? JsonObject
-        val payload = dataPayload?.stringPayload().orEmpty()
-        val route = dataPayload?.flexString("screen", "navigate_to", "route") ?: topRoute
+        fun payloadObject(key: String): JsonObject? = when (val value = obj[key]) {
+            is JsonObject -> value
+            is JsonPrimitive -> value.takeIf { it.isString }?.content?.let { encoded ->
+                runCatching { input.json.parseToJsonElement(encoded) as? JsonObject }.getOrNull()
+            }
+            else -> null
+        }
+        val dataPayload = payloadObject("data")
+        val alternatePayload = payloadObject("data_payload")
+        val nestedPayloads = listOfNotNull(dataPayload, alternatePayload)
+        fun nestedString(vararg keys: String): String? =
+            nestedPayloads.firstNotNullOfOrNull { it.flexString(*keys) }
+        val payload = buildMap {
+            // `data` is canonical and wins when legacy `data_payload` is also present.
+            alternatePayload?.stringPayload()?.let(::putAll)
+            dataPayload?.stringPayload()?.let(::putAll)
+            // Some Laravel producers place update eligibility fields at the row root.
+            for (key in UPDATE_PAYLOAD_KEYS) {
+                (obj[key] as? JsonPrimitive)?.let(::parseFlexString)?.let { put(key, it) }
+            }
+        }
+        val route = nestedString("screen", "navigate_to", "route") ?: topRoute
         val topReference = obj.flexString(
             "package_id",
             "packageId",
@@ -66,13 +85,13 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
             "package_couirer_number",
             "reference_id",
         )
-        val payloadPackageReference = dataPayload?.flexString(
+        val payloadPackageReference = nestedString(
             "package_id",
             "packageId",
             "packageID",
             "reference_id",
         )
-        val payloadTrackingReference = dataPayload?.flexString(
+        val payloadTrackingReference = nestedString(
             "tracking_code",
             "package_tracking_code",
             "courier_number",
@@ -86,7 +105,7 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
             title = title,
             body = body,
             type = obj.flexString("type", "notification_type")
-                ?: dataPayload?.flexString("type", "notification_type"),
+                ?: nestedString("type", "notification_type"),
             isRead = isRead,
             createdAt = createdAt,
             route = route,
@@ -95,6 +114,15 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
         )
     }
 }
+
+private val UPDATE_PAYLOAD_KEYS = setOf(
+    "platform",
+    "latest_version",
+    "latestVersion",
+    "minimum_supported_version",
+    "minimumSupportedVersion",
+    "minimum_version",
+)
 
 private fun JsonObject.stringPayload(): Map<String, String> = buildMap {
     for ((key, value) in this@stringPayload) {
@@ -122,6 +150,8 @@ data class RegisterDeviceTokenRequest(
     @SerialName("device_token") val deviceToken: String,
     @SerialName("device_type") val deviceType: String,
     @SerialName("device_info") val deviceInfo: String? = null,
+    @SerialName("app_version") val appVersion: String? = null,
+    @SerialName("build_number") val buildNumber: String? = null,
 )
 
 @Serializable

@@ -49,4 +49,10 @@ class NotificationActionTitleTest {
         // Swift chain checks invoice before payment.
         assertEquals("Check Mail", title(notif(type = "invoice", body = "payment required")))
     }
+
+    @Test
+    fun `app update uses explicit store action`() {
+        assertEquals("Update App", title(notif(type = "app_update")))
+        assertEquals("Update App", title(notif(type = "force-update")))
+    }
 }

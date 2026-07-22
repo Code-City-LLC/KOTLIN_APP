@@ -34,6 +34,7 @@ object PushRegistrar {
     private const val KEY_TOKEN = "fcmToken"
     private const val KEY_REGISTERED = "registeredFcmToken"
     private const val KEY_REGISTERED_ACCOUNT = "registeredFcmAccount"
+    private const val KEY_REGISTERED_CLIENT = "registeredClientVersion"
 
     private var prefs: SharedPreferences? = null
     private var appContext: Context? = null
@@ -237,11 +238,13 @@ object PushRegistrar {
     ): Boolean {
         val accountId = expected.accountId ?: return false
         if (!registrationAllowed(expected, generation)) return false
+        val clientIdentity = InstalledAppVersionProvider.current().registrationIdentity
         val alreadyRegistered = prefs?.getString(KEY_REGISTERED, null) == token &&
-            prefs?.getString(KEY_REGISTERED_ACCOUNT, null) == accountId.toString()
+            prefs?.getString(KEY_REGISTERED_ACCOUNT, null) == accountId.toString() &&
+            prefs?.getString(KEY_REGISTERED_CLIENT, null) == clientIdentity
         if (!force && alreadyRegistered) return true
 
-        val requestKey = "$accountId|$token"
+        val requestKey = "$accountId|$token|$clientIdentity"
         synchronized(stateLock) {
             if (inFlightKey == requestKey) return false
             inFlightKey = requestKey
@@ -252,6 +255,7 @@ object PushRegistrar {
                 prefs?.edit()
                     ?.putString(KEY_REGISTERED, token)
                     ?.putString(KEY_REGISTERED_ACCOUNT, accountId.toString())
+                    ?.putString(KEY_REGISTERED_CLIENT, clientIdentity)
                     ?.apply()
                 true
             } else {
@@ -267,14 +271,19 @@ object PushRegistrar {
     private suspend fun registerWithBackend(
         token: String,
         provenance: AuthTokenStore.RequestProvenance,
-    ): Boolean = MiscRepository(ApiClient.service)
-        .registerFcmToken(
-            deviceToken = token,
-            deviceType = "android",
-            deviceInfo = androidDeviceInfo(),
-            expectedSession = provenance,
-        )
-        .isSuccess
+    ): Boolean {
+        val installed = InstalledAppVersionProvider.current()
+        return MiscRepository(ApiClient.service)
+            .registerFcmToken(
+                deviceToken = token,
+                deviceType = "android",
+                deviceInfo = androidDeviceInfo(),
+                appVersion = installed.versionName,
+                buildNumber = installed.buildNumber.toString(),
+                expectedSession = provenance,
+            )
+            .isSuccess
+    }
 
     private fun currentProvenance(): AuthTokenStore.RequestProvenance? =
         AuthTokenStore.requestProvenance(AuthTokenStore.snapshot())
@@ -298,6 +307,7 @@ object PushRegistrar {
             if (deleteCachedToken) remove(KEY_TOKEN)
             remove(KEY_REGISTERED)
             remove(KEY_REGISTERED_ACCOUNT)
+            remove(KEY_REGISTERED_CLIENT)
         }?.apply()
     }
 
