@@ -74,6 +74,7 @@ data class CheckoutFlow(
     val packageIds: List<Int>,
     val isAuction: Boolean,
     val totalWeightKg: Double? = null,
+    val shipmentChargeSnapshots: List<CheckoutShipmentChargeSnapshot> = emptyList(),
     val currency: String? = null,
     val deliveryMode: String? = null,
     val deliveryAddress: String? = null,
@@ -297,10 +298,56 @@ object CheckoutFlowStore {
             packageIds = current.packageIds,
             isAuction = current.isAuction,
             totalWeightKg = current.totalWeightKg,
+            shipmentChargeSnapshots = current.shipmentChargeSnapshots,
         )
         if (!isValidTransition(current, updated)) return null
         flow = updated
         persist()
+        return updated
+    }
+
+    /**
+     * Persists authoritative package-detail values without changing checkout
+     * identity. Every response must still match the captured flow, owner,
+     * cart-key/package-id pairing, and Order Summary phase at commit time.
+     */
+    @Synchronized
+    internal fun recordShipmentChargeSnapshots(
+        owner: AuthenticatedSessionOwner,
+        expectedIdentity: CheckoutChargeCaptureIdentity,
+        snapshots: List<CheckoutShipmentChargeSnapshot>,
+    ): CheckoutFlow? {
+        if (pendingHosted != null || pendingCreation != null || !bindFlowOwner(owner)) return null
+        val current = flow?.takeIf {
+            it.phase == CheckoutPhase.ORDER_SUMMARY &&
+                it.chargeCaptureIdentity() == expectedIdentity
+        } ?: return null
+        if (snapshots.isEmpty()) return current
+        if (snapshots.distinctBy(CheckoutShipmentChargeSnapshot::cartKey).size != snapshots.size) {
+            return null
+        }
+
+        val packageIdByKey = current.cartKeys.zip(current.packageIds).toMap()
+        if (snapshots.any { snapshot ->
+                snapshot.cartKey.kind != CartStore.CartLineKind.PACKAGE ||
+                    packageIdByKey[snapshot.cartKey] != snapshot.packageId ||
+                    !snapshot.hasValidBackendValues()
+            }
+        ) return null
+
+        val mergedByKey = current.shipmentChargeSnapshots
+            .filter { packageIdByKey[it.cartKey] == it.packageId }
+            .associateBy(CheckoutShipmentChargeSnapshot::cartKey)
+            .toMutableMap()
+            .apply { snapshots.forEach { put(it.cartKey, it) } }
+        val updated = current.copy(
+            shipmentChargeSnapshots = current.cartKeys.mapNotNull(mergedByKey::get),
+        )
+        flow = updated
+        if (!persistSynchronously()) {
+            flow = current
+            return null
+        }
         return updated
     }
 
@@ -349,6 +396,9 @@ object CheckoutFlowStore {
                 totalWeightKg = exactRemaining.mapNotNull(CartStore.CartLine::weightKg)
                     .sum()
                     .takeIf { it > 0.0 },
+                shipmentChargeSnapshots = current.shipmentChargeSnapshots.filterNot {
+                    it.cartKey == removedKey
+                },
             )
             CapturedLineRemovalResult.UPDATED
         }
@@ -606,6 +656,19 @@ object CheckoutFlowStore {
         prefs?.getString(key, null)?.let { raw ->
             runCatching { json.decodeFromString(serializer, raw) }.getOrNull()
         }
+
+    private fun CheckoutShipmentChargeSnapshot.hasValidBackendValues(): Boolean =
+        packageId > 0 &&
+            declaredValueUsd.isNullOrFiniteNonNegative() &&
+            additionalChargesTotalUsd.isNullOrFiniteNonNegative() &&
+            (exchangeRateUsdToJmd == null ||
+                (exchangeRateUsdToJmd.isFinite() && exchangeRateUsdToJmd > 0.0)) &&
+            additionalCharges.all { (name, amount) ->
+                name.isNotBlank() && amount.isFinite() && amount >= 0.0
+            }
+
+    private fun Double?.isNullOrFiniteNonNegative(): Boolean =
+        this == null || (isFinite() && this >= 0.0)
 
     private fun currentAuthenticatedOwner(): AuthenticatedSessionOwner? =
         com.ga.airdrop.core.auth.AuthTokenStore.snapshot().let { snapshot ->

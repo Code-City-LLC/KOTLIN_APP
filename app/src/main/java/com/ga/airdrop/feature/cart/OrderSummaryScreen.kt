@@ -23,6 +23,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +36,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -50,7 +53,6 @@ data class OrderSummaryUiModel(
     val note: String = "",
     val currency: String = "USD",
     val exchangeUsdToJmd: Double = com.ga.airdrop.feature.shipments.DEFAULT_USD_TO_JMD,
-    val taxUsd: Double = 5.0,
     val totalCharges: Double = 0.0,
     val removingKeys: Set<CartStore.CartLineKey> = emptySet(),
     val removalLocked: Boolean = false,
@@ -73,11 +75,37 @@ fun OrderSummaryScreen(
     onMakePayment: () -> Unit,
     onDismissError: () -> Unit = {},
 ) {
-    BackHandler(onBack = onBack)
     val colors = AirdropTheme.colors
     val packageLines = model.lines.filter { it.resolvedKind == CartStore.CartLineKind.PACKAGE }
     val saleLines = model.lines.filter { it.resolvedKind == CartStore.CartLineKind.AUCTION }
     var showingNotePopup by remember { mutableStateOf(false) }
+    var showingChargesSheet by remember { mutableStateOf(false) }
+    val chargesViewModel: OrderSummaryChargesViewModel = viewModel()
+    val chargesState by chargesViewModel.state.collectAsState()
+    val captureKey = model.lines.map { line -> line.key to line.packageId }
+    LaunchedEffect(captureKey, chargesState.identity) {
+        chargesViewModel.hydrate(model.lines)
+    }
+    val breakdown = remember(
+        model.lines,
+        model.currency,
+        model.exchangeUsdToJmd,
+        model.totalCharges,
+        chargesState,
+    ) {
+        OrderChargeBreakdown.calculate(
+            lines = model.lines,
+            snapshots = chargesState.snapshots,
+            paymentCurrency = chargesState.paymentCurrency ?: model.currency,
+            checkoutExchangeRateUsdToJmd = model.exchangeUsdToJmd,
+            deliveryFee = chargesState.deliveryFee,
+            deliveryFeeCurrency = chargesState.deliveryFeeCurrency,
+            canonicalFlowAvailable = chargesState.canonicalFlowAvailable,
+            fallbackDisplayTotal = model.totalCharges,
+            unavailableShipmentKeys = chargesState.loadingKeys + chargesState.failures.keys,
+        )
+    }
+    BackHandler(enabled = !showingChargesSheet, onBack = onBack)
 
     Column(
         Modifier
@@ -102,6 +130,7 @@ fun OrderSummaryScreen(
                     removingKeys = model.removingKeys,
                     removalLocked = model.removalLocked,
                     onRemoveItem = onRemoveItem,
+                    onInfoClick = { showingChargesSheet = true },
                 )
             }
             if (saleLines.isNotEmpty()) {
@@ -112,10 +141,15 @@ fun OrderSummaryScreen(
                     removingKeys = model.removingKeys,
                     removalLocked = model.removalLocked,
                     onRemoveItem = onRemoveItem,
+                    onInfoClick = {},
                 )
             }
             SpecialInstructionsCard(note = model.note, onClick = { showingNotePopup = true })
-            OrderSummaryChargesCard(model)
+            OrderSummaryChargesCard(
+                model = model,
+                breakdown = breakdown,
+                onInfoClick = { showingChargesSheet = true },
+            )
         }
         Column(
             Modifier
@@ -142,6 +176,16 @@ fun OrderSummaryScreen(
                 showingNotePopup = false
             },
             onDismiss = { showingNotePopup = false },
+        )
+    }
+
+    if (showingChargesSheet) {
+        OrderSummaryChargesSheet(
+            breakdown = breakdown,
+            loading = chargesState.loading,
+            failedShipmentCount = chargesState.failures.size,
+            onRetry = chargesViewModel::retryFailed,
+            onDismiss = { showingChargesSheet = false },
         )
     }
 
@@ -172,6 +216,7 @@ private fun OrderSummaryGroup(
     removingKeys: Set<CartStore.CartLineKey>,
     removalLocked: Boolean,
     onRemoveItem: (CartStore.CartLine) -> Unit,
+    onInfoClick: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -181,11 +226,10 @@ private fun OrderSummaryGroup(
         ) {
             Text("$title (${lines.size})", style = AirdropType.subtitle1, color = AirdropTheme.colors.textDarkTitle)
             if (showInfo) {
-                Image(
-                    painter = painterResource(R.drawable.ic_info),
+                OrderSummaryInfoButton(
                     contentDescription = "Package information",
-                    colorFilter = ColorFilter.tint(AirdropTheme.colors.iconSelected),
-                    modifier = Modifier.size(24.dp),
+                    testTag = "order-summary-packages-info",
+                    onClick = onInfoClick,
                 )
             }
         }
@@ -387,7 +431,11 @@ private fun SpecialInstructionsCard(note: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
+private fun OrderSummaryChargesCard(
+    model: OrderSummaryUiModel,
+    breakdown: OrderChargeBreakdown,
+    onInfoClick: () -> Unit,
+) {
     val colors = AirdropTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -396,11 +444,10 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text("Charges", style = AirdropType.subtitle1, color = colors.textDarkTitle)
-            Image(
-                painter = painterResource(R.drawable.ic_info),
+            OrderSummaryInfoButton(
                 contentDescription = "Charges information",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(24.dp),
+                testTag = "order-summary-charges-info",
+                onClick = onInfoClick,
             )
         }
         Column(
@@ -414,8 +461,25 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 15.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                SummaryChargeRow("Payment Currency", model.currency)
-                SummaryChargeRow("Tax", String.format(Locale.US, "USD %.2f", model.taxUsd))
+                SummaryChargeRow("Payment Currency", breakdown.paymentCurrency)
+                if (breakdown.hasShipments) {
+                    SummaryChargeRow(
+                        "Shipment Charges",
+                        formatBreakdownAmount(breakdown.shipmentSubtotalUsd, breakdown),
+                    )
+                }
+                if (breakdown.hasSales) {
+                    SummaryChargeRow(
+                        "Sale Subtotal",
+                        formatBreakdownAmount(breakdown.saleSubtotalUsd, breakdown),
+                    )
+                }
+                breakdown.deliveryFeeUsd?.let { deliveryFeeUsd ->
+                    SummaryChargeRow(
+                        "Delivery Fee",
+                        formatBreakdownAmount(deliveryFeeUsd, breakdown),
+                    )
+                }
                 SummaryChargeRow(
                     "Exchange Rate (USD)",
                     String.format(Locale.US, "USD 1 = JMD %.2f", model.exchangeUsdToJmd),
@@ -433,11 +497,12 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
             ) {
                 Text("Total Charges", style = AirdropType.subtitle1, color = colors.textDarkTitle)
                 Text(
-                    if (model.currency == "JMD") {
-                        String.format(Locale.US, "JMD %.2f", model.totalCharges)
-                    } else {
-                        String.format(Locale.US, "USD %.2f", model.totalCharges)
-                    },
+                    String.format(
+                        Locale.US,
+                        "%s %.2f",
+                        breakdown.paymentCurrency,
+                        breakdown.displayTotal,
+                    ),
                     style = AirdropType.subtitle1,
                     color = BrandPalette.OrangeMain,
                 )
@@ -447,10 +512,41 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
 }
 
 @Composable
+private fun OrderSummaryInfoButton(
+    contentDescription: String,
+    testTag: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .clickable(onClick = onClick)
+            .testTag(testTag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_info),
+            contentDescription = contentDescription,
+            colorFilter = ColorFilter.tint(AirdropTheme.colors.iconSelected),
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+@Composable
 private fun SummaryChargeRow(label: String, value: String) {
     val colors = AirdropTheme.colors
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, style = AirdropType.body2, color = colors.textDescription)
         Text(value, style = AirdropType.subtitle2, color = colors.textDarkTitle)
+    }
+}
+
+private fun formatBreakdownAmount(amountUsd: Double, breakdown: OrderChargeBreakdown): String {
+    val rate = breakdown.checkoutExchangeRateUsdToJmd
+    return if (breakdown.paymentCurrency == "JMD" && rate != null) {
+        String.format(Locale.US, "JMD %.2f", amountUsd * rate)
+    } else {
+        String.format(Locale.US, "USD %.2f", amountUsd)
     }
 }
