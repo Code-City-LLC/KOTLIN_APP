@@ -97,30 +97,29 @@ fun DeliveryCenterScreen(
     ) {
         HomeDetailsHeader(title = "Delivery Center", onBack = onBack)
 
-        // Scrollable content takes the remaining space; the Contact CTA is
-        // pinned below it so it always clears the system gesture bar.
+        // Content sized to fit one frame (no scroll on a normal phone);
+        // verticalScroll stays only as a safety net for very short screens.
+        // The Contact CTA is pinned low, just above the gesture bar.
         Column(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.md)
-                .padding(top = Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                .padding(top = 12.dp),
         ) {
             if (hasActiveDelivery) {
                 ActiveDeliveryCard(orderReference = orderReference!!)
             } else {
                 EmptyDeliveryCard()
             }
-            Spacer(Modifier.height(Spacing.sm))
         }
 
         if (hasActiveDelivery) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = Spacing.sm, bottom = Spacing.md)
+                    .padding(top = 4.dp, bottom = 10.dp)
                     .navigationBarsPadding(),
                 contentAlignment = Alignment.Center,
             ) {
@@ -140,25 +139,25 @@ private fun ActiveDeliveryCard(orderReference: String) {
     val stages = listOf(
         DeliveryStage(
             "Order Confirmed",
-            "Payment received and your order is booked.",
+            "Payment received, order booked.",
             DeliveryStageState.DONE,
             R.drawable.ic_shipments_status_shipment_received,
         ),
         DeliveryStage(
             "Preparing for Dispatch",
-            "Our team is packing your items for the courier.",
+            "Packing your items for the courier.",
             DeliveryStageState.CURRENT,
             R.drawable.ic_shipments_status_processing_warehouse,
         ),
         DeliveryStage(
             "Out for Delivery",
-            "Your package is on its way to your address.",
+            "On its way to your address.",
             DeliveryStageState.PENDING,
             R.drawable.ic_shipments_status_in_transit_counter,
         ),
         DeliveryStage(
             "Delivered",
-            "Package handed over at your delivery location.",
+            "Handed over at your location.",
             DeliveryStageState.PENDING,
             R.drawable.ic_shipments_status_delivered,
         ),
@@ -176,9 +175,9 @@ private fun ActiveDeliveryCard(orderReference: String) {
             )
             .background(colors.gray100, RoundedCornerShape(Radius.s))
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(Spacing.md)
+            .padding(16.dp)
             .testTag("delivery-center-active"),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         // Delivery illustration (1000x667) inside a soft rounded well. A blurred,
         // darkened copy offset downward sits behind it as a soft drop shadow so
@@ -243,8 +242,7 @@ private fun ActiveDeliveryCard(orderReference: String) {
         }
 
         Text(
-            text = "We'll notify you as your package moves through each stage. " +
-                "Contact us any time if you need more delivery details.",
+            text = "We'll notify you at each stage of your package's journey.",
             style = AirdropType.body2,
             color = colors.textDescription,
         )
@@ -306,7 +304,7 @@ private fun TimelineStep(
         Column(
             Modifier
                 .weight(1f)
-                .padding(top = 10.dp, bottom = if (isLast) 0.dp else Spacing.md),
+                .padding(top = 8.dp, bottom = if (isLast) 0.dp else 12.dp),
         ) {
             Text(
                 text = stage.title,
