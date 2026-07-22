@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,7 +37,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
@@ -98,19 +96,19 @@ fun DeliveryCenterScreen(
             .clipToBounds()
             .testTag("delivery-center-root"),
     ) {
-        // Same topographic contour pattern as the payment-success page — a faint
-        // textured backdrop (7% opacity; #292929 light / white dark).
+        // Topographic "waves" — OUTSIDE the card, across the whole page
+        // background (they show in the margins around the compact card). 8%,
+        // #292929 light / white dark.
         Image(
             painter = painterResource(R.drawable.img_success_bg_topo),
             contentDescription = null,
             colorFilter = ColorFilter.tint(
                 if (colors.isDark) Color.White else Color(0xFF292929),
             ),
+            contentScale = ContentScale.Crop,
             modifier = Modifier
-                .offset(x = (-122).dp, y = (-418).dp)
-                .size(width = 1632.dp, height = 1848.dp)
-                .alpha(0.07f),
-            contentScale = ContentScale.Fit,
+                .matchParentSize()
+                .alpha(0.08f),
         )
 
         Column(Modifier.fillMaxSize()) {
@@ -183,7 +181,7 @@ private fun ActiveDeliveryCard(orderReference: String) {
         ),
     )
 
-    Box(
+    Column(
         Modifier
             .fillMaxWidth()
             // Drop shadow underneath the card (0/12 @10%), theme-neutral.
@@ -193,58 +191,28 @@ private fun ActiveDeliveryCard(orderReference: String) {
                 ambientColor = Color.Black.copy(alpha = 0.10f),
                 spotColor = Color.Black.copy(alpha = 0.10f),
             )
-            .clip(RoundedCornerShape(Radius.s))
-            .background(colors.gray100)
+            .background(colors.gray100, RoundedCornerShape(Radius.s))
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .padding(20.dp)
             .testTag("delivery-center-active"),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        // Topographic contour lines as a VISIBLE textured backdrop behind the
-        // card content — the same lines as the payment-success page (~8%).
-        Image(
-            painter = painterResource(R.drawable.img_success_bg_topo),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(
-                if (colors.isDark) Color.White else Color(0xFF292929),
-            ),
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .matchParentSize()
-                .alpha(0.08f),
-        )
-        Column(
-            Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(26.dp),
-        ) {
-        // Delivery illustration (1000x667) inside a soft rounded well. A blurred,
-        // darkened copy offset downward sits behind it as a soft drop shadow so
-        // the truck lifts off the surface.
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(Radius.xs))
-                .background(colors.gray150)
-                .padding(bottom = 6.dp),
-            contentAlignment = Alignment.Center,
-        ) {
+        // Circular delivery illustration (Kemar: the truck image in a circle) —
+        // a compact hero that keeps the whole screen in one frame. The
+        // topographic "waves" live OUTSIDE this card, on the page background.
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Box(
                 Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1000f / 667f),
+                    .size(168.dp)
+                    .shadow(6.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(colors.gray150),
+                contentAlignment = Alignment.Center,
             ) {
                 Image(
                     painter = painterResource(R.drawable.img_delivery_deliver),
                     contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    colorFilter = ColorFilter.tint(Color.Black.copy(alpha = 0.20f)),
-                    modifier = Modifier
-                        .matchParentSize()
-                        .offset(y = 7.dp)
-                        .blur(13.dp),
-                )
-                Image(
-                    painter = painterResource(R.drawable.img_delivery_deliver),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.matchParentSize(),
                 )
             }
@@ -275,7 +243,6 @@ private fun ActiveDeliveryCard(orderReference: String) {
                     isLast = index == stages.lastIndex,
                 )
             }
-        }
         }
     }
 }
