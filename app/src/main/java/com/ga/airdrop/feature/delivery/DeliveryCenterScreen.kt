@@ -37,8 +37,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -89,41 +91,59 @@ fun DeliveryCenterScreen(
     val colors = AirdropTheme.colors
     val hasActiveDelivery = !orderReference.isNullOrBlank()
 
-    Column(
+    Box(
         Modifier
             .fillMaxSize()
             .background(colors.gray200)
+            .clipToBounds()
             .testTag("delivery-center-root"),
     ) {
-        HomeDetailsHeader(title = "Delivery Center", onBack = onBack)
+        // Same topographic contour pattern as the payment-success page — a faint
+        // textured backdrop (7% opacity; #292929 light / white dark).
+        Image(
+            painter = painterResource(R.drawable.img_success_bg_topo),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(
+                if (colors.isDark) Color.White else Color(0xFF292929),
+            ),
+            modifier = Modifier
+                .offset(x = (-122).dp, y = (-418).dp)
+                .size(width = 1632.dp, height = 1848.dp)
+                .alpha(0.07f),
+            contentScale = ContentScale.Fit,
+        )
 
-        // Content sized to fit one frame (no scroll on a normal phone);
-        // verticalScroll stays only as a safety net for very short screens.
-        // The Contact CTA is pinned low, just above the gesture bar.
-        Column(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.md)
-                .padding(top = 12.dp),
-        ) {
-            if (hasActiveDelivery) {
-                ActiveDeliveryCard(orderReference = orderReference!!)
-            } else {
-                EmptyDeliveryCard()
-            }
-        }
+        Column(Modifier.fillMaxSize()) {
+            HomeDetailsHeader(title = "Delivery Center", onBack = onBack)
 
-        if (hasActiveDelivery) {
-            Box(
+            // Content sized to fit one frame (no scroll on a normal phone);
+            // verticalScroll stays only as a safety net for very short screens.
+            // The Contact CTA is pinned low, just above the gesture bar.
+            Column(
                 Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .padding(top = 4.dp, bottom = 10.dp)
-                    .navigationBarsPadding(),
-                contentAlignment = Alignment.Center,
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.md)
+                    .padding(top = 12.dp),
             ) {
-                ContactAction(onContactUs = onContactUs)
+                if (hasActiveDelivery) {
+                    ActiveDeliveryCard(orderReference = orderReference!!)
+                } else {
+                    EmptyDeliveryCard()
+                }
+            }
+
+            if (hasActiveDelivery) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 10.dp)
+                        .navigationBarsPadding(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ContactAction(onContactUs = onContactUs)
+                }
             }
         }
     }
@@ -240,12 +260,6 @@ private fun ActiveDeliveryCard(orderReference: String) {
                 )
             }
         }
-
-        Text(
-            text = "We'll notify you at each stage of your package's journey.",
-            style = AirdropType.body2,
-            color = colors.textDescription,
-        )
     }
 }
 
