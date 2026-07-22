@@ -212,8 +212,8 @@ private fun ActiveDeliveryCard(orderReference: String) {
                 .alpha(0.08f),
         )
         Column(
-            Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(26.dp),
         ) {
         // Delivery illustration (1000x667) inside a soft rounded well. A blurred,
         // darkened copy offset downward sits behind it as a soft drop shadow so
@@ -335,7 +335,9 @@ private fun TimelineStep(
         Column(
             Modifier
                 .weight(1f)
-                .padding(top = 8.dp, bottom = if (isLast) 0.dp else 12.dp),
+                // Taller bottom padding extends the connector line and spreads the
+                // stages so the timeline fills the frame (no big empty gap below).
+                .padding(top = 10.dp, bottom = if (isLast) 0.dp else 30.dp),
         ) {
             Text(
                 text = stage.title,
