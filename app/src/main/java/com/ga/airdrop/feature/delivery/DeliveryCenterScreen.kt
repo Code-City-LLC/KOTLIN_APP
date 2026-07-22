@@ -331,9 +331,9 @@ private fun JustPaidJourney(
                     )
                     .background(colors.gray100, RoundedCornerShape(Radius.s))
                     .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-                    .padding(20.dp)
+                    .padding(16.dp)
                     .testTag(DeliveryCenterTags.JOURNEY),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 CircularDeliveryHero()
                 Column(Modifier.fillMaxWidth()) {
@@ -379,15 +379,22 @@ private fun JustPaidJourney(
 
 @Composable
 private fun CircularDeliveryHero() {
-    // Kemar: no container at all — the delivery art floats free at the top of
-    // the card, full illustration visible, nothing cropping it.
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    // Kemar's approved hero: the truck BIG, inside its rounded box — the soft
+    // gray well hugging the full-width illustration (nothing cropped).
+    val colors = AirdropTheme.colors
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.xs))
+            .background(colors.gray150),
+        contentAlignment = Alignment.Center,
+    ) {
         Image(
             painter = painterResource(R.drawable.img_delivery_deliver),
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
-                .fillMaxWidth(0.55f)
+                .fillMaxWidth(0.9f)
                 .aspectRatio(1000f / 667f),
         )
     }
@@ -654,7 +661,7 @@ private fun DeliveryDetail(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.md)
-                .padding(top = 12.dp)
+                .padding(top = 8.dp)
                 .testTag(DeliveryCenterTags.DETAIL),
         ) {
             Column(
@@ -669,7 +676,7 @@ private fun DeliveryDetail(
                     .background(colors.gray100, RoundedCornerShape(Radius.s))
                     .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
                     .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 CircularDeliveryHero()
                 Column(Modifier.fillMaxWidth()) {
@@ -680,7 +687,8 @@ private fun DeliveryDetail(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = summary?.trackingCode ?: "Package #$packageId",
+                        text = summary?.trackingCode?.let { "Tracking #$it" }
+                            ?: "Package #$packageId",
                         style = AirdropType.body2,
                         color = colors.textDescription,
                     )
@@ -779,7 +787,7 @@ private fun DeliveryTimelineStep(
         Column(
             Modifier
                 .weight(1f)
-                .padding(top = 10.dp, bottom = if (isLast) 0.dp else 18.dp),
+                .padding(top = 6.dp, bottom = if (isLast) 0.dp else 12.dp),
         ) {
             Text(
                 text = stage.label,
