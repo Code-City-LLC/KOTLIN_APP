@@ -75,7 +75,7 @@ import kotlinx.coroutines.launch
  * FigmaPackageDetailsViewController: method hero + circular badge, Summary
  * card, Shipment Timeline (status-icon rows), invoice upload zone (multipart POST
  * /packages/{id}/invoices) + list + pre-ready delete, CIF info, Breakdown of
- * Charges and Add to Cart (status >= 7).
+ * Charges (exact status 7 or 18) and Add to Cart (exact status 7).
  */
 @Composable
 fun PackageDetailsScreen(
@@ -89,7 +89,9 @@ fun PackageDetailsScreen(
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
-    val detail = state.detail
+    // Notification previews/references never qualify here. Only the matching
+    // GET /packages/{id} response may render package data or actions.
+    val detail = state.detail.takeIf { state.hasAuthoritativeDetail }
     val method = ShipmentMethodUi.from(detail?.shippingMethod)
     val detailBrandTitle = packageDetailsBrandTitle(method)
     var showInvoiceSourcePicker by remember { mutableStateOf(false) }
@@ -167,8 +169,20 @@ fun PackageDetailsScreen(
                     )
 
                     when {
-                        state.loading -> ShipmentsLoadingIndicator(Modifier.padding(Spacing.xl))
-                        detail == null -> ShipmentsEmptyLabel(state.error ?: "Package not found")
+                        state.loading -> Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("package-details-loading")
+                                .padding(Spacing.xl),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            ShipmentsLoadingIndicator()
+                        }
+                        detail == null -> PackageDetailsLoadError(
+                            message = state.error ?: "Package not found.",
+                            canRetry = state.canRetry,
+                            onRetry = { viewModel.refresh() },
+                        )
                         else -> PackageDetailsContent(
                             state = state,
                             detail = detail,
@@ -301,6 +315,40 @@ fun PackageDetailsScreen(
                 onRemovePhoto = viewModel::removeDamageReportPhoto,
                 onSubmit = viewModel::submitDamageReport,
                 onDismiss = { viewModel.showReportDamageSheet(false) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PackageDetailsLoadError(
+    message: String,
+    canRetry: Boolean,
+    onRetry: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("package-details-error")
+            .padding(Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Text(
+            text = message,
+            style = AirdropType.body2,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.testTag("package-details-error-message"),
+        )
+        if (canRetry) {
+            GradientButton(
+                text = "Retry",
+                onClick = onRetry,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("package-details-retry"),
             )
         }
     }

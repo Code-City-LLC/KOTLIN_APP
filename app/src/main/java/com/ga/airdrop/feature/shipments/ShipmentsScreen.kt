@@ -368,14 +368,14 @@ private fun QuickTrackSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
-                .padding(horizontal = Spacing.md)
-                .padding(top = 8.dp, bottom = Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(bottom = Spacing.lg),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md)
+                    .padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -402,48 +402,59 @@ private fun QuickTrackSheet(
                     )
                 }
             }
-            Text(
-                text = "Enter an AirDrop tracking number or courier reference.",
-                style = AirdropType.body3,
-                color = colors.textDescription,
-            )
-            QuickTrackInput(
-                value = state.code,
-                onValueChange = onCodeChange,
-                onSearch = onTrack,
-                onScan = onScan,
-            )
-            if (state.error != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .testTag("shipments-quick-track-body")
+                    .padding(horizontal = Spacing.md)
+                    .padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text(
-                    text = state.error,
-                    style = AirdropType.body3,
-                    color = AlertPalette.Error,
-                    modifier = Modifier.testTag("shipments-quick-track-error"),
-                )
-            }
-            GradientButton(
-                text = "Track",
-                onClick = onTrack,
-                loading = state.loading,
-                enabled = !state.loading,
-                modifier = Modifier.testTag("shipments-quick-track-submit"),
-            )
-            Text(
-                text = "Recent",
-                style = AirdropType.subtitle2,
-                color = colors.textDescription,
-                modifier = Modifier.padding(top = 12.dp),
-            )
-            if (state.recents.isEmpty()) {
-                Text(
-                    text = "No recent tracking lookups.",
+                    text = "Enter an AirDrop tracking number or courier reference.",
                     style = AirdropType.body3,
                     color = colors.textDescription,
-                    modifier = Modifier.testTag("shipments-quick-track-empty-recents"),
                 )
-            } else {
-                state.recents.forEachIndexed { index, recent ->
-                    QuickTrackRecentRow(recent, index, onRecent)
+                QuickTrackInput(
+                    value = state.code,
+                    onValueChange = onCodeChange,
+                    onSearch = onTrack,
+                    onScan = onScan,
+                )
+                if (state.error != null) {
+                    Text(
+                        text = state.error,
+                        style = AirdropType.body3,
+                        color = AlertPalette.Error,
+                        modifier = Modifier.testTag("shipments-quick-track-error"),
+                    )
+                }
+                GradientButton(
+                    text = "Track",
+                    onClick = onTrack,
+                    loading = state.loading,
+                    enabled = !state.loading,
+                    modifier = Modifier.testTag("shipments-quick-track-submit"),
+                )
+                Text(
+                    text = "Recent",
+                    style = AirdropType.subtitle2,
+                    color = colors.textDescription,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                if (state.recents.isEmpty()) {
+                    Text(
+                        text = "No recent tracking lookups.",
+                        style = AirdropType.body3,
+                        color = colors.textDescription,
+                        modifier = Modifier.testTag("shipments-quick-track-empty-recents"),
+                    )
+                } else {
+                    state.recents.forEachIndexed { index, recent ->
+                        QuickTrackRecentRow(recent, index, onRecent)
+                    }
                 }
             }
         }

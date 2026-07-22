@@ -53,12 +53,24 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
 
         val topRoute = obj.flexString("screen", "navigate_to", "route", "screen_name")
         val dataPayload = obj["data"] as? JsonObject
-        val payload = dataPayload?.stringPayload().orEmpty()
+        val payload = buildMap {
+            putAll(dataPayload?.stringPayload().orEmpty())
+            // The inbox row can carry the authoritative package ID beside a
+            // nested preview/tracking payload. Keep only the relevant top-level
+            // package fields; the notification row's own `id` remains metadata
+            // and must never become a package reference.
+            TOP_LEVEL_PACKAGE_ID_KEYS.forEach { key ->
+                val primitive = obj[key] as? JsonPrimitive ?: return@forEach
+                parseFlexString(primitive)?.let { put(key, it) }
+            }
+        }
         val route = dataPayload?.flexString("screen", "navigate_to", "route") ?: topRoute
-        val topReference = obj.flexString(
+        val topPackageReference = obj.flexString(
             "package_id",
             "packageId",
             "packageID",
+        )
+        val topTrackingReference = obj.flexString(
             "tracking_code",
             "package_tracking_code",
             "courier_number",
@@ -79,7 +91,10 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
             "package_courier_number",
             "package_couirer_number",
         )
-        val referenceId = payloadPackageReference ?: payloadTrackingReference ?: topReference
+        val referenceId = payloadPackageReference
+            ?: topPackageReference
+            ?: payloadTrackingReference
+            ?: topTrackingReference
 
         return AirdropNotification(
             id = id,
@@ -95,6 +110,8 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
         )
     }
 }
+
+private val TOP_LEVEL_PACKAGE_ID_KEYS = listOf("package_id", "packageId", "packageID")
 
 private fun JsonObject.stringPayload(): Map<String, String> = buildMap {
     for ((key, value) in this@stringPayload) {

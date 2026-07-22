@@ -40,22 +40,51 @@ class AirdropMessagingService : FirebaseMessagingService() {
         val body = message.notification?.body
             ?: data("body", "message", "description", "message_description")
             ?: return
-        val route = data("route", "screen", "navigate_to", "deep_link")
-        val referenceId = data(
-            "referenceID", "reference_id", "referenceId",
-            "package_id", "packageId", "packageID",
-            "tracking_code", "courier_number",
-        )
+        val deepLink = data("deep_link")
+        val route = data("route", "screen", "navigate_to")
+        val notificationUserId = data("user_id", "userId")
         // Type-based backend pushes (payment_reminder, package_status_update…)
         // carry no route; forward the type so the tray tap can deep-link via
         // the same type→route map the in-app inbox uses (Audit#7 C3).
         val notificationType = data("type", "notification_type")
+        val referenceId = if (
+            com.ga.airdrop.feature.homedetails.notificationTargetsPackageDetails(
+                route,
+                notificationType,
+            )
+        ) {
+            PackageDeepLinkReference.select(
+                packageIdCandidates = listOf(
+                    data("package_id"),
+                    data("packageId"),
+                    data("packageID"),
+                ),
+                aliasCandidates = listOf(
+                    data("referenceID"),
+                    data("reference_id"),
+                    data("referenceId"),
+                    data("tracking_code"),
+                    data("package_tracking_code"),
+                    data("courier_number"),
+                    data("package_courier_number"),
+                    data("package_couirer_number"),
+                ),
+            )
+        } else {
+            data(
+                "referenceID", "reference_id", "referenceId",
+                "package_id", "packageId", "packageID",
+                "tracking_code", "courier_number",
+            )
+        }
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            deepLink?.let { putExtra(EXTRA_DEEP_LINK, it) }
             route?.let { putExtra(EXTRA_ROUTE, it) }
             referenceId?.let { putExtra(EXTRA_REFERENCE_ID, it) }
             notificationType?.let { putExtra(EXTRA_NOTIFICATION_TYPE, it) }
+            notificationUserId?.let { putExtra(EXTRA_NOTIFICATION_USER_ID, it) }
         }
         val pending = PendingIntent.getActivity(
             this,
@@ -111,6 +140,8 @@ class AirdropMessagingService : FirebaseMessagingService() {
         const val EXTRA_ROUTE = "route"
         const val EXTRA_REFERENCE_ID = "referenceID"
         const val EXTRA_NOTIFICATION_TYPE = "notificationType"
+        const val EXTRA_NOTIFICATION_USER_ID = "notificationUserId"
+        const val EXTRA_DEEP_LINK = "deep_link"
 
         private val nextNotificationId = java.util.concurrent.atomic.AtomicInteger(
             (System.currentTimeMillis() % 100_000).toInt(),

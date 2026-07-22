@@ -91,6 +91,67 @@ class PackageDetailsParityTest {
     }
 
     @Test
+    fun loadingFailureRetryAndAuthoritativeActionGateAreVisible() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            CartStore.init(instrumentation.targetContext)
+            CartStore.clear()
+        }
+        navigatedRoutes.clear()
+        packagesRepo = FakePackagesRepository(sampleDetail()).apply {
+            packageDetailsDelayMs = 1_000
+            detailResults.addLast(Result.failure(IllegalStateException("Package service unavailable")))
+            detailResults.addLast(Result.success(sampleDetail()))
+        }
+        packageDetailsViewModel = PackageDetailsViewModel(
+            packageId = "7",
+            repo = packagesRepo,
+            hubRepo = FakeHubRepository(),
+            cartServer = ShipmentsTestCartServer,
+            sessionBoundary = ShipmentsTestSessionBoundary(),
+        )
+
+        compose.setContent {
+            AirdropThemeProvider {
+                PackageDetailsScreen(
+                    packageId = "7",
+                    onBack = {},
+                    onNavigate = navigatedRoutes::add,
+                    viewModel = packageDetailsViewModel,
+                )
+            }
+        }
+
+        compose.onNodeWithTag("package-details-loading").assertIsDisplayed()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("package-details-retry").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Package service unavailable").assertIsDisplayed()
+        compose.onNodeWithText("Summary").assertDoesNotExist()
+        compose.onNodeWithTag("package-details-upload-invoice-zone").assertDoesNotExist()
+        compose.onNodeWithTag("package-details-cif-row").assertDoesNotExist()
+        compose.onNodeWithText("Add to Cart").assertDoesNotExist()
+
+        compose.onNodeWithTag("package-details-retry").performClick()
+        compose.onNodeWithTag("package-details-loading").assertIsDisplayed()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("Summary").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        compose.onNodeWithTag("package-details-upload-invoice-zone")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag("package-details-cif-row")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Add to Cart")
+            .performScrollTo()
+            .assertIsDisplayed()
+        assertEquals(listOf("7", "7"), packagesRepo.detailRequests)
+    }
+
+    @Test
     fun invoiceUploadUsesSwiftSourceSheetAndCorrectFormatCopy() {
         setPackageDetailsContent(ThemeController.Mode.LIGHT)
 
@@ -352,6 +413,8 @@ class PackageDetailsParityTest {
             packageId = "7",
             repo = packagesRepo,
             hubRepo = FakeHubRepository(),
+            cartServer = ShipmentsTestCartServer,
+            sessionBoundary = ShipmentsTestSessionBoundary(),
         )
         compose.setContent {
             AirdropThemeProvider {
@@ -488,6 +551,8 @@ class PackageDetailsParityTest {
     ) : ShipmentsPackagesRepository {
         val deletedInvoiceIds = mutableListOf<Int>()
         val damageReports = mutableListOf<DamageReportCall>()
+        val detailRequests = mutableListOf<String>()
+        val detailResults = ArrayDeque<Result<ShipmentPackageDetail>>()
         var uploadCalls = 0
         var uploadDelayMs = 0L
         var deleteDelayMs = 0L
@@ -502,8 +567,9 @@ class PackageDetailsParityTest {
         ) = Result.success(Paged(emptyList<ShipmentPackage>()))
 
         override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> {
+            detailRequests += packageId
             if (packageDetailsDelayMs > 0) delay(packageDetailsDelayMs)
-            return Result.success(detail)
+            return detailResults.removeFirstOrNull() ?: Result.success(detail)
         }
 
         override suspend fun packageStatuses() = Result.success(ShipmentStatusCatalog.defaults)

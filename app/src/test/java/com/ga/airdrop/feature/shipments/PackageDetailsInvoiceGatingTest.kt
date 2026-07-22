@@ -26,6 +26,7 @@ class PackageDetailsInvoiceGatingTest {
     private fun canDelete(status: String?, statusName: String? = null): Boolean =
         PackageDetailsUiState(
             detail = ShipmentPackageDetail(id = 1, status = status, statusName = statusName),
+            authoritativePackageId = 1,
         ).canDeleteInvoices
 
     // ── Numeric status < 7 (pre-pickup): delete allowed ──────────────────────

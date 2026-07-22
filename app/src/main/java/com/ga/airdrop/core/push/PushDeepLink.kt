@@ -62,6 +62,35 @@ object PushDeepLink {
         if (intent == null) return
         fun raw(vararg keys: String): String? =
             keys.firstNotNullOfOrNull { k -> intent.getStringExtra(k)?.takeIf { it.isNotBlank() } }
+        fun packageReference(): String? = PackageDeepLinkReference.select(
+            packageIdCandidates = listOf(
+                raw("package_id"),
+                raw("packageId"),
+                raw("packageID"),
+            ),
+            aliasCandidates = listOf(
+                raw(AirdropMessagingService.EXTRA_REFERENCE_ID),
+                raw("reference_id"),
+                raw("referenceId"),
+                raw("tracking_code"),
+                raw("package_tracking_code"),
+                raw("courier_number"),
+                raw("package_courier_number"),
+                raw("package_couirer_number"),
+            ),
+        )
+        fun notificationOwnerId(): Int? = listOf(
+            raw(AirdropMessagingService.EXTRA_NOTIFICATION_USER_ID),
+            raw("user_id"),
+            raw("userId"),
+        ).firstNotNullOfOrNull(PackageDeepLinkReference::positiveId)
+        fun allowsPackageResourceRoute(resolvedRoute: String): Boolean {
+            if (!resolvedRoute.startsWith("packageDetails/")) return true
+            val snapshot = AuthTokenStore.snapshot()
+            val currentAccountId = snapshot.accountId ?: return true
+            val payloadAccountId = notificationOwnerId() ?: return true
+            return snapshot.token == null || currentAccountId == payloadAccountId
+        }
 
         // Two delivery paths land here with DIFFERENT extras:
         //  - foreground/data-only pushes: our service re-keys them to
@@ -75,10 +104,17 @@ object PushDeepLink {
         // parse the raw keys).
 
         // deep_link is the FIRST priority in both references' resolution order.
-        raw("deep_link")?.let { link ->
+        raw(AirdropMessagingService.EXTRA_DEEP_LINK)?.let { link ->
             runCatching { Uri.parse(link) }.getOrNull()?.let { uri ->
                 if (AuthTokenStore.token == null && !isSafePreLoginDeepLink(uri)) return
-                resolveDeepLink(uri)?.let { setPending(it); return }
+                resolveDeepLink(
+                    uri = uri,
+                    siblingPackageReference = packageReference(),
+                )?.let { resolvedRoute ->
+                    if (!allowsPackageResourceRoute(resolvedRoute)) return
+                    setPending(resolvedRoute)
+                    return
+                }
             }
         }
 
@@ -93,14 +129,25 @@ object PushDeepLink {
                 com.ga.airdrop.feature.homedetails.routeNameForNotificationType(it)
             }
             ?: return
-        val referenceId = raw(
-            AirdropMessagingService.EXTRA_REFERENCE_ID,
-            "reference_id", "referenceId",
-            "package_id", "packageId",
-            "tracking_code", "courier_number",
-        )
+        val referenceId = if (
+            com.ga.airdrop.feature.homedetails.notificationTargetsPackageDetails(
+                routeName,
+                notificationType,
+            )
+        ) {
+            packageReference()
+        } else {
+            raw(
+                AirdropMessagingService.EXTRA_REFERENCE_ID,
+                "reference_id", "referenceId",
+                "package_id", "packageId",
+                "tracking_code", "courier_number",
+            )
+        }
         if (AuthTokenStore.token == null && isSensitivePreLoginRouteName(route)) return
-        setPending(resolve(route, referenceId))
+        val resolvedRoute = resolve(route, referenceId)
+        if (!allowsPackageResourceRoute(resolvedRoute)) return
+        setPending(resolvedRoute)
     }
 
     /**
@@ -271,28 +318,52 @@ object PushDeepLink {
     }
 
     /**
-     * Full airdrop:// host map for push `deep_link` payloads — Swift
-     * AppDelegate.parseDeepLink (:1141-1184). Hosts map to the SAME screen
-     * names the notification resolver already understands, so both entry
-     * points share one routing table. Payment-return hosts keep their
-     * dedicated pipeline via [resolveUri].
+     * Full custom-scheme host map plus the narrowly allowlisted AirDrop web
+     * package rail. Both map to the same notification route resolver; external
+     * HTTPS hosts and lookalikes never become in-app resource routes.
      */
-    internal fun resolveDeepLink(uri: Uri): String? {
+    internal fun resolveDeepLink(
+        uri: Uri,
+        siblingPackageReference: String? = null,
+    ): String? {
         resolveUri(uri)?.let { return it }
-        if (uri.scheme?.lowercase() !in setOf("airdrop", "airdropexpress")) return null
-        val detail = uri.path?.split('/')?.firstOrNull { it.isNotEmpty() }
-        val screen = when (uri.host?.lowercase() ?: "") {
-            "package" -> "PackageDetailsView"
-            "upload-invoice" -> "InvoiceViewerScreen"
-            "update-address" -> "ProfileView"
-            "packages" -> "PackagesView"
-            "payments" -> "PaymentsView"
-            "promotions" -> "PromotionsView"
-            "refer", "referral" -> "ReferView"
-            "support", "contact", "contacts" -> "ContactsView"
-            else -> uri.host ?: return null
+        val scheme = uri.scheme?.lowercase()
+        val screenAndDetail = when {
+            scheme in setOf("airdrop", "airdropexpress") -> {
+                val detail = uri.pathSegments.firstOrNull { it.isNotEmpty() }
+                val screen = when (uri.host?.lowercase() ?: "") {
+                    "package" -> "PackageDetailsView"
+                    "upload-invoice" -> "InvoiceViewerScreen"
+                    "update-address" -> "ProfileView"
+                    "packages" -> "PackagesView"
+                    "payments" -> "PaymentsView"
+                    "promotions" -> "PromotionsView"
+                    "refer", "referral" -> "ReferView"
+                    "support", "contact", "contacts" -> "ContactsView"
+                    else -> uri.host ?: return null
+                }
+                screen to detail
+            }
+            scheme == "https" && isOwnedAirdropHost(uri.host) -> {
+                val segments = uri.pathSegments.filter(String::isNotEmpty)
+                val first = segments.firstOrNull()?.lowercase() ?: return null
+                if (first !in setOf("package", "packages")) return null
+                "PackageDetailsView" to segments.getOrNull(1)
+            }
+            else -> return null
         }
-        return com.ga.airdrop.feature.homedetails.resolveNotificationRoute(screen, detail)
+        val (screen, detail) = screenAndDetail
+        val reference = if (screen == "PackageDetailsView") {
+            PackageDeepLinkReference.routeReference(detail) ?: siblingPackageReference
+        } else {
+            detail
+        }
+        return com.ga.airdrop.feature.homedetails.resolveNotificationRoute(screen, reference)
+    }
+
+    private fun isOwnedAirdropHost(rawHost: String?): Boolean {
+        val host = rawHost?.trim()?.lowercase() ?: return false
+        return host == "airdropja.com" || host.endsWith(".airdropja.com")
     }
 
     /**

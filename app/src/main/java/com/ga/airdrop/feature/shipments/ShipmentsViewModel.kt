@@ -2,7 +2,9 @@ package com.ga.airdrop.feature.shipments
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.push.PackageDeepLinkReference
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.feature.cart.CartServerGateway
 import com.ga.airdrop.feature.cart.DataCartServerGateway
@@ -11,6 +13,7 @@ import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -51,7 +54,7 @@ class ShipmentsViewModel(
     private val repo: ShipmentsHubRepository = ShipmentsRepoProvider.hub,
     private val packagesRepo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
     cartServer: CartServerGateway = DataCartServerGateway(),
-    sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
+    private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -62,9 +65,20 @@ class ShipmentsViewModel(
     val quickTrack: StateFlow<QuickTrackUiState> = _quickTrack
     private var refreshJob: Job? = null
     private var quickTrackJob: Job? = null
+    private var quickTrackGeneration = 0L
+    private var observedSessionId = sessionBoundary.capture()?.sessionId
     private val cartMutations = PackageCartMutationCoordinator(cartServer, sessionBoundary)
 
     init {
+        viewModelScope.launch {
+            sessionBoundary.changes.collect { changed ->
+                if (changed?.sessionId == observedSessionId) return@collect
+                observedSessionId = changed?.sessionId
+                quickTrackGeneration += 1
+                quickTrackJob?.cancel()
+                _quickTrack.value = QuickTrackUiState()
+            }
+        }
         refresh()
     }
 
@@ -107,6 +121,8 @@ class ShipmentsViewModel(
     }
 
     fun dismissQuickTrack() {
+        quickTrackGeneration += 1
+        quickTrackJob?.cancel()
         _quickTrack.update { it.copy(visible = false, loading = false, error = null) }
     }
 
@@ -121,61 +137,118 @@ class ShipmentsViewModel(
         onResolved: (Int) -> Unit,
     ) {
         if (quickTrackJob?.isActive == true) return
-        val code = (overrideCode ?: _quickTrack.value.code).trim().uppercase(Locale.US)
-        if (code.isEmpty()) {
+        val rawCode = overrideCode ?: _quickTrack.value.code
+        val routeReference = PackageDeepLinkReference.routeReference(rawCode)
+        if (routeReference == null) {
             _quickTrack.update { it.copy(error = "Enter a tracking number to continue.") }
+            return
+        }
+        if (
+            PackageDeepLinkReference.positiveId(routeReference) == null &&
+            routeReference.length < MIN_PACKAGE_ALIAS_LENGTH
+        ) {
+            _quickTrack.update { it.copy(error = "Enter at least 3 characters to track a package.") }
+            return
+        }
+        val owner = sessionBoundary.capture()?.takeIf(sessionBoundary::isCurrent)
+        if (owner == null || owner.sessionId != observedSessionId) {
+            _quickTrack.update {
+                it.copy(loading = false, error = "Sign in to look up tracking codes against your account.")
+            }
+            return
+        }
+        val code = routeReference.uppercase(Locale.US)
+        val generation = ++quickTrackGeneration
+        PackageDeepLinkReference.positiveId(routeReference)?.let { directPackageId ->
+            applyQuickTrackRequest(owner, generation) {
+                _quickTrack.update {
+                    it.copy(
+                        visible = false,
+                        code = "",
+                        loading = false,
+                        error = null,
+                        recents = it.recents.withResolvedPackageId(code, directPackageId),
+                    )
+                }
+                onResolved(directPackageId)
+            }
             return
         }
         _quickTrack.update { it.copy(code = code, loading = true, error = null) }
         quickTrackJob = viewModelScope.launch {
             runCatching {
-                val searchResults = packagesRepo
-                    .packages(page = 1, perPage = 20, status = null, search = code, shippingMethod = null)
+                val searchResults = packageReferenceSearchRows(
+                    repository = packagesRepo,
+                    alias = code,
+                    isRequestCurrent = { isQuickTrackRequestCurrent(owner, generation) },
+                )
                     .getOrThrow()
-                    .items
-                exactQuickTrackMatch(searchResults, code)
-                    ?: exactQuickTrackMatch(repo.packagesShortlist().getOrDefault(emptyList()), code)
+                if (!isQuickTrackRequestCurrent(owner, generation)) return@runCatching null
+                val shortlist = repo.packagesShortlist().getOrDefault(emptyList())
+                if (!isQuickTrackRequestCurrent(owner, generation)) return@runCatching null
+                exactPackageReferenceMatch(searchResults + shortlist, code)
             }.onSuccess { match ->
+                if (!isQuickTrackRequestCurrent(owner, generation)) return@onSuccess
                 if (match != null) {
-                    _quickTrack.update {
-                        it.copy(
-                            visible = false,
-                            code = "",
-                            loading = false,
-                            error = null,
-                            recents = it.recents.withRecent(code, match),
-                        )
+                    applyQuickTrackRequest(owner, generation) {
+                        _quickTrack.update {
+                            it.copy(
+                                visible = false,
+                                code = "",
+                                loading = false,
+                                error = null,
+                                recents = it.recents.withRecent(code, match),
+                            )
+                        }
+                        onResolved(match.id)
                     }
-                    onResolved(match.id)
                 } else {
-                    _quickTrack.update {
-                        it.copy(
-                            loading = false,
-                            error = "No package found for $code. Check the code and try again.",
-                            recents = it.recents.withRecent(code, null),
-                        )
+                    applyQuickTrackRequest(owner, generation) {
+                        _quickTrack.update {
+                            it.copy(
+                                loading = false,
+                                error = "No package found for $code. Check the code and try again.",
+                                recents = it.recents.withRecent(code, null),
+                            )
+                        }
                     }
                 }
             }.onFailure { error ->
-                _quickTrack.update {
-                    it.copy(
-                        loading = false,
-                        error = error.message ?: "Unable to look up tracking code.",
-                    )
+                applyQuickTrackRequest(owner, generation) {
+                    _quickTrack.update {
+                        it.copy(
+                            loading = false,
+                            error = error.message ?: "Unable to look up tracking code.",
+                        )
+                    }
                 }
             }
         }
     }
 
-    private fun exactQuickTrackMatch(packages: List<ShipmentPackage>, code: String): ShipmentPackage? =
-        packages.firstOrNull { pkg ->
-            pkg.trackingCode.matchesQuickTrackCode(code) ||
-                pkg.courierNumber.matchesQuickTrackCode(code) ||
-                pkg.id.toString() == code
-        }
+    private fun isQuickTrackRequestCurrent(
+        owner: AuthenticatedSessionOwner,
+        generation: Long,
+    ): Boolean =
+        generation == quickTrackGeneration &&
+            owner.sessionId == observedSessionId &&
+            sessionBoundary.isCurrent(owner)
 
-    private fun String?.matchesQuickTrackCode(code: String): Boolean =
-        this?.trim()?.uppercase(Locale.US) == code
+    private fun applyQuickTrackRequest(
+        owner: AuthenticatedSessionOwner,
+        generation: Long,
+        action: () -> Unit,
+    ): Boolean {
+        if (!isQuickTrackRequestCurrent(owner, generation)) return false
+        var ran = false
+        val accepted = sessionBoundary.apply(owner) {
+            if (generation == quickTrackGeneration && owner.sessionId == observedSessionId) {
+                action()
+                ran = true
+            }
+        }
+        return accepted && ran
+    }
 
     private fun List<QuickTrackRecent>.withRecent(
         code: String,
@@ -188,6 +261,14 @@ class ShipmentsViewModel(
             description = pkg?.description,
             statusName = pkg?.statusName,
         )
+        return (listOf(recent) + filterNot { it.code == code }).take(5)
+    }
+
+    private fun List<QuickTrackRecent>.withResolvedPackageId(
+        code: String,
+        packageId: Int,
+    ): List<QuickTrackRecent> {
+        val recent = QuickTrackRecent(code = code, packageId = packageId)
         return (listOf(recent) + filterNot { it.code == code }).take(5)
     }
 }

@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.push.PackageDeepLinkReference
 import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.data.repo.MiscRepository
+import java.net.URLEncoder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -249,6 +251,12 @@ private fun resolveNotificationRoute(
     val name = canonicalNotificationRoute(route?.trim().orEmpty())
     if (name.isEmpty()) return null
     val ref = referenceId?.trim().orEmpty()
+    val packageReference = if (name == "PackageDetailsView") {
+        notification?.let(::notificationPackageReference)
+            ?: PackageDeepLinkReference.routeReference(referenceId)
+    } else {
+        null
+    }
     return when (name) {
         "TabNavigator", "HomeView" -> Routes.HOME
         "ShipmentsView" -> Routes.SHIPMENTS
@@ -257,7 +265,9 @@ private fun resolveNotificationRoute(
         "MoreView" -> Routes.MORE
         "PackagesView" -> Routes.PACKAGES
         "PackageDetailsView" ->
-            if (ref.isNotEmpty()) Routes.packageDetails(ref) else Routes.PACKAGES
+            packageReference
+                ?.let { Routes.packageDetails(encodeRouteSegment(it)) }
+                ?: Routes.PACKAGES
         "PaymentPackageDetailsView" ->
             if (ref.isNotEmpty()) Routes.paymentPackageDetails(ref) else Routes.PAYMENTS
         "ProductPaymentDetailsView" ->
@@ -332,6 +342,28 @@ private fun resolveNotificationRoute(
     }
 }
 
+private fun notificationPackageReference(notification: AirdropNotification): String? =
+    PackageDeepLinkReference.select(
+        packageIdCandidates = listOf(
+            notification.payload["package_id"],
+            notification.payload["packageId"],
+            notification.payload["packageID"],
+        ),
+        aliasCandidates = listOf(
+            notification.referenceId,
+            notification.payload["reference_id"],
+            notification.payload["referenceId"],
+            notification.payload["tracking_code"],
+            notification.payload["package_tracking_code"],
+            notification.payload["courier_number"],
+            notification.payload["package_courier_number"],
+            notification.payload["package_couirer_number"],
+        ),
+    )
+
+private fun encodeRouteSegment(reference: String): String =
+    URLEncoder.encode(reference, Charsets.UTF_8.name()).replace("+", "%20")
+
 private fun notificationTypeRouteName(notification: AirdropNotification): String? {
     val candidates = listOf(
         notification.type,
@@ -348,6 +380,16 @@ internal fun routeNameForNotificationType(type: String?): String? {
     val raw = type?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     val normalized = raw.lowercase().replace("-", "_")
     return NOTIFICATION_TYPE_ROUTES[raw] ?: NOTIFICATION_TYPE_ROUTES[normalized]
+}
+
+internal fun notificationTargetsPackageDetails(
+    route: String?,
+    notificationType: String?,
+): Boolean {
+    val routeName = route?.trim()?.takeIf(String::isNotEmpty)
+        ?.let(::canonicalNotificationRoute)
+        ?: routeNameForNotificationType(notificationType)
+    return routeName == "PackageDetailsView"
 }
 
 private fun canonicalNotificationRoute(route: String): String {

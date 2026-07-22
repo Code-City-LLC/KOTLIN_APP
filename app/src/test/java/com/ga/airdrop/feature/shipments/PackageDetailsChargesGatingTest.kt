@@ -18,10 +18,16 @@ import org.junit.Test
 class PackageDetailsChargesGatingTest {
 
     private fun show(status: String?): Boolean =
-        PackageDetailsUiState(detail = ShipmentPackageDetail(id = 1, status = status)).showChargesAndCart
+        PackageDetailsUiState(
+            detail = ShipmentPackageDetail(id = 1, status = status),
+            authoritativePackageId = 1,
+        ).showChargesAndCart
 
     private fun canAdd(status: String?): Boolean =
-        PackageDetailsUiState(detail = ShipmentPackageDetail(id = 1, status = status)).canAddToCart
+        PackageDetailsUiState(
+            detail = ShipmentPackageDetail(id = 1, status = status),
+            authoritativePackageId = 1,
+        ).canAddToCart
 
     @Test fun shown_onlyAt_readyForPickup_and_paidReadyForPickup() {
         assertTrue(show("7"))   // Ready for Pickup
@@ -56,5 +62,31 @@ class PackageDetailsChargesGatingTest {
         assertFalse(show("6"))   // Processing at our Warehouse
         assertFalse(show(null))
         assertFalse(show("n/a"))
+    }
+
+    @Test fun notificationPreviewNeverEnablesReadyStatusActions() {
+        val preview = ShipmentPackageDetail(
+            id = 42,
+            status = "7",
+            statusName = "Ready for Pickup",
+        )
+
+        val state = PackageDetailsUiState(detail = preview)
+
+        assertFalse(state.hasAuthoritativeDetail)
+        assertFalse(state.showChargesAndCart)
+        assertFalse(state.canAddToCart)
+        assertFalse(state.canDeleteInvoices)
+    }
+
+    @Test fun mismatchedAuthoritativeIdNeverEnablesPaidReadyActions() {
+        val state = PackageDetailsUiState(
+            detail = ShipmentPackageDetail(id = 42, status = "18"),
+            authoritativePackageId = 99,
+        )
+
+        assertFalse(state.hasAuthoritativeDetail)
+        assertFalse(state.showChargesAndCart)
+        assertFalse(state.canAddToCart)
     }
 }

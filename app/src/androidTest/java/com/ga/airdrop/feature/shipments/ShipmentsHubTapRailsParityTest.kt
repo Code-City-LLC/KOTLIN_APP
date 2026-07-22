@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -35,6 +36,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.feature.cart.PackageCartMutationCoordinator
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
@@ -54,12 +56,17 @@ class ShipmentsHubTapRailsParityTest {
     val compose = createComposeRule()
 
     private val navigatedRoutes = mutableListOf<String>()
+    private lateinit var shipmentsViewModel: ShipmentsViewModel
 
     @Test
     fun hubRefreshesLiveDataOnResumeLikeSwiftViewDidAppear() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val repo = FakeHubRepository()
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(
+            repo = repo,
+            cartServer = ShipmentsTestCartServer,
+            sessionBoundary = ShipmentsTestSessionBoundary(),
+        )
 
         compose.waitUntil(timeoutMillis = 5_000) {
             repo.exchangeRateCalls.get() == 1 &&
@@ -118,7 +125,11 @@ class ShipmentsHubTapRailsParityTest {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
         val repo = FakeHubRepository()
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(
+            repo = repo,
+            cartServer = ShipmentsTestCartServer,
+            sessionBoundary = ShipmentsTestSessionBoundary(),
+        )
 
         compose.waitUntil(timeoutMillis = 5_000) {
             repo.ordersCalls.get() == 1 && !viewModel.state.value.loading
@@ -166,12 +177,58 @@ class ShipmentsHubTapRailsParityTest {
             ThemeController.set(ThemeController.Mode.LIGHT)
             CartStore.init(context)
             CartStore.clear()
+            PackageCartMutationCoordinator.resetForTests()
+            ShipmentsTestCartServer.reset()
         }
 
         try {
             setShipmentsContent(FakeHubRepository())
 
-            compose.onNodeWithTag("shipments-summary-track-shipment").performClick()
+            val routeCountBeforeCart = navigatedRoutes.size
+            compose.onNodeWithTag("shipments-package-card-101").performScrollTo()
+            compose.waitForIdle()
+            val iconTopBeforeVerticalScroll = bounds("shipments-package-cart-toggle-101").top
+            compose.onNodeWithTag("shipments-content-scroll").performTouchInput {
+                val startY = bottom - 24.dp.toPx()
+                swipeUp(
+                    startY = startY,
+                    endY = startY - 220.dp.toPx(),
+                    durationMillis = 250,
+                )
+            }
+            compose.waitForIdle()
+            val iconTopAfterVerticalScroll = bounds("shipments-package-cart-toggle-101").top
+            assertTrue(
+                "In-bounds vertical swipe must move the nested cart control upward",
+                iconTopAfterVerticalScroll < iconTopBeforeVerticalScroll,
+            )
+            compose.onNodeWithTag(
+                "shipments-package-cart-toggle-101",
+                useUnmergedTree = true,
+            )
+                .performScrollTo()
+                .assertIsDisplayed()
+                .assertHasClickAction()
+                .performClick()
+            val cartCompleted = runCatching {
+                compose.waitUntil(timeoutMillis = 5_000) { CartStore.count == 1 }
+            }.isSuccess
+            compose.runOnIdle {
+                assertTrue(
+                    "Visible cart-button click must complete one server-backed mutation",
+                    cartCompleted,
+                )
+                assertEquals(routeCountBeforeCart, navigatedRoutes.size)
+                assertEquals(1, ShipmentsTestCartServer.addCallCount)
+                assertEquals(1, CartStore.count)
+                assertEquals(101, CartStore.items.value.single().id)
+            }
+
+            compose.onNodeWithTag("shipments-summary-track-shipment")
+                .performScrollTo()
+                .assertIsDisplayed()
+                .assertHasClickAction()
+                .performClick()
             compose.onNodeWithTag("shipments-quick-track-sheet").assertIsDisplayed()
             compose.onNodeWithTag("shipments-quick-track-scan").assertIsDisplayed()
             compose.runOnIdle {
@@ -192,15 +249,6 @@ class ShipmentsHubTapRailsParityTest {
                 compose.runOnIdle {
                     assertEquals(route, navigatedRoutes.lastOrNull())
                 }
-            }
-
-            val routeCountBeforeCart = navigatedRoutes.size
-            compose.onNodeWithTag("shipments-package-cart-toggle-101")
-                .performClick()
-            compose.runOnIdle {
-                assertEquals(routeCountBeforeCart, navigatedRoutes.size)
-                assertEquals(1, CartStore.count)
-                assertEquals(101, CartStore.items.value.single().id)
             }
 
             compose.onNodeWithTag("shipments-package-card-101").performScrollTo().performClick()
@@ -235,7 +283,47 @@ class ShipmentsHubTapRailsParityTest {
         } finally {
             instrumentation.runOnMainSync {
                 CartStore.clear()
+                PackageCartMutationCoordinator.resetForTests()
+                ShipmentsTestCartServer.reset()
             }
+        }
+    }
+
+    @Test
+    fun quickTrackBackRemainsFixedAfterBodyScrollAndDismissesWithoutNavigation() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        setShipmentsContent(FakeHubRepository())
+
+        compose.onNodeWithTag("shipments-summary-track-shipment").performClick()
+        compose.onNodeWithTag("shipments-quick-track-sheet").assertIsDisplayed()
+        repeat(5) { index ->
+            compose.runOnUiThread {
+                shipmentsViewModel.submitQuickTrack("MISSING-${index + 1}") { packageId ->
+                    navigatedRoutes += Routes.packageDetails(packageId.toString())
+                }
+            }
+            compose.waitUntil(timeoutMillis = 5_000) {
+                val state = shipmentsViewModel.quickTrack.value
+                !state.loading && state.recents.size == index + 1
+            }
+        }
+
+        compose.onNodeWithTag("shipments-quick-track-recent-4")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag("shipments-quick-track-back")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .performClick()
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag("shipments-quick-track-sheet").fetchSemanticsNodes().isEmpty()
+        }
+        compose.runOnIdle {
+            assertTrue("Quick Track back must not create a package route", navigatedRoutes.isEmpty())
         }
     }
 
@@ -438,7 +526,12 @@ class ShipmentsHubTapRailsParityTest {
         packagesRepo: ShipmentsPackagesRepository = FakePackagesRepository(),
     ) {
         navigatedRoutes.clear()
-        val viewModel = ShipmentsViewModel(repo, packagesRepo)
+        shipmentsViewModel = ShipmentsViewModel(
+            repo = repo,
+            packagesRepo = packagesRepo,
+            cartServer = ShipmentsTestCartServer,
+            sessionBoundary = ShipmentsTestSessionBoundary(),
+        )
         compose.setContent {
             AirdropThemeProvider {
                 Box(
@@ -449,7 +542,7 @@ class ShipmentsHubTapRailsParityTest {
                 ) {
                     ShipmentsScreen(
                         onNavigate = navigatedRoutes::add,
-                        viewModel = viewModel,
+                        viewModel = shipmentsViewModel,
                     )
                 }
             }
