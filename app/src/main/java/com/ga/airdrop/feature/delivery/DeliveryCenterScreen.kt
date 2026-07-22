@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -447,10 +448,15 @@ private fun DeliveryMessageCard(
         Modifier
             .fillMaxWidth()
             .padding(Spacing.md)
-            .shadow(8.dp, RoundedCornerShape(Radius.s))
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(Radius.s),
+                ambientColor = Color.Black.copy(alpha = 0.10f),
+                spotColor = Color.Black.copy(alpha = 0.10f),
+            )
             .background(colors.gray100, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.cardHairline, RoundedCornerShape(Radius.s))
-            .padding(horizontal = Spacing.md, vertical = Spacing.lg)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .padding(horizontal = Spacing.md, vertical = 30.dp)
             .testTag(tag),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -458,8 +464,10 @@ private fun DeliveryMessageCard(
         Image(
             painter = painterResource(R.drawable.img_delivery_deliver),
             contentDescription = null,
-            modifier = Modifier.fillMaxWidth(0.72f).height(150.dp),
-            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .aspectRatio(1000f / 667f),
+            contentScale = ContentScale.Fit,
         )
         Text(
             text = title,
@@ -586,6 +594,12 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Live tracking page in the EXACT approved journey layout (Kemar): the circular
+ * hero inside the card, "Your Delivery" heading + reference, the approved
+ * timeline treatment, and the contact affordance pinned above the gesture bar.
+ * The stages themselves stay the ordered server projection.
+ */
 @Composable
 private fun DeliveryDetail(
     summary: ActiveDelivery?,
@@ -595,76 +609,77 @@ private fun DeliveryDetail(
     onRefresh: () -> Unit,
     onContactUs: () -> Unit,
 ) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = Spacing.md)
-            .padding(top = Spacing.sm, bottom = Spacing.lg)
-            .navigationBarsPadding()
-            .testTag(DeliveryCenterTags.DETAIL),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
+    val colors = AirdropTheme.colors
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.md)
+                .padding(top = 12.dp)
+                .testTag(DeliveryCenterTags.DETAIL),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = RoundedCornerShape(Radius.s),
+                        ambientColor = Color.Black.copy(alpha = 0.10f),
+                        spotColor = Color.Black.copy(alpha = 0.10f),
+                    )
+                    .background(colors.gray100, RoundedCornerShape(Radius.s))
+                    .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(26.dp),
+            ) {
+                CircularDeliveryHero()
+                Column(Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Your Delivery",
+                        style = AirdropType.title2,
+                        color = colors.textDarkTitle,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = summary?.trackingCode ?: "Package #$packageId",
+                        style = AirdropType.body2,
+                        color = colors.textDescription,
+                    )
+                    summary?.description?.let {
+                        Text(
+                            text = it,
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                        )
+                    }
+                }
+                Column(Modifier.fillMaxWidth()) {
+                    delivery.stages.forEachIndexed { index, stage ->
+                        DeliveryTimelineStep(
+                            stage = stage,
+                            isLast = index == delivery.stages.lastIndex,
+                        )
+                    }
+                }
+            }
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 10.dp)
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.Center,
         ) {
             if (refreshing) {
                 CircularProgressIndicator(
-                    color = AirdropTheme.colors.orangeMain,
+                    color = colors.orangeMain,
                     strokeWidth = 2.dp,
                     modifier = Modifier.size(20.dp),
                 )
             } else {
-                RefreshAction(onRefresh)
-            }
-        }
-        DeliveryDetailCard(
-            summary = summary,
-            packageId = packageId,
-            delivery = delivery,
-        )
-        ContactAction(onContactUs, Modifier.align(Alignment.CenterHorizontally))
-    }
-}
-
-@Composable
-private fun DeliveryDetailCard(
-    summary: ActiveDelivery?,
-    packageId: Int,
-    delivery: TrackedDelivery,
-) {
-    val colors = AirdropTheme.colors
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .shadow(10.dp, RoundedCornerShape(Radius.s))
-            .background(colors.gray100, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.cardHairline, RoundedCornerShape(Radius.s))
-            .padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.md),
-    ) {
-        CircularDeliveryHero()
-        Column {
-            Text(
-                text = summary?.trackingCode ?: "Package #$packageId",
-                style = AirdropType.title2,
-                color = colors.textDarkTitle,
-            )
-            summary?.description?.let {
-                Text(text = it, style = AirdropType.body2, color = colors.textDescription)
-            }
-            Text(
-                text = humanizeDeliveryStatus(delivery.status),
-                style = AirdropType.subtitle1,
-                color = deliveryStatusColor(delivery.status),
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
-        Column(Modifier.fillMaxWidth()) {
-            delivery.stages.forEachIndexed { index, stage ->
-                DeliveryTimelineStep(stage = stage, isLast = index == delivery.stages.lastIndex)
+                ContactAction(onContactUs)
             }
         }
     }
