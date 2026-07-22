@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -47,7 +46,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -752,20 +750,17 @@ private fun TierPageContent(
             )
             if (!benefitRows.isNullOrEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    benefitRows.forEach { benefit ->
-                        Row(
+                    benefitRows.forEachIndexed { index, benefit ->
+                        TierBenefitRow(
+                            text = benefit,
+                            visual = TierBenefitRowVisual.Page,
+                            textStyle = AirdropType.body1,
+                            textColor = Color.White,
                             modifier = Modifier.padding(vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            BenefitCheck()
-                            Text(
-                                text = benefit,
-                                // Figma Body 1 — Cairo Regular 16.
-                                style = AirdropType.body1,
-                                color = Color.White,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
+                            rowTag = "tier-page-${tier.id}-benefit-row-$index",
+                            iconTag = "tier-page-${tier.id}-benefit-icon-$index",
+                            textTag = "tier-page-${tier.id}-benefit-text-$index",
+                        )
                     }
                 }
             } else {
@@ -838,25 +833,6 @@ private fun TierNameText(
             color = Color.White,
             maxLines = 1,
             overflow = TextOverflow.Clip,
-        )
-    }
-}
-
-/** White check in an 18%-white circle — Swift CheckmarkIconView, 24dp. */
-@Composable
-private fun BenefitCheck(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(24.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.18f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ic_check),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(Color.White),
-            modifier = Modifier.size(12.dp),
         )
     }
 }
@@ -989,16 +965,19 @@ private fun YourTierBreakdownSheet(
                     style = AirdropType.title2,
                     color = Color.White,
                 )
-                benefitRows.forEach { benefit ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        BenefitCheck(modifier = Modifier.padding(top = 1.dp))
-                        Text(
-                            text = benefit,
-                            style = AirdropType.body2,
-                            color = Color.White,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                benefitRows.forEachIndexed { index, benefit ->
+                    TierBenefitRow(
+                        text = benefit,
+                        visual = TierBenefitRowVisual.Sheet(
+                            gained = true,
+                            markColor = tier.gradientBottom,
+                        ),
+                        textStyle = AirdropType.body2,
+                        textColor = Color.White,
+                        rowTag = "tier-breakdown-benefit-row-$index",
+                        iconTag = "tier-breakdown-benefit-icon-$index",
+                        textTag = "tier-breakdown-benefit-text-$index",
+                    )
                 }
                 if (benefitRows.isEmpty()) {
                     Text(

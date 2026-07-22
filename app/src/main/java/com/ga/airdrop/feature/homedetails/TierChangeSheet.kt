@@ -1,6 +1,5 @@
 package com.ga.airdrop.feature.homedetails
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,10 +38,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -408,64 +401,18 @@ private fun TierBenefitPanel(
             color = Color.White,
         )
         rows.forEachIndexed { index, row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TierSheetMark(
+            TierBenefitRow(
+                text = row,
+                visual = TierBenefitRowVisual.Sheet(
                     gained = gained,
                     markColor = markColor,
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .size(17.dp),
-                )
-                Text(
-                    text = row,
-                    style = AirdropType.body2.copy(
-                        textDecoration = if (gained) null else TextDecoration.LineThrough,
-                    ),
-                    color = if (gained) Color.White else Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("$tag-row-$index"),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TierSheetMark(
-    gained: Boolean,
-    markColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    Canvas(modifier.clip(CircleShape)) {
-        drawCircle(Color.White.copy(alpha = if (gained) 1f else 0.75f))
-        val stroke = size.minDimension * 0.12f
-        if (gained) {
-            val check = Path().apply {
-                moveTo(size.width * 0.27f, size.height * 0.52f)
-                lineTo(size.width * 0.43f, size.height * 0.68f)
-                lineTo(size.width * 0.73f, size.height * 0.35f)
-            }
-            drawPath(
-                path = check,
-                color = markColor,
-                style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
-            )
-        } else {
-            val inset = size.minDimension * 0.31f
-            drawLine(
-                color = markColor,
-                start = Offset(inset, inset),
-                end = Offset(size.width - inset, size.height - inset),
-                strokeWidth = stroke,
-                cap = StrokeCap.Round,
-            )
-            drawLine(
-                color = markColor,
-                start = Offset(size.width - inset, inset),
-                end = Offset(inset, size.height - inset),
-                strokeWidth = stroke,
-                cap = StrokeCap.Round,
+                ),
+                textStyle = AirdropType.body2,
+                textColor = if (gained) Color.White else Color.White.copy(alpha = 0.8f),
+                textDecoration = if (gained) null else TextDecoration.LineThrough,
+                rowTag = "$tag-row-container-$index",
+                iconTag = "$tag-icon-$index",
+                textTag = "$tag-row-$index",
             )
         }
     }
