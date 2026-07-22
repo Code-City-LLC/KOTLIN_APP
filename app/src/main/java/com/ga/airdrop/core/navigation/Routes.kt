@@ -28,6 +28,11 @@ object Routes {
     // Home drill-downs
     const val WAREHOUSES = "warehouses"
     const val SERVICES = "services"
+    // Delivery / tracking hub — reached from the Home "Delivery Center" tile
+    // and the payment-success "Track your package" action. Optional ref = the
+    // just-paid invoice (deterministic post-checkout journey); optional
+    // packageId = a server-identified package (live tracking detail).
+    const val DELIVERY_CENTER = "deliveryCenter?ref={ref}&packageId={packageId}"
     const val SALES_TAXES = "salesTaxes"
     const val GOLD_PRIORITY = "goldPriority"
     const val NOTIFICATIONS = "notifications"
@@ -120,6 +125,17 @@ object Routes {
     const val AUCTION_NCB_3DS = "auctionNcb3ds"
 
     fun paymentReturn(sessionId: String?) = "paymentReturn/${sessionId.orEmpty()}"
+
+    /**
+     * ref = the just-paid invoice (from payment success; deterministic journey);
+     * packageId = a server-identified package (live tracking detail). Both
+     * optional — neither means "open on the live active-deliveries view".
+     */
+    fun deliveryCenter(ref: String? = null, packageId: Int? = null): String {
+        val encoded = java.net.URLEncoder.encode(ref.orEmpty(), "UTF-8").replace("+", "%20")
+        val pkg = packageId?.takeIf { it > 0 }?.toString() ?: ""
+        return "deliveryCenter?ref=$encoded&packageId=$pkg"
+    }
 
     fun paymentSuccess(ref: String?, amount: String?, fulfillment: String? = null): String {
         val encodedRef = java.net.URLEncoder.encode(ref.orEmpty(), "UTF-8").replace("+", "%20")

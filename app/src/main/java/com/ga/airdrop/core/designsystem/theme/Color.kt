@@ -84,6 +84,12 @@ object AlertPalette {
     }
 }
 
+/** Shared Delivery Center timeline accents (kept in sync with Swift). */
+object DeliveryStagePalette {
+    val Passed = Color(0xFF2E9E5B)
+    val Current = Color(0xFFE06B3E)
+}
+
 // ─── Customer-tier accents ────────────────────────────────────────────────
 object TierPalette {
     val BronzeSaver2 = Color(0xFFD2554D)

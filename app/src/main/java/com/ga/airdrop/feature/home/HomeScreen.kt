@@ -216,9 +216,9 @@ fun HomeScreen(
                         onProduct = { onNavigate(Routes.auctionProductDetails(it)) },
                     )
                     Spacer(Modifier.height(Spacing.md)) // custom 20 after auction
-                    ReferAFriendCard(onClick = { onNavigate(Routes.REFER_A_FRIEND) })
+                    ReferAndDeliveryRow(onNavigate = onNavigate)
                     // Preserve Swift's 120pt tab-bar allowance plus 20dp of
-                    // visible breathing room below Refer a friend.
+                    // visible breathing room below the tiles.
                     Spacer(
                         Modifier
                             .height(HOME_BOTTOM_CLEARANCE_DP.dp)
@@ -748,57 +748,42 @@ private fun EmptyAuctionCard() {
     }
 }
 
-// ─── Refer a friend — Swift makeReferAFriend (Figma 40000770:6511) ────────
+// ─── Refer a friend + Delivery Center tiles ──────────────────────────────
+// Kemar: turn Refer-a-Friend into a Services-style box and sit it beside a new
+// Delivery Center box (two equal 108dp tiles, same visual language as the
+// activity grid). Delivery Center → the tracking hub.
 
 @Composable
-private fun ReferAFriendCard(onClick: () -> Unit) {
-    val colors = AirdropTheme.colors
-    val shape = RoundedCornerShape(Spacing.sm1)
+private fun ReferAndDeliveryRow(onNavigate: (String) -> Unit) {
+    val tiles = listOf(
+        Activity(
+            "Refer a friend",
+            R.drawable.ic_more_refer,
+            R.drawable.ic_more_refer_dark,
+            Routes.REFER_A_FRIEND,
+        ),
+        Activity(
+            "Delivery Center",
+            // Theme-aware duotone (icon_duotone flips light/dark) with the orange
+            // accent — one drawable serves both modes.
+            R.drawable.ic_shipments_status_delivered,
+            R.drawable.ic_shipments_status_delivered,
+            Routes.deliveryCenter(),
+        ),
+    )
     Row(
         modifier = Modifier
-            .fillMaxWidth()
-            // Swift: 335x59 card inset 20, padding px 20 / py 10.
             .padding(horizontal = Spacing.md)
-            .height(59.dp)
-            .testTag("home-refer-friend")
-            .clip(shape) // radius 15 (Figma 2xs)
-            .background(colors.frostedGlassCardSurface)
-            .homePressOutline(colors.cardHairline, shape, onClick)
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .testTag("home-refer-delivery"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Row(
-            // Swift row spacing 12.
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Swift FigmaHomeViewController.makeReferAFriend uses TwoUsers with
-            // both icon roles forced to textDarkTitle, even though Figma's
-            // static node still shows the orange-accent ReferAFriend asset.
-            Image(
-                painter = painterResource(R.drawable.ic_more_users),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(colors.textDarkTitle),
-                modifier = Modifier
-                    .size(24.dp)
-                    .testTag("home-refer-friend-icon"),
-            )
-            Text(
-                text = "Refer a friend",
-                style = AirdropType.subtitle1,
-                color = colors.textDarkTitle,
+        tiles.forEach { tile ->
+            ActivityCard(
+                activity = tile,
+                onClick = { onNavigate(tile.route) },
+                modifier = Modifier.weight(1f),
             )
         }
-        Image(
-            painter = painterResource(R.drawable.ic_small_arrow_down),
-            contentDescription = null,
-            // Swift: chevron tinted textDarkTitle, rotated -90°.
-            colorFilter = ColorFilter.tint(colors.textDarkTitle),
-            modifier = Modifier
-                .size(24.dp)
-                .rotate(-90f),
-        )
     }
 }
 
