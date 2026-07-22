@@ -8,6 +8,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.feature.shop.ShopProduct
+import com.ga.airdrop.feature.shop.routeSlug
 
 /**
  * MORE feature group, part 2 — registration for the orchestrator's mainGraph:
@@ -88,7 +90,12 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
     }
 
     composable(Routes.PROMOTIONS) {
-        PromotionsScreen(onBack = { navController.popBackStack() })
+        PromotionsScreen(
+            onBack = { navController.popBackStack() },
+            onOpenSale = { product ->
+                navController.navigate(promotionSaleDetailsRoute(product))
+            },
+        )
     }
 
     composable(Routes.SHIPPING_RATES) {
@@ -151,3 +158,7 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         )
     }
 }
+
+/** One owner for sale navigation: the existing auction-product details route. */
+internal fun promotionSaleDetailsRoute(product: ShopProduct): String =
+    Routes.auctionProductDetails(product.routeSlug)

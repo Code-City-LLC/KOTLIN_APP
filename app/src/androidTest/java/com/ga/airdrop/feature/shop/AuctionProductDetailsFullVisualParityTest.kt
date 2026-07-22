@@ -3,7 +3,7 @@ package com.ga.airdrop.feature.shop
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -69,7 +69,28 @@ class AuctionProductDetailsFullVisualParityTest {
         compose.onNodeWithText("See all").assertIsDisplayed()
     }
 
-    private fun setDetailsContent(mode: ThemeController.Mode) {
+    @Test
+    fun featuredProductRejectsUntaggedAmazonMarketplaceDestination() {
+        setDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            featured = true,
+            product = Product.copy(
+                amazonUrl = "https://www.amazon.com/dp/UNTAGGED",
+            ),
+        )
+        waitForDetails()
+
+        compose.onNodeWithTag("auction-details-primary-cta").assertIsDisplayed().performClick()
+        compose.onNodeWithText(
+            "The purchase link is not a valid tagged Amazon destination.",
+        ).assertIsDisplayed()
+    }
+
+    private fun setDetailsContent(
+        mode: ThemeController.Mode,
+        featured: Boolean = false,
+        product: ShopProduct = Product,
+    ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
         }
@@ -78,22 +99,22 @@ class AuctionProductDetailsFullVisualParityTest {
                 Box(
                     Modifier
                         .width(375.dp)
-                        .height(812.dp)
+                        .fillMaxHeight()
                         .background(AirdropTheme.colors.gray100)
                 ) {
                     val repo = remember {
-                        FakeShopProductsRepository(product = Product, related = emptyList())
+                        FakeShopProductsRepository(product = product, related = emptyList())
                     }
                     val viewModel = remember {
                         AuctionProductDetailsViewModel(
-                            slug = Product.routeSlug,
-                            featured = false,
+                            slug = product.routeSlug,
+                            featured = featured,
                             products = repo,
                         )
                     }
                     AuctionProductDetailsScreen(
-                        slug = Product.routeSlug,
-                        featured = false,
+                        slug = product.routeSlug,
+                        featured = featured,
                         onNavigate = {},
                         onBack = {},
                         viewModel = viewModel,
@@ -129,13 +150,15 @@ class AuctionProductDetailsFullVisualParityTest {
         compose.onNodeWithText("Model: ${Product.slug!!.uppercase()}").assertIsDisplayed()
         compose.onNodeWithText("$18.00").assertIsDisplayed()
         compose.onNodeWithText("$12.50").assertIsDisplayed()
-        compose.onNodeWithText("Stock Quantity: ${Product.inventory}").assertIsDisplayed()
+        compose.onNodeWithText("Stock Quantity: ${Product.inventory}")
+            .performScrollTo()
+            .assertIsDisplayed()
 
         val stepper = compose.onNodeWithTag("auction-details-quantity-stepper").getUnclippedBoundsInRoot()
         assertClose(132f, boundsWidth(stepper), "Swift quantity stepper width")
         assertClose(44f, boundsHeight(stepper), "Swift quantity stepper height")
 
-        compose.onNodeWithText("Description").assertIsDisplayed()
+        compose.onNodeWithText("Description").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("See all").performScrollTo().assertIsDisplayed()
 
         compose.onNodeWithText("Related Products").performScrollTo().assertIsDisplayed()

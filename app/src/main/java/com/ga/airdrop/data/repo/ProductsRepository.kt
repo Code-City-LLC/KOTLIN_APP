@@ -35,6 +35,27 @@ class ProductsRepository(private val service: AirdropApiService) {
         service.featuredProducts(filters.toQueryMap(page, perPage)).items
     }
 
+    /** Laravel-curated Amazon candidates, newest-first for deterministic ranking. */
+    suspend fun promotionFeaturedProducts(): Result<List<AuctionProduct>> =
+        featuredProducts(
+            page = 1,
+            perPage = 50,
+            filters = ProductFilters(order = "created_at", direction = "desc"),
+        )
+
+    /** Current AirDrop sale highlights, newest-first and server-filtered. */
+    suspend fun promotionSaleProducts(): Result<List<AuctionProduct>> =
+        auctionProducts(
+            page = 1,
+            perPage = 8,
+            filters = ProductFilters(
+                order = "created_at",
+                direction = "desc",
+                inStock = true,
+                onSale = true,
+            ),
+        )
+
     suspend fun featuredProductsShortlist(search: String? = null): Result<List<AuctionProduct>> =
         apiResult {
             val params = buildMap {

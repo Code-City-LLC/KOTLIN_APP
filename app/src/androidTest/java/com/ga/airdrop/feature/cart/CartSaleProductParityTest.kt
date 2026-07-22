@@ -1,8 +1,10 @@
 package com.ga.airdrop.feature.cart
 
 import android.content.Context
+import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -29,6 +31,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import coil.imageLoader
+import coil.request.ErrorResult
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
@@ -38,12 +44,15 @@ import com.ga.airdrop.core.session.AuthenticatedRequestOwner
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.data.model.CheckoutResponse
+import com.ga.airdrop.feature.shop.AffiliatePromotionProductsSource
 import com.ga.airdrop.feature.shop.ShopBillingProfile
 import com.ga.airdrop.feature.shop.ShopCheckoutRepository
+import com.ga.airdrop.feature.shop.ShopProduct
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -69,8 +78,30 @@ class CartSaleProductParityTest {
     }
 
     @Test
-    fun myCartUsesExactHeroOrderCompactNoteAndFrostedFooter() {
+    fun myCartUsesEligibleServerHeroExactDisclosureAndPreservesCartOrder() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val heroProduct = eligibleHero()
+        val preloadResult = runBlocking {
+            context.imageLoader.execute(
+                ImageRequest.Builder(context)
+                    .data(R.drawable.img_cart_macbook_hero)
+                    .memoryCacheKey(TEST_HERO_IMAGE_URL)
+                    .build(),
+            )
+        }
+        val preloadFailure = when (preloadResult) {
+            is ErrorResult -> preloadResult.throwable.stackTraceToString()
+            else -> "Unexpected Coil result: ${preloadResult::class.java.name}"
+        }
+        assertTrue(
+            "Coil preload failed for controlled MacBook fixture\n$preloadFailure",
+            preloadResult is SuccessResult,
+        )
+        assertEquals(
+            "Controlled fixture must populate the exact URL key consumed by Cart",
+            TEST_HERO_IMAGE_URL,
+            (preloadResult as SuccessResult).memoryCacheKey?.key,
+        )
         val line = CartStore.CartLine(
             id = 815,
             packageId = 815,
@@ -79,25 +110,51 @@ class CartSaleProductParityTest {
             kind = CartStore.CartLineKind.AUCTION,
             isAuction = true,
         )
+        var openedAmazonUrl: String? = null
 
-        renderCart(line, ThemeController.Mode.LIGHT)
+        renderCart(
+            line = line,
+            mode = ThemeController.Mode.LIGHT,
+            featuredProducts = listOf(heroProduct),
+            onOpenAmazon = { openedAmazonUrl = it },
+        )
 
-        compose.onNodeWithTag("cart-macbook-hero").assertIsDisplayed()
+        compose.onNodeWithTag("cart-featured-apple-hero").assertIsDisplayed()
+        compose.onNodeWithText("MacBook Pro").assertIsDisplayed()
+        compose.onNodeWithText("$2,342.00").assertIsDisplayed()
+        compose.onNodeWithText(
+            "As an Amazon Associate, AirDrop earns from qualifying purchases.",
+        ).assertIsDisplayed()
         compose.onNodeWithText("Basket (1 Item)").assertIsDisplayed()
-        compose.onNodeWithTag("cart-your-note-row").assertIsDisplayed()
         compose.onNodeWithTag("cart-frosted-totals-footer").assertIsDisplayed()
         compose.onNodeWithText("Fax").assertIsDisplayed()
         compose.onNodeWithText("$ 5.00").assertIsDisplayed()
         compose.onNodeWithText("USD 1 = JMD 161.00").assertIsDisplayed()
         compose.onNodeWithText("Choose Delivery").assertIsDisplayed()
+        compose.waitUntil(timeoutMillis = 10_000) {
+            compose.onAllNodesWithTag(
+                "cart-featured-apple-image-loaded",
+                useUnmergedTree = true,
+            )
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        compose.onNodeWithTag(
+            "cart-featured-apple-image-loaded",
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
+        saveScreenshot(context, "cart_dynamic_featured_apple_hero.png")
 
-        val hero = compose.onNodeWithTag("cart-macbook-hero").getUnclippedBoundsInRoot()
+        val hero = compose.onNodeWithTag("cart-featured-apple-hero").getUnclippedBoundsInRoot()
         val card = compose.onNodeWithTag("cart-sale-line-815").getUnclippedBoundsInRoot()
         val note = compose.onNodeWithTag("cart-your-note-row").getUnclippedBoundsInRoot()
         assertEquals("Figma hero is exactly 172dp tall", 172f, (hero.bottom - hero.top).value, 0.75f)
         assertEquals("Figma Your Note row is exactly 59dp tall", 59f, (note.bottom - note.top).value, 0.75f)
         assertTrue("Hero must precede cart cards", hero.bottom <= card.top)
         assertTrue("Your Note must follow cart cards", card.bottom <= note.top)
+        compose.onNodeWithTag("cart-featured-apple-hero").performClick()
+        assertEquals("https://www.amazon.com/dp/mac?tag=partner", openedAmazonUrl)
+        compose.onNodeWithTag("cart-your-note-row").performScrollTo().assertIsDisplayed()
 
         compose.onNodeWithTag("cart-your-note-row").performClick()
         compose.onNodeWithTag("cart-note-popup").assertIsDisplayed()
@@ -111,19 +168,6 @@ class CartSaleProductParityTest {
         compose.onNodeWithTag("cart-note-save").performClick()
         compose.onNodeWithText("Leave at reception").assertIsDisplayed()
 
-        val bytes = context.resources.openRawResource(R.drawable.img_cart_macbook_hero).use { it.readBytes() }
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(bytes)
-            .joinToString("") { "%02x".format(it) }
-        assertEquals(
-            "MacBook hero must stay byte-identical to the Figma export",
-            "e335de250727eaa92e2cf63e918c1a358ee33dc9d1d85e1a9704551e8d978ec5",
-            digest,
-        )
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size).let { bitmap ->
-            assertEquals(1005, bitmap.width)
-            assertEquals(516, bitmap.height)
-        }
         val patternBytes = context.resources.openRawResource(R.drawable.img_cart_note_popup_pattern)
             .use { it.readBytes() }
         val patternDigest = MessageDigest.getInstance("SHA-256")
@@ -138,6 +182,34 @@ class CartSaleProductParityTest {
             assertEquals(1633, bitmap.width)
             assertEquals(1848, bitmap.height)
         }
+    }
+
+    @Test
+    fun myCartCollapsesMarketingSlotWhenNoEligibleServerProductExists() {
+        val line = CartStore.CartLine(
+            id = 817,
+            packageId = 817,
+            title = "Cart item without an eligible hero",
+            priceUsd = 20.0,
+            kind = CartStore.CartLineKind.AUCTION,
+            isAuction = true,
+        )
+
+        renderCart(
+            line = line,
+            mode = ThemeController.Mode.DARK,
+            featuredProducts = listOf(
+                eligibleHero().copy(
+                    title = "MacBook protective case",
+                    amazonUrl = "https://www.amazon.com/dp/case?tag=partner",
+                ),
+            ),
+            expectHero = false,
+        )
+
+        compose.onNodeWithTag("cart-featured-apple-hero").assertDoesNotExist()
+        compose.onNodeWithText("Basket (1 Item)").assertIsDisplayed()
+        compose.onNodeWithTag("cart-sale-line-817").assertIsDisplayed()
     }
 
     @Test
@@ -208,6 +280,7 @@ class CartSaleProductParityTest {
         ).assertDoesNotExist()
         compose.onNodeWithTag("cart-sale-remove-812", useUnmergedTree = true).assertIsDisplayed()
 
+        compose.onNodeWithTag("cart-sale-line-812").performScrollTo().assertIsDisplayed()
         val density = context.resources.displayMetrics.density
         val card = compose.onNodeWithTag("cart-sale-line-812").fetchSemanticsNode().boundsInRoot
         val image = compose.onNodeWithTag("cart-sale-image-812", useUnmergedTree = true)
@@ -260,7 +333,7 @@ class CartSaleProductParityTest {
     }
 
     @Test
-    fun saleProductRejectsNonHttpsImageAsNeutralWellWithoutShipmentIdentity() {
+    fun saleProductRejectsUnsafeImageSchemeAsNeutralWellWithoutShipmentIdentity() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val line = CartStore.CartLine(
             id = 813,
@@ -312,9 +385,13 @@ class CartSaleProductParityTest {
         widthDp: Int = 375,
         heightDp: Int = 812,
         fontScale: Float = 1f,
+        featuredProducts: List<ShopProduct> = listOf(eligibleHero()),
+        expectHero: Boolean = true,
+        onOpenAmazon: ((String) -> Unit)? = {},
     ) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
+        val promotionSource = FakePromotionProductsSource(featuredProducts)
 
         instrumentation.runOnMainSync {
             ThemeController.set(mode)
@@ -352,6 +429,8 @@ class CartSaleProductParityTest {
                             onBack = {},
                             onShopNow = {},
                             viewModel = viewModel,
+                            promotionProductsSource = promotionSource,
+                            onOpenAmazon = onOpenAmazon,
                         )
                     }
                 }
@@ -359,11 +438,41 @@ class CartSaleProductParityTest {
         }
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            compose.onAllNodesWithTag("cart-sale-line-${line.id}")
-                .fetchSemanticsNodes()
-                .isNotEmpty()
+            val saleLineVisible = compose.onAllNodesWithTag("cart-sale-line-${line.id}")
+                .fetchSemanticsNodes().isNotEmpty()
+            val heroStateReached = promotionSource.featuredCalls > 0 &&
+                if (expectHero) {
+                    compose.onAllNodesWithTag("cart-featured-apple-hero")
+                        .fetchSemanticsNodes().isNotEmpty()
+                } else {
+                    compose.onAllNodesWithTag("cart-featured-apple-hero")
+                        .fetchSemanticsNodes().isEmpty()
+                }
+            saleLineVisible && heroStateReached
         }
     }
+
+    private class FakePromotionProductsSource(
+        private val featured: List<ShopProduct>,
+    ) : AffiliatePromotionProductsSource {
+        var featuredCalls = 0
+
+        override suspend fun featuredProducts(): Result<List<ShopProduct>> {
+            featuredCalls += 1
+            return Result.success(featured)
+        }
+
+        override suspend fun saleProducts(): Result<List<ShopProduct>> =
+            throw AssertionError("Cart must not load the sale promotions feed")
+    }
+
+    private fun eligibleHero() = ShopProduct(
+        id = 901,
+        title = "MacBook Pro",
+        imageUrl = TEST_HERO_IMAGE_URL,
+        priceUsd = 2_342.0,
+        amazonUrl = TEST_AMAZON_AFFILIATE_URL,
+    )
 
     private fun saveScreenshot(context: Context, fileName: String) {
         val screenshotDir = File(context.getExternalFilesDir(null), "screenshots/cart_sale")
@@ -375,6 +484,22 @@ class CartSaleProductParityTest {
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+        val mediaValues = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/kotlin_ui_proof/cart_sale")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+        val mediaUri = context.contentResolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            mediaValues,
+        ) ?: return
+        context.contentResolver.openOutputStream(mediaUri)?.use { mediaOutput ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, mediaOutput)
+        }
+        mediaValues.clear()
+        mediaValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+        context.contentResolver.update(mediaUri, mediaValues, null, null)
     }
 
     private class FakeCheckoutRepository : ShopCheckoutRepository {
@@ -416,5 +541,12 @@ class CartSaleProductParityTest {
 
         override fun bindAccountId(owner: AuthenticatedSessionOwner, accountId: Int): Boolean =
             isCurrent(owner) && owner.accountId == accountId
+    }
+
+    private companion object {
+        const val TEST_HERO_IMAGE_URL =
+            "https://fixtures.invalid/airdrop/cart/macbook-pro-2342.png"
+        const val TEST_AMAZON_AFFILIATE_URL =
+            "https://www.amazon.com/dp/mac?tag=partner"
     }
 }

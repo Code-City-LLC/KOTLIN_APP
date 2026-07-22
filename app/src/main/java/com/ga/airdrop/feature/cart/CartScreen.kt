@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
@@ -73,10 +74,16 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
+import com.ga.airdrop.core.external.AffiliateAndMediaLinks
+import com.ga.airdrop.feature.shop.AffiliatePromotionProductsSource
+import com.ga.airdrop.feature.shop.RepositoryAffiliatePromotionProductsSource
 import com.ga.airdrop.feature.shop.ShopChevronRight
 import com.ga.airdrop.feature.shop.ShopInnerHeader
+import com.ga.airdrop.feature.shop.ShopProduct
+import com.ga.airdrop.feature.shop.eligibleAmazonAppleProducts
+import com.ga.airdrop.feature.shop.formatUsd
 import com.ga.airdrop.feature.shop.formatUsdPlain
-import java.net.URI
+import com.ga.airdrop.feature.shop.launchExternalUrl
 import java.util.Locale
 
 /**
@@ -93,6 +100,8 @@ fun CartScreen(
     viewModel: CartViewModel = viewModel(),
     /** Route push — Continue goes Cart → Delivery Method. */
     onNavigate: (String) -> Unit = {},
+    promotionProductsSource: AffiliatePromotionProductsSource? = null,
+    onOpenAmazon: ((String) -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
@@ -103,11 +112,28 @@ fun CartScreen(
     var showingSavedForLater by rememberSaveable { mutableStateOf(false) }
     var showingNotePopup by rememberSaveable { mutableStateOf(false) }
     var actionLine by remember { mutableStateOf<CartStore.CartLine?>(null) }
+    val resolvedPromotionSource = remember(promotionProductsSource) {
+        promotionProductsSource ?: RepositoryAffiliatePromotionProductsSource()
+    }
+    var featuredAppleProduct by remember(resolvedPromotionSource) {
+        mutableStateOf<ShopProduct?>(null)
+    }
     val scrollTailPadding = if (isEmpty) 24.dp else 12.dp
 
     LaunchedEffect(Unit) {
         CartStore.init(context)
         SavedForLaterStore.init(context)
+    }
+
+    LaunchedEffect(resolvedPromotionSource, isEmpty) {
+        featuredAppleProduct = null
+        if (!isEmpty) {
+            resolvedPromotionSource.featuredProducts()
+                .onSuccess { products ->
+                    featuredAppleProduct =
+                        eligibleAmazonAppleProducts(products, limit = 1).firstOrNull()
+                }
+        }
     }
 
     if (showingSavedForLater) {
@@ -167,7 +193,17 @@ fun CartScreen(
             } else if (isEmpty) {
                 EmptyCartCard(onShopNow = onShopNow)
             } else {
-                CartMacBookHero()
+                featuredAppleProduct?.let { product ->
+                    CartFeaturedAppleHero(
+                        product = product,
+                        onClick = {
+                            val url = AffiliateAndMediaLinks.validateAmazonAffiliateUrl(
+                                product.amazonUrl,
+                            ) ?: return@CartFeaturedAppleHero
+                            onOpenAmazon?.invoke(url) ?: launchExternalUrl(context, url)
+                        },
+                    )
+                }
 
                 // Exact order: hero → Basket → cards → compact Your Note row.
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -253,18 +289,93 @@ fun CartScreen(
 internal val CartHeaderTitleStyle = AirdropType.subtitle1
 
 @Composable
-private fun CartMacBookHero() {
-    Image(
-        painter = painterResource(R.drawable.img_cart_macbook_hero),
-        contentDescription = "The New MacBook Pro",
-        contentScale = ContentScale.Crop,
+private fun CartFeaturedAppleHero(
+    product: ShopProduct,
+    onClick: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    val imageUrl = validatedProductImageUrl(product.imageUrl)
+    var imageLoadSucceeded by remember(product.id, imageUrl) {
+        mutableStateOf<Boolean?>(null)
+    }
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            // 335×172 is the exact exported Figma frame inside 20dp insets.
             .height(172.dp)
             .clip(RoundedCornerShape(10.dp))
-            .testTag("cart-macbook-hero"),
-    )
+            .background(colors.gray100)
+            .border(1.dp, colors.cardHairline, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .testTag("cart-featured-apple-hero"),
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(0.62f)
+                .fillMaxHeight()
+                .padding(start = 14.dp, top = 12.dp, end = 8.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            Text(
+                text = "FEATURED APPLE FIND",
+                style = AirdropType.subtitle3,
+                color = BrandPalette.OrangeMain,
+            )
+            Text(
+                text = product.title,
+                style = AirdropType.subtitle2,
+                color = colors.textDarkTitle,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("cart-featured-apple-title"),
+            )
+            Text(
+                text = formatUsd(product.priceUsd),
+                style = AirdropType.subtitle3,
+                color = colors.textDarkTitle,
+                modifier = Modifier.testTag("cart-featured-apple-price"),
+            )
+            Text(
+                text = "Shop on Amazon  ›",
+                style = AirdropType.subtitle3,
+                color = BrandPalette.OrangeMain,
+            )
+            Text(
+                text = AffiliateAndMediaLinks.AMAZON_ASSOCIATE_DISCLOSURE,
+                style = AirdropType.body3,
+                color = colors.textDescription,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("cart-featured-apple-disclosure"),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .weight(0.38f)
+                .fillMaxHeight()
+                .background(colors.gray200)
+                .testTag("cart-featured-apple-image"),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (imageLoadSucceeded != false) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = product.title,
+                    contentScale = ContentScale.Crop,
+                    onSuccess = { imageLoadSucceeded = true },
+                    onError = { imageLoadSucceeded = false },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(
+                            if (imageLoadSucceeded == true) {
+                                "cart-featured-apple-image-loaded"
+                            } else {
+                                "cart-featured-apple-image-loading"
+                            },
+                        ),
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -816,16 +927,6 @@ private fun CartSaleItemCard(
             )
         }
     }
-}
-
-/** Sale images are rendered only from an absolute, credential-free HTTPS URL. */
-internal fun validatedProductImageUrl(raw: String?): String? {
-    val trimmed = raw?.trim().orEmpty()
-    if (trimmed.isEmpty()) return null
-    val uri = runCatching { URI(trimmed) }.getOrNull() ?: return null
-    if (!uri.scheme.equals("https", ignoreCase = true) || uri.host.isNullOrBlank()) return null
-    if (uri.userInfo != null) return null
-    return trimmed
 }
 
 /* ─── Bottom bar row ───────────────────────────────────────────────────── */

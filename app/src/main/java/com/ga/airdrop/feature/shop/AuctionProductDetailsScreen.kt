@@ -50,9 +50,9 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.external.AffiliateAndMediaLinks
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartStore
-import java.net.URI
 import java.util.Locale
 
 private const val PRODUCT_DESCRIPTION_FALLBACK =
@@ -173,9 +173,11 @@ fun AuctionProductDetailsScreen(
                                     linkUnavailableMessage =
                                         "No purchase link was returned for this feature product."
                                 } else {
-                                    val url = normalizedPurchaseUrl(raw)
+                                    val url =
+                                        AffiliateAndMediaLinks.validateAmazonAffiliateUrl(raw)
                                     if (url == null) {
-                                        linkUnavailableMessage = "The purchase link is not a valid URL."
+                                        linkUnavailableMessage =
+                                            "The purchase link is not a valid tagged Amazon destination."
                                     } else {
                                         launchExternalUrl(context, url)
                                     }
@@ -598,23 +600,6 @@ private fun cleanDescription(raw: String?): String {
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .trim()
-}
-
-private fun normalizedPurchaseUrl(raw: String): String? {
-    val normalized = if (raw.startsWith("http://") || raw.startsWith("https://")) {
-        raw.replaceFirst("http://", "https://")
-    } else {
-        "https://$raw"
-    }
-    return runCatching {
-        val uri = URI(normalized)
-        val scheme = uri.scheme?.lowercase(Locale.US)
-        if ((scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()) {
-            uri.toString()
-        } else {
-            null
-        }
-    }.getOrNull()
 }
 
 /**
