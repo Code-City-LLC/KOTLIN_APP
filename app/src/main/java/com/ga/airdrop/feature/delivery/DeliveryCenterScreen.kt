@@ -271,7 +271,10 @@ private fun TimelineStep(
     Row(
         Modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min),
+            .height(IntrinsicSize.Min)
+            // Not-yet-reached stages (Out for Delivery, Delivered) fade back —
+            // node, icon and text together — so the front of the journey pops.
+            .alpha(if (stage.state == DeliveryStageState.PENDING) 0.4f else 1f),
     ) {
         // Rail: icon node + vertical connector.
         Column(
@@ -453,7 +456,7 @@ private fun ContactAction(onContactUs: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Image(
-            painter = painterResource(R.drawable.ic_phone_outline),
+            painter = painterResource(R.drawable.ic_phone),
             contentDescription = null,
             colorFilter = ColorFilter.tint(colors.orangeMain),
             modifier = Modifier.size(22.dp),
