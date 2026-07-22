@@ -291,6 +291,33 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     more2Graph(navController)
     homeDetailsGraph(navController)
 
+    // Delivery / tracking hub — one registration handling both entries:
+    // ref (just-paid invoice → deterministic journey) and packageId
+    // (server-identified package → live tracking detail).
+    composable(
+        Routes.DELIVERY_CENTER,
+        arguments = listOf(
+            androidx.navigation.navArgument("ref") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
+            androidx.navigation.navArgument("packageId") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
+        ),
+    ) { entry ->
+        com.ga.airdrop.feature.delivery.DeliveryCenterScreen(
+            orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
+            initialPackageId = entry.arguments
+                ?.getString("packageId")
+                ?.toIntOrNull()
+                ?.takeIf { it > 0 },
+            onBack = { navController.popBackStack() },
+            onContactUs = { navController.navigate(Routes.LIVE_CHAT) },
+        )
+    }
+
     // Stripe hosted-checkout return (Swift SceneDelegate:432 parity): verify
     // the session, then celebrate / bounce back. Cart is cleared ONLY on
     // verified paid — never on Done/cancel/not-paid/unconfirmed. The return
@@ -395,22 +422,6 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
                     launchSingleTop = true
                 }
             },
-        )
-    }
-    // Delivery / tracking hub.
-    composable(
-        Routes.DELIVERY_CENTER,
-        arguments = listOf(
-            androidx.navigation.navArgument("ref") {
-                type = androidx.navigation.NavType.StringType
-                defaultValue = ""
-            },
-        ),
-    ) { entry ->
-        com.ga.airdrop.feature.delivery.DeliveryCenterScreen(
-            orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
-            onBack = { navController.popBackStack() },
-            onContactUs = { navController.navigate(Routes.LIVE_CHAT) },
         )
     }
 }

@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.delivery
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -15,10 +16,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,12 +29,16 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,57 +54,167 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlin.math.sin
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.DeliveryStagePalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.data.repo.ActiveDelivery
+import com.ga.airdrop.data.repo.TrackedDelivery
+import com.ga.airdrop.data.repo.TrackedDeliveryStage
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.sin
+
+object DeliveryCenterTags {
+    const val ROOT = "delivery-center-root"
+    const val LOADING = "delivery-center-loading"
+    const val ERROR = "delivery-center-error"
+    const val RETRY = "delivery-center-retry"
+    const val EMPTY = "delivery-center-empty"
+    const val LIST = "delivery-center-list"
+    const val DETAIL = "delivery-center-detail"
+    const val NO_DELIVERY = "delivery-center-no-delivery"
+    const val REFRESH = "delivery-center-refresh"
+    const val CONTACT = "delivery-center-contact"
+    const val JOURNEY = "delivery-center-journey"
+    fun row(packageId: Int) = "delivery-center-row-$packageId"
+    fun stage(key: String) = "delivery-center-stage-$key"
+}
 
 /**
- * Delivery Center — the customer-facing tracking hub for orders shipped to the
- * door (delivery fulfilment). Reached from the Home "Delivery Center" tile and
- * from the pickup/delivery payment-success "Track your package" action.
+ * Delivery Center — the customer-facing tracking hub, in Kemar's approved
+ * design language (topographic backdrop, circular hero, outlined icon nodes,
+ * green passed / soft-orange current, faded upcoming, animated flow).
  *
- * This is the Kotlin reference UI for the shared delivery-tracking system being
- * built with Swift (parity) and Laravel (the tracking API: order_id → stage +
- * timestamps + optional courier/ETA). Until that API lands, the timeline
- * reflects the deterministic post-checkout journey — a delivery order is
- * Confirmed and being Prepared, with the door-delivery stages shown as upcoming
- * and a "contact us" path for live details.
+ * Two entries share this screen:
+ *  • orderReference (just paid at checkout) → the deterministic post-checkout
+ *    journey. No delivery exists server-side yet, so nothing is fetched and no
+ *    progress is invented beyond "confirmed + preparing".
+ *  • packageId / no args → the LIVE 0/1/many state machine (Codex's plumbing):
+ *    Laravel's active-deliveries list, per-package tracking detail, refresh,
+ *    session-boundary hygiene. Every live stage row is the ordered server
+ *    projection — the client never manufactures live progress.
  */
-
-private enum class DeliveryStageState { DONE, CURRENT, PENDING }
-
-private data class DeliveryStage(
-    val title: String,
-    val detail: String,
-    val state: DeliveryStageState,
-    val iconRes: Int,
-)
-
 @Composable
 fun DeliveryCenterScreen(
     orderReference: String?,
+    initialPackageId: Int?,
     onBack: () -> Unit,
     onContactUs: () -> Unit,
 ) {
-    val colors = AirdropTheme.colors
-    val hasActiveDelivery = !orderReference.isNullOrBlank()
+    if (initialPackageId == null && !orderReference.isNullOrBlank()) {
+        JustPaidJourney(
+            orderReference = orderReference,
+            onBack = onBack,
+            onContactUs = onContactUs,
+        )
+        return
+    }
+    LiveDeliveryCenter(
+        initialPackageId = initialPackageId,
+        onBack = onBack,
+        onContactUs = onContactUs,
+    )
+}
 
+@Composable
+private fun LiveDeliveryCenter(
+    initialPackageId: Int?,
+    onBack: () -> Unit,
+    onContactUs: () -> Unit,
+    viewModel: DeliveryCenterViewModel = viewModel(
+        key = "delivery-center-${initialPackageId ?: "active"}",
+        factory = DeliveryCenterViewModel.factory(initialPackageId),
+    ),
+) {
+    val state by viewModel.state.collectAsState()
+    val handleBack = {
+        if (!viewModel.returnToList()) onBack()
+    }
+    BackHandler(enabled = state.canReturnToList) { viewModel.returnToList() }
+
+    DeliveryCenterScreenContent(
+        state = state,
+        onBack = handleBack,
+        onRetry = viewModel::retry,
+        onRefresh = viewModel::refresh,
+        onSelectDelivery = viewModel::selectDelivery,
+        onContactUs = onContactUs,
+    )
+}
+
+@Composable
+internal fun DeliveryCenterScreenContent(
+    state: DeliveryCenterUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onRefresh: () -> Unit,
+    onSelectDelivery: (Int) -> Unit,
+    onContactUs: () -> Unit,
+) {
+    DeliveryCenterScaffold(onBack = onBack) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (state.content) {
+                DeliveryCenterContent.Loading -> DeliveryLoadingState()
+                DeliveryCenterContent.Error -> DeliveryErrorState(
+                    message = requireNotNull(state.error),
+                    onRetry = onRetry,
+                    onContactUs = onContactUs,
+                )
+                DeliveryCenterContent.Empty -> EmptyDeliveryState(onRefresh = onRefresh)
+                DeliveryCenterContent.List -> ActiveDeliveriesList(
+                    deliveries = state.activeDeliveries,
+                    refreshing = state.refreshing,
+                    onRefresh = onRefresh,
+                    onSelect = onSelectDelivery,
+                )
+                DeliveryCenterContent.Detail -> DeliveryDetail(
+                    summary = state.selectedSummary,
+                    packageId = requireNotNull(state.selectedPackageId),
+                    delivery = requireNotNull(state.delivery),
+                    refreshing = state.refreshing,
+                    onRefresh = onRefresh,
+                    onContactUs = onContactUs,
+                )
+                DeliveryCenterContent.NoDelivery -> NoDeliveryState(
+                    packageId = requireNotNull(state.selectedPackageId),
+                    onRefresh = onRefresh,
+                    onContactUs = onContactUs,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Shared chrome: gray200 page, the approved topographic "waves" OUTSIDE the
+ * cards across the whole backdrop (8%, #292929 light / white dark), and the
+ * Delivery Center header.
+ */
+@Composable
+private fun DeliveryCenterScaffold(
+    onBack: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = AirdropTheme.colors
     Box(
         Modifier
             .fillMaxSize()
             .background(colors.gray200)
             .clipToBounds()
-            .testTag("delivery-center-root"),
+            .testTag(DeliveryCenterTags.ROOT),
     ) {
-        // Topographic "waves" — OUTSIDE the card, across the whole page
-        // background (they show in the margins around the compact card). 8%,
-        // #292929 light / white dark.
         Image(
             painter = painterResource(R.drawable.img_success_bg_topo),
             contentDescription = null,
@@ -106,352 +222,665 @@ fun DeliveryCenterScreen(
                 if (colors.isDark) Color.White else Color(0xFF292929),
             ),
             contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .matchParentSize()
-                .alpha(0.08f),
+            modifier = Modifier.matchParentSize().alpha(0.08f),
         )
 
         Column(Modifier.fillMaxSize()) {
             HomeDetailsHeader(title = "Delivery Center", onBack = onBack)
-
-            // Content sized to fit one frame (no scroll on a normal phone);
-            // verticalScroll stays only as a safety net for very short screens.
-            // The Contact CTA is pinned low, just above the gesture bar.
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.md)
-                    .padding(top = 12.dp),
-            ) {
-                if (hasActiveDelivery) {
-                    ActiveDeliveryCard(orderReference = orderReference!!)
-                } else {
-                    EmptyDeliveryCard()
-                }
-            }
-
-            if (hasActiveDelivery) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp, bottom = 10.dp)
-                        .navigationBarsPadding(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    ContactAction(onContactUs = onContactUs)
-                }
-            }
+            content()
         }
     }
 }
 
-// ─── Active delivery — illustration + journey timeline ───────────────────────
+// ─── Just-paid journey (deterministic; reached with an invoice ref) ──────────
+
+private data class JourneyStage(
+    val key: String,
+    val label: String,
+    val state: String,
+    val detail: String,
+)
+
+private val JUST_PAID_STAGES = listOf(
+    JourneyStage(
+        "order_confirmed", "Order Confirmed", "done",
+        "Payment received, order booked.",
+    ),
+    JourneyStage(
+        "preparing_dispatch", "Preparing for Dispatch", "current",
+        "Packing your items for the courier.",
+    ),
+    JourneyStage(
+        "out_for_delivery", "Out for Delivery", "pending",
+        "On its way to your address.",
+    ),
+    JourneyStage(
+        "delivered", "Delivered", "pending",
+        "Handed over at your location.",
+    ),
+)
 
 @Composable
-private fun ActiveDeliveryCard(orderReference: String) {
+private fun JustPaidJourney(
+    orderReference: String,
+    onBack: () -> Unit,
+    onContactUs: () -> Unit,
+) {
     val colors = AirdropTheme.colors
-    // Stage icons reuse the Figma-exported shipment-status set so the timeline
-    // speaks the same visual language as the rest of the app.
-    val stages = listOf(
-        DeliveryStage(
-            "Order Confirmed",
-            "Payment received, order booked.",
-            DeliveryStageState.DONE,
-            R.drawable.ic_shipments_status_shipment_received,
-        ),
-        DeliveryStage(
-            "Preparing for Dispatch",
-            "Packing your items for the courier.",
-            DeliveryStageState.CURRENT,
-            R.drawable.ic_shipments_status_processing_warehouse,
-        ),
-        DeliveryStage(
-            "Out for Delivery",
-            "On its way to your address.",
-            DeliveryStageState.PENDING,
-            R.drawable.ic_shipments_status_in_transit_counter,
-        ),
-        DeliveryStage(
-            "Delivered",
-            "Handed over at your location.",
-            DeliveryStageState.PENDING,
-            R.drawable.ic_shipments_status_delivered,
-        ),
-    )
+    DeliveryCenterScaffold(onBack = onBack) {
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.md)
+                .padding(top = 12.dp),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = RoundedCornerShape(Radius.s),
+                        ambientColor = Color.Black.copy(alpha = 0.10f),
+                        spotColor = Color.Black.copy(alpha = 0.10f),
+                    )
+                    .background(colors.gray100, RoundedCornerShape(Radius.s))
+                    .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+                    .padding(20.dp)
+                    .testTag(DeliveryCenterTags.JOURNEY),
+                verticalArrangement = Arrangement.spacedBy(26.dp),
+            ) {
+                CircularDeliveryHero()
+                Column(Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Your Delivery",
+                        style = AirdropType.title2,
+                        color = colors.textDarkTitle,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = orderReference,
+                        style = AirdropType.body2,
+                        color = colors.textDescription,
+                    )
+                }
+                Column(Modifier.fillMaxWidth()) {
+                    JUST_PAID_STAGES.forEachIndexed { index, stage ->
+                        DeliveryTimelineStep(
+                            stage = TrackedDeliveryStage(
+                                key = stage.key,
+                                label = stage.label,
+                                state = stage.state,
+                                at = null,
+                            ),
+                            isLast = index == JUST_PAID_STAGES.lastIndex,
+                            detail = stage.detail,
+                        )
+                    }
+                }
+            }
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 10.dp)
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.Center,
+        ) {
+            ContactAction(onContactUs)
+        }
+    }
+}
 
+@Composable
+private fun CircularDeliveryHero() {
+    val colors = AirdropTheme.colors
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(168.dp)
+                .shadow(6.dp, CircleShape)
+                .clip(CircleShape)
+                .background(colors.gray150),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.img_delivery_deliver),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+    }
+}
+
+// ─── Live states (Codex's 0/1/many machine, approved skin) ───────────────────
+
+@Composable
+private fun DeliveryLoadingState() {
+    val colors = AirdropTheme.colors
+    Box(
+        Modifier.fillMaxSize().testTag(DeliveryCenterTags.LOADING),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(color = colors.orangeMain, strokeWidth = 2.dp)
+    }
+}
+
+@Composable
+private fun DeliveryErrorState(
+    message: String,
+    onRetry: () -> Unit,
+    onContactUs: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(Spacing.md)
+            .testTag(DeliveryCenterTags.ERROR),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "Unable to load deliveries",
+            style = AirdropType.title2,
+            color = colors.textDarkTitle,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = message,
+            style = AirdropType.body2,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.md),
+        )
+        OutlineButton(
+            text = "Try Again",
+            onClick = onRetry,
+            modifier = Modifier.testTag(DeliveryCenterTags.RETRY),
+        )
+        ContactAction(onContactUs, Modifier.padding(top = Spacing.sm))
+    }
+}
+
+@Composable
+private fun EmptyDeliveryState(onRefresh: () -> Unit) {
+    DeliveryMessageCard(
+        tag = DeliveryCenterTags.EMPTY,
+        title = "No active deliveries",
+        message = "When a package is assigned for delivery, its live journey will appear here.",
+        onRefresh = onRefresh,
+    )
+}
+
+@Composable
+private fun NoDeliveryState(
+    packageId: Int,
+    onRefresh: () -> Unit,
+    onContactUs: () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        DeliveryMessageCard(
+            tag = DeliveryCenterTags.NO_DELIVERY,
+            title = "Delivery details are not available",
+            message = "Package #$packageId does not have a delivery journey to show yet.",
+            onRefresh = onRefresh,
+        )
+        ContactAction(onContactUs, Modifier.padding(bottom = Spacing.lg))
+    }
+}
+
+@Composable
+private fun DeliveryMessageCard(
+    tag: String,
+    title: String,
+    message: String,
+    onRefresh: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
     Column(
         Modifier
             .fillMaxWidth()
-            // Drop shadow underneath the card (0/12 @10%), theme-neutral.
-            .shadow(
-                elevation = 12.dp,
-                shape = RoundedCornerShape(Radius.s),
-                ambientColor = Color.Black.copy(alpha = 0.10f),
-                spotColor = Color.Black.copy(alpha = 0.10f),
-            )
+            .padding(Spacing.md)
+            .shadow(8.dp, RoundedCornerShape(Radius.s))
             .background(colors.gray100, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(20.dp)
-            .testTag("delivery-center-active"),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+            .border(1.dp, colors.cardHairline, RoundedCornerShape(Radius.s))
+            .padding(horizontal = Spacing.md, vertical = Spacing.lg)
+            .testTag(tag),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // Circular delivery illustration (Kemar: the truck image in a circle) —
-        // a compact hero that keeps the whole screen in one frame. The
-        // topographic "waves" live OUTSIDE this card, on the page background.
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .size(168.dp)
-                    .shadow(6.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(colors.gray150),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.img_delivery_deliver),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
+        Image(
+            painter = painterResource(R.drawable.img_delivery_deliver),
+            contentDescription = null,
+            modifier = Modifier.fillMaxWidth(0.72f).height(150.dp),
+            contentScale = ContentScale.Crop,
+        )
+        Text(
+            text = title,
+            style = AirdropType.title1,
+            color = colors.textDarkTitle,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = message,
+            style = AirdropType.body1,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+        )
+        RefreshAction(onRefresh)
+    }
+}
+
+@Composable
+private fun ActiveDeliveriesList(
+    deliveries: List<ActiveDelivery>,
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    onSelect: (Int) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().testTag(DeliveryCenterTags.LIST),
+        contentPadding = PaddingValues(
+            start = Spacing.md,
+            end = Spacing.md,
+            top = Spacing.sm,
+            bottom = Spacing.xl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        item("delivery-list-heading") {
+            Column(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Active deliveries",
+                        style = AirdropType.title2,
+                        color = AirdropTheme.colors.textDarkTitle,
+                    )
+                    if (refreshing) {
+                        CircularProgressIndicator(
+                            color = AirdropTheme.colors.orangeMain,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    } else {
+                        RefreshAction(onRefresh)
+                    }
+                }
+                Text(
+                    text = "Choose a package to see its live delivery journey.",
+                    style = AirdropType.body2,
+                    color = AirdropTheme.colors.textDescription,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
+        items(deliveries, key = ActiveDelivery::packageId) { delivery ->
+            ActiveDeliveryRow(delivery = delivery, onClick = { onSelect(delivery.packageId) })
+        }
+    }
+}
 
-        // Order heading — the stage below carries the live status, so no pill.
-        Column(Modifier.fillMaxWidth()) {
+@Composable
+private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.s))
+            .background(colors.gray100)
+            .border(1.dp, colors.cardHairline, RoundedCornerShape(Radius.s))
+            .clickable(onClick = onClick)
+            .padding(Spacing.md)
+            .testTag(DeliveryCenterTags.row(delivery.packageId)),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Box(
+            Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(colors.peachLight),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_shipments_status_in_transit_counter),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(colors.orangeMain),
+                modifier = Modifier.size(25.dp),
+            )
+        }
+        Column(Modifier.weight(1f)) {
             Text(
-                text = "Your Delivery",
+                text = delivery.trackingCode ?: "Package #${delivery.packageId}",
+                style = AirdropType.subtitle1,
+                color = colors.textDarkTitle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            delivery.description?.let {
+                Text(
+                    text = it,
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = humanizeDeliveryStatus(delivery.status),
+                style = AirdropType.body2.copy(fontWeight = FontWeight.SemiBold),
+                color = deliveryStatusColor(delivery.status),
+            )
+        }
+        Text(text = "›", style = AirdropType.title1, color = colors.textDescription)
+    }
+}
+
+@Composable
+private fun DeliveryDetail(
+    summary: ActiveDelivery?,
+    packageId: Int,
+    delivery: TrackedDelivery,
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    onContactUs: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.md)
+            .padding(top = Spacing.sm, bottom = Spacing.lg)
+            .navigationBarsPadding()
+            .testTag(DeliveryCenterTags.DETAIL),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (refreshing) {
+                CircularProgressIndicator(
+                    color = AirdropTheme.colors.orangeMain,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp),
+                )
+            } else {
+                RefreshAction(onRefresh)
+            }
+        }
+        DeliveryDetailCard(
+            summary = summary,
+            packageId = packageId,
+            delivery = delivery,
+        )
+        ContactAction(onContactUs, Modifier.align(Alignment.CenterHorizontally))
+    }
+}
+
+@Composable
+private fun DeliveryDetailCard(
+    summary: ActiveDelivery?,
+    packageId: Int,
+    delivery: TrackedDelivery,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .shadow(10.dp, RoundedCornerShape(Radius.s))
+            .background(colors.gray100, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.cardHairline, RoundedCornerShape(Radius.s))
+            .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        CircularDeliveryHero()
+        Column {
+            Text(
+                text = summary?.trackingCode ?: "Package #$packageId",
                 style = AirdropType.title2,
                 color = colors.textDarkTitle,
             )
-            Spacer(Modifier.height(2.dp))
+            summary?.description?.let {
+                Text(text = it, style = AirdropType.body2, color = colors.textDescription)
+            }
             Text(
-                text = orderReference,
-                style = AirdropType.body2,
-                color = colors.textDescription,
+                text = humanizeDeliveryStatus(delivery.status),
+                style = AirdropType.subtitle1,
+                color = deliveryStatusColor(delivery.status),
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
-
-        // Journey timeline — icon nodes joined by connectors; the segment
-        // leaving the current stage animates a downward flow, showing the
-        // package moving in that direction.
         Column(Modifier.fillMaxWidth()) {
-            stages.forEachIndexed { index, stage ->
-                TimelineStep(
-                    stage = stage,
-                    isLast = index == stages.lastIndex,
-                )
+            delivery.stages.forEachIndexed { index, stage ->
+                DeliveryTimelineStep(stage = stage, isLast = index == delivery.stages.lastIndex)
             }
         }
     }
 }
 
-private val NODE_SIZE = 44.dp
-
-// Timeline stage palette (shared with Swift for parity). Nodes are OUTLINED (no
-// solid fill) for a chic, understated look:
-//   • passed stage  → green
-//   • current stage → a softened orange (the brand #F15114 reads too bright here)
-//   • pending stage → grey (theme iconShape / textDescription)
-private val StagePassedGreen = Color(0xFF2E9E5B)
-private val StageCurrentOrange = Color(0xFFE06B3E)
+// ─── Timeline (shared by the live detail and the just-paid journey) ──────────
 
 /**
- * One timeline row: an icon node + a connector down to the next node (drawn to
- * the content's intrinsic height) on the left, title + detail on the right.
- * The connector leaving the CURRENT stage animates a downward flow.
+ * One approved-design timeline row: outlined icon node + connector on the left,
+ * label + detail on the right. Live rows show the server timestamp; the
+ * just-paid journey passes its canonical copy via [detail]. Upcoming stages
+ * fade back (node, icon and text together) so the front of the journey pops.
  */
 @Composable
-private fun TimelineStep(
-    stage: DeliveryStage,
+private fun DeliveryTimelineStep(
+    stage: TrackedDeliveryStage,
     isLast: Boolean,
+    detail: String? = null,
 ) {
     val colors = AirdropTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
-            // Not-yet-reached stages (Out for Delivery, Delivered) fade back —
-            // node, icon and text together — so the front of the journey pops.
-            .alpha(if (stage.state == DeliveryStageState.PENDING) 0.4f else 1f),
+            .alpha(if (stage.state == "pending") 0.4f else 1f)
+            .testTag(DeliveryCenterTags.stage(stage.key)),
     ) {
-        // Rail: icon node + vertical connector.
         Column(
-            Modifier
-                .width(NODE_SIZE)
-                .fillMaxHeight(),
+            Modifier.width(44.dp).fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            StageNode(stage)
+            DeliveryStageNode(stage)
             if (!isLast) {
-                Connector(
+                DeliveryStageConnector(
+                    state = stage.state,
                     modifier = Modifier.weight(1f),
-                    // Segment leaving a DONE stage is solid orange; leaving the
-                    // CURRENT stage flows; ahead of the front it is grey.
-                    mode = when (stage.state) {
-                        DeliveryStageState.DONE -> ConnectorMode.DONE
-                        DeliveryStageState.CURRENT -> ConnectorMode.FLOWING
-                        DeliveryStageState.PENDING -> ConnectorMode.PENDING
-                    },
                 )
             }
         }
-
         Spacer(Modifier.width(12.dp))
-
-        // Content — top padding aligns the title with the node centre; bottom
-        // padding gives consecutive rows breathing room (the connector spans it).
         Column(
             Modifier
                 .weight(1f)
-                // Taller bottom padding extends the connector line and spreads the
-                // stages so the timeline fills the frame (no big empty gap below).
                 .padding(top = 10.dp, bottom = if (isLast) 0.dp else 30.dp),
         ) {
             Text(
-                text = stage.title,
+                text = stage.label,
                 style = AirdropType.subtitle1,
-                color = if (stage.state == DeliveryStageState.PENDING) {
-                    colors.textDescription
-                } else {
-                    colors.textDarkTitle
-                },
+                color = colors.textDarkTitle,
             )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = stage.detail,
-                style = AirdropType.body2,
-                color = colors.textDescription,
-            )
+            val detailText = detail ?: formatDeliveryTimestamp(stage.at)
+            detailText?.let {
+                Text(
+                    text = it,
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun StageNode(stage: DeliveryStage) {
+private fun DeliveryStageNode(stage: TrackedDeliveryStage) {
     val colors = AirdropTheme.colors
-    // Outlined nodes — ring + icon carry the colour, the inside stays empty.
-    val accent = when (stage.state) {
-        DeliveryStageState.DONE -> StagePassedGreen
-        DeliveryStageState.CURRENT -> StageCurrentOrange
-        DeliveryStageState.PENDING -> colors.iconShape
-    }
-    val iconColor = when (stage.state) {
-        DeliveryStageState.DONE -> StagePassedGreen
-        DeliveryStageState.CURRENT -> StageCurrentOrange
-        DeliveryStageState.PENDING -> colors.textDescription
-    }
+    val accent = deliveryStageColor(stage.state)
     Box(
-        Modifier.size(NODE_SIZE),
+        Modifier.size(44.dp),
         contentAlignment = Alignment.Center,
     ) {
-        // A soft pulsing ring radiates from the current stage.
-        if (stage.state == DeliveryStageState.CURRENT) {
-            val pulse = rememberInfiniteTransition(label = "node-pulse")
+        if (stage.state == "current") {
+            val pulse = rememberInfiniteTransition(label = "delivery-stage-pulse")
             val scale by pulse.animateFloat(
                 initialValue = 1f,
                 targetValue = 1.45f,
                 animationSpec = infiniteRepeatable(
-                    tween(1300, easing = FastOutSlowInEasing),
+                    tween(1_300, easing = FastOutSlowInEasing),
                     RepeatMode.Restart,
                 ),
-                label = "pulse-scale",
+                label = "delivery-stage-pulse-scale",
             )
             val ringAlpha by pulse.animateFloat(
                 initialValue = 0.4f,
                 targetValue = 0f,
                 animationSpec = infiniteRepeatable(
-                    tween(1300, easing = LinearEasing),
+                    tween(1_300, easing = LinearEasing),
                     RepeatMode.Restart,
                 ),
-                label = "pulse-alpha",
+                label = "delivery-stage-pulse-alpha",
             )
             Box(
                 Modifier
-                    .size(NODE_SIZE)
+                    .size(44.dp)
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale
                         alpha = ringAlpha
                     }
-                    .border(2.dp, StageCurrentOrange, CircleShape),
+                    .border(2.dp, DeliveryStagePalette.Current, CircleShape),
             )
         }
-        // Outlined badge — the inside stays the card surface (no fill).
         Box(
             Modifier
-                .size(NODE_SIZE)
+                .size(44.dp)
                 .clip(CircleShape)
                 .background(colors.gray100)
                 .border(2.dp, accent, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(stage.iconRes),
+                painter = painterResource(deliveryStageIcon(stage.key)),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(iconColor),
+                colorFilter = ColorFilter.tint(accent),
                 modifier = Modifier.size(22.dp),
             )
         }
     }
 }
 
-private enum class ConnectorMode { DONE, FLOWING, PENDING }
-
-/**
- * Vertical connector between two nodes. DONE = solid orange, PENDING = solid
- * grey, FLOWING = grey track with orange dots streaming downward (the package
- * is moving toward the next stage).
- */
 @Composable
-private fun Connector(modifier: Modifier, mode: ConnectorMode) {
+private fun DeliveryStageConnector(state: String, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     val track = colors.iconShape
-    val flow by rememberInfiniteTransition(label = "flow").animateFloat(
+    val flow by rememberInfiniteTransition(label = "delivery-stage-flow").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
-        label = "flow-pos",
+        animationSpec = infiniteRepeatable(
+            tween(1_500, easing = LinearEasing),
+            RepeatMode.Restart,
+        ),
+        label = "delivery-stage-flow-position",
     )
-    Canvas(modifier.width(NODE_SIZE)) {
-        val cx = size.width / 2f
-        val lineW = 2.dp.toPx()
-        when (mode) {
-            // Behind the front = passed = green.
-            ConnectorMode.DONE -> drawLine(
-                StagePassedGreen, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round,
+    Canvas(modifier.width(44.dp)) {
+        val centerX = size.width / 2f
+        val stroke = 2.dp.toPx()
+        when (state) {
+            "done" -> drawLine(
+                DeliveryStagePalette.Passed,
+                Offset(centerX, 0f),
+                Offset(centerX, size.height),
+                stroke,
+                StrokeCap.Round,
             )
-            ConnectorMode.PENDING -> drawLine(
-                track, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round,
-            )
-            ConnectorMode.FLOWING -> {
-                drawLine(track, Offset(cx, 0f), Offset(cx, size.height), lineW, StrokeCap.Round)
-                val r = 3.5.dp.toPx()
-                repeat(3) { k ->
-                    val frac = (flow + k / 3f) % 1f
-                    val y = frac * size.height
-                    // Fade the dots in and out at the ends of the segment.
-                    val a = sin(frac * Math.PI).toFloat().coerceIn(0.15f, 1f)
-                    drawCircle(StageCurrentOrange.copy(alpha = a), r, Offset(cx, y))
+            "current" -> {
+                drawLine(
+                    track,
+                    Offset(centerX, 0f),
+                    Offset(centerX, size.height),
+                    stroke,
+                    StrokeCap.Round,
+                )
+                val radius = 3.5.dp.toPx()
+                repeat(3) { index ->
+                    val fraction = (flow + index / 3f) % 1f
+                    val alpha = sin(fraction * Math.PI).toFloat().coerceIn(0.15f, 1f)
+                    drawCircle(
+                        color = DeliveryStagePalette.Current.copy(alpha = alpha),
+                        radius = radius,
+                        center = Offset(centerX, fraction * size.height),
+                    )
                 }
             }
+            else -> drawLine(
+                track,
+                Offset(centerX, 0f),
+                Offset(centerX, size.height),
+                stroke,
+                StrokeCap.Round,
+            )
         }
     }
 }
 
-// ─── Contact affordance ──────────────────────────────────────────────────────
-
-/** Compact icon + label (no heavy button) — taps through to live chat. */
 @Composable
-private fun ContactAction(onContactUs: () -> Unit) {
+private fun deliveryStageColor(state: String): Color {
+    val colors = AirdropTheme.colors
+    return when (state) {
+        "done" -> DeliveryStagePalette.Passed
+        "current" -> DeliveryStagePalette.Current
+        else -> colors.iconShape
+    }
+}
+
+private fun deliveryStageIcon(key: String): Int = when (key) {
+    "order_confirmed" -> R.drawable.ic_shipments_status_shipment_received
+    "preparing_dispatch" -> R.drawable.ic_shipments_status_processing_warehouse
+    "assigned" -> R.drawable.ic_shipments_status_shipment_received
+    "out_for_delivery" -> R.drawable.ic_shipments_status_in_transit_counter
+    "delivered" -> R.drawable.ic_shipments_status_delivered
+    else -> R.drawable.ic_tracking
+}
+
+@Composable
+private fun RefreshAction(onRefresh: () -> Unit) {
+    Text(
+        text = "Refresh",
+        style = AirdropType.subtitle1,
+        color = AirdropTheme.colors.orangeMain,
+        modifier = Modifier
+            .clip(RoundedCornerShape(Radius.xs))
+            .clickable(onClick = onRefresh)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .testTag(DeliveryCenterTags.REFRESH),
+    )
+}
+
+@Composable
+private fun ContactAction(onContactUs: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
     Row(
-        Modifier
+        modifier
             .clip(RoundedCornerShape(Radius.xs))
             .clickable(onClick = onContactUs)
             .padding(horizontal = 12.dp, vertical = 8.dp)
-            .testTag("delivery-center-contact"),
+            .testTag(DeliveryCenterTags.CONTACT),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -469,47 +898,28 @@ private fun ContactAction(onContactUs: () -> Unit) {
     }
 }
 
-// ─── Empty state — reached from Home with no active delivery ──────────────────
+internal fun humanizeDeliveryStatus(status: String): String =
+    status
+        .trim()
+        .split('_')
+        .filter(String::isNotBlank)
+        .joinToString(" ") { word ->
+            word.lowercase(Locale.US).replaceFirstChar { it.titlecase(Locale.US) }
+        }
 
-@Composable
-private fun EmptyDeliveryCard() {
-    val colors = AirdropTheme.colors
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 12.dp,
-                shape = RoundedCornerShape(Radius.s),
-                ambientColor = Color.Black.copy(alpha = 0.10f),
-                spotColor = Color.Black.copy(alpha = 0.10f),
-            )
-            .background(colors.gray100, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(horizontal = Spacing.md, vertical = 30.dp)
-            .testTag("delivery-center-empty"),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Image(
-            painter = painterResource(R.drawable.img_delivery_deliver),
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxWidth(0.7f)
-                .aspectRatio(1000f / 667f),
-            contentScale = ContentScale.Fit,
-        )
-        Text(
-            text = "No active deliveries",
-            style = AirdropType.title1,
-            color = colors.textDarkTitle,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = "When you choose delivery at checkout, you'll be able to " +
-                "track your package's journey right here.",
-            style = AirdropType.body1,
-            color = colors.textDescription,
-            textAlign = TextAlign.Center,
-        )
-    }
+internal fun deliveryStatusColor(status: String): Color = when (status.trim().lowercase(Locale.US)) {
+    "delivered" -> DeliveryStagePalette.Passed
+    "failed" -> AlertPalette.Error
+    "cancelled" -> AlertPalette.Cancel
+    else -> DeliveryStagePalette.Current
 }
+
+internal fun formatDeliveryTimestamp(value: String?): String? {
+    val timestamp = value?.trim()?.takeIf(String::isNotEmpty) ?: return null
+    return runCatching {
+        OffsetDateTime.parse(timestamp).format(DELIVERY_TIME_FORMATTER)
+    }.getOrNull()
+}
+
+private val DELIVERY_TIME_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("MMM d, yyyy • h:mm a", Locale.US)
