@@ -423,23 +423,38 @@ class HomeActivityTilesScreenshotTest {
         instrumentation.runOnMainSync { ThemeController.set(mode) }
         setHomeContent()
 
-        listOf("standard", "seadrop", "express").forEach { type ->
+        warehouseShadowCases().forEach { warehouseCase ->
             compose.onNodeWithTag("home-warehouse-carousel")
-                .performScrollToNode(hasTestTag("home-warehouse-$type"))
+                .performScrollToNode(hasTestTag("home-warehouse-${warehouseCase.type}"))
             compose.waitForIdle()
 
             val shadow = compose.onNodeWithTag(
-                "home-warehouse-shadow-$type",
+                "home-warehouse-shadow-${warehouseCase.type}",
                 useUnmergedTree = true,
             )
-            assertTrue("$type $themeName shadow must be visible", nodeHasVisibleBounds(shadow))
+            assertTrue(
+                "${warehouseCase.type} $themeName shadow must have visible bounds",
+                nodeHasVisibleBounds(shadow),
+            )
+            assertWarehouseShadowTop(warehouseCase, shadow)
 
-            val bitmap = captureBitmapWithRetry("$type $themeName warehouse card") {
-                compose.onNodeWithTag("home-warehouse-$type")
+            val shadowBitmap = captureVisibleNode(
+                shadow,
+                "${warehouseCase.type} $themeName warehouse shadow",
+            )
+            assertRenderedShadowPixels(
+                bitmap = shadowBitmap,
+                label = "${warehouseCase.type} $themeName warehouse shadow",
+            )
+
+            val bitmap = captureBitmapWithRetry(
+                "${warehouseCase.type} $themeName warehouse card",
+            ) {
+                compose.onNodeWithTag("home-warehouse-${warehouseCase.type}")
                     .captureToImage()
                     .asAndroidBitmap()
             }
-            val filename = "home_warehouse_${type}_shadow_$themeName.png"
+            val filename = "home_warehouse_${warehouseCase.type}_shadow_$themeName.png"
             FileOutputStream(File(screenshotDir(), filename)).use { stream ->
                 check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
                     "Unable to encode $filename"
@@ -447,6 +462,78 @@ class HomeActivityTilesScreenshotTest {
             }
             saveProofScreenshot(bitmap, filename)
         }
+    }
+
+    private fun assertWarehouseShadowTop(
+        warehouseCase: WarehouseShadowCase,
+        shadow: SemanticsNodeInteraction,
+    ) {
+        val shadowBounds = shadow.getUnclippedBoundsInRoot()
+        val imageBounds = compose.onNodeWithContentDescription(
+            warehouseCase.imageDescription,
+            useUnmergedTree = true,
+        ).getUnclippedBoundsInRoot()
+        val effectiveTop = boundsTop(shadowBounds) -
+            boundsTop(imageBounds) -
+            rotatedTopExpansion(warehouseCase)
+
+        assertClose(
+            warehouseCase.expectedTop,
+            effectiveTop,
+            "${warehouseCase.type} floor-shadow top offset",
+        )
+    }
+
+    private fun rotatedTopExpansion(warehouseCase: WarehouseShadowCase): Float {
+        val radians = Math.toRadians(warehouseCase.rotationDegrees.toDouble())
+        val rotatedHeight =
+            kotlin.math.abs(warehouseCase.width * kotlin.math.sin(radians)) +
+                kotlin.math.abs(warehouseCase.height * kotlin.math.cos(radians))
+        return ((warehouseCase.height - rotatedHeight) / 2.0).toFloat()
+    }
+
+    private fun assertRenderedShadowPixels(bitmap: Bitmap, label: String) {
+        var minAlpha = 255
+        var maxAlpha = 0
+        var minLuminance = 255
+        var maxLuminance = 0
+        var alphaSignalPixels = 0
+
+        for (x in 0 until bitmap.width) {
+            for (y in 0 until bitmap.height) {
+                val pixel = bitmap.getPixel(x, y)
+                val alpha = (pixel ushr 24) and 0xFF
+                minAlpha = minOf(minAlpha, alpha)
+                maxAlpha = maxOf(maxAlpha, alpha)
+                if (alpha >= SHADOW_ALPHA_SIGNAL_THRESHOLD) {
+                    alphaSignalPixels += 1
+                }
+                if (alpha > 0) {
+                    val red = (pixel shr 16) and 0xFF
+                    val green = (pixel shr 8) and 0xFF
+                    val blue = pixel and 0xFF
+                    val luminance = (red * 299 + green * 587 + blue * 114) / 1_000
+                    minLuminance = minOf(minLuminance, luminance)
+                    maxLuminance = maxOf(maxLuminance, luminance)
+                }
+            }
+        }
+
+        val minimumSignalPixels = maxOf(4, bitmap.width * bitmap.height / 100)
+        val hasAlphaGradient =
+            maxAlpha >= SHADOW_MINIMUM_CENTER_ALPHA &&
+                maxAlpha - minAlpha >= SHADOW_MINIMUM_ALPHA_RANGE &&
+                alphaSignalPixels >= minimumSignalPixels
+        val hasCompositedGradient =
+            minAlpha == 255 &&
+                maxLuminance - minLuminance >= SHADOW_MINIMUM_LUMINANCE_RANGE
+
+        assertTrue(
+            "$label must render gradient pixels " +
+                "(alpha=$minAlpha..$maxAlpha, luminance=$minLuminance..$maxLuminance, " +
+                "signalPixels=$alphaSignalPixels/$minimumSignalPixels)",
+            hasAlphaGradient || hasCompositedGradient,
+        )
     }
 
     private fun saveRootScreenshot(filename: String) {
@@ -723,6 +810,42 @@ class HomeActivityTilesScreenshotTest {
         val imageDescription: String,
     )
 
+    private data class WarehouseShadowCase(
+        val type: String,
+        val imageDescription: String,
+        val expectedTop: Float,
+        val width: Float,
+        val height: Float,
+        val rotationDegrees: Float,
+    )
+
+    private fun warehouseShadowCases(): List<WarehouseShadowCase> = listOf(
+        WarehouseShadowCase(
+            type = "standard",
+            imageDescription = "Standard",
+            expectedTop = 72f,
+            width = 83.1f,
+            height = 13.5f,
+            rotationDegrees = 0.16f,
+        ),
+        WarehouseShadowCase(
+            type = "seadrop",
+            imageDescription = "SeaDrop",
+            expectedTop = 70f,
+            width = 74.6f,
+            height = 15.2f,
+            rotationDegrees = 12.54f,
+        ),
+        WarehouseShadowCase(
+            type = "express",
+            imageDescription = "Express",
+            expectedTop = 60f,
+            width = 77.9f,
+            height = 21.2f,
+            rotationDegrees = 0f,
+        ),
+    )
+
     private companion object {
         private const val SWIFT_TEXT_DARK_TITLE = 0xFF292929.toInt()
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
@@ -732,6 +855,10 @@ class HomeActivityTilesScreenshotTest {
         private const val COLOR_TOLERANCE = 8
         private const val CAPTURE_ATTEMPTS = 3
         private const val CAPTURE_RETRY_DELAY_MS = 150L
+        private const val SHADOW_ALPHA_SIGNAL_THRESHOLD = 64
+        private const val SHADOW_MINIMUM_CENTER_ALPHA = 80
+        private const val SHADOW_MINIMUM_ALPHA_RANGE = 32
+        private const val SHADOW_MINIMUM_LUMINANCE_RANGE = 8
         private const val PROOF_SCREENSHOT_DIR = "Pictures/kotlin_ui_proof/home_refer_icon"
     }
 }
