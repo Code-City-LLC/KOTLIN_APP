@@ -183,7 +183,7 @@ private fun ActiveDeliveryCard(orderReference: String) {
         ),
     )
 
-    Column(
+    Box(
         Modifier
             .fillMaxWidth()
             // Drop shadow underneath the card (0/12 @10%), theme-neutral.
@@ -193,12 +193,28 @@ private fun ActiveDeliveryCard(orderReference: String) {
                 ambientColor = Color.Black.copy(alpha = 0.10f),
                 spotColor = Color.Black.copy(alpha = 0.10f),
             )
-            .background(colors.gray100, RoundedCornerShape(Radius.s))
+            .clip(RoundedCornerShape(Radius.s))
+            .background(colors.gray100)
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .padding(16.dp)
             .testTag("delivery-center-active"),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        // Topographic contour lines as a VISIBLE textured backdrop behind the
+        // card content — the same lines as the payment-success page (~8%).
+        Image(
+            painter = painterResource(R.drawable.img_success_bg_topo),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(
+                if (colors.isDark) Color.White else Color(0xFF292929),
+            ),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .matchParentSize()
+                .alpha(0.08f),
+        )
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
         // Delivery illustration (1000x667) inside a soft rounded well. A blurred,
         // darkened copy offset downward sits behind it as a soft drop shadow so
         // the truck lifts off the surface.
@@ -259,6 +275,7 @@ private fun ActiveDeliveryCard(orderReference: String) {
                     isLast = index == stages.lastIndex,
                 )
             }
+        }
         }
     }
 }
