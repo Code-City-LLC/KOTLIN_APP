@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -13,6 +14,7 @@ import com.ga.airdrop.core.designsystem.theme.TextSizeController
 import com.ga.airdrop.core.navigation.Routes
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -52,8 +54,15 @@ class TextSizeSettingsRowParityTest {
         TextSizeController.set(priorLevel)
     }
 
+    /**
+     * Kemar 2026-07-20 superseded the earlier "Settings just navigates" rule:
+     * the row now opens an in-place picker sheet. This test previously asserted
+     * the OLD navigation and had been failing silently ever since (it is not in
+     * the connected gate's mandatory class list, and the commit that changed the
+     * behaviour touched no test file, so nothing selected it).
+     */
     @Test
-    fun settingsTextSizeRowNavigatesToPreferences() {
+    fun settingsTextSizeRowOpensTheInPlacePickerAndDoesNotNavigate() {
         var navigatedTo: String? = null
         compose.setContent {
             AirdropTheme {
@@ -69,9 +78,16 @@ class TextSizeSettingsRowParityTest {
         compose.onNodeWithText("Standard").assertIsDisplayed()
 
         compose.onNodeWithTag("${SettingsTags.TEXT_SIZE}-row").performClick()
-        assertEquals(
-            "Settings' Text Size row must route to Preferences — the editor lives there",
-            Routes.PREFERENCES,
+
+        // The sheet opens in place: every level is offered right here.
+        TextSizeController.Level.entries.forEach { level ->
+            compose.onAllNodesWithText(level.displayName).fetchSemanticsNodes().isNotEmpty()
+                .let { present ->
+                    assertEquals("Level ${level.displayName} must be offered in the sheet", true, present)
+                }
+        }
+        assertNull(
+            "Settings' Text Size row must NOT navigate away — it edits in place (Kemar 2026-07-20)",
             navigatedTo,
         )
     }
