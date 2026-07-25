@@ -790,7 +790,7 @@ private fun DeliveryTimelineStep(
                 .padding(top = 6.dp, bottom = if (isLast) 0.dp else 12.dp),
         ) {
             Text(
-                text = stage.label,
+                text = customerSafeStageLabel(stage),
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
             )
@@ -935,6 +935,36 @@ private fun deliveryStageColor(state: String): Color {
     }
 }
 
+/**
+ * Never render an operations-facing server label to a customer.
+ *
+ * Laravel emits `label = "Driver Assigned"` for the `assigned` stage. The
+ * canonical four-stage path already substitutes our approved copy, but the
+ * fallback path (unrecognised server projection) would otherwise print the raw
+ * server string. Map known keys to approved labels, and scrub driver/courier
+ * wording out of anything unknown.
+ */
+private fun customerSafeStageLabel(stage: TrackedDeliveryStage): String {
+    APPROVED_STAGE_LABELS[stage.key]?.let { return it }
+    val raw = stage.label.trim()
+    val lowered = raw.lowercase(Locale.US)
+    if (BANNED_STAGE_PHRASES.any { lowered.contains(it) }) {
+        return "Preparing for Dispatch"
+    }
+    return raw
+}
+
+private val APPROVED_STAGE_LABELS = mapOf(
+    "order_confirmed" to "Order Confirmed",
+    "confirmed" to "Order Confirmed",
+    "preparing_dispatch" to "Preparing for Dispatch",
+    "assigned" to "Preparing for Dispatch",
+    "out_for_delivery" to "Out for Delivery",
+    "delivered" to "Delivered",
+)
+
+private val BANNED_STAGE_PHRASES = listOf("driver", "courier", "dispatcher", "rider")
+
 private fun deliveryStageIcon(key: String): Int = when (key) {
     "order_confirmed" -> R.drawable.ic_shipments_status_shipment_received
     "preparing_dispatch" -> R.drawable.ic_shipments_status_processing_warehouse
@@ -1009,3 +1039,7 @@ internal fun formatDeliveryTimestamp(value: String?): String? {
 
 private val DELIVERY_TIME_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("MMM d, yyyy • h:mm a", Locale.US)
+
+/** Test seam for [customerSafeStageLabel] (same-package internal). */
+internal fun customerSafeStageLabelForTest(stage: TrackedDeliveryStage): String =
+    customerSafeStageLabel(stage)

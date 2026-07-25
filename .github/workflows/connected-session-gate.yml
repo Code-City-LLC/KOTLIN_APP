@@ -12,6 +12,7 @@ on:
       - "app/src/main/java/com/ga/airdrop/core/session/**"
       - "app/src/main/java/com/ga/airdrop/feature/auth/**"
       - "app/src/main/java/com/ga/airdrop/feature/cart/**"
+      - "app/src/main/java/com/ga/airdrop/feature/delivery/**"
       - "app/src/main/java/com/ga/airdrop/feature/shop/**"
       - "app/src/main/java/com/ga/airdrop/data/**"
       - "app/src/main/java/com/ga/airdrop/feature/home/**"
