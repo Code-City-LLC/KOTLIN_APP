@@ -161,12 +161,14 @@ fun AirdropHeader(
                     )
                     if (unreadNotifications > 0) {
                         // Same badge treatment as the cart count: 18dp circle,
-                        // top -2 / end +6, bold 10, white on orangeMain.
+                        // Kemar (2026-07-25): badge sits HIGHER on the icon
+                        // (y -9, was -2) so the number clears the glyph.
+                        // end +6, bold 10, white on orangeMain.
                         // Clamped to 99+ so a large inbox can't stretch the row.
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .offset(x = 6.dp, y = (-2).dp)
+                                .offset(x = 6.dp, y = (-9).dp)
                                 .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
                                 .background(colors.orangeMain, CircleShape)
                                 .padding(horizontal = 4.dp)
@@ -196,12 +198,13 @@ fun AirdropHeader(
                             .clickable(onClick = onCartClick),
                     )
                     if (cartCount > 0) {
-                        // Swift cartBadgeLabel: 18pt circle, top -2 / end +6,
-                        // bold 10, white on orangeMain.
+                        // Swift cartBadgeLabel: 18pt circle, end +6, bold 10,
+                        // white on orangeMain. Kemar (2026-07-25): raised to
+                        // y -9 to match the bell badge.
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .offset(x = 6.dp, y = (-2).dp)
+                                .offset(x = 6.dp, y = (-9).dp)
                                 .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
                                 .background(colors.orangeMain, CircleShape),
                             contentAlignment = Alignment.Center,
