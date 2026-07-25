@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.ga.airdrop.core.designsystem.components.CifCopy
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.Radius
@@ -38,7 +39,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
  */
 internal object CustomsNoticeContent {
     const val TITLE = "Customs Notice"
-    const val CIF_TITLE = "CIF Value"
+    val CIF_TITLE = CifCopy.TITLE
 
     // The lead is split around the CIF phrase so that phrase can be an inline
     // tap target (Kemar: "even inside of that, if they click on CIF value, it
@@ -50,14 +51,10 @@ internal object CustomsNoticeContent {
     const val LEAD_SUFFIX = " value of the shipment."
     const val LEAD = LEAD_PREFIX + LEAD_CIF_PHRASE + LEAD_SUFFIX
 
-    const val COMPONENTS_INTRO = "The CIF value represents the total landed cost of an item " +
-        "and is made up of three key components:"
-
-    val bullets = listOf(
-        "Cost:" to "The item's purchase price, declared value, or invoice amount.",
-        "Insurance:" to "The cost of insuring the item during transport.",
-        "Freight:" to "The shipping and handling cost to the destination port.",
-    )
+    // Shared with the CIF sheet — one source of truth so the notice and the
+    // CIF explainer can never drift apart.
+    val COMPONENTS_INTRO = CifCopy.COMPONENTS_INTRO
+    val bullets = CifCopy.bullets
 
     val closingParagraphs = listOf(
         "Customs duties are applied in accordance with the Jamaica Customs Tariff, which " +

@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.CifValueSheet
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -167,8 +168,8 @@ fun CalculatorResultsScreen(
 
     if (showCifSheet) {
         CifValueSheet(
-            charges = charges,
-            usdToJmd = usdToJmd,
+            rows = charges.cifRows(),
+            exchangeRate = usdToJmd,
             onDismiss = { showCifSheet = false },
         )
     }
@@ -364,165 +365,5 @@ private fun DisclaimerCard(onLinkClick: () -> Unit) {
                 },
             )
         },
-    )
-}
-
-// ─── CIF Value bottom sheet — Figma 40001817:20191 ───
-
-/** Total row tint — Figma secondary-blue tertiary-4 (not yet in BrandPalette). */
-private val CifTotalRowBackground = Color(0xFFE1F6FF)
-
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-internal fun CifValueSheet(
-    charges: Charges,
-    usdToJmd: Double,
-    onDismiss: () -> Unit,
-) {
-    val colors = AirdropTheme.colors
-    androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = colors.gray150,
-        shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
-        dragHandle = {
-            Box(
-                Modifier
-                    .padding(top = Spacing.sm)
-                    .size(width = 100.dp, height = 6.dp)
-                    .background(colors.gray300, RoundedCornerShape(Radius.full))
-            )
-        },
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.md)
-                .padding(top = Spacing.sm, bottom = Spacing.lg)
-                .navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(text = "CIF Value", style = AirdropType.h5, color = colors.textDarkTitle)
-            Text(
-                text = "The CIF value represents the total landed cost of an item and is made up of three key components:",
-                style = AirdropType.body2,
-                color = colors.textDarkTitle,
-            )
-            CifBullet(bold = "Cost: ", rest = "The item’s purchase price, declared value, or invoice amount.")
-            CifBullet(bold = "Insurance: ", rest = "The cost of insuring the item during transport.")
-            CifBullet(bold = "Freight: ", rest = "The shipping and handling cost to the destination port.")
-
-            // Services / USD-JMD table
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.xs)
-                    .background(colors.gray100, RoundedCornerShape(Radius.s))
-                    .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s)),
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(colors.gray150, RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s)),
-                ) {
-                    CifHeaderCell("Services", Modifier.weight(1f))
-                    CifHeaderCell("USD / JMD", Modifier.weight(1f))
-                }
-                CifTableDivider()
-                CifTableRow("Cost (Invoice Amount)", charges.invoiceAmount, usdToJmd, colors.gray100)
-                CifTableDivider()
-                CifTableRow("Insurance", charges.insurance, usdToJmd, colors.gray150)
-                CifTableDivider()
-                CifTableRow("Freight", charges.freight, usdToJmd, colors.gray100)
-                CifTableDivider()
-                val total = charges.invoiceAmount + charges.insurance + charges.freight
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(
-                            CifTotalRowBackground,
-                            RoundedCornerShape(bottomStart = Radius.s, bottomEnd = Radius.s),
-                        ),
-                ) {
-                    CifTotalCell("Total", Modifier.weight(1f))
-                    CifTotalCell(
-                        "${formatDecimal(total)} / ${formatDecimal(total * usdToJmd)}",
-                        Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CifBullet(bold: String, rest: String) {
-    val colors = AirdropTheme.colors
-    Row {
-        Text(
-            text = "•",
-            style = AirdropType.body2,
-            color = colors.textDarkTitle,
-            modifier = Modifier.padding(horizontal = Spacing.xs),
-        )
-        Text(
-            text = buildAnnotatedString {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(bold) }
-                append(rest)
-            },
-            style = AirdropType.body2,
-            color = colors.textDarkTitle,
-        )
-    }
-}
-
-@Composable
-private fun CifHeaderCell(text: String, modifier: Modifier) {
-    Text(
-        text = text,
-        style = AirdropType.subtitle2,
-        color = AirdropTheme.colors.textDarkTitle,
-        textAlign = TextAlign.Center,
-        modifier = modifier.padding(Spacing.sm),
-    )
-}
-
-@Composable
-private fun CifTableRow(label: String, usd: Double, rate: Double, background: Color) {
-    Row(Modifier.fillMaxWidth().background(background)) {
-        CifBodyCell(label, Modifier.weight(1f))
-        CifBodyCell("${formatDecimal(usd)} / ${formatDecimal(usd * rate)}", Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun CifBodyCell(text: String, modifier: Modifier) {
-    Text(
-        text = text,
-        style = AirdropType.body3,
-        color = AirdropTheme.colors.textDarkTitle,
-        textAlign = TextAlign.Center,
-        modifier = modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-    )
-}
-
-@Composable
-private fun CifTotalCell(text: String, modifier: Modifier) {
-    Text(
-        text = text,
-        style = AirdropType.body3.copy(fontWeight = FontWeight.Bold),
-        color = BrandPalette.BlueAccentTertiary1,
-        textAlign = TextAlign.Center,
-        modifier = modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-    )
-}
-
-@Composable
-private fun CifTableDivider() {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(AirdropTheme.colors.divider)
     )
 }

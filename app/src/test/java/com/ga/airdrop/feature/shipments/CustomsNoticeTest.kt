@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.shipments
 
+import com.ga.airdrop.core.designsystem.components.formatUsdJmd
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

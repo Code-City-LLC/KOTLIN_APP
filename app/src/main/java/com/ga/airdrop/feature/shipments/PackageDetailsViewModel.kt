@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.shipments
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.BuildConfig
+import com.ga.airdrop.core.designsystem.components.CifRow
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.feature.cart.CartServerGateway

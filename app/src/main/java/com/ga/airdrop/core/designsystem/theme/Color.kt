@@ -49,6 +49,8 @@ object BrandPalette {
     val BlueAccentTertiary1 = Color(0xFF0872A1)
     val BlueAccentTertiary2 = Color(0xFF40C4FF)
     val BlueAccentTertiary3 = Color(0xFFA6E3FF)
+    /** Secondary/Blue/Tertiary 4 — CIF Value table Total row fill. */
+    val BlueAccentTertiary4 = Color(0xFFE1F6FF)
 
     // Buttons (function state) — synced with RN buttons{}
     val ButtonStatic = Color(0xFFFF8000)
@@ -91,17 +93,6 @@ object DeliveryStagePalette {
 }
 
 // ─── Customer-tier accents ────────────────────────────────────────────────
-/**
- * CIF Value table (Figma 40001761:29633) — Secondary/Blue tokens.
- * NOTE: BrandPalette.BlueTertiary1/4 are PURPLE (#3E3499/#C4BDFF) and are NOT
- * these; do not substitute them.
- */
-object CifTablePalette {
-    /** Secondary Color/Blue/Tertiary 4 — Total row fill. */
-    val TotalFill = Color(0xFFE1F6FF)
-    /** Secondary Color/Blue/Tertiary 1 — Total row label. */
-    val TotalLabel = Color(0xFF0872A1)
-}
 
 object TierPalette {
     val BronzeSaver2 = Color(0xFFD2554D)

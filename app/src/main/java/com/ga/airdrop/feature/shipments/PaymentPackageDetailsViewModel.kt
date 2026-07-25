@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.shipments
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.designsystem.components.CifRow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -24,6 +25,18 @@ data class PaymentPackageDetailsUiState(
         get() = payment?.totalAmount
             ?: detail?.additionalChargesTotal
             ?: detail?.additionalCharges?.values?.sum()?.takeIf { detail.additionalCharges.isNotEmpty() }
+
+    /**
+     * CIF components for the shared CIF Value sheet (Figma 40001761:29633).
+     * Insurance is not exposed on the packages payload, so it stays null and
+     * renders as an em-dash rather than a fabricated 0.00 — see CifValueSheet.
+     */
+    val cifRows: List<CifRow>
+        get() = listOf(
+            CifRow("Cost (Invoice Amount)", detail?.amount),
+            CifRow("Insurance", null),
+            CifRow("Freight", detail?.shippingPrice),
+        )
 }
 
 /**

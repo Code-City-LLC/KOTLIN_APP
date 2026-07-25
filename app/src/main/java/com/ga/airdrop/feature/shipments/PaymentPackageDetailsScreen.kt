@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.CifValueSheet
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
@@ -102,11 +103,11 @@ fun PaymentPackageDetailsScreen(
         }
 
         if (state.showCifInfo) {
-            ShipmentsAlertDialog(
-                title = "CIF Value",
-                message = "CIF = Cost + Insurance + Freight — the package value used to compute customs charges.",
-                confirmText = "OK",
-                onConfirm = { viewModel.showCifInfo(false) },
+            // ⚠️ RULE (Kemar 2026-07-25): every CIF Value affordance opens the
+            // Figma CIF sheet (40001761:29633) — never a one-line alert.
+            CifValueSheet(
+                rows = state.cifRows,
+                exchangeRate = state.effectiveRate,
                 onDismiss = { viewModel.showCifInfo(false) },
             )
         }
