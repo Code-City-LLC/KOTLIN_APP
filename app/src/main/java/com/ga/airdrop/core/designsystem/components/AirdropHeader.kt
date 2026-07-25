@@ -91,12 +91,12 @@ fun AirdropHeader(
     // Figma dark scrim; over page content we tint the theme surface at 0.70.
     // Single source of truth + build-enforced (AirdropChromeTest asserts alpha<1).
     val headerBg = AirdropChrome.headerBackground(overImage, colors.gray200)
-    // Over the dark hero scrim the greeting + icons are ALWAYS white in BOTH
-    // themes (Figma home header 40001464:28926: white greeting, white bell/cart/
-    // coin over gradiant/black/70). Only the Solid style (over page content)
-    // uses the theme-adaptive title/icon color.
-    val headerText = if (overImage) BrandPalette.White else colors.textDarkTitle
-    val headerIcon = if (overImage) BrandPalette.White else colors.iconSelected
+    // ⚠️ Kemar (2026-07-25): the header is LIGHT on every tab, matching the
+    // footer — so the greeting + icons are theme-adaptive everywhere. They were
+    // forced white for the old dark hero scrim; white-on-light was unreadable
+    // once that scrim was removed.
+    val headerText = colors.textDarkTitle
+    val headerIcon = colors.iconSelected
 
     Column(
         modifier = modifier
