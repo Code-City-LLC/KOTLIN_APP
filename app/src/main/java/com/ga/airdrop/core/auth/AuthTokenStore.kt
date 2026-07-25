@@ -123,6 +123,10 @@ object AuthTokenStore {
                 accountId = authenticatedAccountId?.takeIf { it > 0 }
                 revision += 1
                 SessionStore.onAuthenticatedSessionChanged(sessionId)
+                com.ga.airdrop.core.push.NotificationBadgeSync
+                    .onAuthenticatedSessionChanged(
+                        com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary.capture(),
+                    )
                 if (::prefs.isInitialized) {
                     prefs.edit()
                         .putString(KEY_TOKEN, token)
@@ -181,6 +185,7 @@ object AuthTokenStore {
         accountId = null
         revision += 1
         SessionStore.onAuthenticatedSessionChanged(null)
+        com.ga.airdrop.core.push.NotificationBadgeSync.onAuthenticatedSessionChanged(null)
         if (::prefs.isInitialized) {
             prefs.edit().remove(KEY_TOKEN).remove(KEY_SESSION_ID).remove(KEY_ACCOUNT_ID).commit()
         }

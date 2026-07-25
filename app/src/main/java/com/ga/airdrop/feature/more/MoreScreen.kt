@@ -187,12 +187,15 @@ private val moreMenuItems = listOf(
     // Swift keeps About AirDrop last as a platform-convention utility row
     // (FigmaSpecificPages.swift:540) — added beyond the Figma menu node.
     MoreMenuItem(
+        // Kemar (2026-07-25): About AirDrop must be TWO-TONED like every other
+        // More row (neutral ring + orange glyph). It previously reused the flat
+        // single-tone calculator info icon and was force-tinted with the title
+        // colour, so it was the only monotone row in the list.
         "About AirDrop",
-        R.drawable.ic_calc_info_circle,
-        R.drawable.ic_calc_info_circle,
+        R.drawable.ic_more_about,
+        R.drawable.ic_more_about_dark,
         Routes.ABOUT,
         MoreRootTags.ABOUT,
-        tintWithTitleColor = true,
     ),
 )
 
@@ -305,6 +308,7 @@ internal fun MoreScreenContent(
             tierName = headerInfo.tierName,
             style = AirdropHeaderStyle.Solid,
             cartCount = headerInfo.cartCount,
+            unreadNotifications = headerInfo.unreadNotifications,
             airCoins = headerInfo.airCoins,
             onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },
             onBellClick = { onNavigate(Routes.NOTIFICATIONS) },

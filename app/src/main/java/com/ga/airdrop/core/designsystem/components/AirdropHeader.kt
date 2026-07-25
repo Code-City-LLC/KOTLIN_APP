@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +53,10 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
  */
 enum class AirdropHeaderStyle { OverImage, Solid }
 
+object AirdropHeaderTags {
+    const val UNREAD_BADGE = "header-unread-badge"
+}
+
 /**
  * Tier accent colors — Swift FigmaTabHeader.tierAccentColor (lines 385-398).
  * Gold uses the Figma literal; others use the light/visible end of RN's
@@ -74,6 +79,8 @@ fun AirdropHeader(
     tierName: String,
     style: AirdropHeaderStyle = AirdropHeaderStyle.OverImage,
     cartCount: Int = 0,
+    /** Unread notifications; renders a count badge on the bell when > 0. */
+    unreadNotifications: Int = 0,
     airCoins: String = "",
     onTierClick: () -> Unit = {},
     onBellClick: () -> Unit = {},
@@ -143,14 +150,42 @@ fun AirdropHeader(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(R.drawable.ic_header_bell),
-                    contentDescription = "Notifications",
-                    colorFilter = ColorFilter.tint(headerIcon),
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable(onClick = onBellClick),
-                )
+                Box {
+                    Image(
+                        painter = painterResource(R.drawable.ic_header_bell),
+                        contentDescription = "Notifications",
+                        colorFilter = ColorFilter.tint(headerIcon),
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable(onClick = onBellClick),
+                    )
+                    if (unreadNotifications > 0) {
+                        // Same badge treatment as the cart count: 18dp circle,
+                        // top -2 / end +6, bold 10, white on orangeMain.
+                        // Clamped to 99+ so a large inbox can't stretch the row.
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 6.dp, y = (-2).dp)
+                                .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+                                .background(colors.orangeMain, CircleShape)
+                                .padding(horizontal = 4.dp)
+                                .testTag(AirdropHeaderTags.UNREAD_BADGE),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = if (unreadNotifications > 99) "99+" else unreadNotifications.toString(),
+                                style = TextStyle(
+                                    fontFamily = Cairo,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    lineHeight = 12.sp,
+                                ),
+                                color = BrandPalette.White,
+                            )
+                        }
+                    }
+                }
                 Box(Modifier.padding(start = 20.dp)) {
                     Image(
                         painter = painterResource(R.drawable.ic_header_cart),
