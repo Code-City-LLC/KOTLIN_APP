@@ -232,6 +232,7 @@ fun ContactsScreen(
             tierName = headerInfo.tierName,
             style = AirdropHeaderStyle.Solid,
             cartCount = headerInfo.cartCount,
+            unreadNotifications = headerInfo.unreadNotifications,
             airCoins = headerInfo.airCoins,
             onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },
             onBellClick = { onNavigate(Routes.NOTIFICATIONS) },

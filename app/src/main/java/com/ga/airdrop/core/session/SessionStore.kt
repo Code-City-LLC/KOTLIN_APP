@@ -17,6 +17,8 @@ object SessionStore {
         val tierName: String = "",
         val airCoins: String = "",
         val cartCount: Int = 0,
+        /** Unread notifications badge on the header bell (Laravel meta.unread_count). */
+        val unreadNotifications: Int = 0,
     )
 
     private val _header = MutableStateFlow(HeaderInfo())

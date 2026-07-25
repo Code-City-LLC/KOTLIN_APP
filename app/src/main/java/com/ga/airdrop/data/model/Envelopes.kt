@@ -28,6 +28,12 @@ data class Pagination(
     @SerialName("per_page") val perPage: Int? = null,
     val total: Int? = null,
     @SerialName("last_page") val lastPage: Int? = null,
+    /**
+     * Laravel already ships the notification inbox's unread tally in the list
+     * meta (verified live: GET /user/notifications -> meta.unread_count). It is
+     * only meaningful for that endpoint; every other list leaves it null.
+     */
+    @SerialName("unread_count") val unreadCount: Int? = null,
 )
 
 // Laravel list endpoints answer in several shapes concurrently (see Swift
@@ -63,8 +69,21 @@ class PaginatedSerializer<T>(private val itemSerializer: KSerializer<T>) : KSeri
         }
         val obj = element as? JsonObject ?: return Paginated()
 
-        fun paginationIn(container: JsonObject?): Pagination? =
-            json.decodeOrNull(Pagination.serializer(), container?.get("pagination"))
+        // Laravel answers with EITHER a nested "pagination" object or a
+        // top-level "meta" (the notifications inbox uses "meta", and that is
+        // also where it publishes unread_count). Try both, and only accept a
+        // decode that actually carried pagination data — the delivery envelope
+        // has a "meta" of {timestamp, version} that must not masquerade as one.
+        fun paginationIn(container: JsonObject?): Pagination? {
+            container ?: return null
+            json.decodeOrNull(Pagination.serializer(), container["pagination"])
+                ?.let { return it }
+            val meta = json.decodeOrNull(Pagination.serializer(), container["meta"])
+                ?: return null
+            val carriesPagination = meta.currentPage != null || meta.perPage != null ||
+                meta.total != null || meta.lastPage != null || meta.unreadCount != null
+            return if (carriesPagination) meta else null
+        }
 
         val data = obj["data"]
         if (data is JsonArray) {

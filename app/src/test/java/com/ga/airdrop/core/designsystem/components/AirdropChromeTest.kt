@@ -55,4 +55,29 @@ class AirdropChromeTest {
     fun bottomBarBackgroundIsFrostedTranslucent() {
         assertFrosted("Bottom tab bar", AirdropChrome.bottomBarBackground(gray200).alpha)
     }
+
+    /**
+     * ⚠️ Kemar (2026-07-25): "the header should not be dark, it should be light
+     * like the footer." The Home header previously used the #292929 hero scrim
+     * and rendered near-black (measured luminance 43) while the footer rendered
+     * 245. Header and footer are ONE chrome family: same surface, same alpha,
+     * on every tab including Home over the hero. This test is the lock — if it
+     * fails, someone reintroduced a dark/hero-specific header.
+     */
+    @Test
+    fun headerMatchesFooterSurfaceOnEveryTabIncludingHome() {
+        val footer = AirdropChrome.bottomBarBackground(gray200)
+        val homeHeader = AirdropChrome.headerBackground(overImage = true, gray200 = gray200)
+        val solidHeader = AirdropChrome.headerBackground(overImage = false, gray200 = gray200)
+        assertEquals(
+            "Home header must use the SAME surface as the footer (Kemar-LOCKED, no dark hero scrim)",
+            footer,
+            homeHeader,
+        )
+        assertEquals(
+            "Solid header must use the SAME surface as the footer",
+            footer,
+            solidHeader,
+        )
+    }
 }

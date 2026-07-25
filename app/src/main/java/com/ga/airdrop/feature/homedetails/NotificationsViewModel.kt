@@ -196,6 +196,9 @@ class NotificationsViewModel internal constructor(
             viewModelScope.launch {
                 if (sessionSnapshot() != expectedSession) return@launch
                 dataSource.markNotificationRead(ownedNotification.id, expectedSession)
+                // The header bell badge is derived from Laravel's
+                // meta.unread_count, so re-read it once the row is read.
+                com.ga.airdrop.core.push.NotificationBadgeSync.refresh()
             }
         }
         return resolveNotificationRoute(ownedNotification)

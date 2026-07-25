@@ -239,6 +239,7 @@ fun HomeScreen(
             // the tab header reads UserStateCache, not a per-screen snapshot.
             tierName = header.tierName.ifBlank { " " },
             cartCount = header.cartCount,
+            unreadNotifications = header.unreadNotifications,
             airCoins = state.airCoins,
             onTierClick = { onNavigate(Routes.GOLD_PRIORITY) },
             onBellClick = { onNavigate(Routes.NOTIFICATIONS) },

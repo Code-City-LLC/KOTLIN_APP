@@ -37,11 +37,18 @@ internal object AirdropChrome {
     val heroScrim: Color = Color(0xFF292929)
 
     /**
-     * Header background. OverImage (Home hero) = the Figma dark scrim; Solid
-     * (Shipments/Shop/Help/More) = the theme surface. Both at [SCRIM_ALPHA].
+     * Header background — the SAME translucent theme surface on every tab,
+     * including Home over the hero.
+     *
+     * ⚠️ Kemar (2026-07-25): "the header should not be dark, it should be light
+     * like the footer." The Home header previously used [heroScrim] (#292929),
+     * which rendered near-black (measured luminance 43) while the footer and
+     * every other tab header rendered light (226/245). Header and footer are one
+     * chrome family and must match. The translucency lock is unchanged — this
+     * only changes the HUE, never the alpha.
      */
     fun headerBackground(overImage: Boolean, gray200: Color): Color =
-        if (overImage) heroScrim.copy(alpha = SCRIM_ALPHA) else gray200.copy(alpha = SCRIM_ALPHA)
+        gray200.copy(alpha = SCRIM_ALPHA)
 
     /** Bottom tab bar background — translucent theme surface. */
     fun bottomBarBackground(gray200: Color): Color = gray200.copy(alpha = SCRIM_ALPHA)

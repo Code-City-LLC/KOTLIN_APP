@@ -10,6 +10,7 @@ on:
       - "app/src/main/java/com/ga/airdrop/core/prefs/**"
       - "app/src/main/java/com/ga/airdrop/core/push/**"
       - "app/src/main/java/com/ga/airdrop/core/session/**"
+      - "app/src/main/java/com/ga/airdrop/core/designsystem/components/**"
       - "app/src/main/java/com/ga/airdrop/feature/auth/**"
       - "app/src/main/java/com/ga/airdrop/feature/cart/**"
       - "app/src/main/java/com/ga/airdrop/feature/delivery/**"
