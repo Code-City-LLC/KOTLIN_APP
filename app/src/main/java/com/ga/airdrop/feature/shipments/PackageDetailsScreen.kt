@@ -441,11 +441,14 @@ private fun PackageDetailsContent(
             }
         }
 
-        // CIF Value info row — Figma 40001753:21889
+        // CIF Value info row — Figma 40001753:21889 (verified via Figma MCP):
+        // white surface, 1px #e5e5e5 hairline, 15px radius, px20/py10, label =
+        // SubTitle 1 (Cairo SemiBold 16/26 #292929), trailing 24dp Info Circle.
+        // The height is padding-driven in Figma (10 + 26 + 10), NOT a fixed box,
+        // so the row grows correctly when the user scales text size.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
                 .testTag("package-details-cif-row")
                 .clip(RoundedCornerShape(Radius.s))
                 .background(colors.gray100)
@@ -457,10 +460,13 @@ private fun PackageDetailsContent(
         ) {
             Text(text = "CIF Value", style = AirdropType.subtitle1, color = colors.textDarkTitle)
             Image(
-                painter = painterResource(R.drawable.ic_info),
+                // Figma embeds Info Circle node 40000643:20582 here — that is
+                // ic_calc_info_circle (recorded as the verbatim SVG path). The
+                // previous ic_info is a rounded-SQUARE glyph, not the circle.
+                // It is already @color/icon_duotone, so it themes itself.
+                painter = painterResource(R.drawable.ic_calc_info_circle),
                 contentDescription = "CIF info",
-                colorFilter = ColorFilter.tint(colors.iconSelected),
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
 
