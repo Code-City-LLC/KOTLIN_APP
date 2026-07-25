@@ -12,9 +12,17 @@ import androidx.compose.runtime.setValue
  * (DesignTokens.swift @ 8ce745c): four levels whose multiplier scales every
  * sp-sized text via the Density funnel in [AirdropTheme]. Same store/observe
  * shape as [ThemeController] so every screen reacts instantly and the value
- * survives restarts. PREFERENCES owns the canonical (and only) editor;
- * Settings' Text Size row just navigates there. Any new surface must reuse
- * this one store — never a second store or picker.
+ * survives restarts.
+ *
+ * ⚠️ THE INVARIANT IS THE STORE, NOT THE NUMBER OF PICKERS. Every editor must
+ * write through THIS controller — never a second store, never a screen-local
+ * copy of the level. Multiple *pickers* are fine and intended:
+ *  - 2026-07-12 (Kemar): "text size should be in setting".
+ *  - 2026-07-13: Preferences hosted the only editor; Settings merely navigated.
+ *  - 2026-07-20 (Kemar, SUPERSEDES the above): Settings opens an in-place picker
+ *    sheet instead of jumping to Preferences. Both surfaces now edit, and both
+ *    call [set] on this single controller — which is why they stay in sync.
+ * Do not delete the Settings sheet on the strength of the older wording.
  */
 object TextSizeController {
 
