@@ -24,8 +24,10 @@ import com.ga.airdrop.data.model.TierChangeResult
 import com.ga.airdrop.data.model.CustomDutyRate
 import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.DeactivateAccountRequest
+import com.ga.airdrop.data.model.ActiveDeliveriesPayload
 import com.ga.airdrop.data.model.DeliveryPreference
 import com.ga.airdrop.data.model.DeliverySettingsPayload
+import com.ga.airdrop.data.model.DeliveryTrackingPayload
 import com.ga.airdrop.data.model.DeliveryValidationResponse
 import com.ga.airdrop.data.model.DeviceToken
 import com.ga.airdrop.data.model.DropAlertResponse
@@ -281,6 +283,22 @@ interface AirdropApiService {
 
     @GET("packages/{id}")
     suspend fun packageDetails(@Path("id") packageId: String): DataEnvelope<PackageDetail>
+
+    /**
+     * Customer delivery tracking is a read-only projection of the admin
+     * workflow. Stage order/state/timestamps come from Laravel; clients do not
+     * derive them from package status.
+     */
+    @GET("deliveries/active")
+    suspend fun activeDeliveries(
+        @Query("page") page: Int,
+        @Query("per_page") perPage: Int,
+    ): DataEnvelope<ActiveDeliveriesPayload>
+
+    @GET("packages/{id}/delivery-tracking")
+    suspend fun packageDeliveryTracking(
+        @Path("id") packageId: Int,
+    ): DataEnvelope<DeliveryTrackingPayload>
 
     // Each file part is named "invoices[]".
     @Multipart

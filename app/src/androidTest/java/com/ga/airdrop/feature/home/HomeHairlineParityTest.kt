@@ -32,7 +32,7 @@ class HomeHairlineParityTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun standardSeaDropAndReferUseSwiftHairlinesInBothThemes() {
+    fun warehouseAndCompanionTilesUseTheirCanonicalHairlinesInBothThemes() {
         setTheme(ThemeController.Mode.LIGHT)
         var destination = ""
         compose.setContent {
@@ -77,34 +77,38 @@ class HomeHairlineParityTest {
             setTheme(ThemeController.Mode.LIGHT)
         }
 
-        compose.onNodeWithTag("home-refer-friend").performScrollTo()
-        compose.waitForIdle()
-        val lightReferBitmap = captureTagged("home-refer-friend")
-        assertEdgeUsesHairline(
-            label = "LIGHT Refer a friend card",
-            bitmap = lightReferBitmap,
-            expectedArgb = lightAirdropColors.cardHairline.toArgb(),
-        )
-        assertOpaqueSurface(
-            label = "LIGHT Refer a friend card",
-            bitmap = lightReferBitmap,
-            expectedArgb = lightAirdropColors.gray150.toArgb(),
-            horizontalInsetDp = 8f,
-        )
+        listOf("refer-a-friend", "delivery-center").forEach { tile ->
+            val tag = "home-activity-$tile"
+            compose.onNodeWithTag(tag).performScrollTo()
+            compose.waitForIdle()
+            val lightBitmap = captureTagged(tag)
+            assertEdgeUsesHairline(
+                label = "LIGHT $tile companion tile",
+                bitmap = lightBitmap,
+                expectedArgb = lightAirdropColors.iconShape.toArgb(),
+            )
+            assertOpaqueSurface(
+                label = "LIGHT $tile companion tile",
+                bitmap = lightBitmap,
+                expectedArgb = lightAirdropColors.gray150.toArgb(),
+                horizontalInsetDp = 8f,
+            )
 
-        setTheme(ThemeController.Mode.DARK)
-        val darkReferBitmap = captureTagged("home-refer-friend")
-        assertEdgeUsesHairline(
-            label = "DARK Refer a friend card",
-            bitmap = darkReferBitmap,
-            expectedArgb = darkAirdropColors.cardHairline.toArgb(),
-        )
-        assertOpaqueSurface(
-            label = "DARK Refer a friend card",
-            bitmap = darkReferBitmap,
-            expectedArgb = darkAirdropColors.gray150.toArgb(),
-            horizontalInsetDp = 8f,
-        )
+            setTheme(ThemeController.Mode.DARK)
+            val darkBitmap = captureTagged(tag)
+            assertEdgeUsesHairline(
+                label = "DARK $tile companion tile",
+                bitmap = darkBitmap,
+                expectedArgb = darkAirdropColors.iconShape.toArgb(),
+            )
+            assertOpaqueSurface(
+                label = "DARK $tile companion tile",
+                bitmap = darkBitmap,
+                expectedArgb = darkAirdropColors.gray150.toArgb(),
+                horizontalInsetDp = 8f,
+            )
+            setTheme(ThemeController.Mode.LIGHT)
+        }
         compose.onNodeWithTag("home-bottom-clearance")
             .assertHeightIsEqualTo(HOME_BOTTOM_CLEARANCE_DP.dp)
     }

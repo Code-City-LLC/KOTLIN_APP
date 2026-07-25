@@ -325,7 +325,7 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun referFriendCardUsesSwiftSingleToneIconLight() {
+    fun referFriendCompanionTileUsesThemeAwareDuotoneIconLight() {
         assertReferFriendIconPalette(
             mode = ThemeController.Mode.LIGHT,
             targetColor = SWIFT_TEXT_DARK_TITLE,
@@ -334,7 +334,7 @@ class HomeActivityTilesScreenshotTest {
     }
 
     @Test
-    fun referFriendCardUsesSwiftSingleToneIconDark() {
+    fun referFriendCompanionTileUsesThemeAwareDuotoneIconDark() {
         assertReferFriendIconPalette(
             mode = ThemeController.Mode.DARK,
             targetColor = SWIFT_TEXT_DARK_TITLE_DARK,
@@ -541,13 +541,13 @@ class HomeActivityTilesScreenshotTest {
         compose.waitForIdle()
 
         val bitmap = captureVisibleNode(
-            compose.onNodeWithTag("home-refer-friend-icon", useUnmergedTree = true),
+            compose.onNodeWithTag("home-activity-refer-a-friend-icon", useUnmergedTree = true),
             "Home refer icon",
         )
-        assertTrue("Swift textDarkTitle refer icon", bitmap.hasPixelNear(targetColor))
+        assertTrue("Theme-aware title stroke", bitmap.hasPixelNear(targetColor))
         assertTrue(
-            "Figma orange accent must not render on Swift-precedence Home refer icon",
-            !bitmap.hasPixelNear(STALE_FIGMA_ORANGE),
+            "Refer companion tile must keep its AirDrop orange accent",
+            bitmap.hasPixelNear(AIRDROP_ORANGE),
         )
         saveRootScreenshot(screenshot)
     }
@@ -741,7 +741,7 @@ class HomeActivityTilesScreenshotTest {
         private const val SWIFT_TEXT_DARK_TITLE_DARK = 0xFFFFFFFF.toInt()
         private const val FIGMA_ORANGE_LIGHT = 0xFFF15114.toInt()
         private const val FIGMA_DARK_FUNCTION_ORANGE = 0xFFF46427.toInt()
-        private const val STALE_FIGMA_ORANGE = 0xFFF15114.toInt()
+        private const val AIRDROP_ORANGE = 0xFFF15114.toInt()
         private const val COLOR_TOLERANCE = 8
         private const val CAPTURE_ATTEMPTS = 3
         private const val CAPTURE_RETRY_DELAY_MS = 150L

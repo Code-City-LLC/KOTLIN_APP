@@ -291,6 +291,33 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     more2Graph(navController)
     homeDetailsGraph(navController)
 
+    // Delivery / tracking hub — one registration handling both entries:
+    // ref (just-paid invoice → deterministic journey) and packageId
+    // (server-identified package → live tracking detail).
+    composable(
+        Routes.DELIVERY_CENTER,
+        arguments = listOf(
+            androidx.navigation.navArgument("ref") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
+            androidx.navigation.navArgument("packageId") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
+        ),
+    ) { entry ->
+        com.ga.airdrop.feature.delivery.DeliveryCenterScreen(
+            orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
+            initialPackageId = entry.arguments
+                ?.getString("packageId")
+                ?.toIntOrNull()
+                ?.takeIf { it > 0 },
+            onBack = { navController.popBackStack() },
+            onContactUs = { navController.navigate(Routes.LIVE_CHAT) },
+        )
+    }
+
     // Stripe hosted-checkout return (Swift SceneDelegate:432 parity): verify
     // the session, then celebrate / bounce back. Cart is cleared ONLY on
     // verified paid — never on Done/cancel/not-paid/unconfirmed. The return
@@ -372,10 +399,22 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
             },
         ),
     ) { entry ->
+        val successRef = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() }
         com.ga.airdrop.feature.cart.PaymentSuccessScreen(
-            orderReference = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() },
+            orderReference = successRef,
             formattedAmount = entry.arguments?.getString("amount")?.takeIf { it.isNotBlank() },
             fulfillment = entry.arguments?.getString("fulfillment")?.takeIf { it.isNotBlank() },
+            onTrackPackage = {
+                // "Track your package" → Delivery Center for this order. Reset the
+                // checkout funnel to Home as the root, then push the tracking hub
+                // so Back returns Home (where the Delivery Center tile also lives),
+                // never a stale cart / cleared checkout screen.
+                navController.navigate(Routes.HOME) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+                navController.navigate(Routes.deliveryCenter(successRef))
+            },
             onContinueShopping = {
                 // "Continue Shopping" → Shop tab, clearing the checkout stack.
                 navController.navigate(Routes.SHOP) {
