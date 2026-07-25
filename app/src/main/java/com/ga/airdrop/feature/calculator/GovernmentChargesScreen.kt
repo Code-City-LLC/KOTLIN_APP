@@ -25,6 +25,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.ga.airdrop.core.designsystem.components.CifValueSheet
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -125,8 +126,8 @@ fun GovernmentChargesScreen(
 
     if (showCifSheet) {
         CifValueSheet(
-            charges = charges,
-            usdToJmd = usdToJmd,
+            rows = charges.cifRows(),
+            exchangeRate = usdToJmd,
             onDismiss = { showCifSheet = false },
         )
     }

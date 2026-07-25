@@ -76,6 +76,7 @@ private fun PackageDetail.toShipmentDetail() = ShipmentPackageDetail(
     weightKg = weightKg,
     numberOfPieces = numberOfPieces,
     amount = amount,
+    shippingPrice = shippingPrice,
     originalPrice = originalPrice,
     history = history.map {
         PackageHistoryItem(

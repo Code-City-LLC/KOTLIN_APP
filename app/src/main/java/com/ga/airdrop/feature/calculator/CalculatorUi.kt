@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.AirdropOptionPicker
+import com.ga.airdrop.core.designsystem.components.CifRow
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
@@ -58,6 +59,17 @@ internal fun formatPrice(value: Double): String = String.format(Locale.US, "$%,.
 
 /** Currency amount without the `$` symbol — the "USD 403.35" pill format. */
 internal fun formatDecimal(value: Double): String = String.format(Locale.US, "%,.2f", value)
+
+/**
+ * CIF breakdown rows for the shared [com.ga.airdrop.core.designsystem.components.CifValueSheet].
+ * The calculator computes all three components itself (ShippingCalculator), so
+ * unlike the packages path none of them are ever missing.
+ */
+internal fun Charges.cifRows(): List<CifRow> = listOf(
+    CifRow("Cost (Invoice Amount)", invoiceAmount),
+    CifRow("Insurance", insurance),
+    CifRow("Freight", freight),
+)
 
 /**
  * Inner detail header — Swift FigmaCalculatorViewController.swift:149-168:

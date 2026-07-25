@@ -10,7 +10,13 @@ on:
       - "app/src/main/java/com/ga/airdrop/core/prefs/**"
       - "app/src/main/java/com/ga/airdrop/core/push/**"
       - "app/src/main/java/com/ga/airdrop/core/session/**"
-      - "app/src/main/java/com/ga/airdrop/core/designsystem/components/**"
+      # ⚠️ This gate is REQUIRED by branch protection AND path-filtered. A PR
+      # that touches only unlisted paths never starts it, so it can never
+      # merge — and gets zero runtime coverage. When you add a feature
+      # package, add it here. (delivery/, designsystem/, shipments/ were each
+      # discovered this way, mid-deadlock.)
+      - "app/src/main/java/com/ga/airdrop/core/designsystem/**"
+      - "app/src/main/java/com/ga/airdrop/feature/shipments/**"
       - "app/src/main/java/com/ga/airdrop/feature/auth/**"
       - "app/src/main/java/com/ga/airdrop/feature/cart/**"
       - "app/src/main/java/com/ga/airdrop/feature/delivery/**"

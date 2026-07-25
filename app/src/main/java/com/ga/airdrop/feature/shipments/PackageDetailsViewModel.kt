@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.shipments
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.BuildConfig
+import com.ga.airdrop.core.designsystem.components.CifRow
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.feature.cart.CartServerGateway
@@ -34,6 +35,29 @@ data class PackageDetailsUiState(
     val damageReportError: String? = null,
     val showDamageReportSubmitted: Boolean = false,
 ) {
+    /**
+     * CIF components for the CIF Value sheet (Figma 40001761:29633).
+     * Cost = the declared/invoice amount; Freight = the shipping price.
+     * Insurance is NOT yet returned by the API (raised with Laravel), so it
+     * renders as an em-dash rather than a fabricated number.
+     */
+    internal val cifRows: List<CifRow>
+        get() = listOf(
+            // Same amount → originalPrice fallback the Invoice Amount row on
+            // screen uses, so the CIF breakdown can't say "—" while the row
+            // right above it shows a figure.
+            CifRow("Cost (Invoice Amount)", declaredValueUsd),
+            // Insurance amount is not returned by the API yet (raised with
+            // Laravel) — render an em-dash rather than fabricate a number.
+            CifRow("Insurance", null),
+            CifRow("Freight", detail?.shippingPrice?.takeIf { it > 0.0 }),
+        )
+
+    /** Declared/invoice value: `amount`, else `original_price`, else absent. */
+    private val declaredValueUsd: Double?
+        get() = detail?.amount?.takeIf { it > 0.0 }
+            ?: detail?.originalPrice?.takeIf { it > 0.0 }
+
     val statusInt: Int get() = detail?.status?.toIntOrNull() ?: 0
 
     /**
