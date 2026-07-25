@@ -41,6 +41,53 @@ test_classes_from_paths() {
   done | tr '/' '.' | LC_ALL=C sort -u
 }
 
+# Map changed MAIN-source files to the instrumentation tests that cover them.
+#
+# Why this exists: before it, the gate only reacted to changed *test* files, so
+# it tested you when you edited a test and not when you edited the code. A PR
+# could rewrite feature/shipments end to end and still run only the four
+# mandatory classes — which is exactly what happened on #172 (13 shipments
+# instrumentation classes existed; 0 ran). Touching a package now runs that
+# package's own instrumentation tests.
+#
+# A changed package with no sibling test package is REPORTED, not silently
+# skipped — that gap is real information, so it goes to the log and the job
+# summary rather than being swallowed.
+test_classes_from_source_paths() {
+  local root="${CONNECTED_SESSION_ANDROIDTEST_ROOT:-app/src/androidTest/java}"
+  {
+    local path package existing test_file relative found
+    local packages=()
+    while IFS= read -r path; do
+      case "$path" in
+        app/src/main/java/*.kt) ;;
+        *) continue ;;
+      esac
+      package="${path#app/src/main/java/}"
+      package="${package%/*}"
+      for existing in ${packages[@]+"${packages[@]}"}; do
+        if [[ "$existing" == "$package" ]]; then
+          continue 2
+        fi
+      done
+      packages+=("$package")
+    done
+    for package in ${packages[@]+"${packages[@]}"}; do
+      found=0
+      for test_file in "$root/$package"/*Test.kt; do
+        [[ -e "$test_file" ]] || continue
+        relative="${test_file#"$root"/}"
+        printf '%s\n' "${relative%.kt}"
+        found=1
+      done
+      if [[ "$found" -eq 0 ]]; then
+        printf 'connected-session-gate: changed package %s has NO instrumentation tests\n' \
+          "$package" >&2
+      fi
+    done
+  } | tr '/' '.' | LC_ALL=C sort -u
+}
+
 changed_test_classes() {
   local base_sha="${CONNECTED_SESSION_BASE_SHA:-}"
   local head_sha="${CONNECTED_SESSION_HEAD_SHA:-HEAD}"
@@ -61,8 +108,14 @@ changed_test_classes() {
     return 1
   fi
   printf 'Discovering changed instrumentation classes from %s..%s\n' "$base_sha" "$head_sha" >&2
-  git diff --name-only --diff-filter=ACMRT "$base_sha" "$head_sha" -- app/src/androidTest/java \
-    | test_classes_from_paths
+  {
+    # Edited a test -> run that test.
+    git diff --name-only --diff-filter=ACMRT "$base_sha" "$head_sha" -- app/src/androidTest/java \
+      | test_classes_from_paths
+    # Edited production code -> run that package's tests.
+    git diff --name-only --diff-filter=ACMRT "$base_sha" "$head_sha" -- app/src/main/java \
+      | test_classes_from_source_paths
+  } | LC_ALL=C sort -u
 }
 
 add_explicit_classes() {
@@ -269,6 +322,37 @@ run_self_test() (
   fi
   if add_explicit_classes 'not-a-qualified-class' >/dev/null 2>&1; then
     printf 'invalid explicit class unexpectedly passed validation\n' >&2
+    return 1
+  fi
+
+  # --- source-path -> test-class mapping -----------------------------------
+  # Guards the fix for the #172 hole: production changes must pull in their
+  # own package's instrumentation tests.
+  local fixture_root
+  local source_actual
+  local source_expected
+  fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/connected-session-gate-src.XXXXXX")"
+  mkdir -p "$fixture_root/com/ga/airdrop/feature/shipments" \
+    "$fixture_root/com/ga/airdrop/core/network"
+  : > "$fixture_root/com/ga/airdrop/feature/shipments/PackageDetailsParityTest.kt"
+  : > "$fixture_root/com/ga/airdrop/feature/shipments/InvoiceViewerParityTest.kt"
+  # A support file, not a test — must NOT be selected (mirrors the real
+  # FakeAuthenticatedSessionBoundary.kt that lives beside the tests).
+  : > "$fixture_root/com/ga/airdrop/feature/shipments/FakeSessionBoundary.kt"
+  : > "$fixture_root/com/ga/airdrop/core/network/AuthInterceptorParityTest.kt"
+  source_actual="$(printf '%s\n' \
+    'app/src/main/java/com/ga/airdrop/feature/shipments/CustomsNotice.kt' \
+    'app/src/main/java/com/ga/airdrop/feature/shipments/PackageDetailsScreen.kt' \
+    'app/src/main/java/com/ga/airdrop/core/network/AuthInterceptor.kt' \
+    'app/src/main/java/com/ga/airdrop/feature/common/NoTestsHere.kt' \
+    'docs/README.md' \
+    | CONNECTED_SESSION_ANDROIDTEST_ROOT="$fixture_root" test_classes_from_source_paths 2>/dev/null \
+    | paste -sd, -)"
+  rm -rf "$fixture_root"
+  source_expected="com.ga.airdrop.core.network.AuthInterceptorParityTest,com.ga.airdrop.feature.shipments.InvoiceViewerParityTest,com.ga.airdrop.feature.shipments.PackageDetailsParityTest"
+  if [[ "$source_actual" != "$source_expected" ]]; then
+    printf 'source-path mapping self-test mismatch\nexpected: %s\nactual:   %s\n' \
+      "$source_expected" "$source_actual" >&2
     return 1
   fi
 

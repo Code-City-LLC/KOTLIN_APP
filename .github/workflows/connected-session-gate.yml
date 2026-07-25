@@ -3,35 +3,14 @@ name: Connected session gate
 on:
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/connected-session-gate.yml"
-      - ".github/scripts/connected-session-gate.sh"
-      - "app/src/main/java/com/ga/airdrop/core/auth/**"
-      - "app/src/main/java/com/ga/airdrop/core/prefs/**"
-      - "app/src/main/java/com/ga/airdrop/core/push/**"
-      - "app/src/main/java/com/ga/airdrop/core/session/**"
-      # ⚠️ This gate is REQUIRED by branch protection AND path-filtered. A PR
-      # that touches only unlisted paths never starts it, so it can never
-      # merge — and gets zero runtime coverage. When you add a feature
-      # package, add it here. (delivery/, designsystem/, shipments/ were each
-      # discovered this way, mid-deadlock.)
-      - "app/src/main/java/com/ga/airdrop/core/designsystem/**"
-      - "app/src/main/java/com/ga/airdrop/feature/shipments/**"
-      - "app/src/main/java/com/ga/airdrop/feature/auth/**"
-      - "app/src/main/java/com/ga/airdrop/feature/cart/**"
-      - "app/src/main/java/com/ga/airdrop/feature/delivery/**"
-      - "app/src/main/java/com/ga/airdrop/feature/shop/**"
-      - "app/src/main/java/com/ga/airdrop/data/**"
-      - "app/src/main/java/com/ga/airdrop/feature/home/**"
-      - "app/src/main/java/com/ga/airdrop/feature/homedetails/GoldPriorityViewModel.kt"
-      - "app/src/main/java/com/ga/airdrop/feature/homedetails/NotificationsScreen.kt"
-      - "app/src/main/java/com/ga/airdrop/feature/homedetails/WarehousesViewModel.kt"
-      - "app/src/main/java/com/ga/airdrop/feature/more/MoreRepository.kt"
-      - "app/src/main/java/com/ga/airdrop/feature/more/MoreViewModel.kt"
-      - "app/src/main/java/com/ga/airdrop/feature/more/NotificationSettings*"
-      - "app/src/main/java/com/ga/airdrop/feature/more/PreferencesViewModel.kt"
-      - "app/src/main/java/com/ga/airdrop/feature/more/ProfileViewModel.kt"
-      - "app/src/androidTest/java/**/*.kt"
+    # ⚠️ INTENTIONALLY NOT path-filtered. This gate is REQUIRED by branch
+    # protection, and a required + path-filtered workflow fails in two ways at
+    # once: a PR touching only unlisted paths can never start it (so it can
+    # never merge), AND it merges with zero runtime coverage if the filter is
+    # later relaxed. delivery/, designsystem/ and shipments/ were each
+    # discovered mid-deadlock. The allowlist also never selected WHICH tests
+    # ran — that is driven by connected-session-gate.sh — so it was a 23-entry
+    # on/off switch masquerading as a coverage map. Do not reintroduce it.
   workflow_dispatch:
     inputs:
       extra_classes:

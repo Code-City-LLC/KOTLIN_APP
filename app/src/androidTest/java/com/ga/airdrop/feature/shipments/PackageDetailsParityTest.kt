@@ -1,5 +1,7 @@
 package com.ga.airdrop.feature.shipments
 
+import com.ga.airdrop.feature.cart.AlwaysOkCartServerGateway
+import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
 import android.graphics.Bitmap
 import android.os.SystemClock
 import androidx.compose.foundation.background
@@ -352,6 +354,11 @@ class PackageDetailsParityTest {
             packageId = "7",
             repo = packagesRepo,
             hubRepo = FakeHubRepository(),
+            // Add-to-cart is server-backed since #138; without these the VM
+            // picks up the real gateway, hits the network, and reports
+            // "Cart update failed" instead of the success dialog.
+            cartServer = AlwaysOkCartServerGateway(),
+            sessionBoundary = FakeAuthenticatedSessionBoundary(),
         )
         compose.setContent {
             AirdropThemeProvider {
@@ -422,10 +429,14 @@ class PackageDetailsParityTest {
         compose.onNodeWithTag("package-details-cif-row")
             .performScrollTo()
             .assertIsDisplayed()
+        // Figma 40001753:21889 measures the CIF row at 335x59 (24dp Info
+        // Circle at y=17.5). The old 48f was a Swift-era number that matched
+        // neither Figma nor what actually rendered — this gate never ran on
+        // shipments code, so nothing caught the drift.
         assertClose(
-            48f,
+            59f,
             boundsHeight(compose.onNodeWithTag("package-details-cif-row").getUnclippedBoundsInRoot()),
-            "Swift CIF row height",
+            "Figma CIF row height",
         )
 
         compose.onNodeWithTag("package-details-section-charges")
