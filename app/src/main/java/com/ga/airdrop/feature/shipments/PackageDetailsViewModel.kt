@@ -43,12 +43,20 @@ data class PackageDetailsUiState(
      */
     internal val cifRows: List<CifRow>
         get() = listOf(
-            CifRow("Cost (Invoice Amount)", detail?.amount),
+            // Same amount → originalPrice fallback the Invoice Amount row on
+            // screen uses, so the CIF breakdown can't say "—" while the row
+            // right above it shows a figure.
+            CifRow("Cost (Invoice Amount)", declaredValueUsd),
             // Insurance amount is not returned by the API yet (raised with
             // Laravel) — render an em-dash rather than fabricate a number.
             CifRow("Insurance", null),
-            CifRow("Freight", detail?.shippingPrice),
+            CifRow("Freight", detail?.shippingPrice?.takeIf { it > 0.0 }),
         )
+
+    /** Declared/invoice value: `amount`, else `original_price`, else absent. */
+    private val declaredValueUsd: Double?
+        get() = detail?.amount?.takeIf { it > 0.0 }
+            ?: detail?.originalPrice?.takeIf { it > 0.0 }
 
     val statusInt: Int get() = detail?.status?.toIntOrNull() ?: 0
 

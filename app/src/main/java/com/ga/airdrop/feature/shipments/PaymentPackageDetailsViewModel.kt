@@ -33,9 +33,13 @@ data class PaymentPackageDetailsUiState(
      */
     val cifRows: List<CifRow>
         get() = listOf(
-            CifRow("Cost (Invoice Amount)", detail?.amount),
+            // Mirrors the Invoice Amount row above (amount → original_price).
+            CifRow(
+                "Cost (Invoice Amount)",
+                detail?.amount?.takeIf { it > 0.0 } ?: detail?.originalPrice?.takeIf { it > 0.0 },
+            ),
             CifRow("Insurance", null),
-            CifRow("Freight", detail?.shippingPrice),
+            CifRow("Freight", detail?.shippingPrice?.takeIf { it > 0.0 }),
         )
 }
 
