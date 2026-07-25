@@ -69,6 +69,8 @@ data class ShipmentPackageDetail(
     val numberOfPieces: Int? = null,
     val amount: Double? = null,          // declared value
     val originalPrice: Double? = null,
+    /** Freight component of CIF (API `shipping_price`). */
+    val shippingPrice: Double? = null,
     val history: List<PackageHistoryItem> = emptyList(),
     val invoices: List<PackageInvoiceDoc> = emptyList(),
     val additionalCharges: Map<String, Double> = emptyMap(),

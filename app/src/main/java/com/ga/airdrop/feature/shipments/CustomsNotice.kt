@@ -17,9 +17,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -36,9 +38,17 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
  */
 internal object CustomsNoticeContent {
     const val TITLE = "Customs Notice"
+    const val CIF_TITLE = "CIF Value"
 
-    const val LEAD = "Jamaica Customs calculates import duties not on the declared value or " +
-        "invoice amount, but on the CIF (Cost, Insurance, and Freight) value of the shipment."
+    // The lead is split around the CIF phrase so that phrase can be an inline
+    // tap target (Kemar: "even inside of that, if they click on CIF value, it
+    // needs to generate that page") WITHOUT adding any element Figma does not
+    // have — the rendered paragraph is still character-identical to the design.
+    const val LEAD_PREFIX = "Jamaica Customs calculates import duties not on the declared " +
+        "value or invoice amount, but on the "
+    const val LEAD_CIF_PHRASE = "CIF (Cost, Insurance, and Freight)"
+    const val LEAD_SUFFIX = " value of the shipment."
+    const val LEAD = LEAD_PREFIX + LEAD_CIF_PHRASE + LEAD_SUFFIX
 
     const val COMPONENTS_INTRO = "The CIF value represents the total landed cost of an item " +
         "and is made up of three key components:"
@@ -71,10 +81,16 @@ internal fun isCustomsDutyCharge(name: String): Boolean {
     return normalized.contains("custom") && normalized.contains("duty")
 }
 
+/** Test tag for the inline "CIF (Cost, Insurance, and Freight)" tap target. */
+internal const val CIF_LINK_TAG = "customs-notice-cif-link"
+
 /** Modal glass sheet matching the CIF sheet idiom (grabber, gray150, Radius.s). */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-internal fun CustomsNoticeSheet(onDismiss: () -> Unit) {
+internal fun CustomsNoticeSheet(
+    onDismiss: () -> Unit,
+    onCifValue: (() -> Unit)? = null,
+) {
     val colors = AirdropTheme.colors
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -104,10 +120,26 @@ internal fun CustomsNoticeSheet(onDismiss: () -> Unit) {
                 style = AirdropType.h5,
                 color = colors.textDarkTitle,
             )
+            // Figma renders one paragraph. When a CIF handler is supplied the
+            // "CIF (Cost, Insurance, and Freight)" phrase inside it becomes an
+            // inline tap target — same glyphs, same wrap, just tappable.
             Text(
-                text = CustomsNoticeContent.LEAD,
+                text = buildAnnotatedString {
+                    append(CustomsNoticeContent.LEAD_PREFIX)
+                    if (onCifValue != null) {
+                        withLink(LinkAnnotation.Clickable(tag = CIF_LINK_TAG) { onCifValue() }) {
+                            withStyle(SpanStyle(color = colors.orangeMain, fontWeight = FontWeight.Bold)) {
+                                append(CustomsNoticeContent.LEAD_CIF_PHRASE)
+                            }
+                        }
+                    } else {
+                        append(CustomsNoticeContent.LEAD_CIF_PHRASE)
+                    }
+                    append(CustomsNoticeContent.LEAD_SUFFIX)
+                },
                 style = AirdropType.body2,
                 color = colors.textDarkTitle,
+                modifier = Modifier.testTag(CIF_LINK_TAG),
             )
             Text(
                 text = CustomsNoticeContent.COMPONENTS_INTRO,

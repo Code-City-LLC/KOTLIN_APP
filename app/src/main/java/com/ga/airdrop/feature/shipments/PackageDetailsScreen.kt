@@ -241,11 +241,11 @@ fun PackageDetailsScreen(
         }
 
         if (state.showCifInfo) {
-            ShipmentsAlertDialog(
-                title = "CIF Value",
-                message = "CIF = Cost + Insurance + Freight — the package value used to compute customs charges.",
-                confirmText = "OK",
-                onConfirm = { viewModel.showCifInfo(false) },
+            // ⚠️ RULE (Kemar 2026-07-25): every CIF Value affordance opens the
+            // Figma CIF sheet (40001761:29633) — never a one-line alert.
+            CifValueSheet(
+                rows = state.cifRows,
+                exchangeRate = state.exchangeRate,
                 onDismiss = { viewModel.showCifInfo(false) },
             )
         }
@@ -486,7 +486,15 @@ private fun PackageDetailsContent(
                 onCustomsInfo = { showCustomsNotice.value = true },
             )
             if (showCustomsNotice.value) {
-                CustomsNoticeSheet(onDismiss = { showCustomsNotice.value = false })
+                CustomsNoticeSheet(
+                    onDismiss = { showCustomsNotice.value = false },
+                    // Kemar: tapping "CIF value" inside the notice generates the
+                    // CIF page too.
+                    onCifValue = {
+                        showCustomsNotice.value = false
+                        onCifInfo()
+                    },
+                )
             }
             val rate = state.effectiveRate
             DetailKeyValueRow(

@@ -34,6 +34,21 @@ data class PackageDetailsUiState(
     val damageReportError: String? = null,
     val showDamageReportSubmitted: Boolean = false,
 ) {
+    /**
+     * CIF components for the CIF Value sheet (Figma 40001761:29633).
+     * Cost = the declared/invoice amount; Freight = the shipping price.
+     * Insurance is NOT yet returned by the API (raised with Laravel), so it
+     * renders as an em-dash rather than a fabricated number.
+     */
+    internal val cifRows: List<CifRow>
+        get() = listOf(
+            CifRow("Cost (Invoice Amount)", detail?.amount),
+            // Insurance amount is not returned by the API yet (raised with
+            // Laravel) — render an em-dash rather than fabricate a number.
+            CifRow("Insurance", null),
+            CifRow("Freight", detail?.shippingPrice),
+        )
+
     val statusInt: Int get() = detail?.status?.toIntOrNull() ?: 0
 
     /**

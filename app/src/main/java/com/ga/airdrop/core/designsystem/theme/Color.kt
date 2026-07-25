@@ -91,6 +91,18 @@ object DeliveryStagePalette {
 }
 
 // ─── Customer-tier accents ────────────────────────────────────────────────
+/**
+ * CIF Value table (Figma 40001761:29633) — Secondary/Blue tokens.
+ * NOTE: BrandPalette.BlueTertiary1/4 are PURPLE (#3E3499/#C4BDFF) and are NOT
+ * these; do not substitute them.
+ */
+object CifTablePalette {
+    /** Secondary Color/Blue/Tertiary 4 — Total row fill. */
+    val TotalFill = Color(0xFFE1F6FF)
+    /** Secondary Color/Blue/Tertiary 1 — Total row label. */
+    val TotalLabel = Color(0xFF0872A1)
+}
+
 object TierPalette {
     val BronzeSaver2 = Color(0xFFD2554D)
     val PlatinumElite2 = Color(0xFF6C46C5)
