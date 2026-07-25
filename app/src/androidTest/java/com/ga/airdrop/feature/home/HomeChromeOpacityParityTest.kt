@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.components.AirdropBottomBar
+import com.ga.airdrop.core.designsystem.components.AirdropChrome
 import com.ga.airdrop.core.designsystem.components.AirdropHeader
 import com.ga.airdrop.core.designsystem.components.AirdropTab
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -105,7 +106,11 @@ class HomeChromeOpacityParityTest {
         val headerBounds = compose.onNodeWithTag("home-chrome-header").getUnclippedBoundsInRoot()
         val footerBounds = compose.onNodeWithTag("home-chrome-footer").getUnclippedBoundsInRoot()
 
-        val expectedHeaderRgb = blendRgb(heroScrimRgb, underlayRgb, lockedScrimAlpha)
+        // ⚠️ Kemar (2026-07-25): the header is LIGHT like the footer on EVERY tab,
+        // including Home over the hero. It previously blended the #292929 hero
+        // scrim here; that dark chrome was overruled. Header and footer are one
+        // chrome family, so they share one expectation.
+        val expectedHeaderRgb = expectedFooterRgb
         listOf(
             PixelSample(
                 point = samplePoint(headerBounds, xFraction = 0.03f, yInsetDp = 6f),
@@ -201,9 +206,11 @@ class HomeChromeOpacityParityTest {
     private fun DpRect.heightDp(): Float = (bottom - top).value
 
     private companion object {
-        const val lockedScrimAlpha = 0.90f
+        // Derived from production, never hardcoded: this drifted silently once
+        // already (SCRIM_ALPHA moved 0.90 -> 0.95 in 7e76aef and the footer half
+        // of this test went red unnoticed for weeks).
+        val lockedScrimAlpha = AirdropChrome.SCRIM_ALPHA
         val underlayRgb = intArrayOf(0xFF, 0x00, 0xFF)
-        val heroScrimRgb = intArrayOf(0x29, 0x29, 0x29)
         val lightGray200Rgb = intArrayOf(0xF5, 0xF5, 0xF5)
         val darkGray200Rgb = intArrayOf(0x33, 0x33, 0x33)
     }
