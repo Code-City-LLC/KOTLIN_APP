@@ -117,8 +117,21 @@ internal object TrackJourney {
         "auction" ->
             if (dark) R.drawable.ic_shipments_status_auction_dark else R.drawable.ic_shipments_status_auction
         // Status 12 — a warehouse movement to the counter, NOT a driver leg.
+        //
+        // ⚠️ THE ONE AUTHORISED DUPLICATE GLYPH. DO NOT "FIX" THIS.
+        // Kemar, 2026-07-26, verbatim: "In transit to counter can be the same as
+        // out for delivery. Why? Because we hardly ever use that update. When
+        // the time comes, we will update it, but we hardly ever use it."
+        // Figma node 40000692-4169 is assigned to BOTH rows by the owner.
+        //
+        // The KEY stays distinct — only the artwork is shared. Status 12 is a
+        // warehouse movement and out_for_delivery is a driver leg; merging the
+        // statuses would be a real defect, and this pair is the one that looks
+        // like duplication and is not. Restoring a dedicated glyph later is a
+        // one-line change back to ic_shipments_status_in_transit_counter, which
+        // is kept in res/drawable for exactly that day.
         "in_transit" ->
-            if (dark) R.drawable.ic_shipments_status_in_transit_counter_dark else R.drawable.ic_shipments_status_in_transit_counter
+            if (dark) R.drawable.ic_shipments_status_out_for_delivery_dark else R.drawable.ic_shipments_status_out_for_delivery
         // Last-mile legs (StatusIcons::DELIVERY_ICONS). These carry no status id.
         "dispatch" -> R.drawable.ic_shipments_status_dispatch
         "out_for_delivery" ->

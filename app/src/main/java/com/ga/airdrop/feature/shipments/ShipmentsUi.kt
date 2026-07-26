@@ -157,7 +157,12 @@ object ShipmentStatusCatalog {
         8 -> if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
         9 -> if (dark) R.drawable.ic_shipments_status_processing_customs_dark else R.drawable.ic_shipments_status_processing_customs
         10 -> if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
-        12 -> if (dark) R.drawable.ic_shipments_status_in_transit_counter_dark else R.drawable.ic_shipments_status_in_transit_counter
+        // ⚠️ Authorised duplicate — status 12 deliberately shares Out for
+        // Delivery's glyph (Figma 40000692-4169). Kemar 2026-07-26: the status
+        // is hardly ever used and will get its own icon when it is. See the
+        // fuller note in TrackJourney.iconRes. Only the artwork is shared; the
+        // status itself stays distinct from the driver leg.
+        12 -> if (dark) R.drawable.ic_shipments_status_out_for_delivery_dark else R.drawable.ic_shipments_status_out_for_delivery
         14 -> if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
         // Uncollected must NOT reuse the Detained glyph — BronzeMountain #79803.
         15 -> if (dark) R.drawable.ic_shipments_status_uncollected_dark else R.drawable.ic_shipments_status_uncollected
