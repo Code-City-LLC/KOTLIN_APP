@@ -494,12 +494,19 @@ main() {
   # is the only reason this had not bitten there.
   rm -rf "$results_root" "$reports_root"
 
+  # leaveApksInstalledAfterRun is REQUIRED for the screenshot pull in
+  # preserve_flavor. connectedAndroidTest uninstalls the app when it finishes,
+  # and the captures live in the app's external files dir — so without this the
+  # pull runs against a directory that no longer exists and silently collects
+  # nothing, while still reporting "none captured". BrightHarbor #179.
   ./gradlew --no-daemon --stacktrace :app:connectedProdDebugAndroidTest \
+    -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
     "-Pandroid.testInstrumentationRunnerArguments.class=$classes_csv"
   preserve_flavor prod
 
   rm -rf "$results_root" "$reports_root"
   ./gradlew --no-daemon --stacktrace :app:connectedStagingDebugAndroidTest \
+    -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
     "-Pandroid.testInstrumentationRunnerArguments.class=$classes_csv"
   preserve_flavor staging
 
