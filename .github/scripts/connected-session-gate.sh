@@ -261,7 +261,7 @@ preserve_flavor() {
   mkdir -p "$destination"
   cp -R "$results_root" "$destination/results"
   cp -R "$reports_root" "$destination/reports"
-  collect_device_screenshots "$destination"
+  collect_device_screenshots "$flavor" "$destination"
   assert_results "$flavor" "$destination/results"
 }
 
@@ -271,25 +271,45 @@ preserve_flavor() {
 # unverifiable from CI. Pull them into the proof tree the workflow uploads, and
 # print host paths so they are findable from the log. BrightHarbor #179.
 collect_device_screenshots() {
-  local destination="$1"
+  local flavor="$1"
+  local destination="$2"
   local shots="$destination/screenshots"
-  local pulled=0
   mkdir -p "$shots"
-  for package in com.ga.airdrop.app com.ga.airdrop.app.staging; do
-    local remote="/sdcard/Android/data/$package/files/screenshots"
-    if adb shell "test -d $remote" >/dev/null 2>&1; then
-      adb pull "$remote" "$shots" >/dev/null 2>&1 && pulled=1
-    fi
-  done
-  if [ "$pulled" -eq 1 ]; then
-    find "$shots" -name '*.png' -print | while read -r image; do
-      printf 'CONNECTED_SESSION_SCREENSHOT %s\n' "$image"
-    done
-  else
-    # Not an error: most classes capture nothing. Say so rather than leaving an
-    # empty directory that reads as "the capture failed".
-    printf 'CONNECTED_SESSION_SCREENSHOT none captured for %s\n' "$destination"
+
+  # ⚠️ PULL ONLY THIS FLAVOR'S PACKAGE.
+  #
+  # Both APKs stay installed across the run (leaveApksInstalledAfterRun), and
+  # the two flavors write IDENTICAL basenames — just_paid_partial.png and so
+  # on. Scanning both packages into one directory therefore lets the staging
+  # run's images land in the prod proof, or overwrite it, and the artifact
+  # would look complete while showing the wrong flavor's screens. Evidence that
+  # silently substitutes one run for another is worse than no evidence.
+  # BrightHarbor #179.
+  local package
+  case "$flavor" in
+    prod) package="com.ga.airdrop.app" ;;
+    staging) package="com.ga.airdrop.app.staging" ;;
+    *) echo "collect_device_screenshots: unknown flavor '$flavor'" >&2; return 1 ;;
+  esac
+
+  local remote="/sdcard/Android/data/$package/files/screenshots"
+  if ! adb shell "test -d $remote" >/dev/null 2>&1; then
+    # Not an error: most classes capture nothing.
+    printf 'CONNECTED_SESSION_SCREENSHOT %s: none captured\n' "$flavor"
+    return 0
   fi
+
+  adb pull "$remote" "$shots" >/dev/null 2>&1 || true
+  local count
+  count="$(find "$shots" -name '*.png' | wc -l | tr -d ' ')"
+  printf 'CONNECTED_SESSION_SCREENSHOT %s: %s image(s) from %s\n' "$flavor" "$count" "$package"
+  find "$shots" -name '*.png' -print | while read -r image; do
+    printf 'CONNECTED_SESSION_SCREENSHOT %s %s\n' "$flavor" "$image"
+  done
+
+  # Clear the device copy so the NEXT flavor cannot inherit these files if its
+  # own capture fails — the failure would otherwise be invisible.
+  adb shell "rm -rf $remote" >/dev/null 2>&1 || true
 }
 
 write_xml_fixture() {
