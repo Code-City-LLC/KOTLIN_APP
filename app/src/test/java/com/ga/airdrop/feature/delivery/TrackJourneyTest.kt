@@ -40,12 +40,22 @@ class TrackJourneyTest {
         source = if (status == null) "delivery" else "status",
     )
 
-    /** The real pre-staging answer for AIRQA0725003. */
+    /**
+     * The pre-staging answer for AIRQA0725003.
+     *
+     * ⚠️ The `out_for_delivery` leg used to carry `icon = "in_transit"` here.
+     * That was a REAL capture, not a typo — the projection genuinely sent it,
+     * and it is what made me wrongly conclude the two keys were synonyms. The
+     * server corrected it in 65130780, and `StatusIcons::DELIVERY_ICONS` in
+     * deployed source now maps the leg `out_for_delivery` to icon
+     * `out_for_delivery`. Keeping the old capture would pin a payload the
+     * server can no longer produce — flagged by BrightHarbor (#80258).
+     */
     private val liveJourney = listOf(
         entry("status_2_0", "Shipment Received", status = 2, icon = "shipment_received", at = "Jul 7, 2026 at 8:10 PM"),
         entry("status_3_1", "Port of Departure -MIA", status = 3, icon = "port_departure", at = "Jul 11, 2026 at 8:10 PM"),
         entry("delivery_assigned", "Preparing for Dispatch", icon = "dispatch", at = "Jul 23, 2026 at 9:28 AM"),
-        entry("out_for_delivery", "Out for Delivery", state = "current", icon = "in_transit", at = "Jul 25, 2026 at 7:58 AM"),
+        entry("out_for_delivery", "Out for Delivery", state = "current", icon = "out_for_delivery", at = "Jul 25, 2026 at 7:58 AM"),
         entry("delivered", "Delivered", state = "pending", icon = "delivered"),
     )
 
@@ -173,6 +183,36 @@ class TrackJourneyTest {
         assertEquals(
             com.ga.airdrop.R.drawable.ic_shipments_status_out_for_delivery,
             driverLeg,
+        )
+    }
+
+    /**
+     * The three delivery legs, transcribed from `StatusIcons::DELIVERY_ICONS`
+     * in deployed source. These carry NO status id, so the status-catalogue
+     * fallback cannot rescue a wrong key here — a mismatch renders the neutral
+     * package glyph and the customer sees the last mile lose its icons.
+     */
+    @Test
+    fun `the three delivery legs resolve to their published glyphs`() {
+        val legs = TrackJourney.rows(
+            listOf(
+                entry("delivery_assigned", "Preparing for Dispatch", icon = "dispatch"),
+                entry("out_for_delivery", "Out for Delivery", icon = "out_for_delivery"),
+                entry("delivered", "Delivered", icon = "delivered"),
+            ),
+        )
+        assertEquals(3, legs.size)
+        legs.forEach { row ->
+            assertEquals("a delivery leg carries no status id", null, row.statusId)
+            assertNotEquals(
+                "${row.iconKey} fell through to the neutral fallback",
+                com.ga.airdrop.R.drawable.ic_packages,
+                TrackJourney.iconRes(row.iconKey, row.statusId, dark = false),
+            )
+        }
+        assertEquals(
+            com.ga.airdrop.R.drawable.ic_shipments_status_out_for_delivery,
+            TrackJourney.iconRes("out_for_delivery", null, dark = false),
         )
     }
 
