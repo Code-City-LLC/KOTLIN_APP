@@ -19,6 +19,7 @@ import com.ga.airdrop.core.prefs.NotificationPreferenceMatrix
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,8 +67,30 @@ class NotificationsScreenParityTest {
     @get:Rule
     val compose = createComposeRule()
 
+    private val realGateway = com.ga.airdrop.core.push.NotificationBadgeSync.gateway
+
+    @Before
+    fun isolateTheBadgeNetworkSideEffect() {
+        // ⚠️ WITHOUT THIS, THESE TESTS HIT THE NETWORK.
+        //
+        // AuthTokenStore.save() calls NotificationBadgeSync
+        // .onAuthenticatedSessionChanged(...), so saving the fake token below
+        // fires a REAL GET /user/notifications with a bogus bearer. It 401s,
+        // the interceptor refreshes, the refresh 401s, and the session is torn
+        // down mid-test — after which the preference read's session guard fails
+        // and returns null, which renders as "notifications off".
+        //
+        // That is why a test driving a pure composable, with no network of its
+        // own, failed intermittently on CI with the wrong copy on screen.
+        // BrightHarbor's ruling: inject the gateway rather than no-op the sync
+        // or dodge the auth transition — the transition is what is under test.
+        com.ga.airdrop.core.push.NotificationBadgeSync.gateway =
+            com.ga.airdrop.core.push.NotificationBadgeGateway { null }
+    }
+
     @After
     fun tearDown() {
+        com.ga.airdrop.core.push.NotificationBadgeSync.gateway = realGateway
         AuthTokenStore.clear()
     }
 
