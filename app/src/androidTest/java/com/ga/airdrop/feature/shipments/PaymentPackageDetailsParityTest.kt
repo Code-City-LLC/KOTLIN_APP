@@ -87,6 +87,7 @@ class PaymentPackageDetailsParityTest {
             paymentsRepo = payments,
             packagesRepo = packages,
             hubRepo = StaticHubRepository(),
+            tracking = FakeTimelineGateway(emptyList()),
         )
 
         compose.waitUntil(timeoutMillis = 5_000) {
@@ -247,6 +248,14 @@ class PaymentPackageDetailsParityTest {
         exchangeRate = 160.0,
         payment = samplePayment(),
         detail = sampleDetail(),
+        // The rail is Laravel's projection now, not something the screen
+        // derives from `detail.history`.
+        timeline = FakeTimelineGateway.fromHistory(sampleDetail()) + listOf(
+            com.ga.airdrop.data.model.PackageTimelineEntry(
+                key = "status_18", status = 18, label = "Paid and Ready for Pick Up",
+                icon = "paid_ready_pickup", at = null, state = "current", source = "status",
+            ),
+        ),
     )
 
     private class RecordingPaymentsRepository : ShipmentsPaymentsRepository {

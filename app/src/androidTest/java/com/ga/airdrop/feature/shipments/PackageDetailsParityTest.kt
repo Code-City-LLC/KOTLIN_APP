@@ -423,6 +423,9 @@ class PackageDetailsParityTest {
             // "Cart update failed" instead of the success dialog.
             cartServer = AlwaysOkCartServerGateway(),
             sessionBoundary = FakeAuthenticatedSessionBoundary(),
+            // The rail is Laravel's now; without this the VM reaches for the
+            // real endpoint and the Shipment Timeline card renders empty.
+            tracking = FakeTimelineGateway(detail),
         )
         compose.setContent {
             AirdropThemeProvider {

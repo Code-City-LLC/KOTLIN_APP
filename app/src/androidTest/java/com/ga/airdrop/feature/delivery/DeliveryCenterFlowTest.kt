@@ -11,6 +11,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -125,6 +126,27 @@ class DeliveryCenterFlowTest {
                         activeDeliveries = listOf(active(41)),
                         selectedPackageId = 41,
                         delivery = delivery,
+                        // The rail is Laravel's projection. These are
+                        // deliberately labels no client-side catalogue knows:
+                        // the screen must print what the server sends, in the
+                        // order it sends it, and never substitute its own.
+                        timeline = listOf(
+                            PackageTimelineEntry(
+                                key = "accepted", status = null, label = "Accepted by dispatch",
+                                icon = "dispatch", at = "Jul 22, 2026 at 12:00 PM",
+                                state = "done", source = "delivery",
+                            ),
+                            PackageTimelineEntry(
+                                key = "road", status = null, label = "Vehicle departed",
+                                icon = "out_for_delivery", at = "Jul 22, 2026 at 1:00 PM",
+                                state = "current", source = "delivery",
+                            ),
+                            PackageTimelineEntry(
+                                key = "handed_over", status = null, label = "Handed to customer",
+                                icon = "delivered", at = null,
+                                state = "pending", source = "delivery",
+                            ),
+                        ),
                         loading = false,
                         loadedOnce = true,
                     ),
@@ -232,20 +254,27 @@ class DeliveryCenterFlowTest {
             }
         }
 
-        // The journey begins where it really began.
-        compose.onNodeWithText("Shipment Received").assertIsDisplayed()
-        compose.onNodeWithText("Port of Departure -MIA").assertIsDisplayed()
-        compose.onNodeWithText("Processing at Customs").assertIsDisplayed()
-        compose.onNodeWithText("Detained at Customs").assertIsDisplayed()
-        compose.onNodeWithText("Uncollected Packages").assertIsDisplayed()
-        // Out for Delivery and In-Transit to counter used to share one drawable;
-        // both are on screen here so the two glyphs can be compared directly.
-        compose.onNodeWithText("In-Transit to counter").assertIsDisplayed()
-        compose.onNodeWithText("Out for Delivery").assertIsDisplayed()
+        // The journey begins where it really began. Seven rows do not fit one
+        // screen, so presence is asserted and the rail is scrolled to reach the
+        // later ones — assertIsDisplayed alone would fail on layout, not on
+        // anything the customer would call wrong.
+        listOf(
+            "Shipment Received",
+            "Port of Departure -MIA",
+            "Processing at Customs",
+            "Detained at Customs",
+            "Uncollected Packages",
+            // Out for Delivery and In-Transit to counter used to share one
+            // drawable; both are on this rail so the glyphs differ visibly.
+            "In-Transit to counter",
+            "Out for Delivery",
+        ).forEach { compose.onNodeWithText(it).assertExists() }
 
         // Only the rows that have gone wrong offer help.
-        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_10")).assertIsDisplayed()
-        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_15")).assertIsDisplayed()
+        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_10"))
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_15")).assertExists()
         compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_9")).assertDoesNotExist()
         compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_2")).assertDoesNotExist()
         saveRootScreenshot("delivery_center_detained_contact.png")
