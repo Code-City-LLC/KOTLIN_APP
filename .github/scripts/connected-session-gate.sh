@@ -221,7 +221,7 @@ assert_results() {
   requested="$(printf '%s\n' "${requested_classes[@]}")"
   mandatory_counts="$(mandatory_count_contract)"
   LABEL="$label" XML_ROOT="$xml_root" REQUESTED_CLASSES="$requested" MANDATORY_CLASS_COUNTS="$mandatory_counts" \
-    ALLOWED_SKIPS_SPEC="$(printf '%s\n' "${allowed_skips[@]}")" ruby <<'RUBY'
+    ALLOWED_SKIPS_SPEC="$(printf '%s\n' ${allowed_skips[@]+"${allowed_skips[@]}"})" ruby <<'RUBY'
 require "rexml/document"
 require "rexml/xpath"
 
@@ -269,9 +269,8 @@ files.each do |path|
     skipped = REXML::XPath.first(testcase, "skipped")
     next if skipped.nil?
     name = "#{testcase.attributes['classname']}.#{testcase.attributes['name']}"
-    # ⚠️ AGP writes <skipped> for TWO different outcomes and counts only ONE of
-    # them in the suite attribute. Verified in ddmlib 31.10.1 bytecode
-    # (com.android.ddmlib.testrunner.XmlTestRunListener):
+    # ddmlib CAN write <skipped> in two shapes, and counts only one of them in
+    # the suite attribute. From ddmlib 31.10.1 bytecode (XmlTestRunListener):
     #
     #   ASSUMPTION_FAILURE -> printFailedTest(w, "skipped", stackTrace)
     #                         => <skipped> WITH text
@@ -279,12 +278,23 @@ files.each do |path|
     #                         => EMPTY <skipped>
     #   attribute skipped   = getNumTestsInState(IGNORED)   -- IGNORED ONLY
     #
-    # So an `Assume` failure emits a node the attribute never counts. Treating
-    # the two alike made the reconciliation below abort on any assumption
-    # failure — inexpressibly, since it runs BEFORE the allow-list.
-    # `HttpsImageLoadInstrumentedTest` calls assumeTrue when the prod feed
-    # serves no cleartext image, i.e. in the HEALTHY case, so every PR touching
-    # core/network/ would have died here.
+    # ⚠️ BUT MEASURE BEFORE YOU BELIEVE THAT APPLIES HERE. I claimed it did and
+    # was wrong. Forcing HttpsImageLoadInstrumentedTest's assumeTrue to fail on
+    # a real device produced:
+    #
+    #   suite attrs: tests=2 skipped=2
+    #   <skipped> on both testcases -> EMPTY, no text
+    #   attribute 2 == nodes 2, reconciles
+    #
+    # AndroidJUnitRunner reports the outcome through the instrumentation status
+    # protocol and it lands as IGNORED, so in THIS project an unmet Assume is
+    # indistinguishable from @Ignore and DOES need an ALLOWED_SKIPS entry. That
+    # was true before this gate change too, because `skipped == 0` read the same
+    # attribute. See the issue for the operational consequence.
+    #
+    # The split below is kept as insurance in case a future AGP emits the
+    # text-bearing shape — it costs nothing and would otherwise abort the gate
+    # for a reason no message explains. It is NOT load-bearing today.
     if skipped.text.to_s.strip.empty?
       skipped_names << name
     else
@@ -636,9 +646,18 @@ run_self_test() (
   # quarantines: those tests do skip on device. Deriving the fixture from the
   # same `allowed_skips` the checker reads is the point — a hardcoded copy here
   # would keep passing after someone edited the list.
+  # ⚠️ An EMPTY allow-list is the NORMAL end state — the header above says
+  # "Deleting an entry here is how a quarantine ends", and the gate's own stale
+  # abort tells the maintainer to do exactly that. Every expansion here must
+  # therefore survive a zero-length array under `set -u`:
+  #   "${a[@]}" is safe from bash 4.4 (CI), but NOT on bash 3.2 (macOS).
+  #   ${a[0]}   is unbound on BOTH.
+  # This step runs before the emulator in a required, non-path-filtered gate,
+  # so an unguarded index would make every open PR unmergeable with an error
+  # naming a bash array rather than the allow-list. Confirmed by two reviewers.
   local declared_skips=""
   local entry
-  for entry in "${allowed_skips[@]}"; do
+  for entry in ${allowed_skips[@]+"${allowed_skips[@]}"}; do
     local name="${entry%%=*}"
     declared_skips+="${name%.*}#${name##*.}"$'\n'
   done
@@ -707,10 +726,17 @@ run_self_test() (
       ;;
   esac
 
-  local first_allowed="${allowed_skips[0]%%=*}"
-  write_xml_fixture "$temp_root/stale-allow-entry" "${valid_fixture_classes[@]}" "${first_allowed%.*}"
-  expect_gate_abort self-test-stale-allow-entry "$temp_root/stale-allow-entry" \
-    "the quarantine is over, delete the entry: $first_allowed" || return 1
+  # With no entries there is nothing to go stale, so this case is unexercisable.
+  # SAY SO — a case that quietly does not run is the same silence this gate
+  # exists to remove.
+  if [[ ${#allowed_skips[@]} -eq 0 ]]; then
+    printf 'connected-session-gate self-test: NOTE allow-list is empty, stale-entry case not exercised\n'
+  else
+    local first_allowed="${allowed_skips[0]%%=*}"
+    write_xml_fixture "$temp_root/stale-allow-entry" "${valid_fixture_classes[@]}" "${first_allowed%.*}"
+    expect_gate_abort self-test-stale-allow-entry "$temp_root/stale-allow-entry" \
+      "the quarantine is over, delete the entry: $first_allowed" || return 1
+  fi
 
   for ((index = 0; index < ${#valid_fixture_classes[@]} - 1; index += 1)); do
     missing_class_fixture+=("${valid_fixture_classes[index]}")
@@ -752,8 +778,27 @@ main() {
   fi
   case "$mode" in
     --self-test)
-      run_self_test
-      return
+      # ⚠️ DO NOT TRUST THE EXIT STATUS ALONE.
+      # On bash 3.2 an unbound-variable death inside run_self_test's subshell
+      # produced EMPTY OUTPUT AND STATUS 0 — the self-test reported success
+      # having executed nothing. Requiring the sentinel means "it passed" can
+      # never be inferred from silence.
+      # Matched with `case`, not a pipe into grep: a pipe would replace the
+      # status with the last stage's, which is the exact mistake this guards.
+      local self_test_output
+      local self_test_status=0
+      self_test_output="$(run_self_test 2>&1)" || self_test_status=$?
+      printf '%s\n' "$self_test_output"
+      if [[ $self_test_status -ne 0 ]]; then
+        return "$self_test_status"
+      fi
+      case "$self_test_output" in
+        *"connected-session-gate self-test: PASS"*) return 0 ;;
+        *)
+          printf 'self-test exited 0 but produced no PASS sentinel -- it did not run to completion\n' >&2
+          return 1
+          ;;
+      esac
       ;;
     --dry-run|"")
       ;;
