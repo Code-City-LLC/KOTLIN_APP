@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** Did the canonical timeline load, and can its emptiness be trusted? */
+enum class TimelineOutcome { LOADING, LOADED, FAILED }
+
 data class PackageDetailsUiState(
     val loading: Boolean = true,
     val detail: ShipmentPackageDetail? = null,
@@ -23,6 +26,19 @@ data class PackageDetailsUiState(
      * derives the rail from `history` — see TrackJourney.
      */
     val timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry> = emptyList(),
+    /**
+     * Whether the canonical timeline request actually SUCCEEDED.
+     *
+     * ⚠️ Load-bearing. `packageTimeline(...).getOrNull().orEmpty()` maps every
+     * failure — network, 401, 5xx, a decode error — onto the same empty list a
+     * genuinely event-less package produces. Without this flag the screen
+     * cannot tell "this package has no recorded history" from "we could not
+     * read its history", and a package with a full journey would silently
+     * collapse to a single current-status row on a dropped request.
+     *
+     * Caught by BrightHarbor in review of #178 before it merged.
+     */
+    val timelineOutcome: TimelineOutcome = TimelineOutcome.LOADING,
     val exchangeRate: Double = DEFAULT_USD_TO_JMD,
     val uploading: Boolean = false,
     val deletingInvoiceId: Int? = null,
@@ -383,11 +399,20 @@ class PackageDetailsViewModel(
         repo.packageDetails(packageId)
             .onSuccess { detail ->
                 // A timeline failure must not blank the whole screen; the rest
-                // of the package detail is still real.
-                val timeline = packageId.toIntOrNull()
-                    ?.let { tracking.packageTimeline(it).getOrNull() }
-                    .orEmpty()
-                _state.update { it.copy(loading = false, detail = detail, timeline = timeline) }
+                // of the package detail is still real. But it must also not be
+                // reported as an empty journey — those are different facts.
+                val fetched = packageId.toIntOrNull()?.let { tracking.packageTimeline(it) }
+                val ok = fetched?.isSuccess == true
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        detail = detail,
+                        // On failure keep whatever was already loaded rather
+                        // than discarding a journey we successfully read before.
+                        timeline = if (ok) fetched.getOrNull().orEmpty() else it.timeline,
+                        timelineOutcome = if (ok) TimelineOutcome.LOADED else TimelineOutcome.FAILED,
+                    )
+                }
             }
             .onFailure { e ->
                 if (showLoading) {

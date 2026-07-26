@@ -502,9 +502,45 @@ class PackageDetailsParityTest {
         )
     }
 
+    /**
+     * ⚠️ THE BUG #178 SHIPPED WITH, CAUGHT IN REVIEW BEFORE IT MERGED.
+     *
+     * `loadDetails()` maps every timeline failure — network, 401, 5xx, decode —
+     * onto the same `emptyList()` that a genuinely event-less package produces.
+     * The first cut of the zero-history fallback branched on emptiness alone,
+     * so a package with a FULL recorded history would silently collapse to a
+     * single current-status row the moment one request dropped, and a failed
+     * read would be presented to the customer as "nothing has happened yet".
+     *
+     * Two different facts. This pins that they render differently.
+     * BrightHarbor #80368.
+     */
+    @Test
+    fun aFailedTimelineReadIsNotRenderedAsConfirmedZeroHistory() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "20", statusName = "Paid and Ready for Delivery"),
+            timelineFails = true,
+        )
+
+        compose.onNodeWithTag("package-details-section-timeline").performScrollTo()
+
+        // The honest state: we could not read it.
+        compose.onNodeWithTag("package-details-timeline-unavailable").assertExists()
+
+        // And emphatically NOT the confirmed-empty presentation.
+        assertEquals(
+            "a failed read must never be shown as a confirmed present-state row",
+            0,
+            compose.onAllNodesWithTag("package-details-timeline-current-only")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
     private fun setPackageDetailsContent(
         mode: ThemeController.Mode,
         detail: ShipmentPackageDetail = sampleDetail(),
+        timelineFails: Boolean = false,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -524,7 +560,10 @@ class PackageDetailsParityTest {
             sessionBoundary = FakeAuthenticatedSessionBoundary(),
             // The rail is Laravel's now; without this the VM reaches for the
             // real endpoint and the Shipment Timeline card renders empty.
-            tracking = FakeTimelineGateway(detail),
+            tracking = FakeTimelineGateway(
+                FakeTimelineGateway.fromHistory(detail),
+                fails = timelineFails,
+            ),
         )
         compose.setContent {
             AirdropThemeProvider {

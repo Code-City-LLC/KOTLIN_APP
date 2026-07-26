@@ -409,7 +409,25 @@ private fun PackageDetailsContent(
             contentSpacing = 12.dp,
         ) {
             val rows = TrackJourney.rows(state.timeline)
-            if (rows.isEmpty()) {
+            if (rows.isEmpty() && state.timelineOutcome == TimelineOutcome.FAILED) {
+                // ⚠️ A FAILED READ IS NOT AN EMPTY JOURNEY.
+                //
+                // `packageTimeline(...).getOrNull().orEmpty()` collapses every
+                // failure — network, 401, 5xx, decode — onto the same empty
+                // list an event-less package produces. Branching on emptiness
+                // alone would show a package with a full recorded history as a
+                // single current-status row the moment one request dropped,
+                // and would present "we could not read this" as "nothing has
+                // happened". Two different facts; the customer is told which.
+                //
+                // Caught by BrightHarbor reviewing #178 before it merged.
+                Text(
+                    text = "Tracking updates couldn't be loaded. Pull to refresh to try again.",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                    modifier = Modifier.testTag("package-details-timeline-unavailable"),
+                )
+            } else if (rows.isEmpty() && state.timelineOutcome == TimelineOutcome.LOADED) {
                 // ⚠️ ZERO RECORDED HISTORY. Until now this card rendered its
                 // title with nothing under it — a blank box — for any package
                 // whose history has not been written yet. Real case, not
