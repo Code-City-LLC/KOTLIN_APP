@@ -103,9 +103,11 @@ object DeliveryCenterTags {
  * green passed / soft-orange current, faded upcoming, animated flow).
  *
  * Two entries share this screen:
- *  • orderReference (just paid at checkout) → the deterministic post-checkout
- *    journey. No delivery exists server-side yet, so nothing is fetched and no
- *    progress is invented beyond "confirmed + preparing".
+ *  • orderReference (just paid at checkout) → the post-checkout screen. It
+ *    FETCHES the exact packages the verify response said were paid for
+ *    (`package_ids`) and reports their identity and present status. It draws no
+ *    journey: a just-paid package has no recorded events, and inventing
+ *    "confirmed + preparing" from the fact of payment is what this replaced.
  *  • packageId / no args → the LIVE 0/1/many state machine (Codex's plumbing):
  *    Laravel's active-deliveries list, per-package tracking detail, refresh,
  *    session-boundary hygiene. Every live stage row is the ordered server
@@ -115,12 +117,15 @@ object DeliveryCenterTags {
 fun DeliveryCenterScreen(
     orderReference: String?,
     initialPackageId: Int?,
+    /** The packages this checkout actually paid for (verify `package_ids`). */
+    justPaidPackageIds: List<Int> = emptyList(),
     onBack: () -> Unit,
     onContactUs: () -> Unit,
 ) {
     if (initialPackageId == null && !orderReference.isNullOrBlank()) {
         JustPaidJourney(
             orderReference = orderReference,
+            packageIds = justPaidPackageIds,
             onBack = onBack,
             onContactUs = onContactUs,
         )
@@ -240,55 +245,67 @@ private fun DeliveryCenterScaffold(
 
 // ─── Just-paid journey (deterministic; reached with an invoice ref) ──────────
 
-private data class JourneyStage(
-    val key: String,
-    val label: String,
-    val state: String,
-)
+// ⚠️ THE FABRICATED POST-CHECKOUT RAIL USED TO LIVE HERE, AND IS GONE.
+//
+// `JourneyStage` / `JUST_PAID_STAGES` / `truncateAfterFirstPending` built a
+// fixed "Preparing for Dispatch -> Out for Delivery -> Delivered" ladder from
+// the fact of payment alone, for packages with no recorded events at all.
+// Kemar: the post-checkout screen shows the REAL packages, and "use only real
+// generated info not static". It now does, so nothing reads that ladder.
+//
+// Kemar's rule 3 ("everything that happened plus exactly ONE upcoming step",
+// #79650) has NOT been dropped — it moved to the server, which sends a single
+// pending step, and TrackJourneyTest pins that the client renders every pending
+// row the server sends rather than capping on its own. Keeping a client-side
+// truncator for a rail the client no longer builds would be dead code implying
+// a contract that no longer exists.
 
-/**
- * Just-paid journey — shown immediately after checkout, before Laravel has a
- * `package_deliveries` row to report.
- *
- * ⚠️ BrightHarbor #79775 caught this carrying SUPERSEDED UI: it still had
- * "Order Confirmed" and all four stages while the live rail had already moved
- * to the three-stage, one-upcoming-step contract — so the two Track entry
- * paths looked different for the same package. Fixing one path and leaving the
- * other is exactly the regression shape that has bitten repeatedly today.
- *
- * Now matches the live rail: no Order Confirmed (Laravel #79690 §4), and
- * truncated to a single upcoming step (Kemar rule 3, #79650).
- */
-private val JUST_PAID_STAGES = truncateAfterFirstPending(
-    listOf(
-        JourneyStage("preparing_dispatch", "Preparing for Dispatch", "current"),
-        JourneyStage("out_for_delivery", "Out for Delivery", "pending"),
-        JourneyStage("delivered", "Delivered", "pending"),
-    ),
-) { it.state == "pending" }
-
-/**
- * Kemar (timeline rule 3, #79650): *"Don't generate the last delivery. Just say
- * Out for Delivery. The next one is not gonna come until... we're only gonna
- * have one blurred out."*
- *
- * Everything that has HAPPENED, plus the SINGLE next thing — never a queue of
- * greyed-out future steps. Applied here, in the one place the rail is
- * assembled, so it cannot hold for one rail and drift on the other.
- */
-internal fun <T> truncateAfterFirstPending(rows: List<T>, isPending: (T) -> Boolean): List<T> {
-    val firstPending = rows.indexOfFirst(isPending)
-    return if (firstPending >= 0) rows.take(firstPending + 1) else rows
+@Composable
+private fun JustPaidPackageRow(pkg: JustPaidPackage, onContactUs: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier.fillMaxWidth().testTag("just-paid-package-${pkg.id}"),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        pkg.ardNumber?.let {
+            Text(text = it, style = AirdropType.body1, color = colors.textDarkTitle)
+        }
+        pkg.description?.let {
+            Text(text = it, style = AirdropType.body2, color = colors.textDescription)
+        }
+        Text(
+            // Never invented: payment success does not prove a status label.
+            text = pkg.statusName ?: "Status unavailable",
+            style = AirdropType.body2,
+            color = if (pkg.statusName != null) colors.orangeMain else colors.textDescription,
+            modifier = Modifier.testTag("just-paid-status-${pkg.id}"),
+        )
+        // Kemar: a status that has gone wrong carries its way out.
+        if (TrackJourney.needsHelp(pkg.statusId)) {
+            Text(
+                text = "Contact us about this",
+                style = AirdropType.body2,
+                color = colors.orangeMain,
+                modifier = Modifier
+                    .clickable(onClick = onContactUs)
+                    .testTag("just-paid-contact-${pkg.id}"),
+            )
+        }
+    }
 }
-
 
 @Composable
 private fun JustPaidJourney(
     orderReference: String,
+    packageIds: List<Int>,
     onBack: () -> Unit,
     onContactUs: () -> Unit,
+    justPaid: JustPaidPackagesViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        key = "justPaid/${packageIds.joinToString(",")}",
+    ) { JustPaidPackagesViewModel(packageIds) },
 ) {
     val colors = AirdropTheme.colors
+    val paidState by justPaid.state.collectAsState()
     DeliveryCenterScaffold(onBack = onBack) {
         Column(
             Modifier
@@ -320,23 +337,69 @@ private fun JustPaidJourney(
                         style = AirdropType.title2,
                         color = colors.textDarkTitle,
                     )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = orderReference,
-                        style = AirdropType.body2,
-                        color = colors.textDescription,
-                    )
+                    // ⚠️ THE STRIPE CHECKOUT ID USED TO BE PRINTED HERE.
+                    // `orderReference` is the `cs_...` session id that
+                    // verifySession passes through as the "reference" — an
+                    // internal payment-processor identifier, not an AirDrop
+                    // one. Swift CLAUDE.md:31 is explicit that the ARD is the
+                    // only customer-facing reference. The per-package ARD is
+                    // rendered on each row below, where it belongs; the route
+                    // still carries orderReference for navigation.
+                    // BrightHarbor #80393.
                 }
-                Column(Modifier.fillMaxWidth()) {
-                    JUST_PAID_STAGES.forEachIndexed { index, stage ->
-                        DeliveryTimelineStep(
-                            stage = TrackedDeliveryStage(
-                                key = stage.key,
-                                label = stage.label,
-                                state = stage.state,
-                                at = null,
-                            ),
-                            isLast = index == JUST_PAID_STAGES.lastIndex,
+                // ⚠️ THIS WAS A FABRICATED RAIL. It printed "Preparing for
+                // Dispatch → Out for Delivery" from the fact of payment alone,
+                // for packages that had no recorded events at all.
+                //
+                // Kemar: the post-checkout screen shows the REAL packages, and
+                // *"use only real generated info not static"*. Measured: a
+                // just-paid package is status 20 with ZERO timeline entries and
+                // zero history rows, so there is no journey to draw — and
+                // drawing one anyway is exactly what /packages/journeys is held
+                // for. Identity and present status, both server-authored, and
+                // nothing further.
+                Column(
+                    Modifier.fillMaxWidth().testTag("just-paid-packages"),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    when {
+                        paidState.loading -> Text(
+                            text = "Loading your packages…",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            modifier = Modifier.testTag("just-paid-loading"),
+                        )
+                        paidState.packages.isNotEmpty() -> {
+                            paidState.packages.forEach { pkg ->
+                                JustPaidPackageRow(pkg = pkg, onContactUs = onContactUs)
+                            }
+                            // A partial read must not read as a complete one.
+                            if (paidState.unresolvedCount > 0) {
+                                Text(
+                                    text = "${paidState.unresolvedCount} more package(s) " +
+                                        "couldn't be loaded just now — they'll appear in Packages.",
+                                    style = AirdropType.body2,
+                                    color = colors.textDescription,
+                                    modifier = Modifier.testTag("just-paid-partial"),
+                                )
+                            }
+                        }
+                        // Distinguish "we could not read them" from "there were
+                        // none" — the same rule the Package Details timeline
+                        // now follows. Never assert an absence we did not read.
+                        paidState.failed -> Text(
+                            text = "Your payment went through. We couldn't load the package " +
+                                "details just now — they'll appear in Packages shortly.",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            modifier = Modifier.testTag("just-paid-unavailable"),
+                        )
+                        else -> Text(
+                            text = "Your payment went through. Tracking updates will appear " +
+                                "here once your packages start moving.",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            modifier = Modifier.testTag("just-paid-none"),
                         )
                     }
                 }

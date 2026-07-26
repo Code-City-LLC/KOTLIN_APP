@@ -309,6 +309,10 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
                 type = androidx.navigation.NavType.StringType
                 defaultValue = ""
             },
+            androidx.navigation.navArgument("packageIds") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
         ),
     ) { entry ->
         com.ga.airdrop.feature.delivery.DeliveryCenterScreen(
@@ -317,6 +321,9 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
                 ?.getString("packageId")
                 ?.toIntOrNull()
                 ?.takeIf { it > 0 },
+            // The packages this payment actually settled. Empty on every entry
+            // that is not a just-paid return, which is the live path.
+            justPaidPackageIds = Routes.decodePackageIds(entry.arguments?.getString("packageIds")),
             onBack = { navController.popBackStack() },
             onContactUs = { navController.navigate(Routes.LIVE_CHAT) },
         )
@@ -337,15 +344,21 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     ) { entry ->
         com.ga.airdrop.feature.cart.PaymentReturnHost(
             sessionId = entry.arguments?.getString("sessionId").orEmpty(),
-            onPaid = { ref, amount ->
+            onPaid = { ref, amount, packageIds ->
                 navController.navigate(
                     // Fulfillment MUST be carried: without it the success
                     // screen falls back to the pickup variant and tells a
                     // delivery buyer to collect at the branch.
+                    //
+                    // packageIds MUST be carried for the same class of reason:
+                    // they are the only record of which packages this payment
+                    // actually settled, and the store that knew about the
+                    // checkout is cleared once it commits.
                     Routes.paymentSuccess(
                         ref,
                         amount,
                         com.ga.airdrop.feature.cart.CheckoutFlowStore.currentFulfillment(),
+                        packageIds,
                     ),
                 ) {
                     // Pop through the cart so Back from Success never lands on
@@ -375,15 +388,21 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     // retry; unknown/network/mismatch remains pending to prevent double-pay.
     composable(Routes.PAYMENT_CANCELLED) {
         com.ga.airdrop.feature.cart.PaymentCancelledHost(
-            onPaid = { ref, amount ->
+            onPaid = { ref, amount, packageIds ->
                 navController.navigate(
                     // Fulfillment MUST be carried: without it the success
                     // screen falls back to the pickup variant and tells a
                     // delivery buyer to collect at the branch.
+                    //
+                    // packageIds MUST be carried for the same class of reason:
+                    // they are the only record of which packages this payment
+                    // actually settled, and the store that knew about the
+                    // checkout is cleared once it commits.
                     Routes.paymentSuccess(
                         ref,
                         amount,
                         com.ga.airdrop.feature.cart.CheckoutFlowStore.currentFulfillment(),
+                        packageIds,
                     ),
                 ) {
                     popUpTo(Routes.CART) { inclusive = true }
@@ -419,9 +438,14 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
                 type = androidx.navigation.NavType.StringType
                 defaultValue = ""
             },
+            androidx.navigation.navArgument("packageIds") {
+                type = androidx.navigation.NavType.StringType
+                defaultValue = ""
+            },
         ),
     ) { entry ->
         val successRef = entry.arguments?.getString("ref")?.takeIf { it.isNotBlank() }
+        val paidPackageIds = Routes.decodePackageIds(entry.arguments?.getString("packageIds"))
         com.ga.airdrop.feature.cart.PaymentSuccessScreen(
             orderReference = successRef,
             formattedAmount = entry.arguments?.getString("amount")?.takeIf { it.isNotBlank() },
@@ -435,7 +459,7 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
                     popUpTo(0) { inclusive = true }
                     launchSingleTop = true
                 }
-                navController.navigate(Routes.deliveryCenter(successRef))
+                navController.navigate(Routes.deliveryCenter(successRef, packageIds = paidPackageIds))
             },
             onContinueShopping = {
                 // "Continue Shopping" → Shop tab, clearing the checkout stack.

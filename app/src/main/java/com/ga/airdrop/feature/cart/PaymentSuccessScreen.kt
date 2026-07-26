@@ -159,17 +159,19 @@ fun PaymentSuccessScreen(
                     modifier = Modifier.testTag("payment-success-subline"),
                 )
 
-                if (!orderReference.isNullOrBlank()) {
-                    Text(
-                        text = orderReference,
-                        style = AirdropType.subtitle2,
-                        color = colors.textDescription,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.testTag("payment-success-reference"),
-                    )
-                }
+                // ⚠️ THE STRIPE CHECKOUT ID USED TO BE PRINTED HERE.
+                //
+                // `orderReference` is not an order reference. verifySession()
+                // builds Success(sessionId, ...) so this is the Stripe
+                // `cs_...` checkout-session id — an internal payment-processor
+                // identifier that means nothing to a customer and identifies a
+                // payment session to anyone who sees the screen.
+                //
+                // Swift CLAUDE.md:31: the ARD is the ONLY customer-facing
+                // reference. The ARD is per-package and is rendered on the
+                // tracking screen this leads to, so nothing is lost.
+                // `orderReference` still rides the route for navigation.
+                // BrightHarbor #80393.
             }
 
             Spacer(Modifier.weight(1f))

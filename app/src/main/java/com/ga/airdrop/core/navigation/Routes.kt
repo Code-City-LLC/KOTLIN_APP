@@ -32,7 +32,8 @@ object Routes {
     // and the payment-success "Track your package" action. Optional ref = the
     // just-paid invoice (deterministic post-checkout journey); optional
     // packageId = a server-identified package (live tracking detail).
-    const val DELIVERY_CENTER = "deliveryCenter?ref={ref}&packageId={packageId}"
+    const val DELIVERY_CENTER =
+        "deliveryCenter?ref={ref}&packageId={packageId}&packageIds={packageIds}"
     const val SALES_TAXES = "salesTaxes"
     const val GOLD_PRIORITY = "goldPriority"
     const val NOTIFICATIONS = "notifications"
@@ -112,7 +113,8 @@ object Routes {
     // to PAYMENT_SUCCESS (verified paid), the cart (not paid / cancelled), or
     // Shipments (unconfirmed).
     const val PAYMENT_RETURN = "paymentReturn/{sessionId}"
-    const val PAYMENT_SUCCESS = "paymentSuccess?ref={ref}&amount={amount}&fulfillment={fulfillment}"
+    const val PAYMENT_SUCCESS =
+        "paymentSuccess?ref={ref}&amount={amount}&fulfillment={fulfillment}&packageIds={packageIds}"
     const val PAYMENT_CANCELLED = "paymentCancelled"
 
     // NCB (JMD) PowerTranz checkout: card entry → 3-D Secure WebView.
@@ -131,19 +133,49 @@ object Routes {
      * packageId = a server-identified package (live tracking detail). Both
      * optional — neither means "open on the live active-deliveries view".
      */
-    fun deliveryCenter(ref: String? = null, packageId: Int? = null): String {
+    fun deliveryCenter(
+        ref: String? = null,
+        packageId: Int? = null,
+        packageIds: List<Int> = emptyList(),
+    ): String {
         val encoded = java.net.URLEncoder.encode(ref.orEmpty(), "UTF-8").replace("+", "%20")
         val pkg = packageId?.takeIf { it > 0 }?.toString() ?: ""
-        return "deliveryCenter?ref=$encoded&packageId=$pkg"
+        return "deliveryCenter?ref=$encoded&packageId=$pkg&packageIds=${encodePackageIds(packageIds)}"
     }
 
-    fun paymentSuccess(ref: String?, amount: String?, fulfillment: String? = null): String {
+    /**
+     * The just-paid package ids, as a comma-separated list for the route.
+     *
+     * Carried through the route rather than held in a store because the store
+     * that knows about a checkout is cleared when the checkout commits — the
+     * ids have to survive past that, and a route argument is the only thing
+     * here that does. Non-positive values are dropped so a malformed id cannot
+     * become a request for package 0.
+     */
+    fun encodePackageIds(packageIds: List<Int>): String =
+        packageIds.filter { it > 0 }.distinct().joinToString(",")
+
+    /** Inverse of [encodePackageIds]; tolerates blanks and junk without throwing. */
+    fun decodePackageIds(raw: String?): List<Int> =
+        raw.orEmpty()
+            .split(",")
+            .mapNotNull { it.trim().toIntOrNull() }
+            .filter { it > 0 }
+            .distinct()
+
+    fun paymentSuccess(
+        ref: String?,
+        amount: String?,
+        fulfillment: String? = null,
+        packageIds: List<Int> = emptyList(),
+    ): String {
         val encodedRef = java.net.URLEncoder.encode(ref.orEmpty(), "UTF-8").replace("+", "%20")
         val encodedAmount =
             java.net.URLEncoder.encode(amount.orEmpty(), "UTF-8").replace("+", "%20")
         val encodedFulfillment =
             java.net.URLEncoder.encode(fulfillment.orEmpty(), "UTF-8").replace("+", "%20")
-        return "paymentSuccess?ref=$encodedRef&amount=$encodedAmount&fulfillment=$encodedFulfillment"
+        return "paymentSuccess?ref=$encodedRef&amount=$encodedAmount" +
+            "&fulfillment=$encodedFulfillment&packageIds=${encodePackageIds(packageIds)}"
     }
 
     /**
