@@ -605,7 +605,11 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_shipments_status_in_transit_counter),
+                // Per-status icon. This was hardcoded to the in-transit truck,
+                // so EVERY row in the list showed the same glyph no matter what
+                // stage the delivery was actually at — the stage icons only
+                // worked on the detail journey.
+                painter = painterResource(deliveryStageIcon(delivery.status)),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(colors.orangeMain),
                 modifier = Modifier.size(25.dp),
@@ -629,7 +633,7 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
                 )
             }
             Text(
-                text = humanizeDeliveryStatus(delivery.status),
+                text = customerSafeStatusLabel(delivery.status),
                 style = AirdropType.body2.copy(fontWeight = FontWeight.SemiBold),
                 color = deliveryStatusColor(delivery.status),
             )
@@ -968,7 +972,9 @@ private val BANNED_STAGE_PHRASES = listOf("driver", "courier", "dispatcher", "ri
 private fun deliveryStageIcon(key: String): Int = when (key) {
     "order_confirmed" -> R.drawable.ic_shipments_status_shipment_received
     "preparing_dispatch" -> R.drawable.ic_shipments_status_processing_warehouse
-    "assigned" -> R.drawable.ic_shipments_status_shipment_received
+    // "assigned" is shown to customers as "Preparing for Dispatch", so it must
+    // carry that stage's icon — not Order Confirmed's.
+    "assigned" -> R.drawable.ic_shipments_status_processing_warehouse
     "out_for_delivery" -> R.drawable.ic_shipments_status_in_transit_counter
     "delivered" -> R.drawable.ic_shipments_status_delivered
     else -> R.drawable.ic_tracking
@@ -1012,6 +1018,24 @@ private fun ContactAction(onContactUs: () -> Unit, modifier: Modifier = Modifier
             color = colors.textDarkTitle,
         )
     }
+}
+
+/**
+ * Customer-facing label for a bare server status, for the Active-deliveries
+ * list. The detail journey already routed every stage through
+ * [customerSafeStageLabel]; the LIST did not, so it printed the raw
+ * operations status — "Assigned" — straight to the customer. The canonical
+ * customer journey is Order Confirmed -> Preparing for Dispatch -> Out for
+ * Delivery -> Delivered; "Assigned" is not one of its stages.
+ *
+ * Unknown keys fall back to title-case, but never leak an operations word.
+ */
+internal fun customerSafeStatusLabel(status: String): String {
+    val key = status.trim().lowercase(Locale.US)
+    APPROVED_STAGE_LABELS[key]?.let { return it }
+    val humanized = humanizeDeliveryStatus(status)
+    val lowered = humanized.lowercase(Locale.US)
+    return if (BANNED_STAGE_PHRASES.any { lowered.contains(it) }) "In Progress" else humanized
 }
 
 internal fun humanizeDeliveryStatus(status: String): String =
