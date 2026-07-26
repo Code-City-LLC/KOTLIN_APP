@@ -486,6 +486,13 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
 // ─── Activity grid — Swift makeActivitiesGrid (Figma 40000770:6493) ───────
 
 private data class Activity(
+    /**
+     * Stable identity for tests, independent of the visible copy. The tag used
+     * to be derived from [label], so renaming a tile silently broke every test
+     * that referenced it — which is exactly what happened when Track and
+     * Services swapped places and `home-activity-delivery-center` vanished.
+     */
+    val key: String,
     val label: String,
     val lightIconRes: Int,
     val darkIconRes: Int,
@@ -500,14 +507,24 @@ private fun ActivityGrid(onNavigate: (String) -> Unit) {
         // down to the lower row. Track is a thing customers do constantly;
         // Services is read-once marketing.
         Activity(
+            "track",
             "Track",
             R.drawable.ic_shipments_status_delivered,
             R.drawable.ic_shipments_status_delivered,
             Routes.deliveryCenter(),
         ),
-        Activity("Ship Tax", R.drawable.ic_ship_tax, R.drawable.ic_ship_tax_dark, Routes.SALES_TAXES),
-        Activity("Calculator", R.drawable.ic_calculator, R.drawable.ic_calculator_dark, Routes.CALCULATOR),
-        Activity("Drop Alert", R.drawable.ic_drop_alert, R.drawable.ic_drop_alert_dark, Routes.DROP_ALERT),
+        Activity(
+            "ship-tax", "Ship Tax",
+            R.drawable.ic_ship_tax, R.drawable.ic_ship_tax_dark, Routes.SALES_TAXES,
+        ),
+        Activity(
+            "calculator", "Calculator",
+            R.drawable.ic_calculator, R.drawable.ic_calculator_dark, Routes.CALCULATOR,
+        ),
+        Activity(
+            "drop-alert", "Drop Alert",
+            R.drawable.ic_drop_alert, R.drawable.ic_drop_alert_dark, Routes.DROP_ALERT,
+        ),
     )
     Column(
         // Swift wrap: grid inset top 20, horizontal 20; rows gap 10.
@@ -531,7 +548,7 @@ private fun ActivityGrid(onNavigate: (String) -> Unit) {
 @Composable
 private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
-    val tagSuffix = activity.label.lowercase(Locale.US).replace(" ", "-")
+    val tagSuffix = activity.key
     val shape = RoundedCornerShape(Spacing.sm1)
     Column(
         modifier = modifier
@@ -781,6 +798,7 @@ private fun EmptyAuctionCard() {
 private fun ReferAndDeliveryRow(onNavigate: (String) -> Unit) {
     val tiles = listOf(
         Activity(
+            "refer-a-friend",
             "Refer a friend",
             R.drawable.ic_more_refer,
             R.drawable.ic_more_refer_dark,
@@ -788,6 +806,7 @@ private fun ReferAndDeliveryRow(onNavigate: (String) -> Unit) {
         ),
         Activity(
             // Swapped down from the activity grid — see the Track tile above.
+            "services",
             "Services",
             R.drawable.ic_services,
             R.drawable.ic_services_dark,
