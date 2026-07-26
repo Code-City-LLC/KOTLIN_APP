@@ -65,6 +65,49 @@ class PushDeepLinkSessionBindingTest {
     }
 
     /**
+     * ⚠️ RESCUED FROM THE QUARANTINE BELOW.
+     *
+     * This assertion lived inside
+     * `processRestoreUsesFreshSecondaryProcessWithStableSessionId`, so the
+     * `@Ignore` added for #183 switched it off too — silently, because a
+     * quarantine hides everything in the method, not just the part that
+     * motivated it.
+     *
+     * It does not depend on the quarantined premise. There is no probe, no
+     * second process, and no cross-process `EncryptedSharedPreferences`
+     * coherence involved: it asserts that saving a bearer never writes it into
+     * THIS process's plaintext `push_deeplink` prefs. That is a security
+     * property, and it was the only assertion of it anywhere in the suite.
+     *
+     * Directly adjacent to #182/#184, where the encrypted store falling back to
+     * plain prefs means a bearer can reach disk in the clear. Losing this while
+     * fixing that would have been a poor trade.
+     *
+     * Found by an adversarial audit of #180 — not by CI, which was green.
+     */
+    @Test
+    fun savingABearerNeverWritesItIntoThePlaintextPushDeeplinkPrefs() {
+        AuthTokenStore.save("account-a-secret-token")
+        capture("PackagesView")
+
+        val store = context.getSharedPreferences("push_deeplink", Context.MODE_PRIVATE)
+        // ⚠️ `none { }` over an EMPTY map is vacuously true. Without this the
+        // test would pass on a prefs file that was never written — proving
+        // nothing while looking like proof. Assert the file is genuinely in
+        // play first, so the real assertion below has something to be true of.
+        assertTrue(
+            "precondition: the captured route must actually be persisted here, " +
+                "otherwise the absence of the bearer proves nothing",
+            store.all.isNotEmpty(),
+        )
+        assertTrue(
+            "the bearer must never appear in the plaintext push_deeplink prefs, " +
+                "found in: ${store.all.filterValues { it == "account-a-secret-token" }.keys}",
+            store.all.values.none { it == "account-a-secret-token" },
+        )
+    }
+
+    /**
      * ⚠️ QUARANTINED — THE PREMISE IS UNSUPPORTED, NOT THE CODE. See #183.
      *
      * This keeps the MAIN process alive while a second process reads
