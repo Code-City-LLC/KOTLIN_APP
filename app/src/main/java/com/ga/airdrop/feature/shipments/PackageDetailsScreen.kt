@@ -364,6 +364,12 @@ private fun PackageDetailsContent(
             ).joinToString(" ").ifBlank { "—" }
             DetailRow("Drop Number", detail.trackingCode ?: "—")
             DetailRow("Shipping Method", detail.shippingMethod ?: method.title)
+            // Swift orders Status immediately after Shipping Method
+            // (FigmaPackageDetailsViewController:1332-1333, and the placeholder
+            // table at :566-567). Kotlin omitted it entirely, so the one field
+            // that says where the package actually is was missing from the
+            // summary — on a screen whose timeline can also be empty.
+            DetailRow("Status", ShipmentStatusCatalog.displayName(detail.statusName, detail.status))
             DetailRow("Merchant/Shipper", detail.store ?: "—")
             DetailRow("Courier Tracking", courier)
             DetailRow("Description", detail.description?.ifBlank { "—" } ?: "—")
@@ -403,6 +409,50 @@ private fun PackageDetailsContent(
             contentSpacing = 12.dp,
         ) {
             val rows = TrackJourney.rows(state.timeline)
+            if (rows.isEmpty()) {
+                // ⚠️ ZERO RECORDED HISTORY. Until now this card rendered its
+                // title with nothing under it — a blank box — for any package
+                // whose history has not been written yet. Real case, not
+                // hypothetical: every package on the QA fixture set has zero
+                // `package_change_history` rows, and pre-staging 153897 is a
+                // live status-20 package with none.
+                //
+                // The fix must not become the bug it replaces. This is ONE row
+                // stating where the package is NOW — undated, not completed, no
+                // connector, no predecessors. It is a present-state marker, not
+                // a claim that a transition was recorded. That distinction is
+                // the whole reason `/packages/journeys` is on hold: it answers
+                // this same situation by inventing "done" stages with null
+                // timestamps for events that never happened.
+                //
+                // Swift parity, read from FigmaPackageDetailsViewController
+                // :1359-1367 — `d.history.isEmpty` adds exactly one row with
+                // `date: nil`, `isCompleted: false`, `isLast: true`, falling
+                // back to "Pending" when the name resolves to an em dash.
+                val currentStatusId = detail.status?.trim()?.toIntOrNull()
+                val currentName = ShipmentStatusCatalog
+                    .displayName(detail.statusName, detail.status)
+                    .takeIf { it.isNotBlank() && it != "—" }
+                    ?: "Pending"
+                TimelineIconRow(
+                    statusName = currentName,
+                    statusCode = currentStatusId,
+                    // No server glyph key exists off the timeline; the status
+                    // catalogue resolves the icon from the id.
+                    iconKey = null,
+                    // Current, never AlertPalette.Completed — nothing here has
+                    // been recorded as done.
+                    color = colors.orangeMain,
+                    date = null,
+                    showConnector = false,
+                    // Kemar's rule still applies to a present state: a package
+                    // sitting in Detained/Uncollected/Dangerous/Returned needs a
+                    // way out whether or not its history was ever written. Ten
+                    // of the QA fixtures are status 19, Returned to Merchant.
+                    onContactUs = if (TrackJourney.needsHelp(currentStatusId)) onContactUs else null,
+                    tag = "package-details-timeline-current-only",
+                )
+            }
             rows.forEachIndexed { index, row ->
                 TimelineIconRow(
                     statusName = row.label,
