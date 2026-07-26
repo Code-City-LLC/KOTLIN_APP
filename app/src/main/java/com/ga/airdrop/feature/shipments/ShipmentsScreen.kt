@@ -124,6 +124,11 @@ fun ShipmentsScreen(
                     }
                     if (state.packages.isEmpty()) {
                         if (state.loading) ShipmentsLoadingIndicator()
+                        else if (state.packagesFailed) ShipmentsErrorLabel(
+                            message = "Couldn't load your packages.",
+                            onRetry = viewModel::refresh,
+                            testTag = "shipments-packages-load-error",
+                        )
                         else ShipmentsEmptyLabel("No packages found")
                     } else {
                         LazyRow(
@@ -166,6 +171,11 @@ fun ShipmentsScreen(
                     if (state.payments.isEmpty()) {
                         Box(Modifier.padding(horizontal = Spacing.md)) {
                             if (state.loading) ShipmentsLoadingIndicator()
+                            else if (state.paymentsFailed) ShipmentsErrorLabel(
+                                message = "Couldn't load your payments.",
+                                onRetry = viewModel::refresh,
+                                testTag = "shipments-payments-load-error",
+                            )
                             else ShipmentsEmptyLabel("No payments found")
                         }
                     } else {
@@ -198,6 +208,11 @@ fun ShipmentsScreen(
                     }
                     if (state.orders.isEmpty()) {
                         if (state.loading) ShipmentsLoadingIndicator()
+                        else if (state.ordersFailed) ShipmentsErrorLabel(
+                            message = "Couldn't load your orders.",
+                            onRetry = viewModel::refresh,
+                            testTag = "shipments-orders-load-error",
+                        )
                         else Box(Modifier.padding(horizontal = Spacing.md)) { NoOrdersCard() }
                     } else {
                         LazyRow(
