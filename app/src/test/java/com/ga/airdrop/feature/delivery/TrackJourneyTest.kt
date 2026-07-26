@@ -1,186 +1,181 @@
 package com.ga.airdrop.feature.delivery
 
-import com.ga.airdrop.data.repo.TrackedDelivery
-import com.ga.airdrop.data.repo.TrackedDeliveryStage
-import com.ga.airdrop.feature.shipments.PackageHistoryItem
+import com.ga.airdrop.data.model.PackageTimelineEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Track must show the package's REAL journey.
+ * Track renders Laravel's canonical journey **as sent**.
  *
- * Kemar, 2026-07-26, looking at the shipped app: *"you started preparing for
- * dispatch, but that's not where it starts. It starts at shipment received or
- * drop alerted... It needs to show the REAL statuses"* and *"use only real
- * generated info not static"*.
+ * These tests used to assert Kotlin's own ordering, dedup, status-8 exclusion
+ * and one-pending cap, because the client built the rail. It no longer does —
+ * `GET /packages/{id}/timeline` owns all of that, and the swap was made only
+ * after checking the endpoint returned byte-for-byte what the client-side merge
+ * produced for AIRQA0725003.
  *
- * The screen used to render a hardcoded three-stage skeleton beginning at
- * "Preparing for Dispatch", so a customer whose package had been received,
- * cleared customs and been processed saw none of it. These tests pin the merge
- * so that skeleton cannot come back.
+ * So what is worth pinning now is the opposite: that the mapper does NOT
+ * reorder, filter, cap or relabel. A client that "helps" is how three screens
+ * ended up with three different answers.
  */
 class TrackJourneyTest {
 
-    private fun history(vararg pairs: Pair<Int, String>) =
-        pairs.map { (id, name) -> PackageHistoryItem(status = id, statusName = name) }
+    private fun entry(
+        key: String,
+        label: String,
+        state: String = "done",
+        status: Int? = null,
+        icon: String? = null,
+        at: String? = null,
+    ) = PackageTimelineEntry(
+        key = key,
+        status = status,
+        label = label,
+        icon = icon,
+        at = at,
+        atIso = null,
+        state = state,
+        source = if (status == null) "delivery" else "status",
+    )
 
-    private fun lastMile(vararg stages: Triple<String, String, String>) =
-        TrackedDelivery(
-            status = "assigned",
-            scheduledDate = null,
-            assignedAt = null,
-            outForDeliveryAt = null,
-            deliveredAt = null,
-            stages = stages.map { (key, label, state) ->
-                TrackedDeliveryStage(key = key, label = label, state = state, at = null)
-            },
-        )
+    /** The real pre-staging answer for AIRQA0725003. */
+    private val liveJourney = listOf(
+        entry("status_2_0", "Shipment Received", status = 2, icon = "shipment_received", at = "Jul 7, 2026 at 8:10 PM"),
+        entry("status_3_1", "Port of Departure -MIA", status = 3, icon = "port_departure", at = "Jul 11, 2026 at 8:10 PM"),
+        entry("delivery_assigned", "Preparing for Dispatch", icon = "dispatch", at = "Jul 23, 2026 at 9:28 AM"),
+        entry("out_for_delivery", "Out for Delivery", state = "current", icon = "in_transit", at = "Jul 25, 2026 at 7:58 AM"),
+        entry("delivered", "Delivered", state = "pending", icon = "delivered"),
+    )
 
-    /** THE regression. The first thing on screen is the first real event. */
     @Test
-    fun `the journey begins at the first recorded warehouse status`() {
-        val rows = TrackJourney.build(
-            history(1 to "Drop Alerted", 2 to "Shipment Received"),
-            lastMile(Triple("assigned", "Driver Assigned", "current")),
+    fun `rows preserve the server order exactly`() {
+        assertEquals(
+            listOf(
+                "Shipment Received",
+                "Port of Departure -MIA",
+                "Preparing for Dispatch",
+                "Out for Delivery",
+                "Delivered",
+            ),
+            TrackJourney.rows(liveJourney).map { it.label },
         )
-        assertEquals("Drop Alerted", rows.first().label)
-        assertTrue(rows.map { it.label }.contains("Shipment Received"))
-    }
-
-    /** And it is never allowed to START at the last mile again. */
-    @Test
-    fun `preparing for dispatch is not the first row when history exists`() {
-        val rows = TrackJourney.build(
-            history(2 to "Shipment Received", 6 to "Processing at our Warehouse"),
-            lastMile(Triple("assigned", "Driver Assigned", "current")),
-        )
-        assertFalse(rows.first().label == "Preparing for Dispatch")
-        assertEquals("Shipment Received", rows.first().label)
     }
 
     /**
      * `package_status_datetime` is a varchar and ~1,069 legacy rows use
-     * `YYYY/MM/DD`, which sorts AFTER `YYYY-MM-DD`. Ordering by the string
-     * would put 2019 records at the end of the rail. Order by the catalogue.
+     * `YYYY/MM/DD`, which sorts AFTER `YYYY-MM-DD`. Kotlin used to reorder by
+     * catalogue position because of it. The server owns ordering now — so the
+     * client must not "correct" an order that looks wrong to it.
      */
     @Test
-    fun `rows follow catalogue progression not the recorded order`() {
-        val rows = TrackJourney.warehouseRail(
-            history(
-                6 to "Processing at our Warehouse",
-                1 to "Drop Alerted",
-                9 to "Processing at Customs",
-                2 to "Shipment Received",
-            ),
+    fun `an order the client would once have corrected is left alone`() {
+        val outOfCatalogueOrder = listOf(
+            entry("status_6_0", "Processing at our Warehouse", status = 6),
+            entry("status_2_1", "Shipment Received", status = 2),
+            entry("status_9_2", "Processing at Customs", status = 9),
         )
         assertEquals(
+            listOf("Processing at our Warehouse", "Shipment Received", "Processing at Customs"),
+            TrackJourney.rows(outOfCatalogueOrder).map { it.label },
+        )
+    }
+
+    /** Nothing is dropped — not status 8, not a repeat, not an unknown status. */
+    @Test
+    fun `no row is ever filtered out`() {
+        val awkward = listOf(
+            entry("status_6_0", "Processing at our Warehouse", status = 6),
+            entry("status_10_1", "Detained at Customs", status = 10),
+            entry("status_6_2", "Processing at our Warehouse", status = 6),
+            entry("status_44_3", "Held For Inspection", status = 44),
+            entry("status_8_4", "Delivered", status = 8),
+            entry("delivered", "Delivered"),
+        )
+        assertEquals(6, TrackJourney.rows(awkward).size)
+    }
+
+    /** The client no longer caps upcoming steps; the server sends one. */
+    @Test
+    fun `every pending row the server sends is rendered`() {
+        val twoPending = listOf(
+            entry("a", "A"),
+            entry("b", "B", state = "pending"),
+            entry("c", "C", state = "pending"),
+        )
+        assertEquals(3, TrackJourney.rows(twoPending).size)
+        assertEquals(2, TrackJourney.rows(twoPending).count { it.state == "pending" })
+    }
+
+    /** Labels are the server's words, never rewritten. */
+    @Test
+    fun `labels pass through untouched`() {
+        val ops = listOf(entry("assigned", "Driver Assigned"))
+        assertEquals("Driver Assigned", TrackJourney.rows(ops).single().label)
+    }
+
+    /** A row with no label is not renderable, so it is skipped rather than faked. */
+    @Test
+    fun `a row with no label is skipped rather than invented`() {
+        val rows = TrackJourney.rows(listOf(entry("a", "A"), PackageTimelineEntry(key = "b")))
+        assertEquals(listOf("A"), rows.map { it.label })
+    }
+
+    /**
+     * Kemar chose "show them, with a Contact us action" for statuses where the
+     * journey has gone wrong. This is the last piece of journey policy left on
+     * the client.
+     */
+    @Test
+    fun `only statuses that have gone wrong offer help`() {
+        listOf(10, 15, 16, 19).forEach {
+            assertTrue("status $it must offer Contact us", TrackJourney.needsHelp(it))
+        }
+        listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 14, 18, null).forEach {
+            assertFalse("status $it is normal progress", TrackJourney.needsHelp(it))
+        }
+    }
+
+    @Test
+    fun `a detained row is flagged for the contact action`() {
+        val rows = TrackJourney.rows(
             listOf(
-                "Drop Alerted",
-                "Shipment Received",
-                "Processing at Customs",
-                "Processing at our Warehouse",
+                entry("status_9_0", "Processing at Customs", status = 9),
+                entry("status_10_1", "Detained at Customs", status = 10),
             ),
-            rows.map { it.label },
         )
+        assertFalse(rows.first().needsHelp)
+        assertTrue(rows.last().needsHelp)
     }
 
     /**
-     * markDelivered() writes BOTH a status-8 history row and a
-     * `package_deliveries` row, so keeping status 8 prints Delivered twice.
+     * The icon vocabulary is still moving — within minutes on 2026-07-26 the
+     * same "Out for Delivery" row came back as `in_transit` on one package and
+     * `out_for_delivery` on another.
      */
     @Test
-    fun `status 8 is dropped from the warehouse rail so Delivered is not doubled`() {
-        val rows = TrackJourney.build(
-            history(2 to "Shipment Received", 8 to "Delivered"),
-            lastMile(
-                Triple("assigned", "Driver Assigned", "done"),
-                Triple("out_for_delivery", "Out for Delivery", "done"),
-                Triple("delivered", "Delivered", "done"),
-            ),
+    fun `both observed spellings of the out-for-delivery glyph resolve alike`() {
+        assertEquals(
+            TrackJourney.iconRes("out_for_delivery", null, dark = false),
+            TrackJourney.iconRes("in_transit", null, dark = false),
         )
-        assertEquals(1, rows.count { it.label == "Delivered" })
     }
 
-    /**
-     * SwiftHawk #79761 §1: a fixed list may ORDER the rail; it must never
-     * FILTER it. An unmodelled status still reaches the customer, using the
-     * server's own label, after the statuses we do know.
-     */
+    /** An unknown key falls back to the status catalogue, never to a guess. */
     @Test
-    fun `an unknown status still renders with the server label`() {
-        val rows = TrackJourney.warehouseRail(
-            history(2 to "Shipment Received", 44 to "Held For Inspection"),
+    fun `an unknown icon key falls back to the status catalogue`() {
+        assertEquals(
+            com.ga.airdrop.feature.shipments.ShipmentStatusCatalog.iconRes(2, dark = false),
+            TrackJourney.iconRes("something_new_the_server_added", 2, dark = false),
         )
-        assertEquals(listOf("Shipment Received", "Held For Inspection"), rows.map { it.label })
     }
 
-    /** Internal staff notes and names never leave the warehouse. */
+    /** With neither a known key nor a status id, a neutral glyph — not a guess. */
     @Test
-    fun `staff comments never reach a row`() {
-        val rows = TrackJourney.warehouseRail(
-            listOf(
-                PackageHistoryItem(
-                    status = 2,
-                    statusName = "Shipment Received",
-                    comment = "customer is difficult, flagged by Marcia",
-                ),
-            ),
+    fun `an unknown key with no status id is neutral`() {
+        assertEquals(
+            com.ga.airdrop.R.drawable.ic_packages,
+            TrackJourney.iconRes("mystery", null, dark = false),
         )
-        assertEquals("Shipment Received", rows.single().label)
-    }
-
-    /** A status can legitimately recur; only consecutive repeats collapse. */
-    @Test
-    fun `a status that recurs after another status is shown twice`() {
-        val rows = TrackJourney.warehouseRail(
-            history(6 to "Processing at our Warehouse", 6 to "Processing at our Warehouse"),
-        )
-        assertEquals(1, rows.size)
-    }
-
-    /** Kemar rule 3 (#79650): everything done, plus exactly ONE upcoming step. */
-    @Test
-    fun `only one upcoming step survives the merge`() {
-        val rows = TrackJourney.build(
-            history(2 to "Shipment Received"),
-            lastMile(
-                Triple("assigned", "Driver Assigned", "current"),
-                Triple("out_for_delivery", "Out for Delivery", "pending"),
-                Triple("delivered", "Delivered", "pending"),
-            ),
-        )
-        assertEquals(1, rows.count { it.state == "pending" })
-        assertEquals("Out for Delivery", rows.last().label)
-    }
-
-    /**
-     * History can fail to load while tracking succeeds (it is fetched with
-     * runCatching precisely so Track degrades instead of blanking). The last
-     * mile must still render.
-     */
-    @Test
-    fun `an empty history still renders the last mile`() {
-        val rows = TrackJourney.build(
-            emptyList(),
-            lastMile(Triple("assigned", "Driver Assigned", "current")),
-        )
-        assertEquals(1, rows.size)
-    }
-
-    /** No delivery row yet: the warehouse rail alone is the journey. */
-    @Test
-    fun `a package with no last mile shows its warehouse rail`() {
-        val rows = TrackJourney.build(history(1 to "Drop Alerted", 2 to "Shipment Received"), null)
-        assertEquals(listOf("Drop Alerted", "Shipment Received"), rows.map { it.label })
-        assertTrue(rows.all { it.state == "done" })
-    }
-
-    /** Warehouse rows carry their status id so the row gets its real glyph. */
-    @Test
-    fun `warehouse rows keep their status id for icon lookup`() {
-        val rows = TrackJourney.warehouseRail(history(2 to "Shipment Received"))
-        assertEquals(2, rows.single().statusId)
     }
 }

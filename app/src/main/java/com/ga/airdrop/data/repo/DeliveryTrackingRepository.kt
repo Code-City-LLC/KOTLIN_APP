@@ -4,6 +4,7 @@ import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.model.ActiveDeliverySummary
 import com.ga.airdrop.data.model.DeliveryTracking
 import com.ga.airdrop.data.model.DeliveryTrackingStage
+import com.ga.airdrop.data.model.PackageTimelineEntry
 
 data class ActiveDelivery(
     val packageId: Int,
@@ -49,6 +50,12 @@ data class DeliveryTrackingResult(
 interface DeliveryTrackingGateway {
     suspend fun activeDeliveries(page: Int, perPage: Int): Result<ActiveDeliveriesPage>
     suspend fun deliveryTracking(packageId: Int): Result<DeliveryTrackingResult>
+
+    /**
+     * Laravel's canonical journey. The client does not reorder, filter, cap or
+     * relabel what comes back — see TrackJourney.
+     */
+    suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>>
 }
 
 /**
@@ -58,6 +65,11 @@ interface DeliveryTrackingGateway {
 class DeliveryTrackingRepository(
     private val service: AirdropApiService,
 ) : DeliveryTrackingGateway {
+
+    override suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>> =
+        runCatching {
+            service.packageTimeline(packageId).data?.entries.orEmpty()
+        }
 
     override suspend fun activeDeliveries(
         page: Int,

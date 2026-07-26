@@ -18,6 +18,11 @@ import kotlinx.coroutines.launch
 data class PackageDetailsUiState(
     val loading: Boolean = true,
     val detail: ShipmentPackageDetail? = null,
+    /**
+     * Laravel's canonical journey for this package. The client no longer
+     * derives the rail from `history` — see TrackJourney.
+     */
+    val timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry> = emptyList(),
     val exchangeRate: Double = DEFAULT_USD_TO_JMD,
     val uploading: Boolean = false,
     val deletingInvoiceId: Int? = null,
@@ -153,6 +158,9 @@ class PackageDetailsViewModel(
     private val packageId: String,
     private val repo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
     private val hubRepo: ShipmentsHubRepository = ShipmentsRepoProvider.hub,
+    /** Laravel's canonical journey — the client no longer builds the rail. */
+    private val tracking: com.ga.airdrop.data.repo.DeliveryTrackingGateway =
+        com.ga.airdrop.data.repo.DeliveryTrackingRepository(com.ga.airdrop.core.network.ApiClient.service),
     cartServer: CartServerGateway = DataCartServerGateway(),
     sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
@@ -374,7 +382,12 @@ class PackageDetailsViewModel(
         }
         repo.packageDetails(packageId)
             .onSuccess { detail ->
-                _state.update { it.copy(loading = false, detail = detail) }
+                // A timeline failure must not blank the whole screen; the rest
+                // of the package detail is still real.
+                val timeline = packageId.toIntOrNull()
+                    ?.let { tracking.packageTimeline(it).getOrNull() }
+                    .orEmpty()
+                _state.update { it.copy(loading = false, detail = detail, timeline = timeline) }
             }
             .onFailure { e ->
                 if (showLoading) {

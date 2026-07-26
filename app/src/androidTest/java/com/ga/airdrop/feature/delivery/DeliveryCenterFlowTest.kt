@@ -17,7 +17,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.data.repo.ActiveDelivery
 import com.ga.airdrop.data.repo.TrackedDelivery
 import com.ga.airdrop.data.repo.TrackedDeliveryStage
-import com.ga.airdrop.feature.shipments.PackageHistoryItem
+import com.ga.airdrop.data.model.PackageTimelineEntry
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -197,6 +197,13 @@ class DeliveryCenterFlowTest {
             history(9, "Processing at Customs", "2026-07-16T09:00:00Z"),
             history(10, "Detained at Customs", "2026-07-17T09:00:00Z"),
             history(15, "Uncollected Packages", "2026-07-19T09:00:00Z"),
+            history(12, "In-Transit to counter", "2026-07-20T09:00:00Z"),
+        ) + listOf(
+            PackageTimelineEntry(
+                key = "out_for_delivery", status = null, label = "Out for Delivery",
+                icon = "out_for_delivery", at = "Jul 22, 2026 at 9:00 AM",
+                state = "current", source = "delivery",
+            ),
         )
         compose.setContent {
             AirdropTheme {
@@ -210,9 +217,9 @@ class DeliveryCenterFlowTest {
                             assignedAt = null,
                             outForDeliveryAt = null,
                             deliveredAt = null,
-                            stages = listOf(stage("assigned", "Driver Assigned", "current", null)),
+                            stages = emptyList(),
                         ),
-                        history = history,
+                        timeline = history,
                         loading = false,
                         loadedOnce = true,
                     ),
@@ -231,6 +238,10 @@ class DeliveryCenterFlowTest {
         compose.onNodeWithText("Processing at Customs").assertIsDisplayed()
         compose.onNodeWithText("Detained at Customs").assertIsDisplayed()
         compose.onNodeWithText("Uncollected Packages").assertIsDisplayed()
+        // Out for Delivery and In-Transit to counter used to share one drawable;
+        // both are on screen here so the two glyphs can be compared directly.
+        compose.onNodeWithText("In-Transit to counter").assertIsDisplayed()
+        compose.onNodeWithText("Out for Delivery").assertIsDisplayed()
 
         // Only the rows that have gone wrong offer help.
         compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_10")).assertIsDisplayed()
@@ -258,9 +269,15 @@ class DeliveryCenterFlowTest {
                             assignedAt = null,
                             outForDeliveryAt = null,
                             deliveredAt = null,
-                            stages = listOf(stage("assigned", "Driver Assigned", "current", null)),
+                            stages = emptyList(),
                         ),
-                        history = listOf(history(2, "Shipment Received", "2026-07-08T00:10:07Z")),
+                        timeline = listOf(
+                            history(2, "Shipment Received", "2026-07-08T00:10:07Z"),
+                            PackageTimelineEntry(
+                                key = "assigned", status = null, label = "Preparing for Dispatch",
+                                icon = "dispatch", at = null, state = "current", source = "delivery",
+                            ),
+                        ),
                         loading = false,
                         loadedOnce = true,
                     ),
@@ -280,10 +297,15 @@ class DeliveryCenterFlowTest {
         assertTrue("Shipment Received must precede the last mile", receivedTop < dispatchTop)
     }
 
-    private fun history(status: Int, name: String, at: String) = PackageHistoryItem(
+    /** One server timeline entry, as GET /packages/{id}/timeline sends it. */
+    private fun history(status: Int, name: String, at: String) = PackageTimelineEntry(
+        key = "status_$status",
         status = status,
-        statusName = name,
-        changedDate = at,
+        label = name,
+        icon = null,
+        at = at,
+        state = "done",
+        source = "status",
     )
 
     private fun active(packageId: Int) = ActiveDelivery(

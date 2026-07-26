@@ -350,12 +350,7 @@ private val InFlightOrange = Color(0xFFF07F17)
 @Composable
 internal fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
     val colors = AirdropTheme.colors
-    val detail = state.detail
-    val rows = TrackJourney.rail(
-        history = detail?.history.orEmpty(),
-        currentStatusId = detail?.status?.trim()?.toIntOrNull(),
-        currentStatusName = detail?.statusName,
-    )
+    val rows = TrackJourney.rows(state.timeline)
 
     Column(
         Modifier
@@ -386,10 +381,11 @@ internal fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
                         AlertPalette.Completed
                     }
                     MetroStep(
-                        iconRes = ShipmentStatusCatalog.iconRes(row.statusId ?: 0, dark = colors.isDark),
+                        iconRes = TrackJourney.iconRes(row.iconKey, row.statusId, colors.isDark),
                         title = row.label,
                         titleColor = color,
-                        date = timelineDateOrDash(row.at),
+                        // The server preformats the timestamp.
+                        date = row.at?.takeIf { it.isNotBlank() } ?: "-",
                         showConnector = index != rows.lastIndex,
                         connectorColor = color,
                         modifier = Modifier.testTag("payment-history-step-${row.statusId ?: row.label}"),

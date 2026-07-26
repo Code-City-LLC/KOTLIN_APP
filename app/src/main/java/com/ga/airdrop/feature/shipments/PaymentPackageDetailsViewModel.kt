@@ -12,6 +12,8 @@ data class PaymentPackageDetailsUiState(
     val loading: Boolean = true,
     val payment: ShipmentPayment? = null,
     val detail: ShipmentPackageDetail? = null,
+    /** Laravel's canonical journey; the client no longer builds the rail. */
+    val timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry> = emptyList(),
     val exchangeRate: Double = 160.0, // Swift fallback for this VC
     val showHistory: Boolean = false,
     val showCifInfo: Boolean = false,
@@ -52,6 +54,8 @@ class PaymentPackageDetailsViewModel(
     private val paymentsRepo: ShipmentsPaymentsRepository = ShipmentsRepoProvider.payments,
     private val packagesRepo: ShipmentsPackagesRepository = ShipmentsRepoProvider.packages,
     private val hubRepo: ShipmentsHubRepository = ShipmentsRepoProvider.hub,
+    private val tracking: com.ga.airdrop.data.repo.DeliveryTrackingGateway =
+        com.ga.airdrop.data.repo.DeliveryTrackingRepository(com.ga.airdrop.core.network.ApiClient.service),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -85,7 +89,11 @@ class PaymentPackageDetailsViewModel(
                     if (packageId != null) {
                         packagesRepo.packageDetails(packageId.toString())
                             .onSuccess { detail ->
-                                _state.update { it.copy(detail = detail, loading = false) }
+                                // A timeline failure must not blank the screen.
+                                val timeline = tracking.packageTimeline(packageId).getOrNull().orEmpty()
+                                _state.update {
+                                    it.copy(detail = detail, timeline = timeline, loading = false)
+                                }
                             }
                             .onFailure { e ->
                                 _state.update {

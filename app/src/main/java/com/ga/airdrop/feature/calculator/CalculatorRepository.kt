@@ -53,9 +53,10 @@ private data class ShipmentCalculationRequest(
     val invoice_amount: Double,
     val weight_unit: String = "lbs",
     val dimension_unit: String = "inch",
-    // Do NOT invent duty rates: the Swift app always sends 45 and displays
-    // whatever `breakdown.customs_duty` the server answers with.
-    val custom_duty_percentage: Double = 45.0,
+    // custom_duty_percentage is deliberately ABSENT. BrightHarbor #79936:
+    // "raw custom_duty_percentage is accepted for legacy compatibility, but
+    // mobile must NOT author it. Omit it so server defaults apply." Kotlin was
+    // hardcoding 45.0 — a duty rate the client has no business choosing.
     val incorrect_shipping_info: Boolean = false,
     val weight_lbs: Double? = null,
     val package_length: Double? = null,
@@ -121,7 +122,17 @@ class RemoteCalculatorRepository(
                 fuelSurcharge = breakdown.flexDouble("fuel_surcharge") ?: 0.0,
                 airdropCharges = breakdown.flexDouble("airdrop_charges") ?: 0.0,
                 customsDuty = breakdown.flexDouble("customs_duty") ?: 0.0,
-                totalWithDuty = breakdown.flexDouble("total_with_duty") ?: 0.0,
+                // AirDrop Standard answers with `total_with_duty`; Express and
+                // SeaDrop answer with `total_charges`. Reading only the first
+                // meant BOTH of those methods rendered a total of 0.00 — the
+                // same defect BrightHarbor #79936 found in Swift.
+                totalWithDuty = breakdown.flexDouble("total_with_duty")
+                    ?: breakdown.flexDouble("total_charges")
+                    ?: 0.0,
+                // SeaDrop alone carries these; they are real money and were
+                // being dropped from the breakdown entirely.
+                tariff = breakdown.flexDouble("tariff"),
+                billOfLadingProcessing = breakdown.flexDouble("bill_of_lading_processing"),
                 cifValue = calculations?.flexDouble("cif_value") ?: 0.0,
                 totalWeightLbs = calculations?.flexDouble("total_weight_lbs"),
             )

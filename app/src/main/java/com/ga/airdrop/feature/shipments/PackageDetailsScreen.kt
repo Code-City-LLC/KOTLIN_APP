@@ -386,15 +386,12 @@ private fun PackageDetailsContent(
             titleContentGap = 14.dp,
             contentSpacing = 12.dp,
         ) {
-            val rows = TrackJourney.rail(
-                history = detail.history,
-                currentStatusId = detail.status?.trim()?.toIntOrNull(),
-                currentStatusName = detail.statusName,
-            )
+            val rows = TrackJourney.rows(state.timeline)
             rows.forEachIndexed { index, row ->
                 TimelineIconRow(
                     statusName = row.label,
                     statusCode = row.statusId,
+                    iconKey = row.iconKey,
                     // Everything on this rail has already happened, so it is
                     // all "reached". The last row is where the package is now.
                     color = if (index == rows.lastIndex) {
@@ -402,7 +399,8 @@ private fun PackageDetailsContent(
                     } else {
                         AlertPalette.Completed
                     },
-                    date = ShipmentsFormat.timelineDate(row.at).takeIf { it != "N/A" },
+                    // The server preformats the timestamp.
+                    date = row.at,
                     showConnector = index != rows.lastIndex,
                     // Kemar: a status that has gone wrong carries its way out.
                     onContactUs = if (row.needsHelp) onContactUs else null,
@@ -1113,6 +1111,8 @@ private fun DetailKeyValueRow(label: String, value: String) {
 private fun TimelineIconRow(
     statusName: String,
     statusCode: Int?,
+    /** The server's glyph key for this row. */
+    iconKey: String? = null,
     color: androidx.compose.ui.graphics.Color,
     date: String?,
     showConnector: Boolean,
@@ -1135,7 +1135,7 @@ private fun TimelineIconRow(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Image(
-                painter = painterResource(ShipmentStatusCatalog.iconRes(statusCode ?: 0, dark = colors.isDark)),
+                painter = painterResource(TrackJourney.iconRes(iconKey, statusCode, colors.isDark)),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(color),
                 modifier = Modifier

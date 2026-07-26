@@ -5,6 +5,7 @@ import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.data.repo.ActiveDeliveriesPage
 import com.ga.airdrop.data.repo.ActiveDelivery
+import com.ga.airdrop.data.model.PackageTimelineEntry
 import com.ga.airdrop.data.repo.DeliveryTrackingGateway
 import com.ga.airdrop.data.repo.DeliveryTrackingResult
 import com.ga.airdrop.data.repo.TrackedDelivery
@@ -249,9 +250,15 @@ class DeliveryCenterViewModelTest {
         detail: suspend (Int) -> Result<DeliveryTrackingResult> = {
             error("Unexpected delivery-tracking call")
         },
+        // Track renders Laravel's canonical journey. Default to an empty rail
+        // so existing cases keep testing what they were written to test.
+        timeline: suspend (Int) -> Result<List<PackageTimelineEntry>> = {
+            Result.success(emptyList())
+        },
     ) = object : DeliveryTrackingGateway {
         override suspend fun activeDeliveries(page: Int, perPage: Int) = active(page, perPage)
         override suspend fun deliveryTracking(packageId: Int) = detail(packageId)
+        override suspend fun packageTimeline(packageId: Int) = timeline(packageId)
     }
 
     private fun boundary() = TestSessionBoundary(

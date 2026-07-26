@@ -1,50 +1,41 @@
 package com.ga.airdrop.feature.delivery
 
-import com.ga.airdrop.data.repo.TrackedDelivery
-import com.ga.airdrop.feature.shipments.PackageHistoryItem
-import com.ga.airdrop.feature.shipments.ShipmentStatusCatalog
+import com.ga.airdrop.R
+import com.ga.airdrop.data.model.PackageTimelineEntry
 
 /**
- * The FULL Track journey: the package's real warehouse history joined to the
- * last-mile delivery legs.
+ * The Track journey, as Laravel projects it.
  *
- * ⚠️ WHY THIS EXISTS. Track used to render a hardcoded three-stage skeleton
- * that began at "Preparing for Dispatch" with copy the client made up
- * ("Packing your items for the courier."). A customer whose package had been
- * received, cleared customs and processed at the warehouse saw none of it —
- * their journey appeared to begin at dispatch. Kemar: *"It starts at shipment
- * received or drop alerted... It needs to show the REAL statuses"* and
- * *"use only real generated info not static"*.
+ * ⚠️ WHAT THIS REPLACED, TWICE OVER. Kotlin used to build this rail itself,
+ * from `/packages/{id}` history joined to `/delivery-tracking`, in THREE
+ * screens, each with its own copy of the rules. Before that, two of those
+ * screens rendered fixed status ladders that both INVENTED events (a package
+ * with zero history rows printed seven completed steps) and DELETED them (no
+ * rung existed for Released From Customs or Processing at our Warehouse).
  *
- * Nothing here is invented. Every row comes from a recorded event, and every
- * label is the server's own `status_name`.
+ * `GET /packages/{id}/timeline` now owns ordering, labels, icon keys, state,
+ * duplicate collapse, last-mile composition and the single pending step. This
+ * file is the mapping layer and nothing more: no reordering, no filtering, no
+ * capping, no label rewriting. If a row is wrong now, it is wrong on the server
+ * and gets fixed once for every platform.
  *
- * Rules, all from the shared handoffs:
- *  - **Order by canonical progression, NEVER the timestamp.**
- *    `package_status_datetime` is a varchar and ~1,069 legacy rows use
- *    `YYYY/MM/DD`, which sorts AFTER `YYYY-MM-DD` lexicographically.
- *  - **Exclude status 8 from the warehouse rail.** `markDelivered()` writes
- *    BOTH a status-8 history row and a `package_deliveries` row, so keeping it
- *    prints "Delivered" twice.
- *  - **Never surface `comment` / `changed_by`** — internal staff notes and
- *    names.
- *  - **Unknown statuses still render**, in recorded order, using the server's
- *    label. A fixed list may ORDER; it must never filter (#79761 §1).
- *  - **Exactly one upcoming step** (#79650 rule 3).
+ * The one thing still decided here is which statuses offer the customer a way
+ * out — see [NEEDS_HELP_STATUSES].
  */
 internal object TrackJourney {
-
-    /** Written by markDelivered alongside the delivery leg — would duplicate. */
-    private const val STATUS_DELIVERED = 8
 
     /**
      * Statuses where the journey has gone wrong and the customer needs a human.
      *
      * Kemar 2026-07-26, asked whether these should appear at all: show them,
      * **with a Contact us action on that row**. A customer whose package is
-     * detained at customs should be told by the app, not by silence — hiding
-     * it means the rail goes quiet for days with no explanation and they call
-     * in anyway. So we surface the server's own label and attach the way out.
+     * detained at customs should be told by the app, not by silence — hiding it
+     * means the rail goes quiet for days with no explanation and they call in
+     * anyway.
+     *
+     * This is the last piece of journey policy left on the client. Offered to
+     * BronzeMountain: if the server projection grows a per-entry flag, this set
+     * goes away rather than being maintained on three platforms.
      */
     val NEEDS_HELP_STATUSES = setOf(
         10, // Detained at Customs
@@ -55,108 +46,70 @@ internal object TrackJourney {
 
     fun needsHelp(statusId: Int?): Boolean = statusId != null && statusId in NEEDS_HELP_STATUSES
 
-    /**
-     * Canonical position of a warehouse status. Known ids keep catalogue order;
-     * unknown ids sort after all known ones, preserving their recorded order.
-     */
-    private fun progressionIndex(statusId: Int?): Int =
-        ShipmentStatusCatalog.defaults.firstOrNull { it.id == statusId }?.order ?: Int.MAX_VALUE
-
-    /**
-     * The warehouse rail — every recorded history row, in canonical order.
-     * These are all in the past by definition, so every row is `done`.
-     */
-    fun warehouseRail(history: List<PackageHistoryItem>): List<TrackRow> =
-        history
-            .filter { it.status != STATUS_DELIVERED }
-            .mapIndexed { recordedIndex, item -> recordedIndex to item }
-            .sortedWith(
-                compareBy(
-                    { (_, item) -> progressionIndex(item.status) },
-                    { (recordedIndex, _) -> recordedIndex },
-                ),
-            )
-            .map { (_, item) ->
-                TrackRow(
-                    // Key off the server status id, never the label.
-                    key = "status_${item.status ?: "unknown"}",
-                    // The server's own name. Unknown status -> still shown.
-                    label = item.statusName?.trim()?.takeIf(String::isNotEmpty)
-                        ?: ShipmentStatusCatalog.defaults
-                            .firstOrNull { it.id == item.status }?.name
-                        ?: "Update",
-                    state = "done",
-                    at = item.changedDate,
-                    statusId = item.status,
-                    needsHelp = needsHelp(item.status),
-                )
-            }
-            // A status can legitimately recur (warehouse -> detained ->
-            // warehouse); collapse only CONSECUTIVE repeats, mirroring Laravel.
-            .fold(mutableListOf<TrackRow>()) { acc, row ->
-                if (acc.lastOrNull()?.key != row.key) acc.add(row)
-                acc
-            }
-
-    /**
-     * The warehouse rail, plus the package's CURRENT status when no history row
-     * records it.
-     *
-     * History normally ends at the current status, but it is not guaranteed —
-     * a status can be set without a history row being written. When that
-     * happens the rail silently lags reality and a customer sees a stale last
-     * step. Appending the current status is not fabrication: the server says
-     * `status: 18`, so the package IS at 18.
-     *
-     * Status 8 is still excluded — the delivery leg reports Delivered.
-     */
-    fun rail(
-        history: List<PackageHistoryItem>,
-        currentStatusId: Int?,
-        currentStatusName: String?,
-    ): List<TrackRow> {
-        val rows = warehouseRail(history)
-        if (currentStatusId == STATUS_DELIVERED) return rows
-        val label = currentStatusName?.trim()?.takeIf(String::isNotEmpty)
-            ?: ShipmentStatusCatalog.defaults.firstOrNull { it.id == currentStatusId }?.name
-            ?: return rows
-        val key = "status_${currentStatusId ?: "unknown"}"
-        if (rows.any { it.key == key }) return rows
-        return rows + TrackRow(
-            key = key,
-            label = label,
-            state = "done",
-            at = null,
-            statusId = currentStatusId,
-            needsHelp = needsHelp(currentStatusId),
-        )
-    }
-
-    /** The last mile, exactly as the server projects it. */
-    fun lastMileRail(delivery: TrackedDelivery?): List<TrackRow> =
-        delivery?.stages.orEmpty().map { stage ->
+    /** Server entries → rendered rows, in the order given. */
+    fun rows(entries: List<PackageTimelineEntry>): List<TrackRow> =
+        entries.mapIndexedNotNull { index, entry ->
+            val label = entry.label?.trim()?.takeIf(String::isNotEmpty) ?: return@mapIndexedNotNull null
             TrackRow(
-                key = stage.key,
-                // customerSafeStageLabel keeps operations wording ("Driver
-                // Assigned") off the customer's screen.
-                label = customerSafeStageLabelForTest(stage),
-                state = stage.state,
-                at = stage.at,
-                statusId = null,
-                needsHelp = false,
+                key = entry.key?.trim()?.takeIf(String::isNotEmpty) ?: "entry_$index",
+                label = label,
+                state = entry.state?.trim()?.takeIf(String::isNotEmpty) ?: "done",
+                at = entry.at?.trim()?.takeIf(String::isNotEmpty),
+                statusId = entry.status,
+                iconKey = entry.icon?.trim()?.takeIf(String::isNotEmpty),
+                needsHelp = needsHelp(entry.status),
             )
         }
 
     /**
-     * The whole journey: warehouse history, then the last mile, truncated to a
-     * single upcoming step.
+     * The server's glyph key → a drawable.
+     *
+     * ⚠️ The vocabulary is still moving: within minutes on 2026-07-26 the same
+     * "Out for Delivery" row came back as `in_transit` on one package and
+     * `out_for_delivery` on another. Both are mapped. An unrecognised key falls
+     * back to the status catalogue when there is a status id, and to a neutral
+     * package glyph otherwise — it never guesses at a shape. Asked BrightHarbor
+     * to publish the closed set (#79945).
      */
-    fun build(
-        history: List<PackageHistoryItem>,
-        delivery: TrackedDelivery?,
-    ): List<TrackRow> {
-        val rows = warehouseRail(history) + lastMileRail(delivery)
-        return truncateAfterFirstPending(rows) { it.state == "pending" }
+    fun iconRes(iconKey: String?, statusId: Int?, dark: Boolean): Int = when (iconKey) {
+        "drop_alerted" ->
+            if (dark) R.drawable.ic_shipments_status_drop_alerted_dark else R.drawable.ic_shipments_status_drop_alerted
+        "shipment_received" ->
+            if (dark) R.drawable.ic_shipments_status_shipment_received_dark else R.drawable.ic_shipments_status_shipment_received
+        "port_departure" ->
+            if (dark) R.drawable.ic_shipments_status_port_departure_mia_dark else R.drawable.ic_shipments_status_port_departure_mia
+        "port_arrived" ->
+            if (dark) R.drawable.ic_shipments_status_arrived_port_jam_dark else R.drawable.ic_shipments_status_arrived_port_jam
+        "customs_processing" ->
+            if (dark) R.drawable.ic_shipments_status_processing_customs_dark else R.drawable.ic_shipments_status_processing_customs
+        "customs_detained" ->
+            if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
+        "customs_released" ->
+            if (dark) R.drawable.ic_shipments_status_released_customs_dark else R.drawable.ic_shipments_status_released_customs
+        "warehouse" ->
+            if (dark) R.drawable.ic_shipments_status_processing_warehouse_dark else R.drawable.ic_shipments_status_processing_warehouse
+        "ready_pickup" ->
+            if (dark) R.drawable.ic_shipments_status_ready_for_pickup_dark else R.drawable.ic_shipments_status_ready_for_pickup
+        "paid_ready_pickup" ->
+            if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup
+        "uncollected" ->
+            if (dark) R.drawable.ic_shipments_status_uncollected_dark else R.drawable.ic_shipments_status_uncollected
+        "dangerous_goods" ->
+            if (dark) R.drawable.ic_shipments_status_dangerous_goods_dark else R.drawable.ic_shipments_status_dangerous_goods
+        "returned_merchant" ->
+            if (dark) R.drawable.ic_shipments_status_returned_merchant_dark else R.drawable.ic_shipments_status_returned_merchant
+        "counter", "in_transit_counter" ->
+            if (dark) R.drawable.ic_shipments_status_in_transit_counter_dark else R.drawable.ic_shipments_status_in_transit_counter
+        // Last-mile legs.
+        "dispatch" -> R.drawable.ic_shipments_status_dispatch
+        // Both spellings have been observed for the same row; see the note above.
+        "out_for_delivery", "in_transit" ->
+            if (dark) R.drawable.ic_shipments_status_out_for_delivery_dark else R.drawable.ic_shipments_status_out_for_delivery
+        "delivered" ->
+            if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
+        else -> statusId
+            ?.let { com.ga.airdrop.feature.shipments.ShipmentStatusCatalog.iconRes(it, dark) }
+            ?: R.drawable.ic_packages
     }
 }
 
@@ -166,8 +119,10 @@ internal data class TrackRow(
     val label: String,
     val state: String,
     val at: String?,
-    /** Warehouse status id, for icon lookup. Null on last-mile legs. */
+    /** Warehouse status id, null on last-mile legs. */
     val statusId: Int?,
+    /** The server's glyph key. */
+    val iconKey: String? = null,
     /** This row is bad news — render a Contact us action beside it. */
     val needsHelp: Boolean = false,
 )

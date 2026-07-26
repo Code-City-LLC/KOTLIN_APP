@@ -45,6 +45,7 @@ import com.ga.airdrop.data.model.Package
 import com.ga.airdrop.data.model.PackageCartMutation
 import com.ga.airdrop.data.model.PackageCategory
 import com.ga.airdrop.data.model.PackageDetail
+import com.ga.airdrop.data.model.PackageTimelinePayload
 import com.ga.airdrop.data.model.PackageInvoicesMutationResponse
 import com.ga.airdrop.data.model.PackageStatus
 import com.ga.airdrop.data.model.Paginated
@@ -306,6 +307,16 @@ interface AirdropApiService {
         @Query("page") page: Int,
         @Query("per_page") perPage: Int,
     ): DataEnvelope<ActiveDeliveriesPayload>
+
+    /**
+     * The canonical package journey. Laravel owns order, labels, icon keys,
+     * state, duplicate collapse, last-mile composition and the single pending
+     * step — see PackageTimelinePayload for why the client stopped deriving it.
+     */
+    @GET("packages/{id}/timeline")
+    suspend fun packageTimeline(
+        @Path("id") packageId: Int,
+    ): DataEnvelope<PackageTimelinePayload>
 
     @GET("packages/{id}/delivery-tracking")
     suspend fun packageDeliveryTracking(

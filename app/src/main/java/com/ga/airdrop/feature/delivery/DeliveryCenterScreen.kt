@@ -188,7 +188,7 @@ internal fun DeliveryCenterScreenContent(
                     summary = state.selectedSummary,
                     packageId = requireNotNull(state.selectedPackageId),
                     delivery = requireNotNull(state.delivery),
-                    history = state.history,
+                    timeline = state.timeline,
                     refreshing = state.refreshing,
                     onRefresh = onRefresh,
                     onContactUs = onContactUs,
@@ -642,7 +642,7 @@ private fun DeliveryDetail(
     summary: ActiveDelivery?,
     packageId: Int,
     delivery: TrackedDelivery,
-    history: List<com.ga.airdrop.feature.shipments.PackageHistoryItem>,
+    timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry>,
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onContactUs: () -> Unit,
@@ -695,14 +695,10 @@ private fun DeliveryDetail(
                     }
                 }
                 Column(Modifier.fillMaxWidth()) {
-                    // The FULL journey: the package's real recorded warehouse
-                    // history joined to the last mile. Track used to begin at
-                    // "Preparing for Dispatch" with invented copy, so a
-                    // customer never saw that their package had been received,
-                    // cleared customs and processed. Kemar: "It starts at
-                    // shipment received... show the REAL statuses" and "use
-                    // only real generated info not static".
-                    val rows = TrackJourney.build(history, delivery)
+                    // Laravel's canonical journey, rendered as sent. No
+                    // reordering, filtering, capping or relabelling here — see
+                    // TrackJourney for why the client stopped deriving this.
+                    val rows = TrackJourney.rows(timeline)
                     rows.forEachIndexed { index, row ->
                         DeliveryTimelineStep(
                             stage = TrackedDeliveryStage(
@@ -713,6 +709,7 @@ private fun DeliveryDetail(
                             ),
                             isLast = index == rows.lastIndex,
                             statusId = row.statusId,
+                            iconKey = row.iconKey,
                             onContactUs = if (row.needsHelp) onContactUs else null,
                         )
                     }
@@ -755,6 +752,8 @@ private fun DeliveryTimelineStep(
     isLast: Boolean,
     /** Warehouse status id, for its catalogue glyph. Null on last-mile legs. */
     statusId: Int? = null,
+    /** The server's glyph key for this row. */
+    iconKey: String? = null,
     /**
      * Non-null on a row that has gone wrong (detained, uncollected, dangerous
      * goods, returned). Kemar 2026-07-26: show those statuses, and give the
@@ -774,7 +773,7 @@ private fun DeliveryTimelineStep(
             Modifier.width(44.dp).fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            DeliveryStageNode(stage, statusId)
+            DeliveryStageNode(stage, statusId, iconKey)
             if (!isLast) {
                 DeliveryStageConnector(
                     state = stage.state,
@@ -817,7 +816,11 @@ private fun DeliveryTimelineStep(
 }
 
 @Composable
-private fun DeliveryStageNode(stage: TrackedDeliveryStage, statusId: Int? = null) {
+private fun DeliveryStageNode(
+    stage: TrackedDeliveryStage,
+    statusId: Int? = null,
+    iconKey: String? = null,
+) {
     val colors = AirdropTheme.colors
     val accent = deliveryStageColor(stage.state)
     Box(
@@ -865,14 +868,9 @@ private fun DeliveryStageNode(stage: TrackedDeliveryStage, statusId: Int? = null
         ) {
             Image(
                 painter = painterResource(
-                    // A warehouse row carries its real status id, so it gets
-                    // the same glyph the customer already knows from Packages.
-                    // Without this every history row fell through
-                    // deliveryStageIcon's `else` and Shipment Received, Port of
-                    // Departure and Processing at Customs all rendered the one
-                    // generic tracking blob.
-                    statusId?.let { ShipmentStatusCatalog.iconRes(it, colors.isDark) }
-                        ?: deliveryStageIcon(stage.key),
+                    // The server names the glyph. Unknown keys fall back to the
+                    // status catalogue rather than guessing at a shape.
+                    TrackJourney.iconRes(iconKey, statusId, colors.isDark),
                 ),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(accent),
@@ -991,7 +989,10 @@ private fun deliveryStageIcon(key: String): Int = when (key) {
     // one truck and Out for Delivery owns it). My earlier paid_ready_pickup
     // guess was wrong — the owner ruling exists and this is it.
     "assigned", "preparing_dispatch" -> R.drawable.ic_shipments_status_dispatch
-    "out_for_delivery" -> R.drawable.ic_shipments_status_in_transit_counter
+    // Out for Delivery has its own glyph now — Figma 40000692:4169, assigned by
+    // Kemar (SwiftHawk #79921). It used to borrow status 12's, so two rows of
+    // the same journey drew the same picture.
+    "out_for_delivery" -> R.drawable.ic_shipments_status_out_for_delivery
     "delivered" -> R.drawable.ic_shipments_status_delivered
     else -> R.drawable.ic_tracking
 }
