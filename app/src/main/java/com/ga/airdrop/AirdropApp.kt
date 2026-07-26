@@ -38,6 +38,12 @@ class AirdropApp : Application(), ImageLoaderFactory {
         // Report crashes on real builds only; debug crashes stay off the prod
         // Crashlytics dashboard (project airdrop-app-b9423).
         FirebaseCrashlytics.getInstance().isCrashlyticsCollectionEnabled = !BuildConfig.DEBUG
+        // The HTTP layer has no Context; bind the canonical sweep here so a
+        // rejected bearer can run it. See ForcedSignOutSweep for why this is a
+        // seam and not a direct call.
+        com.ga.airdrop.core.session.ForcedSignOutSweep.handler = {
+            com.ga.airdrop.core.session.clearLocalUserSession(this)
+        }
         AuthTokenStore.init(this)
         ThemeController.init(this)
         TextSizeController.init(this)

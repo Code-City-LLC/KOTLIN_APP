@@ -126,7 +126,23 @@ class AuthInterceptor internal constructor(
         // perfectly healthy account and this path logs that customer out. It is
         // safe only once Laravel ships response-loss-safe rotation.
         if (refreshRejected.get()) {
-            AuthTokenStore.clear(currentSnapshot)
+            // Kemar 2026-07-26: "Android should sweep too." A rejected bearer
+            // now runs the same canonical local sweep iOS has always run on
+            // this path (AirdropAPI.swift:769-770). Previously only the token
+            // was cleared, so on a shared handset the next person to sign in
+            // inherited the previous customer's AI-disclosure acceptance,
+            // biometric app-lock, quiet hours, calculator history and shop
+            // search history.
+            //
+            // ⚠️ GATED ON THE GUARDED CLEAR RETURNING TRUE. clear(expected) is
+            // generation-guarded and answers false when a newer session already
+            // owns the store. clearLocalUserSession internally calls the
+            // UNGUARDED clear(), so sweeping after a superseded 401 would wipe
+            // the REPLACEMENT session's data. Only sweep when this session was
+            // genuinely the one torn down.
+            if (AuthTokenStore.clear(currentSnapshot)) {
+                com.ga.airdrop.core.session.ForcedSignOutSweep.run()
+            }
         }
         return original401
     }
