@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -31,15 +32,8 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.data.model.InOutFee
 
-// Fallback rates table — canonical /api/v1/shipping-rates baseline, kept so
-// the page stays useful when the backend is unreachable (Swift parity).
-private val FALLBACK_STANDARD_RATES: List<Pair<String, Double>> = listOf(
-    "1" to 5.00, "2" to 6.00, "3" to 7.00, "4" to 8.00, "5" to 9.00,
-    "6" to 10.00, "7" to 11.00, "8" to 12.00, "9" to 13.00, "10" to 14.00,
-    "11" to 16.00, "12" to 18.00, "13" to 20.00, "14" to 22.00, "15" to 24.00,
-    "16" to 26.00, "17" to 28.00, "18" to 30.00, "19" to 32.00, "20" to 34.00,
-)
 
 // Grouped like every other money string in the app (ShopComponents.formatUsd,
 // CalculatorUi.formatPrice, ShipmentsFormat.price) — was ungrouped "%.2f",
@@ -69,10 +63,17 @@ fun ShippingRatesScreen(
         More2InnerHeader(title = "Shipping Rates", onBack = onBack)
 
         Box(Modifier.weight(1f)) {
+            val rates = state.rates
             if (state.loading) {
                 More2Loading()
+            } else if (rates?.airdropStandard?.rates.isNullOrEmpty()) {
+                // Never fabricate prices. The old fallback table quoted roughly
+                // half the real rates and looked exactly like a successful load.
+                ShippingRatesUnavailable(
+                    message = state.error ?: "Couldn't load shipping rates.",
+                    onRetry = viewModel::load,
+                )
             } else {
-                val rates = state.rates
                 Column(
                     Modifier
                         .fillMaxSize()
@@ -93,11 +94,11 @@ fun ShippingRatesScreen(
                             ?.map { rate ->
                                 (rate.weightLbs?.let { formatWeight(it) } ?: "0") to (rate.rateUsd ?: 0.0)
                             }
-                            ?: FALLBACK_STANDARD_RATES,
-                        overTwentyRate = rates?.airdropStandard?.overTwentyLbRate ?: 3.0,
+                            .orEmpty(),
+                        overTwentyRate = rates?.airdropStandard?.overTwentyLbRate,
                     )
 
-                    InOutFeeCard()
+                    InOutFeeCard(rates?.additionalFees?.inOutFee)
 
                     InfoSection(
                         title = "Calculate your Shipping Estimate",
@@ -158,7 +159,7 @@ private fun formatWeight(value: Double): String =
     if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
 
 @Composable
-private fun StandardRatesTable(rows: List<Pair<String, Double>>, overTwentyRate: Double) {
+private fun StandardRatesTable(rows: List<Pair<String, Double>>, overTwentyRate: Double?) {
     More2OuterCard(Modifier.testTag("shipping-rates-standard-card")) {
         TableHeader(left = "Package Weight (LBS)", right = "Rates (USD)")
         rows.forEachIndexed { index, (weight, rate) ->
@@ -171,7 +172,7 @@ private fun StandardRatesTable(rows: List<Pair<String, Double>>, overTwentyRate:
         }
         TableRow(
             left = "21 & Up",
-            right = "${currency(overTwentyRate)} each additional lbs.",
+            right = overTwentyRate?.let { "${currency(it)} each additional lbs." } ?: "—",
             alt = rows.size % 2 == 0,
             isLast = true,
             tag = "shipping-rates-standard-row-over-20",
@@ -180,7 +181,35 @@ private fun StandardRatesTable(rows: List<Pair<String, Double>>, overTwentyRate:
 }
 
 @Composable
-private fun InOutFeeCard() {
+private fun ShippingRatesUnavailable(message: String, onRetry: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxSize()
+            .testTag("shipping-rates-unavailable")
+            .padding(Spacing.xl),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = message,
+            style = AirdropType.body2,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = "Retry",
+            style = AirdropType.subtitle1,
+            color = colors.orangeMain,
+            modifier = Modifier
+                .testTag("shipping-rates-retry")
+                .clickable(onClick = onRetry),
+        )
+    }
+}
+
+@Composable
+private fun InOutFeeCard(fee: InOutFee?) {
     val colors = AirdropTheme.colors
     More2OuterCard(Modifier.testTag("shipping-rates-inout-card")) {
         Column(Modifier.padding(16.dp)) {
@@ -193,8 +222,10 @@ private fun InOutFeeCard() {
                 color = colors.textDescription,
             )
             Spacer(Modifier.height(14.dp))
-            // RECONCILE: AdditionalFees has no nested in_out_fee breakdown yet;
-            // documented RN defaults used until ShippingRates is extended.
+            // Server-driven. These were hardcoded to 5.00 / 0.50-per-lb / 50.00
+            // while the API sends 3.00 / 1.00 / 100.00 — all three wrong, and
+            // the field was never modelled. Nothing is invented here now: a
+            // component the server omits renders an em-dash.
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -205,19 +236,19 @@ private fun InOutFeeCard() {
                 TableHeader(left = "Packages", right = "Rates (USD)")
                 TableRow(
                     left = "First Pound",
-                    right = currency(5.0),
+                    right = fee?.firstLb?.let(::currency) ?: "—",
                     alt = false,
                     tag = "shipping-rates-inout-row-first",
                 )
                 TableRow(
                     left = "Additional",
-                    right = "${currency(0.5)} per pound",
+                    right = fee?.additionalLb?.let { "${currency(it)} per pound" } ?: "—",
                     alt = true,
                     tag = "shipping-rates-inout-row-additional",
                 )
                 TableRow(
                     left = "100 lbs. or more",
-                    right = currency(50.0),
+                    right = fee?.flatRate100Lbs?.let(::currency) ?: "—",
                     alt = false,
                     isLast = true,
                     tag = "shipping-rates-inout-row-100",

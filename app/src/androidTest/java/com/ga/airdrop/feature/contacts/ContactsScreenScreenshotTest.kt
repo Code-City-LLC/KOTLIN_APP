@@ -50,14 +50,22 @@ class ContactsScreenScreenshotTest {
         )
     }
 
+    /**
+     * Renamed from `helpUsesSwiftSeparateCardsAndNoLiveChat`, which asserted
+     * that Help has NO Live Chat row "for Swift parity". That premise was
+     * FALSE — FigmaContactsViewController.swift:130 calls makeLiveChatCard()
+     * and Figma has the row too. The test was locking Android into being the
+     * only platform without it.
+     */
     @Test
-    fun helpUsesSwiftSeparateCardsAndNoLiveChat() {
+    fun helpUsesSwiftSeparateCardsAndKeepsLiveChat() {
         setHelpContent(ThemeController.Mode.LIGHT)
 
+        compose.onNodeWithTag("contacts-card-live-chat").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-contact-number").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-whatsapp").assertIsDisplayed()
         compose.onNodeWithTag("contacts-card-email").assertIsDisplayed()
-        assertEquals(0, compose.onAllNodesWithText("Live Chat").fetchSemanticsNodes().size)
+        assertEquals(1, compose.onAllNodesWithText("Live Chat").fetchSemanticsNodes().size)
         assertEquals(11, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
         compose.onNodeWithText("Monday-Friday: 9am-6pm\nSaturday: 10am-4pm\nSunday: Closed")
             .performScrollTo()

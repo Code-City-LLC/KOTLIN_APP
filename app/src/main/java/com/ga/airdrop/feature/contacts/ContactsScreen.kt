@@ -40,8 +40,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
@@ -60,9 +60,15 @@ import kotlinx.coroutines.delay
  * Swift is the implementation-precedence guide where it conflicts with Figma:
  * the Figma node still includes a Live Chat row, groups Contact/WhatsApp/Email
  * in one card, and shows a Business Hours copy affordance. The Swift app ships
- * separate section cards, 20pt card gaps, 15pt card padding, no Live Chat row,
- * and no Business Hours copy button, so Android follows Swift for those
- * conflicts.
+ * separate section cards, 20pt card gaps and 15pt card padding, and no
+ * Business Hours copy button, so Android follows Swift for those conflicts.
+ *
+ * ⚠️ CORRECTION: this comment used to also claim Swift ships "no Live Chat
+ * row", and Android dropped the row on that basis. The premise was FALSE —
+ * FigmaContactsViewController.swift:130 calls makeLiveChatCard() and
+ * :367 tags it "figma.contacts.liveChat". Figma has it too. Android was the
+ * only platform without it, which left LiveAgentChatScreen reachable from a
+ * single unrelated entry point. The row is restored.
  */
 @Composable
 fun ContactsScreen(
@@ -109,6 +115,23 @@ fun ContactsScreen(
                 // Swift contentStack.spacing = 20.
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
+                // Live Chat first, as Swift orders it (contentStack:130).
+                SectionCard(
+                    modifier = Modifier
+                        .testTag("contacts-card-live-chat")
+                        .clickable { onNavigate(Routes.LIVE_CHAT) },
+                    iconRes = R.drawable.ic_contacts_chat_light,
+                    darkIconRes = R.drawable.ic_contacts_chat_dark,
+                    title = "Live Chat",
+                ) {
+                    ValueRow(
+                        "Chat with a live agent",
+                        onOpen = { onNavigate(Routes.LIVE_CHAT) },
+                        onCopy = {},
+                        showCopy = false,
+                    )
+                }
+
                 SectionCard(
                     modifier = Modifier.testTag("contacts-card-contact-number"),
                     iconRes = R.drawable.ic_contact_number,
@@ -369,7 +392,13 @@ private fun CopyButton(value: String, onCopy: (String) -> Unit) {
 
 /** Value row — Swift: subtitle1 value + trailing 24 copy. */
 @Composable
-private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Unit) {
+private fun ValueRow(
+    text: String,
+    onOpen: (() -> Unit)?,
+    onCopy: (String) -> Unit,
+    // Live Chat is an action, not a value to copy.
+    showCopy: Boolean = true,
+) {
     val colors = AirdropTheme.colors
     Row(
         modifier = Modifier
@@ -386,7 +415,7 @@ private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Un
                 .weight(1f)
                 .then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier),
         )
-        CopyButton(text, onCopy)
+        if (showCopy) CopyButton(text, onCopy)
     }
 }
 

@@ -27,7 +27,7 @@ class HomeDataContractTest {
         assertEquals("Gold Standard", user.customerTierName)
         assertTrue(capture.currentUserCalled)
 
-        assertEquals(42, status.available)
+        assertEquals(42.0, status.available)
         assertTrue(capture.airCoinsStatusCalled)
 
         assertEquals(listOf("swift-product"), auctions.map { it.slug })
@@ -67,7 +67,7 @@ class HomeDataContractTest {
                 }
                 "airCoinsStatus" -> {
                     capture.airCoinsStatusCalled = true
-                    AirCoinsStatus(available = 42, balance = 7)
+                    AirCoinsStatus(available = 42.0, balance = 7.0)
                 }
                 "products" -> {
                     capture.productsParams = args?.getOrNull(0) as? Map<String, String>

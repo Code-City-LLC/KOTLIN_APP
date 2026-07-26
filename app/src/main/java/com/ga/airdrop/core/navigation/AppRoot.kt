@@ -334,7 +334,16 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
         com.ga.airdrop.feature.cart.PaymentReturnHost(
             sessionId = entry.arguments?.getString("sessionId").orEmpty(),
             onPaid = { ref, amount ->
-                navController.navigate(Routes.paymentSuccess(ref, amount)) {
+                navController.navigate(
+                    // Fulfillment MUST be carried: without it the success
+                    // screen falls back to the pickup variant and tells a
+                    // delivery buyer to collect at the branch.
+                    Routes.paymentSuccess(
+                        ref,
+                        amount,
+                        com.ga.airdrop.feature.cart.CheckoutFlowStore.currentFulfillment(),
+                    ),
+                ) {
                     // Pop through the cart so Back from Success never lands on
                     // a stale Delivery Method / cleared cart (verify finding).
                     popUpTo(Routes.CART) { inclusive = true }
@@ -363,7 +372,16 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     composable(Routes.PAYMENT_CANCELLED) {
         com.ga.airdrop.feature.cart.PaymentCancelledHost(
             onPaid = { ref, amount ->
-                navController.navigate(Routes.paymentSuccess(ref, amount)) {
+                navController.navigate(
+                    // Fulfillment MUST be carried: without it the success
+                    // screen falls back to the pickup variant and tells a
+                    // delivery buyer to collect at the branch.
+                    Routes.paymentSuccess(
+                        ref,
+                        amount,
+                        com.ga.airdrop.feature.cart.CheckoutFlowStore.currentFulfillment(),
+                    ),
+                ) {
                     popUpTo(Routes.CART) { inclusive = true }
                     launchSingleTop = true
                 }

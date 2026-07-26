@@ -63,29 +63,32 @@ class ShippingRatesParityTest {
     private val routes = mutableListOf<String>()
     private var backClicks = 0
 
+    /**
+     * A failed load must NOT be dressed up as prices.
+     *
+     * This test used to assert the opposite — that a hardcoded fallback table
+     * rendered on failure. Those numbers were roughly HALF the real rates
+     * (it quoted $5.00 at 1 lb where the server says $5.50, and $6.00 at 2 lbs
+     * where the server says $9.00) and the screen was indistinguishable from a
+     * successful load: no error, no retry. Quoting a customer a price we
+     * invented is worse than telling them the rates could not load.
+     */
     @Test
-    fun fallbackKeepsSwiftRuntimeRatesAndCalculatorRailLight() {
+    fun failedLoadShowsRetryInsteadOfInventedRatesLight() {
         val api = FakeMore2Api(failShippingRates = true)
         setShippingRates(api, ThemeController.Mode.LIGHT)
 
-        compose.onNodeWithText("AirDrop Standard Rates").assertIsDisplayed()
-        compose.onNodeWithText("1").assertIsDisplayed()
-        assertTextExists("\$5.00")
-        assertNoText("0.5")
-        assertNoText("\$4.50")
+        compose.onNodeWithTag("shipping-rates-unavailable").assertIsDisplayed()
+        compose.onNodeWithTag("shipping-rates-retry", useUnmergedTree = true).assertIsDisplayed()
 
-        assertSwiftTopGeometry()
-        compose.onNodeWithTag("shipping-rates-scroll")
-            .performScrollToNode(hasTestTag("shipping-rates-standard-row-over-20"))
-        assertTextExists("21 & Up")
-        assertTextExists("\$3.00 each additional lbs.")
+        // None of the fabricated table may appear.
+        assertNoText("AirDrop Standard Rates")
+        assertNoText("\$5.00")
+        assertNoText("21 & Up")
 
         compose.onNodeWithTag("more2-inner-header-back", useUnmergedTree = true).performClick()
         assertEquals("Back button should dispatch through the shared Swift header rail", 1, backClicks)
-
-        compose.onNodeWithTag("shipping-rates-calculate", useUnmergedTree = true).performClick()
-        assertEquals(listOf(Routes.CALCULATOR), routes)
-        saveRootScreenshot("shipping_rates_swift_fallback_light.png")
+        saveRootScreenshot("shipping_rates_unavailable_light.png")
     }
 
     @Test

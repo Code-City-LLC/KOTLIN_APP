@@ -136,6 +136,19 @@ data class AdditionalFees(
     @SerialName("incorrect_shipping_info") val incorrectShippingInfo: Double? = null,
     @SerialName("document_letter_rate") val documentLetterRate: Double? = null,
     @SerialName("customs_threshold") val customsThreshold: Double? = null,
+    /**
+     * In & Out fee. The screen used to hardcode 5.00 / 0.50-per-lb / 50.00
+     * while the server sends 3.00 / 1.00 / 100.00 — every one of the three
+     * numbers was wrong, and the field was never modelled at all.
+     */
+    @SerialName("in_out_fee") val inOutFee: InOutFee? = null,
+)
+
+@Serializable
+data class InOutFee(
+    @SerialName("first_lb") val firstLb: Double? = null,
+    @SerialName("additional_lb") val additionalLb: Double? = null,
+    @SerialName("flat_rate_100_lbs") val flatRate100Lbs: Double? = null,
 )
 
 @Serializable

@@ -14,11 +14,13 @@ import kotlinx.serialization.json.JsonObject
 // (balance mirrors available) or flat {accumulated,...,balance,tier}.
 @Serializable(with = AirCoinsStatusSerializer::class)
 data class AirCoinsStatus(
-    val accumulated: Int? = null,
-    val redeemed: Int? = null,
-    val expired: Int? = null,
-    val available: Int? = null,
-    val balance: Int? = null,
+    // Doubles, NOT Int. Laravel emits fractional balances (e.g. 462.25) and
+    // flexInt truncated them, so a customer's coins silently lost the fraction.
+    val accumulated: Double? = null,
+    val redeemed: Double? = null,
+    val expired: Double? = null,
+    val available: Double? = null,
+    val balance: Double? = null,
     val tier: String? = null,
 )
 
@@ -34,22 +36,22 @@ object AirCoinsStatusSerializer : KSerializer<AirCoinsStatus> {
         val obj = input.decodeJsonElement() as? JsonObject ?: return AirCoinsStatus()
         val payload = obj["data"] as? JsonObject
         if (payload != null) {
-            val available = payload.flexInt("available")
+            val available = payload.flexDouble("available")
             return AirCoinsStatus(
-                accumulated = payload.flexInt("accumulated"),
-                redeemed = payload.flexInt("redeemed"),
-                expired = payload.flexInt("expired"),
+                accumulated = payload.flexDouble("accumulated"),
+                redeemed = payload.flexDouble("redeemed"),
+                expired = payload.flexDouble("expired"),
                 available = available,
                 balance = available,
                 tier = null,
             )
         }
         return AirCoinsStatus(
-            accumulated = obj.flexInt("accumulated"),
-            redeemed = obj.flexInt("redeemed"),
-            expired = obj.flexInt("expired"),
-            available = obj.flexInt("available"),
-            balance = obj.flexInt("balance"),
+            accumulated = obj.flexDouble("accumulated"),
+            redeemed = obj.flexDouble("redeemed"),
+            expired = obj.flexDouble("expired"),
+            available = obj.flexDouble("available"),
+            balance = obj.flexDouble("balance"),
             tier = obj.flexString("tier"),
         )
     }

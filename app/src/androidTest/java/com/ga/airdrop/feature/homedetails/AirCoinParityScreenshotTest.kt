@@ -97,9 +97,9 @@ class AirCoinParityScreenshotTest {
                     AirCoinBalanceContent(
                         state = AirCoinBalanceUiState(
                             status = AirCoinsStatus(
-                                accumulated = 234,
-                                redeemed = 23,
-                                available = 50,
+                                accumulated = 234.0,
+                                redeemed = 23.0,
+                                available = 50.0,
                             ),
                         ),
                         onBack = {},

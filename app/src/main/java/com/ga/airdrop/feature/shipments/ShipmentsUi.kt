@@ -175,6 +175,29 @@ object ShipmentStatusCatalog {
         return if (normalize(value) == "auction") "Sale" else value
     }
 
+    /**
+     * The label to put in front of a customer for a package.
+     *
+     * The card used to render `statusName ?: status ?: "—"` raw, so when the
+     * name was absent (or was itself a code) the customer saw a bare **"7"** as
+     * their package status — and packageStatusColor's `else` branch tinted it
+     * GREEN, i.e. it read as a completed state. Resolves a numeric code through
+     * the catalogue before falling back.
+     */
+    fun displayName(statusName: String?, status: String?): String {
+        customerFacingName(statusName)?.takeIf { it.isNotBlank() && !isBareCode(it) }?.let { return it }
+        // Either field may carry the numeric code.
+        listOfNotNull(statusName, status).forEach { candidate ->
+            candidate.trim().toIntOrNull()?.let { code ->
+                defaults.firstOrNull { it.id == code }?.name
+                    ?.let { return customerFacingName(it) ?: it }
+            }
+        }
+        return customerFacingName(status)?.takeIf { it.isNotBlank() && !isBareCode(it) } ?: "—"
+    }
+
+    private fun isBareCode(value: String) = value.trim().toIntOrNull() != null
+
     fun idFor(statusName: String?): Int? {
         val target = normalize(statusName ?: return null)
         if (target == "auction" || target == "sale") return 17
@@ -823,9 +846,11 @@ fun PackageCard(
                 Column(Modifier.weight(1f)) {
                     Text(text = "Status", style = AirdropType.subtitle2, color = colors.textDescription)
                     Text(
-                        text = pkg.statusName ?: pkg.status ?: "—",
+                        text = ShipmentStatusCatalog.displayName(pkg.statusName, pkg.status),
                         style = AirdropType.title2,
-                        color = packageStatusColor(pkg.statusName ?: pkg.status),
+                        color = packageStatusColor(
+                            ShipmentStatusCatalog.displayName(pkg.statusName, pkg.status),
+                        ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = testTag?.let { Modifier.testTag("$it-status-value") } ?: Modifier,

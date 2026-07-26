@@ -19,10 +19,10 @@ class MiscRepositoryAirCoinsTest {
         val repository = MiscRepository(airCoinsService(capture))
 
         val status = repository.airCoinsStatus().getOrThrow()
-        assertEquals(234, status.accumulated)
-        assertEquals(23, status.redeemed)
-        assertEquals(50, status.available)
-        assertEquals(50, status.balance)
+        assertEquals(234.0, status.accumulated)
+        assertEquals(23.0, status.redeemed)
+        assertEquals(50.0, status.available)
+        assertEquals(50.0, status.balance)
         assertTrue(capture.statusCalled)
 
         val history = repository.airCoinHistory(page = 1, limit = AIRCOIN_HISTORY_PER_PAGE).getOrThrow()
@@ -47,10 +47,10 @@ class MiscRepositoryAirCoinsTest {
                 "airCoinsStatus" -> {
                     capture.statusCalled = true
                     AirCoinsStatus(
-                        accumulated = 234,
-                        redeemed = 23,
-                        available = 50,
-                        balance = 50,
+                        accumulated = 234.0,
+                        redeemed = 23.0,
+                        available = 50.0,
+                        balance = 50.0,
                     )
                 }
                 "airCoinsHistory" -> {
