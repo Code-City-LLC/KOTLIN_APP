@@ -103,12 +103,16 @@ fun AppRoot(
         }
     }
 
-    // Reactive logout — Swift SceneDelegate.handleAPISessionInvalidated parity
-    // (BUG_AUDIT C6): when the bearer disappears while the user is inside the
-    // authenticated graph (401 sweep, failed foreground refresh, account
-    // deletion), reset to the auth landing instead of leaving dead screens.
-    // Auth-graph routes are exempt so splash routing and the explicit
-    // logout/deletion navigations don't double-fire.
+    // When the bearer disappears while the user is inside the authenticated
+    // graph, reset to the auth landing instead of leaving dead screens.
+    //
+    // ⚠️ This is NO LONGER a "reactive logout". As of 2026-07-26 nothing in the
+    // app clears the token on its own — not a 401, not a failed refresh, not a
+    // network error (Kemar: "if the customer doesn't log out, it never logs
+    // out"). The only things that null the bearer are the customer tapping Log
+    // Out, the biometric lock screen's log-out, and account deletion. So this
+    // effect now only follows a logout the customer asked for; it must never
+    // become a way to sign someone out again.
     androidx.compose.runtime.LaunchedEffect(token, currentRoute) {
         if (shouldResetToAuthLanding(token, currentRoute)) {
             navController.navigate(Routes.AUTH_LANDING) {

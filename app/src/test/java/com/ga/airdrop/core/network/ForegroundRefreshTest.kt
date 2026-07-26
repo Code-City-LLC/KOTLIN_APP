@@ -11,9 +11,10 @@ import org.junit.Test
  * Foreground session refresh — Swift SceneDelegate.refreshStoredSessionIfNeeded
  * parity (SceneDelegate:429/:436). MainActivity.onStart feeds the HTTP outcome
  * into [TokenRefresher.applyForegroundRefresh]; these pin the three arms:
- * 401 → session cleared (AppRoot reactive logout takes over, C6),
  * success+token → bearer rotated,
- * network error / body-less → session untouched (Swift logs and skips).
+ * everything else — network error, body-less response, or a 401 → session
+ * UNTOUCHED. Kemar 2026-07-26: the app never signs the customer out; only the
+ * customer does.
  */
 class ForegroundRefreshTest {
 
@@ -30,10 +31,17 @@ class ForegroundRefreshTest {
         AuthTokenStore.clear()
     }
 
+    /**
+     * ⚠️ THIS ASSERTED THE LOGOUT. It was `401 clears the dead session`.
+     *
+     * A foreground refresh answering 401 no longer costs the customer their
+     * session. If the token really is finished every screen will say so, and
+     * the customer can log out themselves — the app will not do it for them.
+     */
     @Test
-    fun `401 clears the dead session`() {
+    fun `a 401 on foreground refresh keeps the customer signed in`() {
         TokenRefresher.applyForegroundRefresh(storedSession, httpCode = 401, newToken = null)
-        assertNull(AuthTokenStore.token)
+        assertEquals("stored-token", AuthTokenStore.token)
     }
 
     @Test
@@ -62,8 +70,9 @@ class ForegroundRefreshTest {
         assertEquals("stored-token", AuthTokenStore.token)
     }
 
+    /** A newer login is never disturbed by an older refresh result. */
     @Test
-    fun `stale 401 cannot clear a newer bearer`() {
+    fun `a stale 401 cannot disturb a newer bearer`() {
         AuthTokenStore.save("newer-token")
 
         TokenRefresher.applyForegroundRefresh(storedSession, httpCode = 401, newToken = null)

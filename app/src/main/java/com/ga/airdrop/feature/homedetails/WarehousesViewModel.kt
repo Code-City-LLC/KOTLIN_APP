@@ -26,6 +26,8 @@ data class WarehousesUiState(
     val user: AirdropUser? = null,
     val warehouses: List<Warehouse> = emptyList(),
     val loading: Boolean = false,
+    /** Non-null when the shipping address could not be loaded. */
+    val error: String? = null,
 )
 
 /**
@@ -78,11 +80,14 @@ class WarehousesViewModel(
         load()
     }
 
+    /** Public so the error state's Try Again can re-fetch. */
+    fun retry() = load()
+
     private fun load() {
         if (loadJob?.isActive == true) return
         val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
         loadJob = sessionJobs.launch {
-            sessionBoundary.apply(owner) { _state.update { it.copy(loading = true) } }
+            sessionBoundary.apply(owner) { _state.update { it.copy(loading = true, error = null) } }
             val user = async { repository.currentUser() }
             val warehouses = async { repository.warehouses() }
             val userResult = user.await()
@@ -91,7 +96,24 @@ class WarehousesViewModel(
             if (loadedUserId != null && !sessionBoundary.bindAccountId(owner, loadedUserId)) return@launch
             sessionBoundary.apply(owner) {
                 userResult.onSuccess { value -> _state.update { it.copy(user = value) } }
-                warehouseResult.onSuccess { rows -> _state.update { it.copy(warehouses = rows) } }
+                // ⚠️ There used to be no onFailure here at all. A failed
+                // /warehouse left `warehouses` empty forever, warehouseFor()
+                // returned null, and the screen painted hardcoded
+                // FALLBACK_ADDRESS_* constants as a confident US address — on
+                // the one screen whose entire purpose is the address a customer
+                // copies into a merchant checkout. MiscRepository even turns a
+                // null `data` into Result.success(emptyList()), so a
+                // "successful" load was byte-identical to the fallback.
+                warehouseResult
+                    .onSuccess { rows ->
+                        _state.update {
+                            it.copy(
+                                warehouses = rows,
+                                error = if (rows.isEmpty()) ADDRESS_UNAVAILABLE else null,
+                            )
+                        }
+                    }
+                    .onFailure { _state.update { it.copy(error = ADDRESS_UNAVAILABLE) } }
                 _state.update { it.copy(loading = false) }
             }
         }
@@ -103,3 +125,6 @@ class WarehousesViewModel(
             (it.name ?: "").lowercase().contains(typeKey.lowercase())
         } ?: _state.value.warehouses.firstOrNull()
 }
+
+internal const val ADDRESS_UNAVAILABLE =
+    "We couldn't load your shipping address."

@@ -19,6 +19,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Timeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -128,8 +129,20 @@ class AuthInterceptorRefreshTest {
         assertEquals("Bearer new-token", chain.proceeded[2].header("Authorization"))
     }
 
+    /**
+     * ⚠️ THIS ASSERTED THE LOGOUT. It was `failed refresh clears the session`.
+     *
+     * Kemar 2026-07-26: *"The app should not log out the user... if the
+     * customer doesn't log out, it never logs out."* Staying signed in is what
+     * keeps notifications delivering and keeps the customer in the ecosystem.
+     *
+     * The failure mode this fixes: performRefresh ends in
+     * `runCatching { ... }.getOrNull()`, so it returns null for ANY failure —
+     * a dropped connection, a timeout, a tunnel — and null used to mean
+     * "clear the session". Losing signal at the wrong moment signed people out.
+     */
     @Test
-    fun `failed refresh clears the session and returns the original 401`() {
+    fun `a failed refresh keeps the customer signed in and returns the 401`() {
         val chain = ScriptedChain(apiRequest()) { req, _ ->
             if (isRefresh(req)) response(req, 401) else response(req, 401)
         }
@@ -137,9 +150,23 @@ class AuthInterceptorRefreshTest {
         val result = interceptor.intercept(chain)
 
         assertEquals(401, result.code)
-        assertNull(AuthTokenStore.token)
-        assertNull(AuthTokenStore.snapshot().sessionId)
+        assertEquals("the session must survive a failed refresh", "old-token", AuthTokenStore.token)
+        assertNotNull(AuthTokenStore.snapshot().sessionId)
         assertEquals(2, chain.proceeded.size) // original + refresh, no retry
+    }
+
+    /** The real-world case: the network dies mid-refresh. */
+    @Test
+    fun `a refresh that throws keeps the customer signed in`() {
+        val chain = ScriptedChain(apiRequest()) { req, _ ->
+            if (isRefresh(req)) throw java.io.IOException("connection dropped") else response(req, 401)
+        }
+
+        val result = interceptor.intercept(chain)
+
+        assertEquals(401, result.code)
+        assertEquals("a dropped connection must never sign anyone out", "old-token", AuthTokenStore.token)
+        assertNotNull(AuthTokenStore.snapshot().sessionId)
     }
 
     @Test
@@ -166,7 +193,7 @@ class AuthInterceptorRefreshTest {
     }
 
     @Test
-    fun `body-less 200 refresh is rejected like Swift, session cleared`() {
+    fun `a body-less 200 refresh is rejected but keeps the customer signed in`() {
         val chain = ScriptedChain(apiRequest()) { req, _ ->
             if (isRefresh(req)) response(req, 200, "") else response(req, 401)
         }
@@ -174,7 +201,9 @@ class AuthInterceptorRefreshTest {
         val result = interceptor.intercept(chain)
 
         assertEquals(401, result.code)
-        assertNull(AuthTokenStore.token)
+        // The bad refresh is still rejected — it just no longer costs the
+        // customer their session.
+        assertEquals("old-token", AuthTokenStore.token)
     }
 
     @Test

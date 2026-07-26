@@ -102,10 +102,31 @@ class AuthInterceptor internal constructor(
             }
         }
 
-        // Refresh failed: force-logout only if this exact request generation
-        // still owns the session. Matching bearer text is insufficient because
-        // a fresh login can legitimately receive the same token string.
-        AuthTokenStore.clear(currentSnapshot)
+        // ⚠️ DO NOT ADD A LOGOUT HERE.
+        //
+        // This used to call AuthTokenStore.clear(currentSnapshot) when the
+        // refresh came back null — and performRefresh returns null for ANY
+        // failure, because it ends in `runCatching { ... }.getOrNull()`. A
+        // dropped connection, a timeout, a tunnel, a body-less 200: all of them
+        // signed the customer out. That is why the app was logging people out
+        // "too often"; it was rarely about the token at all.
+        //
+        // Kemar 2026-07-26: *"The app should not log out the user... if the
+        // customer doesn't log out, it never logs out."* Staying signed in is
+        // what keeps notifications working and keeps the customer inside the
+        // ecosystem.
+        //
+        // So the session survives. The caller gets the original 401 and the
+        // screen shows its own error and retry, exactly as it would for any
+        // other failed request. If the token really is finished, every screen
+        // will say so and the customer can log out themselves — the app will
+        // not do it for them.
+        //
+        // The ONE teardown that remains is the account-identity guard in
+        // LocalSessionTeardown: if the server answers with a different
+        // account's data than the one signed in, we tear down rather than
+        // render another customer's packages. That path is deliberate and
+        // must stay (Kemar confirmed).
         return original401
     }
 

@@ -156,12 +156,16 @@ class MainActivity : FragmentActivity() {
     }
 
     /**
-     * Swift SceneDelegate.refreshStoredSessionIfNeeded (:429/:436): every
-     * foreground with a stored bearer refreshes the session so it survives
-     * expiry windows. 401 → the token is dead → TokenRefresher clears it and
-     * AppRoot's reactive logout returns the user to the auth landing; network
-     * errors leave the session untouched (the 401-recovery interceptor path
-     * still guards individual calls).
+     * Every foreground with a stored bearer refreshes the session so it
+     * survives expiry windows.
+     *
+     * ⚠️ A 401 here NO LONGER signs the customer out. It used to: TokenRefresher
+     * cleared the token and AppRoot bounced them to the auth landing. Since
+     * 2026-07-26 the session survives every outcome except a rotation — a 401,
+     * a network error, a body-less response all leave the stored bearer alone
+     * (Kemar: "if the customer doesn't log out, it never logs out"). A refresh
+     * that succeeds rotates the bearer; anything else is simply retried on the
+     * next foreground.
      */
     private fun refreshStoredSession(afterRefresh: () -> Unit = {}) {
         val refreshingSession = AuthTokenStore.snapshot()

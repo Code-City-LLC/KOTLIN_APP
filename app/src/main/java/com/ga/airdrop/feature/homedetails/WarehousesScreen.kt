@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.Radius
@@ -105,10 +108,16 @@ enum class WarehouseType(
     }
 }
 
-private const val FALLBACK_ADDRESS_LINE1 = "6175 NW 167th Street, Unit G36"
-private const val FALLBACK_CITY = "Hialeah"
-private const val FALLBACK_STATE = "Florida"
-private const val FALLBACK_PHONE = "1(954)508-1797"
+// The FALLBACK_ADDRESS_* constants were deleted on 2026-07-26.
+//
+// They happened to MATCH what /warehouse sends today, which is exactly what
+// made them dangerous: on the one screen whose purpose is the address a
+// customer copies into a US merchant checkout, a failed or in-flight fetch
+// painted a confident, complete address with no signal it was client-authored
+// — and this screen has Copy-All and Share buttons that serialise whatever is
+// on it. The FAQ's hardcoded Fort Lauderdale address was right once too.
+//
+// Kemar 2026-07-26: loading, or an error with a retry. No constants.
 private const val ACTIVE_TYPE_TAB_FILL_ALPHA = 0.32f
 
 @Composable
@@ -179,6 +188,39 @@ fun WarehousesScreen(
                     )
                 },
             )
+
+            // Loading and failure are distinct states. Neither may render an
+            // address, and neither may leave Copy-All or Share serialising one.
+            if (state.loading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = colors.orangeMain)
+                }
+                return@Column
+            }
+            if (warehouse == null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(Spacing.lg)
+                        .testTag("warehouse-error"),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = state.error ?: ADDRESS_UNAVAILABLE,
+                        style = AirdropType.body2,
+                        color = colors.textDescription,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(Spacing.md))
+                    OutlineButton(
+                        text = "Try Again",
+                        onClick = viewModel::retry,
+                        modifier = Modifier.testTag("warehouse-retry"),
+                    )
+                }
+                return@Column
+            }
 
             Column(
                 Modifier
@@ -272,7 +314,7 @@ private fun warehouseFields(
         WarehouseField("Full Name", fullName.ifEmpty { "—" }),
         WarehouseField(
             "Address Line 1",
-            (warehouse?.address ?: FALLBACK_ADDRESS_LINE1).ifEmpty { "—" },
+            warehouse?.address?.takeIf { it.isNotBlank() } ?: "—",
         ),
         WarehouseField(
             "Address Line 2",
@@ -282,12 +324,12 @@ private fun warehouseFields(
             WarehouseAddressLine2.format(warehouse, type.key, account) ?: "—",
             isAccountLine = true,
         ),
-        WarehouseField("City", capitalizeFirst(warehouse?.city ?: FALLBACK_CITY)),
-        WarehouseField("State", capitalizeFirst(warehouse?.state ?: FALLBACK_STATE)),
+        WarehouseField("City", warehouse?.city?.takeIf { it.isNotBlank() }?.let(::capitalizeFirst) ?: "—"),
+        WarehouseField("State", warehouse?.state?.takeIf { it.isNotBlank() }?.let(::capitalizeFirst) ?: "—"),
         WarehouseField("Zip Code", warehouse?.zipCode?.takeIf { it.isNotBlank() } ?: "—"),
         WarehouseField(
             "Phone Number",
-            formatPhoneNumber(warehouse?.phoneNumber?.takeIf { it.isNotBlank() } ?: FALLBACK_PHONE),
+            warehouse?.phoneNumber?.takeIf { it.isNotBlank() }?.let(::formatPhoneNumber) ?: "—",
         ),
     )
 }
