@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -442,11 +443,16 @@ private fun PackageDetailsContent(
             }
         }
 
-        // CIF Value info row — Figma 40001753:21889 (verified via Figma MCP):
-        // white surface, 1px #e5e5e5 hairline, 15px radius, px20/py10, label =
-        // SubTitle 1 (Cairo SemiBold 16/26 #292929), trailing 24dp Info Circle.
-        // The height is padding-driven in Figma (10 + 26 + 10), NOT a fixed box,
-        // so the row grows correctly when the user scales text size.
+        // CIF Value info row — Figma 40001753:21889 (verified via Figma MCP:
+        // the instance measures 335x59 with the 24dp Info Circle at y=17.5).
+        // White surface, 1px #e5e5e5 hairline, 15px radius, label = SubTitle 1
+        // (Cairo SemiBold 16/26 #292929), trailing 24dp Info Circle.
+        //
+        // 59dp is a MINIMUM, not a fixed box: it pins the default rendering to
+        // Figma while still letting the row grow when the user scales text
+        // size. A hard height would clip the label at large text sizes.
+        // (The previous 48dp was a Swift-era value that matched neither Figma
+        // nor the rendered row; PackageDetailsParityTest asserts the 59.)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -455,6 +461,7 @@ private fun PackageDetailsContent(
                 .background(colors.gray100)
                 .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
                 .clickable(onClick = onCifInfo)
+                .defaultMinSize(minHeight = 59.dp)
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,

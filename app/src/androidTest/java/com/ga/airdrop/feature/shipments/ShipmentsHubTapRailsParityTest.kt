@@ -1,5 +1,7 @@
 package com.ga.airdrop.feature.shipments
 
+import com.ga.airdrop.feature.cart.AlwaysOkCartServerGateway
+import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
 import android.Manifest
 import android.content.ContentValues
 import android.graphics.Bitmap
@@ -59,7 +61,11 @@ class ShipmentsHubTapRailsParityTest {
     fun hubRefreshesLiveDataOnResumeLikeSwiftViewDidAppear() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val repo = FakeHubRepository()
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(
+            repo,
+            cartServer = AlwaysOkCartServerGateway(),
+            sessionBoundary = FakeAuthenticatedSessionBoundary(),
+        )
 
         compose.waitUntil(timeoutMillis = 5_000) {
             repo.exchangeRateCalls.get() == 1 &&
@@ -118,7 +124,11 @@ class ShipmentsHubTapRailsParityTest {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
         val repo = FakeHubRepository()
-        val viewModel = ShipmentsViewModel(repo)
+        val viewModel = ShipmentsViewModel(
+            repo,
+            cartServer = AlwaysOkCartServerGateway(),
+            sessionBoundary = FakeAuthenticatedSessionBoundary(),
+        )
 
         compose.waitUntil(timeoutMillis = 5_000) {
             repo.ordersCalls.get() == 1 && !viewModel.state.value.loading
@@ -438,7 +448,12 @@ class ShipmentsHubTapRailsParityTest {
         packagesRepo: ShipmentsPackagesRepository = FakePackagesRepository(),
     ) {
         navigatedRoutes.clear()
-        val viewModel = ShipmentsViewModel(repo, packagesRepo)
+        val viewModel = ShipmentsViewModel(
+            repo,
+            packagesRepo,
+            cartServer = AlwaysOkCartServerGateway(),
+            sessionBoundary = FakeAuthenticatedSessionBoundary(),
+        )
         compose.setContent {
             AirdropThemeProvider {
                 Box(
