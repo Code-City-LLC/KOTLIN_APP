@@ -52,7 +52,10 @@ fun NavGraphBuilder.homeDetailsGraph(navController: NavHostController) {
     }
 
     composable(Routes.GOLD_PRIORITY) {
-        GoldPriorityScreen(onBack = { navController.popBackStack() })
+        GoldPriorityScreen(
+            onBack = { navController.popBackStack() },
+            onNavigate = { route -> navController.navigate(route) },
+        )
     }
 
     composable(Routes.NOTIFICATIONS) {

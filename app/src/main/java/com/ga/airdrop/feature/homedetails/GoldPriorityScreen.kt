@@ -50,8 +50,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -69,6 +69,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.TierPalette
+import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 
 /**
@@ -218,19 +219,30 @@ internal fun tierRelation(pageIndex: Int, userTierIndex: Int?): TierRelation {
 }
 
 /**
- * CTA label for the current Swift state machine:
+ * Seven-page CTA contract — Kemar's eyes-on ruling, commit 0b8349b:
+ * "Kemar visually rejected the blank bottom actions on Sapphire/Inactive/
+ * Corporate (the old hidden-on-lower rule, faithfully ported from Swift, is
+ * superseded). New contract — every page shows the glass button."
+ *
  *  - unresolved/loading → a disabled progress CTA
  *  - unresolved/failed  → a functional retry CTA
  *  - CURRENT    → "Your Tier" (opens the breakdown)
  *  - UPGRADE    → "Upgrade to <page tier>"
  *  - ACTIVATION → activation copy (Inactive as the customer's own state)
- *  - DOWNGRADE / PREVIEW → hidden; downgrade remains available only from
- *    the current-tier breakdown sheet.
+ *  - DOWNGRADE  → "Your Tier: <customer tier>" INFO button → the SAME
+ *                 breakdown. The pager still never shows a downgrade sign.
+ *  - PREVIEW    → "Contact Us" on Corporate (B2B) → Contacts
+ *
+ * ⚠️ 66dcebb ("restore accepted Kotlin baseline") deleted this and returned
+ * DOWNGRADE/PREVIEW to null, reinstating exactly the blank bottoms the ruling
+ * rejected — while keeping the geometry machinery the ruling had motivated.
+ * Restored. Swift parity does NOT win here; this ruling supersedes it.
  */
 internal fun tierCtaLabel(
     relation: TierRelation,
     pageName: String,
     resolutionStatus: TierResolutionStatus = TierResolutionStatus.Resolved,
+    customerTierName: String? = null,
 ): String? = when (resolutionStatus) {
     TierResolutionStatus.Loading -> "Loading your tier…"
     TierResolutionStatus.Failed -> "Retry tier details"
@@ -238,7 +250,10 @@ internal fun tierCtaLabel(
         TierRelation.CURRENT -> "Your Tier"
         TierRelation.UPGRADE -> "Upgrade to $pageName"
         TierRelation.ACTIVATION -> "Ship a package now to activate your account"
-        TierRelation.DOWNGRADE, TierRelation.PREVIEW -> null
+        // Info button back to the customer's OWN tier breakdown.
+        TierRelation.DOWNGRADE -> customerTierName?.let { "Your Tier: $it" }
+        // Corporate is B2B — the page's only action is to reach a human.
+        TierRelation.PREVIEW -> "Contact Us"
     }
 }
 
@@ -320,12 +335,15 @@ internal fun offerTargetPage(
 @Composable
 fun GoldPriorityScreen(
     onBack: () -> Unit,
+    /** Corporate/B2B "Contact Us" destination (Kemar's CTA contract). */
+    onNavigate: (String) -> Unit = {},
     viewModel: GoldPriorityViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
 
     GoldPriorityContent(
         onBack = onBack,
+        onNavigate = onNavigate,
         sessionEpoch = state.sessionEpoch,
         resolvedTierIndex = state.resolvedTierIndex,
         benefitRowsByCode = state.benefitRowsByCode,
@@ -352,6 +370,7 @@ private sealed interface TierSheet {
 @Composable
 internal fun GoldPriorityContent(
     onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {},
     sessionEpoch: Long = 0L,
     resolvedTierIndex: Int? = null,
     initialPage: Int = defaultTierIndex,
@@ -383,7 +402,8 @@ internal fun GoldPriorityContent(
     val activeIndex = pagerState.currentPage
     val activeTier = tierPages[activeIndex]
     val relation = tierRelation(activeIndex, resolvedTierIndex)
-    val ctaLabel = tierCtaLabel(relation, activeTier.name, resolutionStatus)
+    val customerTierName = resolvedTierIndex?.let(tierPages::getOrNull)?.name
+    val ctaLabel = tierCtaLabel(relation, activeTier.name, resolutionStatus, customerTierName)
     val gradientTop by animateColorAsState(activeTier.gradientTop, label = "tierTop")
     val gradientBottom by animateColorAsState(activeTier.gradientBottom, label = "tierBottom")
 
@@ -480,7 +500,11 @@ internal fun GoldPriorityContent(
                     }
                     // Inactive page's activation copy pops back to Home.
                     TierRelation.ACTIVATION -> onBack()
-                    TierRelation.DOWNGRADE, TierRelation.PREVIEW -> Unit
+                    // Info button -> the customer's own breakdown (the ONE
+                    // sanctioned downgrade entry, same as CURRENT).
+                    TierRelation.DOWNGRADE -> activeSheet = TierSheet.Breakdown
+                    // Corporate/B2B -> a human.
+                    TierRelation.PREVIEW -> onNavigate(Routes.CONTACTS)
                 }
             },
             modifier = Modifier.align(Alignment.BottomCenter),
