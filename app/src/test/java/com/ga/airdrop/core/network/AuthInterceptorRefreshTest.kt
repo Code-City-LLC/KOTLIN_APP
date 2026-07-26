@@ -130,22 +130,21 @@ class AuthInterceptorRefreshTest {
     }
 
     /**
-     * ⚠️ THIS ASSERTED THE LOGOUT. It was `failed refresh clears the session`.
+     * ⚠️ THIS ONCE ASSERTED THE OPPOSITE, TWICE. It began as `failed refresh
+     * clears the session`, briefly became `a failed refresh keeps the customer
+     * signed in`, and is now the narrow rule both platforms run: a refresh that
+     * answers **401** — and only that — ends the session.
      *
-     * Kemar 2026-07-26: *"The app should not log out the user... if the
-     * customer doesn't log out, it never logs out."* Staying signed in is what
-     * keeps notifications delivering and keeps the customer in the ecosystem.
+     * The line being drawn is *confirmed dead* vs *lost signal*. A 401 from the
+     * refresh endpoint is the server stating the principal is gone. A timeout
+     * is the server saying nothing at all.
      *
      * The failure mode this fixes: performRefresh ends in
      * `runCatching { ... }.getOrNull()`, so it returns null for ANY failure —
      * a dropped connection, a timeout, a tunnel — and null used to mean
      * "clear the session". Losing signal at the wrong moment signed people out.
-     */
-    /**
-     * Kemar reversed this on 2026-07-26 so both platforms match SwiftHawk's
-     * rule: a refresh that answers **401** is the one outcome that means the
-     * principal is gone, and it does log the customer out. Everything else —
-     * a throw, a 5xx, a body-less 200 — keeps the session.
+     * Everything except an explicit 401 — a throw, a 5xx, a body-less 200 —
+     * still keeps the session.
      */
     @Test
     fun `a refresh that answers 401 confirms the session is dead`() {
@@ -200,6 +199,28 @@ class AuthInterceptorRefreshTest {
         assertTrue(replacement.sessionId != originalSession.sessionId)
         assertEquals(2, chain.proceeded.size)
         assertEquals("Bearer old-token", chain.proceeded[1].header("Authorization"))
+    }
+
+    /**
+     * A 5xx is AirDrop's own outage, never a statement about this customer.
+     * Pinned at BrightHarbor's request (#80225): before this, the 5xx case was
+     * only ever asserted in a comment, and the whole teardown now turns on
+     * distinguishing one status code from every other failure.
+     */
+    @Test
+    fun `a 500 from the refresh endpoint keeps the customer signed in`() {
+        listOf(500, 502, 503).forEach { serverError ->
+            AuthTokenStore.save("old-token")
+            val chain = ScriptedChain(apiRequest()) { req, _ ->
+                if (isRefresh(req)) response(req, serverError) else response(req, 401)
+            }
+
+            val result = interceptor.intercept(chain)
+
+            assertEquals(401, result.code)
+            assertEquals("$serverError is our outage, not a dead session", "old-token", AuthTokenStore.token)
+            assertNotNull(AuthTokenStore.snapshot().sessionId)
+        }
     }
 
     @Test

@@ -159,13 +159,13 @@ class MainActivity : FragmentActivity() {
      * Every foreground with a stored bearer refreshes the session so it
      * survives expiry windows.
      *
-     * ⚠️ A 401 here NO LONGER signs the customer out. It used to: TokenRefresher
-     * cleared the token and AppRoot bounced them to the auth landing. Since
-     * 2026-07-26 the session survives every outcome except a rotation — a 401,
-     * a network error, a body-less response all leave the stored bearer alone
-     * (Kemar: "if the customer doesn't log out, it never logs out"). A refresh
-     * that succeeds rotates the bearer; anything else is simply retried on the
-     * next foreground.
+     * ⚠️ Exactly ONE outcome here signs the customer out: the refresh endpoint
+     * answering **401**. That is the server saying the principal is gone, and
+     * both platforms treat it the same way (Kemar 2026-07-26, adopting
+     * SwiftHawk's rule). Every other outcome — a network error, a 5xx, a
+     * body-less response — leaves the stored bearer alone and is simply retried
+     * on the next foreground. Losing signal is not a reason to sign anyone out
+     * of an app whose job is keeping them reachable for notifications.
      */
     private fun refreshStoredSession(afterRefresh: () -> Unit = {}) {
         val refreshingSession = AuthTokenStore.snapshot()
