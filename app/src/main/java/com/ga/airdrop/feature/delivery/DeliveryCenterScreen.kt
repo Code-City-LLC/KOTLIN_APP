@@ -103,9 +103,11 @@ object DeliveryCenterTags {
  * green passed / soft-orange current, faded upcoming, animated flow).
  *
  * Two entries share this screen:
- *  • orderReference (just paid at checkout) → the deterministic post-checkout
- *    journey. No delivery exists server-side yet, so nothing is fetched and no
- *    progress is invented beyond "confirmed + preparing".
+ *  • orderReference (just paid at checkout) → the post-checkout screen. It
+ *    FETCHES the exact packages the verify response said were paid for
+ *    (`package_ids`) and reports their identity and present status. It draws no
+ *    journey: a just-paid package has no recorded events, and inventing
+ *    "confirmed + preparing" from the fact of payment is what this replaced.
  *  • packageId / no args → the LIVE 0/1/many state machine (Codex's plumbing):
  *    Laravel's active-deliveries list, per-package tracking detail, refresh,
  *    session-boundary hygiene. Every live stage row is the ordered server
