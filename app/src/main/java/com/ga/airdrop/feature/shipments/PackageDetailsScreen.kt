@@ -483,7 +483,11 @@ private fun PackageDetailsContent(
         // the charges gate: a customer accruing storage needs to see it even
         // in states where the Breakdown card is hidden.
         detail?.storage?.takeIf { it.eligible }?.let { storage ->
-            StorageFeeCard(storage = storage, exchangeRate = state.exchangeRate)
+            // effectiveRate, NOT exchangeRate: every other money row on this
+            // screen (Breakdown, Exchange Rate, Total) uses effectiveRate,
+            // and showing the same charge at two different JMD figures on
+            // one screen is worse than showing none.
+            StorageFeeCard(storage = storage, exchangeRate = state.effectiveRate)
         }
 
         // Breakdown of Charges + Add to Cart — Swift showCharges gate

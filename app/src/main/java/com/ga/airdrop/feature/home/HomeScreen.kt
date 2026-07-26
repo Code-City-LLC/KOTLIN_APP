@@ -111,8 +111,22 @@ fun HomeScreen(
     LaunchedEffect(Unit) { CartStore.init(context) }
     DisposableEffect(lifecycleOwner, viewModel) {
         val lifecycle = lifecycleOwner.lifecycle
+        // Same guard as ShipmentsUi.kt:82. Without it this fires an
+        // unauthenticated-race /user/profile at the same moment
+        // MainActivity.onStart runs /auth/refresh — and that endpoint DELETES
+        // the current token, so the in-flight profile call 401s with the
+        // pre-rotation bearer, walks the interceptor's recovery path, and tears
+        // down a valid session. /user/profile is not session-bound
+        // (AirdropApiService.kt:159), so nothing else stops it.
+        var skipInitialResumeReplay = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (skipInitialResumeReplay) {
+                    skipInitialResumeReplay = false
+                } else {
+                    viewModel.refresh()
+                }
+            }
         }
         lifecycle.addObserver(observer)
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {

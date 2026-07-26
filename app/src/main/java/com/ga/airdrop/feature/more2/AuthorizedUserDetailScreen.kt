@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -25,8 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -62,6 +66,24 @@ fun AuthorizedUserDetailScreen(
 
     LaunchedEffect(state.deleted) {
         if (state.deleted) onBack()
+    }
+
+    // Returning from the edit form must re-read the user. This destination
+    // stays on the back stack while editing, so its ViewModel is retained and
+    // init{}'s load() never runs again — without this the detail keeps showing
+    // the pre-edit email/phone even though the PUT succeeded. Skips the first
+    // RESUME because init{} has already loaded.
+    val detailLifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(detailLifecycleOwner, viewModel) {
+        val lifecycle = detailLifecycleOwner.lifecycle
+        var skipFirstResume = true
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (skipFirstResume) skipFirstResume = false else viewModel.load()
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
 
     Column(

@@ -76,6 +76,12 @@ test_classes_from_source_paths() {
       found=0
       for test_file in "$root/$package"/*Test.kt; do
         [[ -e "$test_file" ]] || continue
+        # A *Test.kt file with no @Test produces no testcases, and
+        # assert_results FAILS any requested class that produced none. Selecting
+        # one would block every PR touching that package.
+        # (feature/homedetails/NotificationsParityTest.kt is exactly this: a
+        # doc-only placeholder class with an empty body.)
+        grep -q "@Test" "$test_file" || continue
         relative="${test_file#"$root"/}"
         printf '%s\n' "${relative%.kt}"
         found=1

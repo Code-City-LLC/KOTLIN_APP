@@ -49,12 +49,36 @@ object WarehouseSerializer : KSerializer<Warehouse> {
 
 // ── Exchange rate (GET /exchange-rates) ──
 
+/**
+ * GET /exchange-rates.
+ *
+ * ⚠️ The server does NOT send `usd_to_jmd`. The live body is
+ * `{"id":1,"exchange_rate":"162.00","formatted_rate":162.0}` (verified on both
+ * pre-staging and production). Reading only `usd_to_jmd` meant this ALWAYS
+ * decoded to null, the repo raised "Missing exchange rate", and every screen
+ * fell back to the hardcoded `ExchangeRateStore` default — so the global rate
+ * has never once loaded. `exchange_rate` arrives as a STRING, hence the
+ * flexible serializer; `formatted_rate` is the numeric twin and is accepted as
+ * a fallback.
+ */
 @Serializable
 data class ExchangeRate(
+    @SerialName("exchange_rate")
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val exchangeRate: Double? = null,
+    @SerialName("formatted_rate")
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val formattedRate: Double? = null,
+    // Kept so any older/alternate payload still decodes.
     @SerialName("usd_to_jmd")
     @Serializable(with = FlexibleDoubleSerializer::class)
-    val usdToJmd: Double? = null,
-)
+    val usdToJmdLegacy: Double? = null,
+) {
+    /** First non-null, positive rate across the accepted spellings. */
+    val usdToJmd: Double?
+        get() = listOfNotNull(exchangeRate, formattedRate, usdToJmdLegacy)
+            .firstOrNull { it > 0.0 }
+}
 
 // ── Shipping rates (GET /shipping-rates, wrapped in {data:{...}}) ──
 
