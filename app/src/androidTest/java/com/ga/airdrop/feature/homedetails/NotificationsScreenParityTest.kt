@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.lifecycle.Lifecycle
@@ -21,6 +22,37 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * ⚠️ EVERY ASSERTION HERE SCROLLS FIRST, ON PURPOSE.
+ *
+ * These tests failed intermittently on CI — and only on CI — with
+ * `AssertionError: Assert failed: The component is not displayed!`, a
+ * DIFFERENT test in this class each run. They pass locally every time,
+ * including under the full connected gate (716/716) and at 560dpi, which is
+ * why three earlier hypotheses (a session-teardown side effect, viewport
+ * geometry, cross-test contamination) were each refuted.
+ *
+ * The measured difference is in the tests, not the product. Across the parity
+ * suites:
+ *
+ *     NotificationsScreenParityTest   bare assertIsDisplayed 4   performScrollTo 0
+ *     PackageDetailsParityTest        bare assertIsDisplayed 5   performScrollTo 25
+ *     GoldPriorityParityTest          bare assertIsDisplayed 13  performScrollTo 12
+ *
+ * This class was the ONLY one asserting visibility without scrolling first,
+ * while its targets sit inside a `verticalScroll`. `assertIsDisplayed()`
+ * requires the node to be on screen, so the result depends on where the fold
+ * happens to land — hardware-sensitive by construction.
+ *
+ * Scrolling to the node does not weaken anything: it still asserts the node is
+ * DISPLAYED, and still fails if the wrong copy renders. It only removes the
+ * dependence on the viewport.
+ *
+ * ⚠️ Stated honestly: I could NOT reproduce the CI failure locally. This is a
+ * robustness fix on strong circumstantial evidence, not a proven root cause.
+ * If it recurs after this, the cause is elsewhere and this comment should be
+ * treated as a refuted hypothesis rather than a settled explanation.
+ */
 @RunWith(AndroidJUnit4::class)
 class NotificationsScreenParityTest {
 
@@ -56,7 +88,7 @@ class NotificationsScreenParityTest {
             }
         }
 
-        compose.onNodeWithText("You’re all set!").assertIsDisplayed()
+        compose.onNodeWithText("You’re all set!").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("You’re all caught up.").assertDoesNotExist()
     }
 
@@ -85,7 +117,7 @@ class NotificationsScreenParityTest {
             }
         }
 
-        compose.onNodeWithText("You’re all set!").assertIsDisplayed()
+        compose.onNodeWithText("You’re all set!").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("You’re all caught up.").assertDoesNotExist()
         assertEquals(false, NotificationAccountPreferences.load(101)?.master)
     }
@@ -121,7 +153,7 @@ class NotificationsScreenParityTest {
                 }
             }
         }
-        compose.onNodeWithText("You’re all set!").assertIsDisplayed()
+        compose.onNodeWithText("You’re all set!").performScrollTo().assertIsDisplayed()
 
         NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = false))
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -130,7 +162,7 @@ class NotificationsScreenParityTest {
         }
         compose.waitForIdle()
 
-        compose.onNodeWithText("You’re all caught up.").assertIsDisplayed()
+        compose.onNodeWithText("You’re all caught up.").performScrollTo().assertIsDisplayed()
     }
 }
 
