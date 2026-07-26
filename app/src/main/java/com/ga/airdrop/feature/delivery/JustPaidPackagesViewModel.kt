@@ -39,7 +39,17 @@ internal data class JustPaidPackage(
      */
     val ardNumber: String?,
     val description: String?,
-    val statusName: String,
+    /**
+     * The server's status label, or NULL when it did not supply one.
+     *
+     * ⚠️ This was `"Paid"` as a fallback. That authored a status the server
+     * never sent: a successful payment proves the payment succeeded, it does
+     * NOT prove the package's current status label. The screen renders a
+     * truthful "Status unavailable" instead of inventing one. BrightHarbor
+     * #80393. Same shape as everything else on this screen — an absence of
+     * information is not information.
+     */
+    val statusName: String?,
     val statusId: Int?,
 )
 
@@ -75,16 +85,22 @@ internal class JustPaidPackagesViewModel(
     private fun load() {
         viewModelScope.launch {
             val resolved = packageIds.mapNotNull { id ->
-                repo.packageDetails(id.toString()).getOrNull()?.let { detail ->
+                repo.packageDetails(id.toString()).getOrNull()
+                    // ⚠️ A success is not proof it is the RIGHT package. Without
+                    // this, a mismatched or zero-id response would display some
+                    // other customer's package AND decrement unresolvedCount as
+                    // though the paid-for one had been found. BrightHarbor #80393.
+                    ?.takeIf { it.id > 0 && it.id == id }
+                    ?.let { detail ->
                     JustPaidPackage(
                         id = detail.id,
                         // The ARD, never courierNumber — see JustPaidPackage.
                         ardNumber = detail.trackingCode?.trim()?.takeIf { it.isNotEmpty() },
                         description = detail.description?.trim()?.takeIf { it.isNotEmpty() },
+                        // Null when the server said nothing. Never invented.
                         statusName = ShipmentStatusCatalog
                             .displayName(detail.statusName, detail.status)
-                            .takeIf { it.isNotBlank() && it != "—" }
-                            ?: "Paid",
+                            .takeIf { it.isNotBlank() && it != "—" },
                         statusId = detail.status?.trim()?.toIntOrNull(),
                     )
                 }

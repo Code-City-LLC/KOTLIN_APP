@@ -272,9 +272,10 @@ private fun JustPaidPackageRow(pkg: JustPaidPackage, onContactUs: () -> Unit) {
             Text(text = it, style = AirdropType.body2, color = colors.textDescription)
         }
         Text(
-            text = pkg.statusName,
+            // Never invented: payment success does not prove a status label.
+            text = pkg.statusName ?: "Status unavailable",
             style = AirdropType.body2,
-            color = colors.orangeMain,
+            color = if (pkg.statusName != null) colors.orangeMain else colors.textDescription,
             modifier = Modifier.testTag("just-paid-status-${pkg.id}"),
         )
         // Kemar: a status that has gone wrong carries its way out.
@@ -334,12 +335,15 @@ private fun JustPaidJourney(
                         style = AirdropType.title2,
                         color = colors.textDarkTitle,
                     )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = orderReference,
-                        style = AirdropType.body2,
-                        color = colors.textDescription,
-                    )
+                    // ⚠️ THE STRIPE CHECKOUT ID USED TO BE PRINTED HERE.
+                    // `orderReference` is the `cs_...` session id that
+                    // verifySession passes through as the "reference" — an
+                    // internal payment-processor identifier, not an AirDrop
+                    // one. Swift CLAUDE.md:31 is explicit that the ARD is the
+                    // only customer-facing reference. The per-package ARD is
+                    // rendered on each row below, where it belongs; the route
+                    // still carries orderReference for navigation.
+                    // BrightHarbor #80393.
                 }
                 // ⚠️ THIS WAS A FABRICATED RAIL. It printed "Preparing for
                 // Dispatch → Out for Delivery" from the fact of payment alone,

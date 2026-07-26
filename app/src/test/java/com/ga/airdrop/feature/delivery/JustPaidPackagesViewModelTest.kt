@@ -42,7 +42,13 @@ class JustPaidPackagesViewModelTest {
     @After fun tearDown() = Dispatchers.resetMain()
 
     /** Resolves the ids it is told to, fails every other lookup. */
-    private class FakeRepo(private val resolvable: Set<Int>) : ShipmentsPackagesRepository {
+    private class FakeRepo(
+        private val resolvable: Set<Int>,
+        /** Answer 200 with a DIFFERENT package than the one requested. */
+        private val answerWithId: Int? = null,
+        /** Answer 200 with no usable status label at all. */
+        private val blankStatus: Boolean = false,
+    ) : ShipmentsPackagesRepository {
         var lookups = 0
 
         override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> {
@@ -51,9 +57,9 @@ class JustPaidPackagesViewModelTest {
             if (id !in resolvable) return Result.failure(java.io.IOException("unreachable"))
             return Result.success(
                 ShipmentPackageDetail(
-                    id = id,
-                    status = "20",
-                    statusName = "Paid and Ready for Delivery",
+                    id = answerWithId ?: id,
+                    status = if (blankStatus) null else "20",
+                    statusName = if (blankStatus) null else "Paid and Ready for Delivery",
                     trackingCode = "ARDQA$id",
                     courierNumber = "COURIER-SHOULD-NEVER-SHOW-$id",
                     description = "Package $id",
@@ -167,5 +173,57 @@ class JustPaidPackagesViewModelTest {
             "an internal courier identifier must never become the customer-facing reference",
             pkg.ardNumber.orEmpty().contains("COURIER"),
         )
+    }
+
+    /**
+     * ⚠️ A SUCCESS IS NOT PROOF IT IS THE RIGHT PACKAGE.
+     *
+     * Without an identity check, a mismatched 200 would display some other
+     * package on the customer's post-checkout screen AND decrement
+     * unresolvedCount as though the one they paid for had been found — hiding
+     * the failure behind the wrong data. BrightHarbor #80393.
+     */
+    @Test
+    fun `a response for a different package is not accepted as the one requested`() =
+        runTest(dispatcher) {
+            val vm = JustPaidPackagesViewModel(
+                listOf(101),
+                FakeRepo(setOf(101), answerWithId = 999),
+            )
+            advanceUntilIdle()
+
+            val s = vm.state.value
+            assertTrue("the wrong package must never be displayed", s.packages.isEmpty())
+            assertEquals("and it must still count as unresolved", 1, s.unresolvedCount)
+            assertTrue(s.failed)
+        }
+
+    /** A zero id is not a package either. */
+    @Test
+    fun `a zero id response is treated as unresolved`() = runTest(dispatcher) {
+        val vm = JustPaidPackagesViewModel(listOf(101), FakeRepo(setOf(101), answerWithId = 0))
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.packages.isEmpty())
+        assertEquals(1, vm.state.value.unresolvedCount)
+    }
+
+    /**
+     * ⚠️ THIS USED TO SAY "Paid".
+     *
+     * A successful payment proves the payment succeeded. It does NOT prove the
+     * package's current status label. Authoring "Paid" when the server sent
+     * nothing is the same invention this whole screen exists to avoid — the
+     * fifth instance of that shape in this thread. Null now, and the screen
+     * renders "Status unavailable". BrightHarbor #80393.
+     */
+    @Test
+    fun `a missing server status is left null, never authored as Paid`() = runTest(dispatcher) {
+        val vm = JustPaidPackagesViewModel(listOf(101), FakeRepo(setOf(101), blankStatus = true))
+        advanceUntilIdle()
+
+        val pkg = vm.state.value.packages.single()
+        assertEquals("the package itself still resolved", 101, pkg.id)
+        assertEquals("no status may be invented from the fact of payment", null, pkg.statusName)
     }
 }
