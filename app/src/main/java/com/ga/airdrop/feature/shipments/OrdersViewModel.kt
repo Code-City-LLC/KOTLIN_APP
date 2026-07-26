@@ -15,6 +15,12 @@ data class OrdersUiState(
     val loadingMore: Boolean = false,
     val hasMorePages: Boolean = true,
     val searchText: String = "",
+    /**
+     * Set when the list load FAILED. Distinct from an empty list — see the
+     * onFailure branch below for why the previous "Swift parity" comment that
+     * removed this was wrong.
+     */
+    val error: String? = null,
 )
 
 /**
@@ -93,11 +99,21 @@ class OrdersViewModel(
                     }
                     currentPage = requestedPage + 1
                 }
-                .onFailure {
-                    // Swift parity: list-load failures fall through to the
-                    // empty/list state (the old `error` write was never read
-                    // by OrdersScreen — FuchsiaTower Pass-3 C1).
-                    _state.update { it.copy(loading = false, loadingMore = false) }
+                .onFailure { e ->
+                    // ⚠️ THE PREVIOUS COMMENT HERE WAS FACTUALLY WRONG. It said
+                    // "Swift parity: list-load failures fall through to the
+                    // empty/list state". Swift does the opposite —
+                    // FigmaOrdersViewController:134 renders "distinct copy +
+                    // Retry" for a failure, separate from "No orders yet".
+                    //
+                    // The observation that the old `error` write "was never read
+                    // by OrdersScreen" was correct; the conclusion drawn from it
+                    // was backwards. The screen not reading the value is the
+                    // defect, not a reason to stop writing it. Deleting it made
+                    // a failed load tell the customer they have never ordered.
+                    _state.update {
+                        it.copy(loading = false, loadingMore = false, error = e.message)
+                    }
                 }
         }
     }

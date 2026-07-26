@@ -102,6 +102,18 @@ fun OrdersScreen(
             }
             if (state.loading && state.items.isEmpty()) {
                 item(key = "loading") { ShipmentsLoadingIndicator() }
+            } else if (state.items.isEmpty() && state.error != null) {
+                // "We could not read your orders" is not "you have never
+                // ordered". Swift FigmaOrdersViewController:134 keeps these two
+                // distinct with its own copy + Retry; Kotlin used to collapse
+                // them and tell the customer the stronger, false thing.
+                item(key = "load-error") {
+                    ShipmentsErrorLabel(
+                        message = "Couldn't load your orders.",
+                        onRetry = viewModel::refresh,
+                        testTag = "orders-load-error",
+                    )
+                }
             } else if (state.items.isEmpty()) {
                 item(key = "empty") { ShipmentsEmptyLabel("No orders found") }
             } else {
