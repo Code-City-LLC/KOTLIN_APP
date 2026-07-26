@@ -1,0 +1,38 @@
+<!--
+  "Preparing for Dispatch" — Figma Revamping-AirDrop-App node 787:33962
+  ("Share": an outbound arrow leaving a box). Kemar chose this node directly
+  (Laravel handoff #79774).
+
+  Why not a conveyor: that is status 6 "Processing at our Warehouse" — Kemar:
+  "Processing at our Warehouse and Preparing for Dispatch should be two
+  different icons. We shouldn't be using the same icon."
+
+  Why not a truck: the canonical set holds exactly ONE truck (`in_transit`,
+  truck + clock) and "Out for Delivery" owns it — the only semantically exact
+  use of a truck on this rail.
+
+  Geometry is verbatim from the node: a 24dp viewport, the box inset
+  12.5%/18.87%/12.5%/18.93% and the arrow inset 12.5%/12.5%/52.6%/44.84%,
+  translated into the 24x24 viewport below.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Box with the open corner (node 787:33959). -->
+    <group android:translateX="3" android:translateY="3">
+        <path
+            android:pathData="M6.16438 0.75H5.12569C2.43641 0.75 0.75 2.65263 0.75 5.3452V12.6119C0.75 15.3045 2.42817 17.2071 5.12569 17.2071H12.8431C15.5415 17.2071 17.2206 15.3045 17.2206 12.6119V10.0201"
+            android:strokeColor="@color/icon_duotone"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+    <!-- Outbound arrow leaving the box (node 787:33960). -->
+    <group android:translateX="10.7639" android:translateY="3">
+        <path
+            android:pathData="M6.02924 6.0576C3.65214 6.0576 1.81174 6.88002 0.793942 9.12763C0.793942 9.12763 -0.0859781 2.95888 6.02924 2.95888C6.02924 2.95888 6.02974 2.04971 6.03034 1.26728C6.03094 0.828466 6.54524 0.590756 6.88034 0.874656L10.8043 4.19871C11.042 4.40037 11.0505 4.7637 10.8184 4.97325C9.95654 5.75286 8.01824 7.50472 6.88934 8.52483C6.55764 8.82453 6.02924 8.58743 6.02924 8.14013V6.0576Z"
+            android:fillColor="@color/icon_duotone" />
+    </group>
+</vector>

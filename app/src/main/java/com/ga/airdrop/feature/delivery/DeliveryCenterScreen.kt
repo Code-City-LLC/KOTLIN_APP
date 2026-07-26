@@ -244,24 +244,35 @@ private data class JourneyStage(
     val detail: String,
 )
 
-private val JUST_PAID_STAGES = listOf(
-    JourneyStage(
-        "order_confirmed", "Order Confirmed", "done",
-        "Payment received, order booked.",
+/**
+ * Just-paid journey — shown immediately after checkout, before Laravel has a
+ * `package_deliveries` row to report.
+ *
+ * ⚠️ BrightHarbor #79775 caught this carrying SUPERSEDED UI: it still had
+ * "Order Confirmed" and all four stages while the live rail had already moved
+ * to the three-stage, one-upcoming-step contract — so the two Track entry
+ * paths looked different for the same package. Fixing one path and leaving the
+ * other is exactly the regression shape that has bitten repeatedly today.
+ *
+ * Now matches the live rail: no Order Confirmed (Laravel #79690 §4), and
+ * truncated to a single upcoming step (Kemar rule 3, #79650).
+ */
+private val JUST_PAID_STAGES = truncateAfterFirstPending(
+    listOf(
+        JourneyStage(
+            "preparing_dispatch", "Preparing for Dispatch", "current",
+            "Packing your items for the courier.",
+        ),
+        JourneyStage(
+            "out_for_delivery", "Out for Delivery", "pending",
+            "On its way to your address.",
+        ),
+        JourneyStage(
+            "delivered", "Delivered", "pending",
+            "Handed over at your location.",
+        ),
     ),
-    JourneyStage(
-        "preparing_dispatch", "Preparing for Dispatch", "current",
-        "Packing your items for the courier.",
-    ),
-    JourneyStage(
-        "out_for_delivery", "Out for Delivery", "pending",
-        "On its way to your address.",
-    ),
-    JourneyStage(
-        "delivered", "Delivered", "pending",
-        "Handed over at your location.",
-    ),
-)
+) { it.state == "pending" }
 
 /**
  * Kemar's approved FOUR-stage journey is the canonical tracking display. Live
@@ -1010,12 +1021,12 @@ private val BANNED_STAGE_PHRASES = listOf("driver", "courier", "dispatcher", "ri
 
 private fun deliveryStageIcon(key: String): Int = when (key) {
     "order_confirmed" -> R.drawable.ic_shipments_status_shipment_received
-    // SwiftHawk #79761 §3 + Laravel's ruling relayed in #79741: "Preparing for
-    // Dispatch" was rendering the SAME conveyor glyph as status 6 "Processing
-    // at our Warehouse" — two different steps reading as one. It takes status
-    // 20's paid_ready_pickup glyph, which is also distinct from the in-transit
-    // truck used by Out for Delivery, so no two rails share an icon.
-    "assigned", "preparing_dispatch" -> R.drawable.ic_shipments_status_paid_ready_pickup
+    // "Preparing for Dispatch" — Figma 787:33962, the node Kemar chose
+    // directly (Laravel #79774). NOT the conveyor (that is status 6
+    // "Processing at our Warehouse") and NOT a truck (the set holds exactly
+    // one truck and Out for Delivery owns it). My earlier paid_ready_pickup
+    // guess was wrong — the owner ruling exists and this is it.
+    "assigned", "preparing_dispatch" -> R.drawable.ic_shipments_status_dispatch
     "out_for_delivery" -> R.drawable.ic_shipments_status_in_transit_counter
     "delivered" -> R.drawable.ic_shipments_status_delivered
     else -> R.drawable.ic_tracking
