@@ -43,13 +43,18 @@ object TokenRefresher {
 
     /**
      * Foreground-refresh outcome mapping — Swift
-     * SceneDelegate.refreshStoredSessionIfNeeded parity (SceneDelegate:429):
-     * a 401 means the stored session is dead → clear it (AppRoot's reactive
-     * logout then returns the user to the auth landing, mirroring Swift's
-     * handleAPISessionInvalidated); a success with a token rotates the
-     * bearer; a 401 is the confirmed-dead signal and clears it; anything else
-     * — a network error, a 5xx, a body-less response — leaves the session
+     * SceneDelegate.refreshStoredSessionIfNeeded parity (SceneDelegate:429).
+     *
+     * A success carrying a token rotates the bearer. A **401** is the one
+     * confirmed-dead signal and clears the session (Kemar 2026-07-26, adopting
+     * SwiftHawk's rule; AppRoot then returns the user to the auth landing,
+     * mirroring Swift's handleAPISessionInvalidated). Every other outcome — a
+     * network error, a 5xx, a body-less response — leaves the stored bearer
      * untouched. The app never signs a customer out for losing signal.
+     *
+     * This must agree with AuthInterceptor's teardown exactly. Two code paths
+     * that disagree about what a dead session is would sign customers out on
+     * whichever one happened to run first.
      */
     fun applyForegroundRefresh(
         expectedSession: AuthTokenStore.Snapshot,
@@ -62,11 +67,10 @@ object TokenRefresher {
             when {
                 // Both operations compare and mutate under AuthTokenStore's
                 // own lock, closing the check-then-clear/rotate race.
-// A 401 from the foreground refresh is the confirmed-dead signal
-                // (Kemar 2026-07-26, matching SwiftHawk). Every other outcome —
-                // a network error, a 5xx, a body-less response — leaves the
-                // stored token alone; the app does not sign the customer out
-                // for losing signal.
+                //
+                // Order matters: 401 is tested before the rotate arm so a
+                // response that somehow carries both cannot rotate onto a
+                // session the server has already rejected.
                 httpCode == 401 -> AuthTokenStore.clear(expectedSession)
                 !newToken.isNullOrBlank() -> AuthTokenStore.rotate(expectedSession, newToken)
                 else -> Unit
