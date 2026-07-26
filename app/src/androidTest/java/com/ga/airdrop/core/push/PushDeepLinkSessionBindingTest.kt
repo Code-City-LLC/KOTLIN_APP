@@ -20,6 +20,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -63,6 +64,77 @@ class PushDeepLinkSessionBindingTest {
         assertNull(PushDeepLink.pending.value)
     }
 
+    /**
+     * ⚠️ RESCUED FROM THE QUARANTINE BELOW.
+     *
+     * This assertion lived inside
+     * `processRestoreUsesFreshSecondaryProcessWithStableSessionId`, so the
+     * `@Ignore` added for #183 switched it off too — silently, because a
+     * quarantine hides everything in the method, not just the part that
+     * motivated it.
+     *
+     * It does not depend on the quarantined premise. There is no probe, no
+     * second process, and no cross-process `EncryptedSharedPreferences`
+     * coherence involved: it asserts that saving a bearer never writes it into
+     * THIS process's plaintext `push_deeplink` prefs. That is a security
+     * property, and it was the only assertion of it anywhere in the suite.
+     *
+     * Directly adjacent to #182/#184, where the encrypted store falling back to
+     * plain prefs means a bearer can reach disk in the clear. Losing this while
+     * fixing that would have been a poor trade.
+     *
+     * Found by an adversarial audit of #180 — not by CI, which was green.
+     */
+    @Test
+    fun savingABearerNeverWritesItIntoThePlaintextPushDeeplinkPrefs() {
+        AuthTokenStore.save("account-a-secret-token")
+        capture("PackagesView")
+
+        val store = context.getSharedPreferences("push_deeplink", Context.MODE_PRIVATE)
+        // ⚠️ `none { }` over an EMPTY map is vacuously true. Without this the
+        // test would pass on a prefs file that was never written — proving
+        // nothing while looking like proof. Assert the file is genuinely in
+        // play first, so the real assertion below has something to be true of.
+        assertTrue(
+            "precondition: the captured route must actually be persisted here, " +
+                "otherwise the absence of the bearer proves nothing",
+            store.all.isNotEmpty(),
+        )
+        assertTrue(
+            "the bearer must never appear in the plaintext push_deeplink prefs, " +
+                "found in: ${store.all.filterValues { it == "account-a-secret-token" }.keys}",
+            store.all.values.none { it == "account-a-secret-token" },
+        )
+    }
+
+    /**
+     * ⚠️ QUARANTINED — THE PREMISE IS UNSUPPORTED, NOT THE CODE. See #183.
+     *
+     * This keeps the MAIN process alive while a second process reads
+     * EncryptedSharedPreferences. That is not a cold restart, and
+     * EncryptedSharedPreferences is not documented as multi-process coherent,
+     * so every assertion that depends on the second process seeing the first
+     * one's write — token, session id, and the deep-link route, which needs a
+     * valid snapshot to consume — is asserting a guarantee the storage layer
+     * never gave.
+     *
+     * I ignored the WHOLE test rather than deleting the assertions that fail.
+     * Stripping them one at a time until it went green would have left a test
+     * that still looked like it proved session restore while proving only that
+     * two pids differ — worse than an honest @Ignore, and exactly the kind of
+     * evidence-shaped-hole this codebase has been full of today.
+     *
+     * ⚠️ THE REAL GUARANTEE IS VERIFIED, just not here and not by this method:
+     * force-stop the app (true process death, pid confirmed gone), cold
+     * relaunch with no seed extras, and it returns FULLY AUTHENTICATED — name,
+     * tier, notifications, Home, no auth landing. Method and evidence on #183.
+     * A force-stop cannot be driven from inside an instrumentation test,
+     * because it would kill the test — which is very likely why this reached
+     * for a probe process in the first place.
+     *
+     * Unignore when #183 decides how to express the real restart guarantee.
+     */
+    @Ignore("#183: asserts cross-process EncryptedSharedPreferences coherence, which is not a documented guarantee. Real force-stop restart verified on device — see #183.")
     @Test
     fun processRestoreUsesFreshSecondaryProcessWithStableSessionId() {
         val killedProbePid = startAndKillProbeProcess()
@@ -76,6 +148,15 @@ class PushDeepLinkSessionBindingTest {
 
         assertNotEquals(Process.myPid(), restoredPid)
         assertNotEquals(killedProbePid, restoredPid)
+        // Report WHICH store the probe read before asserting the token, so a
+        // failure says "it fell back to plain prefs" rather than the much
+        // scarier and possibly untrue "the session did not survive".
+        // BrightHarbor #181.
+        assertTrue(
+            "probe read the plain-prefs fallback, not the encrypted store — a " +
+                "different file, so an absent token here means nothing about session survival",
+            restored.getBoolean(SessionRestoreProbeProvider.KEY_ENCRYPTED_STORE),
+        )
         assertTrue(restored.getBoolean(SessionRestoreProbeProvider.KEY_TOKEN_PRESENT))
         assertEquals(capturedSessionId, restored.getString(SessionRestoreProbeProvider.KEY_SESSION_ID))
         assertEquals(Routes.PACKAGES, restored.getString(SessionRestoreProbeProvider.KEY_ROUTE))

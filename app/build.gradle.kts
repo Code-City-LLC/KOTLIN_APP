@@ -71,7 +71,14 @@ android {
         versionCode = 8
         versionName = "8.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Custom runner: installs a no-op NotificationBadgeGateway before any
+        // test runs. AuthTokenStore.save() issues a REAL authenticated request
+        // via NotificationBadgeSync, so a fake test bearer 401s, the refresh
+        // 401s, and the session is torn down mid-test — surfacing as unrelated
+        // failures in whatever class happens to read session-scoped state next.
+        // Eight androidTest classes save a token; fixing it per-class left
+        // seven exposed. See AirdropTestRunner.
+        testInstrumentationRunner = "com.ga.airdrop.AirdropTestRunner"
     }
 
     flavorDimensions += "env"
