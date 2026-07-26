@@ -23,6 +23,7 @@ class PaymentReturnVerifyTest {
         status: String? = null,
         amount: Double? = null,
         currency: String? = null,
+        packageIds: List<Int> = emptyList(),
     ) = CheckoutSessionStatus(
         sessionId = sessionId,
         status = status,
@@ -30,6 +31,7 @@ class PaymentReturnVerifyTest {
         invoiceId = null,
         amountTotal = amount,
         currency = currency,
+        packageIds = packageIds,
     )
 
     @Test
@@ -44,6 +46,46 @@ class PaymentReturnVerifyTest {
         assertEquals("USD 125.50", result.formattedAmount) // major units, no /100
         assertEquals("cs_1", result.orderReference)
         assertEquals(1, calls)
+    }
+
+    /**
+     * ⚠️ THE SEAM BETWEEN DECODE AND RESULT, which nothing covered.
+     *
+     * `CheckoutSessionStatus.packageIds` had a decode test, and
+     * `PaymentReturnContent -> onPaid` had a handoff test, but NOTHING asserted
+     * that `verifySession` carries the decoded ids onto `Success.packageIds`.
+     * Dropped there, the post-checkout screen would show "nothing to show yet"
+     * — indistinguishable from an unfulfilled payment — with every other test
+     * still green. BrightHarbor #179 block 1/3.
+     */
+    @Test
+    fun `the verified package ids reach Success exactly as decoded`() = runBlocking {
+        val result = verifySession("cs_pkg", { 0L }) {
+            Result.success(
+                status(it, paymentStatus = "paid", amount = 12.0, currency = "usd",
+                    packageIds = listOf(153901, 153902, 153903)),
+            )
+        }
+
+        assertTrue(result is PaymentReturnResult.Success)
+        result as PaymentReturnResult.Success
+        assertEquals(listOf(153901, 153902, 153903), result.packageIds)
+    }
+
+    /**
+     * An unfulfilled payment returns `package_ids: []`. That must arrive as an
+     * empty list — not null, not dropped — so the screen can tell "paid, none
+     * yet" apart from "we could not read them".
+     */
+    @Test
+    fun `an empty package id list survives as empty rather than being lost`() = runBlocking {
+        val result = verifySession("cs_empty", { 0L }) {
+            Result.success(status(it, paymentStatus = "paid", amount = 1.0, currency = "usd"))
+        }
+
+        assertTrue(result is PaymentReturnResult.Success)
+        result as PaymentReturnResult.Success
+        assertEquals(emptyList<Int>(), result.packageIds)
     }
 
     @Test
