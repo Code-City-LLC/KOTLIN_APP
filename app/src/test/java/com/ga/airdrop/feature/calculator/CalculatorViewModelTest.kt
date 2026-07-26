@@ -145,6 +145,76 @@ class CalculatorViewModelTest {
         assertEquals("Missing weight", viewModel.state.value.alert?.title)
     }
 
+    /**
+     * ⚠️ THE KEY THAT LOOKS LIKE A TOTAL AND IS NOT ONE.
+     *
+     * Measured live on pre-staging, 2 packages / 5.5 lb / $150 invoice:
+     *
+     *   airdrop_standard  total_with_duty 90.90 == customs_duty 90.90   grand_total 145.90
+     *   airdrop_express   total_charges   87.30 == customs_duty 87.30   grand_total 132.80
+     *   seadrop_standard  total_charges  202.50 (folds in the invoice)  grand_total  52.50
+     *
+     * Kotlin rendered `total_with_duty ?: total_charges` as the headline, so it
+     * showed the DUTY as the total. `grand_total` is composed server-side as
+     * round(airdrop_charges + customs_duty, 2), identically for all three
+     * methods. Three-of-three consensus, BronzeMountain #80146; Kemar ruled the
+     * headline excludes the merchant invoice, so seadrop's 52.50 is intended.
+     */
+    @Test
+    fun `the headline is grand_total, never the duty-only legacy keys`() = runTest(dispatcher) {
+        val viewModel = CalculatorViewModel(
+            RecordingRepository(
+                answer = CALCULATION.copy(
+                    airdropCharges = 55.0,
+                    customsDuty = 90.9,
+                    // What the server sends for airdrop_standard: grand_total.
+                    totalWithDuty = 145.9,
+                ),
+            ),
+        )
+        viewModel.onPackagesChange("2")
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        advanceUntilIdle()
+
+        val charges = resolveCharges(viewModel.result.value!!)
+        assertEquals("the headline must be grand_total", 145.9, charges.totalWithDuty, 0.001)
+        assertEquals(55.0, charges.airdropCharges, 0.001)
+        // The duty is a line item, never the headline.
+        assertEquals(90.9, charges.customsDuty, 0.001)
+    }
+
+    /**
+     * bad_address_fee is conditional — it applies only when the address is
+     * flagged bad — so it is deliberately outside grand_total. Folding it in
+     * would OVER-quote every normal customer, the mirror of the under-quote
+     * fixed earlier today.
+     */
+    @Test
+    fun `a bad address fee is carried as its own line and not folded into the headline`() =
+        runTest(dispatcher) {
+            val viewModel = CalculatorViewModel(
+                RecordingRepository(
+                    answer = CALCULATION.copy(
+                        airdropCharges = 55.0,
+                        customsDuty = 90.9,
+                        totalWithDuty = 145.9,
+                        badAddressFee = 12.0,
+                    ),
+                ),
+            )
+            viewModel.onPackagesChange("2")
+            viewModel.onInvoiceChange("150")
+            viewModel.onActualWeightChange("5.5")
+            viewModel.calculate()
+            advanceUntilIdle()
+
+            val charges = resolveCharges(viewModel.result.value!!)
+            assertEquals(12.0, charges.badAddressFee!!, 0.001)
+            assertEquals("the fee must not inflate the headline", 145.9, charges.totalWithDuty, 0.001)
+        }
+
     private companion object {
         /** The real pre-staging answer for 3 × 5.5 lb, invoice $150. */
         val CALCULATION = ShipmentCalculation(

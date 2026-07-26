@@ -139,6 +139,133 @@ class AuctionProductDetailsRelatedParityTest {
             "and not the old Android-only copy either",
             compose.onAllNodesWithText("No description available.").fetchSemanticsNodes().isEmpty(),
         )
+        assertDeveloperNoteAbsent("on a product with no description")
+    }
+
+    /**
+     * The other half of the deletion. Removing PRODUCT_DESCRIPTION_FALLBACK
+     * must not have taken the real Description section with it — a product that
+     * HAS server copy still gets the heading and the server's own words.
+     * Without this, "no description shows nothing" would also pass if the
+     * section had been deleted outright.
+     */
+    @Test
+    fun aRealDescriptionStillRendersItsHeadingAndTheServerCopy() {
+        setDetailsContent(
+            featured = false,
+            product = SampleProduct.copy(
+                slug = "swift-copy-present",
+                description = LongDescription,
+            ),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetails()
+
+        compose.onNodeWithText("Description").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(LongDescription).performScrollTo().assertIsDisplayed()
+        assertDeveloperNoteAbsent("alongside a real description")
+    }
+
+    /**
+     * The expand control lives inside the description block, so the deletion
+     * could have stranded it outside the `if` and left "See all" hanging over
+     * nothing. It must appear with a description AND actually drive the
+     * collapsed/expanded state — a decorative "See all" that never becomes
+     * "See less" is the same class of lie as the fallback copy was.
+     */
+    @Test
+    fun theSeeAllControlAppearsWithADescriptionAndActuallyToggles() {
+        setDetailsContent(
+            featured = false,
+            product = SampleProduct.copy(
+                slug = "swift-copy-expand",
+                description = LongDescription,
+            ),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetails()
+
+        compose.onNodeWithText("See all").performScrollTo().assertIsDisplayed()
+        assertTrue(
+            "A collapsed description must not offer See less at the same time",
+            compose.onAllNodesWithText("See less").fetchSemanticsNodes().isEmpty(),
+        )
+
+        compose.onNodeWithText("See all").performClick()
+
+        compose.onNodeWithText("See less").performScrollTo().assertIsDisplayed()
+        assertTrue(
+            "An expanded description must not still offer See all",
+            compose.onAllNodesWithText("See all").fetchSemanticsNodes().isEmpty(),
+        )
+
+        compose.onNodeWithText("See less").performClick()
+
+        compose.onNodeWithText("See all").performScrollTo().assertIsDisplayed()
+        assertTrue(
+            "Collapsing again must not leave both labels on screen",
+            compose.onAllNodesWithText("See less").fetchSemanticsNodes().isEmpty(),
+        )
+    }
+
+    /**
+     * The expand control is only meaningful when there is something to expand.
+     * waitForDetails() is deliberately not used — see
+     * [waitForDetailsWithoutDescription].
+     */
+    @Test
+    fun aMissingDescriptionAlsoRemovesTheSeeAllExpandControl() {
+        setDetailsContent(
+            featured = false,
+            product = SampleProduct.copy(description = null),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetailsWithoutDescription()
+
+        assertTrue(
+            "No description means there is nothing for See all to expand",
+            compose.onAllNodesWithText("See all").fetchSemanticsNodes().isEmpty(),
+        )
+        assertTrue(
+            "and no See less either",
+            compose.onAllNodesWithText("See less").fetchSemanticsNodes().isEmpty(),
+        )
+    }
+
+    /**
+     * The fallback fired on any *blank* description, not only a null one — the
+     * CMS ships whitespace-only copy. cleanDescription() collapses that to
+     * empty, so the whole section must go the same way it does for null.
+     */
+    @Test
+    fun aBlankDescriptionIsTreatedAsMissingNotAsAPlaceholder() {
+        setDetailsContent(
+            featured = false,
+            product = SampleProduct.copy(
+                slug = "swift-copy-blank",
+                description = "   ",
+            ),
+            related = emptyList(),
+            navigations = mutableListOf(),
+        )
+
+        waitForDetailsWithoutDescription()
+
+        assertTrue(
+            "A whitespace-only description is still nothing to describe",
+            compose.onAllNodesWithText("Description").fetchSemanticsNodes().isEmpty(),
+        )
+        assertTrue(
+            "so there is no expand control either",
+            compose.onAllNodesWithText("See all").fetchSemanticsNodes().isEmpty(),
+        )
+        assertDeveloperNoteAbsent("on a product with a whitespace-only description")
     }
 
     @Test
@@ -276,6 +403,22 @@ class AuctionProductDetailsRelatedParityTest {
         }
     }
 
+    /**
+     * The deleted note is checked by fragment, as a case-insensitive substring,
+     * so a re-wrapped, re-cased or partially reworded revival of it fails too —
+     * not only a byte-identical copy/paste of the old constant.
+     */
+    private fun assertDeveloperNoteAbsent(situation: String) {
+        DeletedDeveloperNoteFragments.forEach { fragment ->
+            assertTrue(
+                "The deleted developer note fragment \"$fragment\" came back $situation",
+                compose.onAllNodesWithText(fragment, substring = true, ignoreCase = true)
+                    .fetchSemanticsNodes()
+                    .isEmpty(),
+            )
+        }
+    }
+
     private class FakeShopProductsRepository(
         private val product: ShopProduct,
         private val related: List<ShopProduct>,
@@ -349,6 +492,22 @@ class AuctionProductDetailsRelatedParityTest {
         const val SwiftDescriptionFallback =
             "Detailed product description will be loaded from the /products/:id endpoint once authenticated. " +
                 "Includes specifications, dimensions, condition, and seller notes."
+
+        /**
+         * The two load-bearing giveaways in the deleted
+         * PRODUCT_DESCRIPTION_FALLBACK: an internal API route and a promise
+         * about the app's own auth state. Neither belongs in product copy in
+         * any wording, so they are asserted absent rather than the whole
+         * sentence being asserted absent.
+         */
+        val DeletedDeveloperNoteFragments = listOf("/products/:id", "once authenticated")
+
+        /** Long enough to overflow the 4-line collapsed limit the control exists for. */
+        const val LongDescription =
+            "Cabin-approved hard shell with a polycarbonate frame, four spinner wheels and a recessed lock. " +
+                "Interior compression straps and a zipped divider keep folded shirts flat across a long haul. " +
+                "The exterior wipes clean with a damp cloth, and the telescopic handle locks at three heights. " +
+                "Supplied in the original manufacturer packaging with a two-year limited warranty."
 
         val SampleProduct = ShopProduct(
             id = 7001,

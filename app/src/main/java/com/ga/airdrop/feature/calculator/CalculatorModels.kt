@@ -56,6 +56,8 @@ data class ShipmentCalculation(
     val totalWithDuty: Double,
     val cifValue: Double,
     val totalWeightLbs: Double?,
+    /** Non-zero only when the delivery address was flagged bad. */
+    val badAddressFee: Double? = null,
     /** SeaDrop only. */
     val tariff: Double? = null,
     /** SeaDrop only — a real 30.00 line the app was dropping. */
@@ -92,6 +94,7 @@ data class Charges(
     val customsDuty: Double = 0.0,
     val airdropCharges: Double = 0.0,
     val totalWithDuty: Double = 0.0,
+    val badAddressFee: Double? = null,
     val tariff: Double? = null,
     val billOfLadingProcessing: Double? = null,
 )
@@ -121,6 +124,7 @@ fun resolveCharges(result: CalculationResult): Charges {
         customsDuty = live.customsDuty,
         airdropCharges = live.airdropCharges,
         totalWithDuty = live.totalWithDuty,
+        badAddressFee = live.badAddressFee,
         tariff = live.tariff,
         billOfLadingProcessing = live.billOfLadingProcessing,
     )

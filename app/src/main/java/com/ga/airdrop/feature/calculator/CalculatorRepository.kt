@@ -122,15 +122,28 @@ class RemoteCalculatorRepository(
                 fuelSurcharge = breakdown.flexDouble("fuel_surcharge") ?: 0.0,
                 airdropCharges = breakdown.flexDouble("airdrop_charges") ?: 0.0,
                 customsDuty = breakdown.flexDouble("customs_duty") ?: 0.0,
-                // AirDrop Standard answers with `total_with_duty`; Express and
-                // SeaDrop answer with `total_charges`. Reading only the first
-                // meant BOTH of those methods rendered a total of 0.00 — the
-                // same defect BrightHarbor #79936 found in Swift.
-                totalWithDuty = breakdown.flexDouble("total_with_duty")
+                // ⚠️ `total_with_duty` and `total_charges` are NOT totals.
+                // Measured live: on airdrop_standard `total_with_duty` == 90.90
+                // == `customs_duty`; on airdrop_express `total_charges` == 87.30
+                // == `customs_duty`; on seadrop `total_charges` == 202.50 and
+                // folds in the merchant invoice. One key, three meanings.
+                //
+                // `grand_total` is composed server-side, identically for every
+                // method, as round(airdrop_charges + customs_duty, 2) — see
+                // ShippingCalculatorService::withCanonicalKeys(). It is not an
+                // alias of any legacy key; aliasing was rejected because the
+                // legacy keys disagree. Three-of-three consensus, BronzeMountain
+                // #80146. The legacy keys are read only as a fallback for a
+                // server that predates grand_total.
+                totalWithDuty = breakdown.flexDouble("grand_total")
+                    ?: breakdown.flexDouble("total_with_duty")
                     ?: breakdown.flexDouble("total_charges")
                     ?: 0.0,
-                // SeaDrop alone carries these; they are real money and were
-                // being dropped from the breakdown entirely.
+                // Conditional — it applies only when the address is bad, so it
+                // is deliberately NOT inside grand_total. Folding it in would
+                // OVER-quote every normal customer, the mirror of the
+                // under-quote just fixed. Rendered as its own line when non-zero.
+                badAddressFee = breakdown.flexDouble("bad_address_fee"),
                 tariff = breakdown.flexDouble("tariff"),
                 billOfLadingProcessing = breakdown.flexDouble("bill_of_lading_processing"),
                 cifValue = calculations?.flexDouble("cif_value") ?: 0.0,
