@@ -159,7 +159,8 @@ object ShipmentStatusCatalog {
         10 -> if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
         12 -> if (dark) R.drawable.ic_shipments_status_in_transit_counter_dark else R.drawable.ic_shipments_status_in_transit_counter
         14 -> if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
-        15 -> if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
+        // Uncollected must NOT reuse the Detained glyph — BronzeMountain #79803.
+        15 -> if (dark) R.drawable.ic_shipments_status_uncollected_dark else R.drawable.ic_shipments_status_uncollected
         16 -> if (dark) R.drawable.ic_shipments_status_dangerous_goods_dark else R.drawable.ic_shipments_status_dangerous_goods
         17 -> if (dark) R.drawable.ic_shipments_status_auction_dark else R.drawable.ic_shipments_status_auction
         18 -> if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup

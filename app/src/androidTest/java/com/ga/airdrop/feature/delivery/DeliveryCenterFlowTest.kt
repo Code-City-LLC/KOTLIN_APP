@@ -196,6 +196,7 @@ class DeliveryCenterFlowTest {
             history(3, "Port of Departure -MIA", "2026-07-12T00:10:07Z"),
             history(9, "Processing at Customs", "2026-07-16T09:00:00Z"),
             history(10, "Detained at Customs", "2026-07-17T09:00:00Z"),
+            history(15, "Uncollected Packages", "2026-07-19T09:00:00Z"),
         )
         compose.setContent {
             AirdropTheme {
@@ -229,9 +230,11 @@ class DeliveryCenterFlowTest {
         compose.onNodeWithText("Port of Departure -MIA").assertIsDisplayed()
         compose.onNodeWithText("Processing at Customs").assertIsDisplayed()
         compose.onNodeWithText("Detained at Customs").assertIsDisplayed()
+        compose.onNodeWithText("Uncollected Packages").assertIsDisplayed()
 
-        // Exactly one row offers help, and it is the detained one.
+        // Only the rows that have gone wrong offer help.
         compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_10")).assertIsDisplayed()
+        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_15")).assertIsDisplayed()
         compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_9")).assertDoesNotExist()
         compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_2")).assertDoesNotExist()
         saveRootScreenshot("delivery_center_detained_contact.png")
