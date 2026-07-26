@@ -1180,6 +1180,9 @@ private fun TimelineIconRow(
             // internals ("Package paid via NCB PowerTranz. Invoice ID: …") and
             // driver-supplied delivery notes. BrightHarbor #79824 ruled it out
             // of the mobile projection; it is now out of this screen too.
+            if (!date.isNullOrBlank()) {
+                Text(text = date, style = AirdropType.body3, color = colors.textDescription)
+            }
             onContactUs?.let { contact ->
                 Text(
                     text = "Contact us about this",
@@ -1189,9 +1192,6 @@ private fun TimelineIconRow(
                         .padding(top = 2.dp)
                         .clickable(onClick = contact),
                 )
-            }
-            if (!date.isNullOrBlank()) {
-                Text(text = date, style = AirdropType.body3, color = colors.textDescription)
             }
         }
     }

@@ -17,6 +17,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.data.repo.ActiveDelivery
 import com.ga.airdrop.data.repo.TrackedDelivery
 import com.ga.airdrop.data.repo.TrackedDeliveryStage
+import com.ga.airdrop.feature.shipments.PackageHistoryItem
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -178,6 +179,109 @@ class DeliveryCenterFlowTest {
             .assertIsDisplayed()
         compose.onNodeWithText("Preparing for Dispatch").assertDoesNotExist()
     }
+
+    /**
+     * The FULL journey: real warehouse history joined to the last mile, and a
+     * status that has gone wrong carrying its own way out.
+     *
+     * Kemar 2026-07-26: Track *"starts at shipment received or drop alerted...
+     * It needs to show the REAL statuses"*, and on statuses like Detained at
+     * Customs — *show them, with a Contact us action*.
+     */
+    @Test
+    fun detainedAtCustomsIsShownWithItsOwnContactAction() {
+        val contacts = AtomicInteger()
+        val history = listOf(
+            history(2, "Shipment Received", "2026-07-08T00:10:07Z"),
+            history(3, "Port of Departure -MIA", "2026-07-12T00:10:07Z"),
+            history(9, "Processing at Customs", "2026-07-16T09:00:00Z"),
+            history(10, "Detained at Customs", "2026-07-17T09:00:00Z"),
+        )
+        compose.setContent {
+            AirdropTheme {
+                DeliveryCenterScreenContent(
+                    state = DeliveryCenterUiState(
+                        activeDeliveries = listOf(active(51)),
+                        selectedPackageId = 51,
+                        delivery = TrackedDelivery(
+                            status = "assigned",
+                            scheduledDate = null,
+                            assignedAt = null,
+                            outForDeliveryAt = null,
+                            deliveredAt = null,
+                            stages = listOf(stage("assigned", "Driver Assigned", "current", null)),
+                        ),
+                        history = history,
+                        loading = false,
+                        loadedOnce = true,
+                    ),
+                    onBack = {},
+                    onRetry = {},
+                    onRefresh = {},
+                    onSelectDelivery = {},
+                    onContactUs = { contacts.incrementAndGet() },
+                )
+            }
+        }
+
+        // The journey begins where it really began.
+        compose.onNodeWithText("Shipment Received").assertIsDisplayed()
+        compose.onNodeWithText("Port of Departure -MIA").assertIsDisplayed()
+        compose.onNodeWithText("Processing at Customs").assertIsDisplayed()
+        compose.onNodeWithText("Detained at Customs").assertIsDisplayed()
+
+        // Exactly one row offers help, and it is the detained one.
+        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_10")).assertIsDisplayed()
+        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_9")).assertDoesNotExist()
+        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_2")).assertDoesNotExist()
+        saveRootScreenshot("delivery_center_detained_contact.png")
+
+        compose.onNodeWithTag(DeliveryCenterTags.contactFor("status_10")).performClick()
+        compose.runOnIdle { assertEquals(1, contacts.get()) }
+    }
+
+    /** The warehouse rail must reach the screen even before the last mile does. */
+    @Test
+    fun warehouseHistoryRendersAheadOfTheLastMile() {
+        compose.setContent {
+            AirdropTheme {
+                DeliveryCenterScreenContent(
+                    state = DeliveryCenterUiState(
+                        activeDeliveries = listOf(active(61)),
+                        selectedPackageId = 61,
+                        delivery = TrackedDelivery(
+                            status = "assigned",
+                            scheduledDate = null,
+                            assignedAt = null,
+                            outForDeliveryAt = null,
+                            deliveredAt = null,
+                            stages = listOf(stage("assigned", "Driver Assigned", "current", null)),
+                        ),
+                        history = listOf(history(2, "Shipment Received", "2026-07-08T00:10:07Z")),
+                        loading = false,
+                        loadedOnce = true,
+                    ),
+                    onBack = {},
+                    onRetry = {},
+                    onRefresh = {},
+                    onSelectDelivery = {},
+                    onContactUs = {},
+                )
+            }
+        }
+
+        val receivedTop = compose.onNodeWithTag(DeliveryCenterTags.stage("status_2"))
+            .getUnclippedBoundsInRoot().top
+        val dispatchTop = compose.onNodeWithTag(DeliveryCenterTags.stage("assigned"))
+            .getUnclippedBoundsInRoot().top
+        assertTrue("Shipment Received must precede the last mile", receivedTop < dispatchTop)
+    }
+
+    private fun history(status: Int, name: String, at: String) = PackageHistoryItem(
+        status = status,
+        statusName = name,
+        changedDate = at,
+    )
 
     private fun active(packageId: Int) = ActiveDelivery(
         packageId = packageId,

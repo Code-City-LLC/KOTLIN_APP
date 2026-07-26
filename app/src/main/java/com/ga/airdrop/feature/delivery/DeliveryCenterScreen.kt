@@ -793,6 +793,14 @@ private fun DeliveryTimelineStep(
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
             )
+            formatDeliveryTimestamp(stage.at)?.let {
+                Text(
+                    text = it,
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             onContactUs?.let { contact ->
                 Text(
                     text = "Contact us about this",
@@ -802,14 +810,6 @@ private fun DeliveryTimelineStep(
                         .padding(top = 4.dp)
                         .testTag(DeliveryCenterTags.contactFor(stage.key))
                         .clickable(onClick = contact),
-                )
-            }
-            formatDeliveryTimestamp(stage.at)?.let {
-                Text(
-                    text = it,
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
