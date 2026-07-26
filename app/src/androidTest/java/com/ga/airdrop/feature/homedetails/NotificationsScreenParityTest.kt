@@ -25,47 +25,58 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * ⚠️ MY VIEWPORT HYPOTHESIS WAS WRONG. READ THIS BEFORE THEORISING AGAIN.
+ * ⚠️ THESE TESTS ONCE MADE REAL NETWORK CALLS. THAT WAS THE BUG.
  *
- * This class fails intermittently on CI and never locally. I believed the
- * cause was that it was the only parity suite asserting visibility without
- * `performScrollTo()` (4 bare assertions here, vs 25 and 12 in the sibling
- * suites), so the result depended on where the fold landed.
+ * `AuthTokenStore.save()` calls `NotificationBadgeSync
+ * .onAuthenticatedSessionChanged(...)` (AuthTokenStore.kt:126-129), so saving
+ * a token ISSUES A LIVE AUTHENTICATED REQUEST. The fake token below therefore
+ * fired a real `GET /user/notifications`, which 401'd; the interceptor
+ * refreshed; the refresh 401'd; and the session was torn down mid-test —
+ * correctly, since that bearer really is invalid.
  *
- * **That is refuted.** With scrolling added, CI failed again — but with a
- * different error, and the difference is everything:
+ * The damage then landed somewhere that looks unrelated:
+ * `currentMasterEnabled()` reads inside `runWhileCurrentSession(...)`, which
+ * now failed and returned null, and `?.master == true` turns null into FALSE.
+ * The screen rendered "notifications are off" and these tests failed with the
+ * wrong copy — with no mention of the network anywhere in them. CI-only,
+ * because the async 401 lands inside the test window on 3 cores and after it
+ * locally, and a DIFFERENT test each run.
  *
- *     before:  "The component is not displayed!"
- *     after:   "could not find ANY node containing 'You’re all set!'"
+ * The fix is the injected `NotificationBadgeGateway`, bound in @Before. Two
+ * earlier explanations of mine — viewport/fold, then generic state resolution —
+ * were WRONG and are recorded here only so nobody re-derives them. The
+ * `performScrollTo()` calls stay because they turned a misleading "not
+ * displayed" into an honest "does not exist", which is what exposed the real
+ * cause; they are not the fix.
  *
- * The node does not EXIST. It is not offscreen — the screen rendered the other
- * copy, "You’re all caught up.", which means `notificationsOn` read FALSE when
- * the test had just committed `master = true`.
- *
- * So this is a real state-resolution problem, not a layout one. The scrolling
- * stays because it turned a misleading error into an honest one, and that is
- * how the actual cause became visible — but it is NOT the fix.
- *
- * WHERE TO LOOK. `NotificationsScreenContent` reads
- * `NotificationAccountPreferences.currentMasterEnabled()`, which is
- * `currentMatrix()?.master == true`. `currentMatrix()` resolves the account
- * from `AuthTokenStore.requestProvenance(...)` and then reads inside
- * `AuthTokenStore.runWhileCurrentSession(expectedSessionId, expectedAccountId)`.
- * If that guard does not hold, it returns null — and `?.master == true`
- * converts null into **false**, which renders as "not enabled" rather than as
- * "could not read". An unreadable preference is indistinguishable from a
- * disabled one, which is the same conflation that has been fixed on two other
- * screens this week.
- *
- * The assertions below deliberately pin the PREFERENCE first and the rendered
- * copy second, so the next CI failure says which link broke instead of only
- * that the screen looked wrong.
+ * Two things this does NOT fix, both flagged upstream rather than papered over:
+ * a token store performing network I/O as a side effect of a state mutation,
+ * and `?.master == true` rendering an UNREADABLE preference as a disabled one.
  */
 @RunWith(AndroidJUnit4::class)
 class NotificationsScreenParityTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /**
+     * `commit()` returns false when the store is uninitialised or the account
+     * id is not positive, and every test here ignored that return. A silently
+     * failed commit makes the whole test meaningless — it would then assert a
+     * screen state against a preference that was never written, and "fail" for
+     * a reason that has nothing to do with the code under test.
+     * BrightHarbor #180 hold 3A.
+     */
+    private fun assertPreferenceCommitted(
+        accountId: Int,
+        matrix: NotificationPreferenceMatrix,
+    ) {
+        assertTrue(
+            "the preference commit for account $accountId must succeed, " +
+                "otherwise this test proves nothing",
+            NotificationAccountPreferences.commit(accountId, matrix),
+        )
+    }
 
     private val realGateway = com.ga.airdrop.core.push.NotificationBadgeSync.gateway
     private val probeCalls = java.util.concurrent.atomic.AtomicInteger(0)
@@ -139,7 +150,7 @@ class NotificationsScreenParityTest {
         context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
             .edit().clear().commit()
         NotificationAccountPreferences.init(context)
-        NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = true))
+        assertPreferenceCommitted(101, NotificationPreferenceMatrix(master = true))
 
         // The account this test actually composes under — 202 in the
         // cross-account case, which is the whole point of that test.
@@ -184,7 +195,7 @@ class NotificationsScreenParityTest {
             .edit().clear().commit()
         NotificationAccountPreferences.init(context)
         AuthTokenStore.save("account-a-token", authenticatedAccountId = 101)
-        NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = false))
+        assertPreferenceCommitted(101, NotificationPreferenceMatrix(master = false))
         AuthTokenStore.save("account-b-token", authenticatedAccountId = 202)
 
         // The account this test actually composes under — 202 in the
@@ -231,7 +242,7 @@ class NotificationsScreenParityTest {
         context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
             .edit().clear().commit()
         NotificationAccountPreferences.init(context)
-        NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = true))
+        assertPreferenceCommitted(101, NotificationPreferenceMatrix(master = true))
         val lifecycleOwner = TestLifecycleOwner()
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             lifecycleOwner.handle(Lifecycle.Event.ON_CREATE)
@@ -272,7 +283,7 @@ class NotificationsScreenParityTest {
         }
         compose.onNodeWithText("You’re all set!").performScrollTo().assertIsDisplayed()
 
-        NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = false))
+        assertPreferenceCommitted(101, NotificationPreferenceMatrix(master = false))
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             lifecycleOwner.handle(Lifecycle.Event.ON_PAUSE)
             lifecycleOwner.handle(Lifecycle.Event.ON_RESUME)
