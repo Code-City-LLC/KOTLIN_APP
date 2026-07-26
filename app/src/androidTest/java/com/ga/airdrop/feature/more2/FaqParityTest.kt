@@ -78,7 +78,15 @@ class FaqParityTest {
     @Test
     fun noMatchKeepsSwiftHintAndContactSupportRoute() {
         var route: String? = null
-        setFaq(ThemeController.Mode.LIGHT, onNavigate = { route = it })
+        // ⚠️ This used to call the network-backed harness and only worked
+        // because FALLBACK_FAQS seeded rows to search over. That list was
+        // deleted on 2026-07-26 (its mailing-address entry gave the OLD Fort
+        // Lauderdale warehouse), so with no server behind it the screen has no
+        // rows, renders the load error instead of the search empty state, and
+        // the "No matches" hint never appears. The search behaviour under test
+        // was never at fault — the fixture stopped supplying data. Served from
+        // the fake endpoint now, like its siblings.
+        setFaq(FakeMore2Api(), ThemeController.Mode.LIGHT, onNavigate = { route = it })
 
         compose.onNode(hasSetTextAction(), useUnmergedTree = true)
             .performTextInput("zzz-no-faq-match")
