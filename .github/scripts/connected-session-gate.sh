@@ -405,6 +405,17 @@ run_self_test() (
   printf 'connected-session-gate self-test: PASS\n'
 )
 
+# Disable window/transition/animator scales on every attached device.
+quiet_animations() {
+  local device scale
+  for device in $(adb devices | awk '/\tdevice$/ {print $1}'); do
+    for scale in window_animation_scale transition_animation_scale animator_duration_scale; do
+      adb -s "$device" shell settings put global "$scale" 0 >/dev/null 2>&1 || true
+    done
+    printf 'Animations disabled on %s\n' "$device" >&2
+  done
+}
+
 main() {
   local mode="${1:-}"
   local classes_csv
@@ -430,6 +441,15 @@ main() {
   if [[ "$mode" == "--dry-run" || "${CONNECTED_SESSION_DRY_RUN:-0}" == "1" ]]; then
     return
   fi
+
+  # The CI emulator is headless, software-rendered and slow. Compose tests that
+  # wait on a sheet or dialog animation (waitUntil, 5s) time out there while
+  # passing locally in a fraction of that — AboutQuietHoursParityTest failed all
+  # three of its dismissal waits on a run whose only change was a test tag.
+  # Turning the animators off is the standard remedy and it applies to all 289
+  # tests, not just the ones that have flaked so far. Failures are tolerated:
+  # a device that refuses the setting must not take the gate down with it.
+  quiet_animations
 
   proof_root="${RUNNER_TEMP:?RUNNER_TEMP is required}/connected-session-proof"
   rm -rf "$proof_root"

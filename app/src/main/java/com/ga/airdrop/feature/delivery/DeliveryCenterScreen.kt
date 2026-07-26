@@ -93,6 +93,7 @@ object DeliveryCenterTags {
     const val CONTACT = "delivery-center-contact"
     const val JOURNEY = "delivery-center-journey"
     fun row(packageId: Int) = "delivery-center-row-$packageId"
+    fun contactFor(stageKey: String) = "delivery-center-contact-$stageKey"
     fun stage(key: String) = "delivery-center-stage-$key"
 }
 
@@ -712,6 +713,7 @@ private fun DeliveryDetail(
                             ),
                             isLast = index == rows.lastIndex,
                             statusId = row.statusId,
+                            onContactUs = if (row.needsHelp) onContactUs else null,
                         )
                     }
                 }
@@ -753,6 +755,12 @@ private fun DeliveryTimelineStep(
     isLast: Boolean,
     /** Warehouse status id, for its catalogue glyph. Null on last-mile legs. */
     statusId: Int? = null,
+    /**
+     * Non-null on a row that has gone wrong (detained, uncollected, dangerous
+     * goods, returned). Kemar 2026-07-26: show those statuses, and give the
+     * customer the way out right there rather than making them hunt for it.
+     */
+    onContactUs: (() -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
     Row(
@@ -785,6 +793,17 @@ private fun DeliveryTimelineStep(
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
             )
+            onContactUs?.let { contact ->
+                Text(
+                    text = "Contact us about this",
+                    style = AirdropType.subtitle1,
+                    color = colors.orangeMain,
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .testTag(DeliveryCenterTags.contactFor(stage.key))
+                        .clickable(onClick = contact),
+                )
+            }
             formatDeliveryTimestamp(stage.at)?.let {
                 Text(
                     text = it,

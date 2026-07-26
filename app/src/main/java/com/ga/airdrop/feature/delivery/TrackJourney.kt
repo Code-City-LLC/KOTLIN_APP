@@ -38,6 +38,24 @@ internal object TrackJourney {
     private const val STATUS_DELIVERED = 8
 
     /**
+     * Statuses where the journey has gone wrong and the customer needs a human.
+     *
+     * Kemar 2026-07-26, asked whether these should appear at all: show them,
+     * **with a Contact us action on that row**. A customer whose package is
+     * detained at customs should be told by the app, not by silence — hiding
+     * it means the rail goes quiet for days with no explanation and they call
+     * in anyway. So we surface the server's own label and attach the way out.
+     */
+    val NEEDS_HELP_STATUSES = setOf(
+        10, // Detained at Customs
+        15, // Uncollected Packages
+        16, // Dangerous Goods
+        19, // Returned to Merchant
+    )
+
+    fun needsHelp(statusId: Int?): Boolean = statusId != null && statusId in NEEDS_HELP_STATUSES
+
+    /**
      * Canonical position of a warehouse status. Known ids keep catalogue order;
      * unknown ids sort after all known ones, preserving their recorded order.
      */
@@ -70,6 +88,7 @@ internal object TrackJourney {
                     state = "done",
                     at = item.changedDate,
                     statusId = item.status,
+                    needsHelp = needsHelp(item.status),
                 )
             }
             // A status can legitimately recur (warehouse -> detained ->
@@ -90,6 +109,7 @@ internal object TrackJourney {
                 state = stage.state,
                 at = stage.at,
                 statusId = null,
+                needsHelp = false,
             )
         }
 
@@ -114,4 +134,6 @@ internal data class TrackRow(
     val at: String?,
     /** Warehouse status id, for icon lookup. Null on last-mile legs. */
     val statusId: Int?,
+    /** This row is bad news — render a Contact us action beside it. */
+    val needsHelp: Boolean = false,
 )

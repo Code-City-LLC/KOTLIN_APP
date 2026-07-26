@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -63,12 +63,15 @@ import com.ga.airdrop.core.designsystem.components.CifValueSheet
 import com.ga.airdrop.core.designsystem.components.GradientButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.common.AirdropUploadSourceConfig
 import com.ga.airdrop.feature.common.AirdropUploadSourceSheet
+import com.ga.airdrop.feature.delivery.TrackJourney
+import com.ga.airdrop.feature.delivery.TrackRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -184,6 +187,7 @@ fun PackageDetailsScreen(
                             onCifInfo = { viewModel.showCifInfo(true) },
                             onAddToCart = viewModel::addToCart,
                             onReportDamage = { viewModel.showReportDamageSheet(true) },
+                            onContactUs = { onNavigate(Routes.CONTACTS) },
                         )
                     }
                 }
@@ -318,6 +322,8 @@ private fun PackageDetailsContent(
     onCifInfo: () -> Unit,
     onAddToCart: () -> Unit,
     onReportDamage: () -> Unit,
+    /** Opens Contact us from a timeline row that has gone wrong. */
+    onContactUs: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -353,55 +359,75 @@ private fun PackageDetailsContent(
             DetailRow("Number of Pieces", (detail.numberOfPieces ?: 1).toString())
         }
 
-        // Shipment Timeline — Swift PackageTimelineProgression: canonical
-        // customer-visible statuses through the current package status.
+        // Shipment Timeline — the package's REAL recorded history.
+        //
+        // ⚠️ WHAT THIS REPLACED. This section used to render
+        // PackageTimelineProgression, a fixed seven-rung ladder (Drop Alerted,
+        // Shipment Received, Port of Departure MIA, Arrived at Port JAM, Ready
+        // for Pickup, Paid and Ready for Pick Up, Delivered) derived from the
+        // package's CURRENT status. It ignored `history` for the row list and
+        // only consulted it to look up a date. Two consequences, both seen on
+        // pre-staging:
+        //   • It INVENTED events. Package 153897 has status 20 and ZERO
+        //     history rows; the screen printed all seven rungs anyway, because
+        //     an unrecognised status fell through to `return visibleStatuses`.
+        //   • It DELETED events. The ladder has no entry for Released From
+        //     Customs (5) or Processing at our Warehouse (6), so package
+        //     153907 — which really passed through both — showed neither.
+        // A fixed list may ORDER a rail; it must never author or filter it
+        // (SwiftHawk #79761 §1).
+        //
+        // Kemar 2026-07-26: *"once we go into details on packages, we would
+        // see the full thing as well, the full tracking history as well, which
+        // could be up to twelve statuses if needs be or even more."* The
+        // Packages LIST stays a one-line status; DETAILS is the expanded rail.
         DetailSectionCard(
             title = "Shipment Timeline",
             tag = "package-details-section-timeline",
             titleContentGap = 14.dp,
             contentSpacing = 12.dp,
         ) {
-            val inlineRows = PackageTimelineProgression.inlineRows(detail)
-            if (inlineRows.isNotEmpty()) {
-                val currentStatus = detail.status?.trim()?.toIntOrNull()
-                inlineRows.forEachIndexed { index, row ->
-                    TimelineIconRow(
-                        statusName = row.status.label,
-                        statusCode = row.status.id,
-                        color = PackageTimelineProgression.colorFor(
-                            statusId = row.status.id,
-                            currentStatus = currentStatus,
-                            placeholder = colors.textPlaceholder,
-                        ),
-                        comment = row.history?.comment?.takeIf { it.isNotBlank() },
-                        date = ShipmentsFormat.timelineDate(row.history?.changedDate).takeIf { it != "N/A" },
-                        showConnector = index != inlineRows.lastIndex,
-                        tag = "package-details-timeline-row-${row.status.id}",
-                    )
-                }
-            } else {
-                val steps = detail.history.ifEmpty {
-                    listOf(
-                        PackageHistoryItem(
-                            status = detail.status?.toIntOrNull(),
-                            statusName = detail.statusName,
-                            changedDate = null,
+            val rows = TrackJourney.warehouseRail(detail.history)
+                .ifEmpty {
+                    // No recorded history: show where the package actually is,
+                    // using the server's own label. One honest row beats seven
+                    // guessed ones.
+                    val statusId = detail.status?.trim()?.toIntOrNull()
+                    val label = detail.statusName?.trim()?.takeIf { it.isNotEmpty() }
+                        ?: ShipmentStatusCatalog.defaults
+                            .firstOrNull { it.id == statusId }?.name
+                    if (label == null) {
+                        emptyList()
+                    } else {
+                        listOf(
+                            TrackRow(
+                                key = "status_${statusId ?: "unknown"}",
+                                label = label,
+                                state = "done",
+                                at = null,
+                                statusId = statusId,
+                                needsHelp = TrackJourney.needsHelp(statusId),
+                            ),
                         )
-                    )
+                    }
                 }
-                steps.forEachIndexed { index, item ->
-                    val statusName = item.statusName ?: "—"
-                    val statusCode = item.status ?: ShipmentStatusCatalog.idFor(statusName)
-                    TimelineIconRow(
-                        statusName = statusName,
-                        statusCode = statusCode,
-                        color = timelineStatusColor(statusName),
-                        comment = item.comment?.takeIf { it.isNotBlank() },
-                        date = ShipmentsFormat.timelineDate(item.changedDate).takeIf { it != "N/A" },
-                        showConnector = index != steps.lastIndex,
-                        tag = "package-details-timeline-row-${item.status ?: statusName}",
-                    )
-                }
+            rows.forEachIndexed { index, row ->
+                TimelineIconRow(
+                    statusName = row.label,
+                    statusCode = row.statusId,
+                    // Everything on this rail has already happened, so it is
+                    // all "reached". The last row is where the package is now.
+                    color = if (index == rows.lastIndex) {
+                        colors.orangeMain
+                    } else {
+                        AlertPalette.Completed
+                    },
+                    date = ShipmentsFormat.timelineDate(row.at).takeIf { it != "N/A" },
+                    showConnector = index != rows.lastIndex,
+                    // Kemar: a status that has gone wrong carries its way out.
+                    onContactUs = if (row.needsHelp) onContactUs else null,
+                    tag = "package-details-timeline-row-${row.statusId ?: row.label}",
+                )
             }
         }
 
@@ -1108,9 +1134,12 @@ private fun TimelineIconRow(
     statusName: String,
     statusCode: Int?,
     color: androidx.compose.ui.graphics.Color,
-    comment: String?,
     date: String?,
     showConnector: Boolean,
+    /**
+     * Non-null on a status that has gone wrong. See TrackJourney.needsHelp.
+     */
+    onContactUs: (() -> Unit)? = null,
     tag: String? = null,
 ) {
     val colors = AirdropTheme.colors
@@ -1146,8 +1175,20 @@ private fun TimelineIconRow(
         }
         Column(Modifier.weight(1f)) {
             Text(text = statusName, style = AirdropType.subtitle1, color = color)
-            if (!comment.isNullOrBlank()) {
-                Text(text = comment, style = AirdropType.body3, color = colors.textDescription)
+            // `package_comment` is NOT customer-safe: the same column carries
+            // internal strings ("Status updated from batch process"), payment
+            // internals ("Package paid via NCB PowerTranz. Invoice ID: …") and
+            // driver-supplied delivery notes. BrightHarbor #79824 ruled it out
+            // of the mobile projection; it is now out of this screen too.
+            onContactUs?.let { contact ->
+                Text(
+                    text = "Contact us about this",
+                    style = AirdropType.subtitle1,
+                    color = colors.orangeMain,
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .clickable(onClick = contact),
+                )
             }
             if (!date.isNullOrBlank()) {
                 Text(text = date, style = AirdropType.body3, color = colors.textDescription)
