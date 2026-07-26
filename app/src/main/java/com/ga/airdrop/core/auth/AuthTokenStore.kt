@@ -188,7 +188,40 @@ object AuthTokenStore {
                         com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary.capture(),
                     )
                 // #182: a bearer must never land in an unencrypted store.
-                if (::prefs.isInitialized && ensureEncryptedForWrite()) {
+                //
+                // ⚠️ WHEN THIS GUARD IS FALSE THE BEARER IS NOT PERSISTED AT
+                // ALL, AND THE CUSTOMER IS SIGNED OUT ON THE NEXT COLD START.
+                //
+                // That is the deliberate consequence of Kemar's ruling — plain
+                // prefs are a READ fallback only, never a write target — and on
+                // a permanently broken keystore there is nowhere safe to put a
+                // bearer. Security over convenience, chosen knowingly.
+                //
+                // The commit that introduced this claimed it was "chosen over
+                // holding the token in memory only because both of those log
+                // the customer out". THAT CLAIM IS FALSE: when the retry fails
+                // this IS memory-only, and it does log them out. Correcting it
+                // here rather than leaving a justification that contradicts the
+                // code it justifies. Raised by an adversarial audit.
+                //
+                // What is NOT acceptable is doing it silently, so the skip is
+                // now logged. A customer stuck in a re-login loop is otherwise
+                // undiagnosable from a support ticket: the app looks healthy,
+                // login succeeds every time, and nothing anywhere says the
+                // write was dropped.
+                // Called ONCE — ensureEncryptedForWrite() reassigns `prefs` as a
+                // side effect, so invoking it twice per save would re-open the
+                // store on the recovery path for no reason.
+                val mayWriteEncrypted = ::prefs.isInitialized && ensureEncryptedForWrite()
+                if (::prefs.isInitialized && !mayWriteEncrypted) {
+                    android.util.Log.w(
+                        "AuthTokenStore",
+                        "Encrypted store unavailable at write time — bearer NOT persisted. " +
+                            "This session will not survive a cold start (#182 ruling: " +
+                            "plain prefs are read-only).",
+                    )
+                }
+                if (mayWriteEncrypted) {
                     prefs.edit()
                         .putString(KEY_TOKEN, token)
                         .putString(KEY_SESSION_ID, sessionId)
