@@ -8,6 +8,25 @@ mandatory_classes=(
   "com.ga.airdrop.feature.homedetails.NotificationsScreenParityTest"
 )
 mandatory_class_counts=(10 9 14 3)
+
+# Tests permitted to be @Ignore'd, each with the issue that must resolve it.
+# `fully.qualified.Class.testName=reason`, one per line.
+#
+# The gate used to demand skipped == 0, which is the right instinct — a test
+# that quietly stops running is a test that stops protecting anything. But a
+# bare count cannot tell a REVIEWED quarantine apart from one that vanished by
+# accident, so the only way to quarantine anything was to delete it.
+#
+# Naming them keeps the original guarantee and adds one: an unexpected skip
+# still aborts, AND a quarantine cannot be added without saying which issue
+# closes it. Deleting an entry here is how a quarantine ends.
+#
+# Defined ONCE, in bash, because both the checker and the self-test read it.
+# A second copy would let the thing being tested drift from the test.
+allowed_skips=(
+  "com.ga.airdrop.core.push.PushDeepLinkSessionBindingTest.processRestoreUsesFreshSecondaryProcessWithStableSessionId=#183 -- asserts cross-process EncryptedSharedPreferences coherence, which is not a documented guarantee. The real force-stop restart is verified on device; see the issue."
+)
+
 requested_classes=()
 proof_root=""
 results_root="app/build/outputs/androidTest-results/connected"
@@ -197,7 +216,8 @@ assert_results() {
   local mandatory_counts
   requested="$(printf '%s\n' "${requested_classes[@]}")"
   mandatory_counts="$(mandatory_count_contract)"
-  LABEL="$label" XML_ROOT="$xml_root" REQUESTED_CLASSES="$requested" MANDATORY_CLASS_COUNTS="$mandatory_counts" ruby <<'RUBY'
+  LABEL="$label" XML_ROOT="$xml_root" REQUESTED_CLASSES="$requested" MANDATORY_CLASS_COUNTS="$mandatory_counts" \
+    ALLOWED_SKIPS_SPEC="$(printf '%s\n' "${allowed_skips[@]}")" ruby <<'RUBY'
 require "rexml/document"
 require "rexml/xpath"
 
@@ -218,20 +238,12 @@ totals = Hash.new(0)
 class_tests = Hash.new(0)
 skipped_names = []
 
-# Tests permitted to be @Ignore'd, each with the issue that must resolve it.
-#
-# The gate used to demand skipped == 0, which is the right instinct — a test
-# that quietly stops running is a test that stops protecting anything. But a
-# bare count cannot tell a REVIEWED quarantine apart from one that vanished by
-# accident, so the only way to quarantine anything was to delete it.
-#
-# Naming them keeps the original guarantee and adds one: an unexpected skip
-# still aborts, AND a quarantine cannot be added without saying which issue
-# closes it. Removing an entry here is how a quarantine ends.
-ALLOWED_SKIPS = {
-  "com.ga.airdrop.core.push.PushDeepLinkSessionBindingTest.processRestoreUsesFreshSecondaryProcessWithStableSessionId" =>
-    "#183 — asserts cross-process EncryptedSharedPreferences coherence, which is not a documented guarantee. The real force-stop restart is verified on device; see the issue.",
-}.freeze
+# Parsed from the single bash-side definition; see `allowed_skips` at the top.
+ALLOWED_SKIPS = ENV.fetch("ALLOWED_SKIPS_SPEC").lines.map(&:strip).reject(&:empty?)
+  .each_with_object({}) do |line, map|
+    name, _, reason = line.partition("=")
+    map[name] = reason
+  end.freeze
 files.each do |path|
   document = REXML::Document.new(File.read(path))
   suite = document.root
@@ -255,6 +267,21 @@ abort "#{label}: connected tests produced no testcases" unless totals["tests"].p
   abort "#{label}: expected #{key}=0, got #{totals[key]}" unless totals[key].zero?
 end
 
+# ⚠️ The names are only trustworthy if they account for EVERY skip.
+#
+# `skipped_names` is built from <skipped> children of <testcase>. The suite's
+# own skipped="N" attribute is written independently. If a runner reports a skip
+# in the attribute but emits no child node, the allow-list below is evaluated
+# against an INCOMPLETE list and waves through a skip it never saw — which is
+# precisely the failure this gate exists to prevent, one level up: an absent
+# name read as "nothing was skipped".
+#
+# Reconciling the two means the allow-list is only ever consulted with a
+# complete set of names, or the run aborts. BrightHarbor #80597.
+unless totals["skipped"] == skipped_names.length
+  abort "#{label}: skip accounting mismatch -- suite attributes report #{totals['skipped']} skipped but #{skipped_names.length} <skipped> testcase node(s) parsed (#{skipped_names.empty? ? 'none' : skipped_names.join(', ')}). Every skip must be identifiable by name."
+end
+
 unexpected_skips = skipped_names.reject { |name| ALLOWED_SKIPS.key?(name) }
 unless unexpected_skips.empty?
   abort "#{label}: tests skipped without an entry in ALLOWED_SKIPS: #{unexpected_skips.join(', ')}"
@@ -263,11 +290,21 @@ skipped_names.uniq.each do |name|
   puts "#{label}: ALLOWED SKIP #{name} -- #{ALLOWED_SKIPS[name]}"
 end
 
-# A quarantine that has been fixed must not linger: if an allowed skip stops
-# being skipped, the entry is stale and should be deleted. Reported, not fatal,
-# because the same allow-list is read on every flavor and only one may run.
-stale = ALLOWED_SKIPS.keys - skipped_names
-puts "#{label}: NOTE allow-list entries not skipped this run (candidates for removal): #{stale.join(', ')}" unless stale.empty?
+# A quarantine that has been fixed must not linger. "Stale" has to be precise,
+# or it is noise: the entry is stale only when the class ACTUALLY RAN in this
+# flavor and the named test did not skip — the quarantine is over, so the entry
+# must go. An entry whose class was never exercised this run is not stale, it
+# simply was not selected, and saying otherwise would train readers to ignore
+# the message. Fatal in the first case for the same reason the allow-list exists
+# at all: a quarantine that outlives its fix is an untested test nobody notices.
+recovered = ALLOWED_SKIPS.keys
+  .reject { |name| skipped_names.include?(name) }
+  .select { |name| class_tests[name.rpartition(".").first].positive? }
+unless recovered.empty?
+  abort "#{label}: ALLOWED_SKIPS entry whose test RAN instead of skipping -- the quarantine is over, delete the entry: #{recovered.join(', ')}"
+end
+unexercised = ALLOWED_SKIPS.keys - skipped_names - recovered
+puts "#{label}: NOTE allow-list entries whose class did not run in this flavor: #{unexercised.join(', ')}" unless unexercised.empty?
 
 requested.each do |class_name|
   expected = mandatory_counts[class_name]
@@ -386,25 +423,33 @@ collect_device_screenshots() {
   adb shell "rm -rf $remote" >/dev/null 2>&1 || true
 }
 
+# FIXTURE_SKIPS: newline-separated `fully.qualified.Class#testName` entries,
+# each emitted as an extra <testcase> carrying a <skipped/> child.
+# FIXTURE_SUITE_SKIPPED: overrides the suite's skipped attribute so the
+# self-test can drive a suite count that DISAGREES with the emitted nodes.
 write_xml_fixture() {
   local destination="$1"
   shift
   local fixture_classes
   fixture_classes="$(printf '%s\n' "$@")"
-  DESTINATION="$destination" FIXTURE_CLASSES="$fixture_classes" ruby <<'RUBY'
+  DESTINATION="$destination" FIXTURE_CLASSES="$fixture_classes" \
+    FIXTURE_SKIPS="${FIXTURE_SKIPS:-}" FIXTURE_SUITE_SKIPPED="${FIXTURE_SUITE_SKIPPED:-}" ruby <<'RUBY'
 require "fileutils"
 require "rexml/document"
 require "rexml/formatters/pretty"
 
 classes = ENV.fetch("FIXTURE_CLASSES").lines.map(&:strip).reject(&:empty?)
+skips = ENV.fetch("FIXTURE_SKIPS", "").lines.map(&:strip).reject(&:empty?)
+suite_skipped = ENV.fetch("FIXTURE_SUITE_SKIPPED", "")
+suite_skipped = skips.length.to_s if suite_skipped.empty?
 FileUtils.mkdir_p(ENV.fetch("DESTINATION"))
 document = REXML::Document.new
 suite = document.add_element("testsuite", {
   "name" => "connected-session-self-test",
-  "tests" => classes.length.to_s,
+  "tests" => (classes.length + skips.length).to_s,
   "failures" => "0",
   "errors" => "0",
-  "skipped" => "0",
+  "skipped" => suite_skipped,
 })
 classes.each_with_index do |class_name, index|
   suite.add_element("testcase", {
@@ -412,10 +457,37 @@ classes.each_with_index do |class_name, index|
     "classname" => class_name,
   })
 end
+skips.each do |entry|
+  class_name, _, test_name = entry.rpartition("#")
+  testcase = suite.add_element("testcase", {
+    "name" => test_name,
+    "classname" => class_name,
+  })
+  testcase.add_element("skipped")
+end
 File.open(File.join(ENV.fetch("DESTINATION"), "TEST-connected-session-self-test.xml"), "w") do |file|
   REXML::Formatters::Pretty.new(2).write(document, file)
 end
 RUBY
+}
+
+# A negative test that aborts for the WRONG reason is a false pass: it proves
+# the fixture was malformed, not that the rule under test fired. Every rejection
+# below must name the rule it is exercising.
+expect_gate_abort() {
+  local label="$1"
+  local xml_root="$2"
+  local expected_fragment="$3"
+  local output
+  if output="$(assert_results "$label" "$xml_root" 2>&1)"; then
+    printf '%s self-test unexpectedly PASSED\n' "$label" >&2
+    return 1
+  fi
+  if ! printf '%s' "$output" | grep -qF -- "$expected_fragment"; then
+    printf '%s aborted for the wrong reason\nexpected to contain: %s\nactual: %s\n' \
+      "$label" "$expected_fragment" "$output" >&2
+    return 1
+  fi
 }
 
 run_self_test() (
@@ -502,10 +574,44 @@ run_self_test() (
     valid_fixture_classes+=("${requested_classes[index]}")
   done
 
-  write_xml_fixture "$temp_root/prod" "${valid_fixture_classes[@]}"
-  write_xml_fixture "$temp_root/staging" "${valid_fixture_classes[@]}"
+  # The valid fixture models a REAL run, which means it carries the declared
+  # quarantines: those tests do skip on device. Deriving the fixture from the
+  # same `allowed_skips` the checker reads is the point — a hardcoded copy here
+  # would keep passing after someone edited the list.
+  local declared_skips=""
+  local entry
+  for entry in "${allowed_skips[@]}"; do
+    local name="${entry%%=*}"
+    declared_skips+="${name%.*}#${name##*.}"$'\n'
+  done
+
+  FIXTURE_SKIPS="$declared_skips" write_xml_fixture "$temp_root/prod" "${valid_fixture_classes[@]}"
+  FIXTURE_SKIPS="$declared_skips" write_xml_fixture "$temp_root/staging" "${valid_fixture_classes[@]}"
   assert_results self-test-prod "$temp_root/prod"
   assert_results self-test-staging "$temp_root/staging"
+
+  # (a) A skip NOT on the allow-list must abort. This is the guarantee the old
+  #     `skipped == 0` provided and the one an allow-list could plausibly lose.
+  FIXTURE_SKIPS="com.ga.airdrop.feature.shop.SomeOtherTest#quietlyVanished"$'\n' \
+    write_xml_fixture "$temp_root/undeclared-skip" "${valid_fixture_classes[@]}"
+  expect_gate_abort self-test-undeclared-skip "$temp_root/undeclared-skip" \
+    "tests skipped without an entry in ALLOWED_SKIPS: com.ga.airdrop.feature.shop.SomeOtherTest.quietlyVanished" || return 1
+
+  # (b) A suite whose skipped attribute exceeds its <skipped> nodes must abort:
+  #     the unnamed skip is invisible to the allow-list, so the names cannot be
+  #     trusted. Without this, a runner that omits the child node walks a skip
+  #     straight through the gate.
+  FIXTURE_SKIPS="$declared_skips" FIXTURE_SUITE_SKIPPED="7" \
+    write_xml_fixture "$temp_root/skip-count-mismatch" "${valid_fixture_classes[@]}"
+  expect_gate_abort self-test-skip-count-mismatch "$temp_root/skip-count-mismatch" \
+    "skip accounting mismatch" || return 1
+
+  # (c) An allow-list entry whose class ran but whose test did NOT skip is a
+  #     stale quarantine and must abort, so a fixed test cannot stay excused.
+  local first_allowed="${allowed_skips[0]%%=*}"
+  write_xml_fixture "$temp_root/stale-allow-entry" "${valid_fixture_classes[@]}" "${first_allowed%.*}"
+  expect_gate_abort self-test-stale-allow-entry "$temp_root/stale-allow-entry" \
+    "the quarantine is over, delete the entry: $first_allowed" || return 1
 
   for ((index = 0; index < ${#valid_fixture_classes[@]} - 1; index += 1)); do
     missing_class_fixture+=("${valid_fixture_classes[index]}")
