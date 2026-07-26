@@ -74,6 +74,7 @@ import com.ga.airdrop.data.repo.ActiveDelivery
 import com.ga.airdrop.data.repo.TrackedDelivery
 import com.ga.airdrop.data.repo.TrackedDeliveryStage
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
+import com.ga.airdrop.feature.shipments.ShipmentStatusCatalog
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -186,6 +187,7 @@ internal fun DeliveryCenterScreenContent(
                     summary = state.selectedSummary,
                     packageId = requireNotNull(state.selectedPackageId),
                     delivery = requireNotNull(state.delivery),
+                    history = state.history,
                     refreshing = state.refreshing,
                     onRefresh = onRefresh,
                     onContactUs = onContactUs,
@@ -241,7 +243,6 @@ private data class JourneyStage(
     val key: String,
     val label: String,
     val state: String,
-    val detail: String,
 )
 
 /**
@@ -259,64 +260,11 @@ private data class JourneyStage(
  */
 private val JUST_PAID_STAGES = truncateAfterFirstPending(
     listOf(
-        JourneyStage(
-            "preparing_dispatch", "Preparing for Dispatch", "current",
-            "Packing your items for the courier.",
-        ),
-        JourneyStage(
-            "out_for_delivery", "Out for Delivery", "pending",
-            "On its way to your address.",
-        ),
-        JourneyStage(
-            "delivered", "Delivered", "pending",
-            "Handed over at your location.",
-        ),
+        JourneyStage("preparing_dispatch", "Preparing for Dispatch", "current"),
+        JourneyStage("out_for_delivery", "Out for Delivery", "pending"),
+        JourneyStage("delivered", "Delivered", "pending"),
     ),
 ) { it.state == "pending" }
-
-/**
- * Kemar's approved FOUR-stage journey is the canonical tracking display. Live
- * server data maps onto it (assigned → Preparing for Dispatch) so the customer
- * always sees the same four-step path, with server states + timestamps driving
- * each step. Unknown server projections fall back to the raw server stages.
- */
-private data class CanonicalStage(
-    val key: String,
-    val label: String,
-    val copy: String,
-    val state: String,
-    val at: String?,
-)
-
-private fun canonicalJourney(delivery: TrackedDelivery): List<CanonicalStage>? {
-    val byKey = delivery.stages.associateBy(TrackedDeliveryStage::key)
-    val assigned = byKey["assigned"]
-    val outForDelivery = byKey["out_for_delivery"]
-    val delivered = byKey["delivered"]
-    if (assigned == null && outForDelivery == null && delivered == null) return null
-    // Laravel #79690 §4: "Order Confirmed" is REMOVED — it duplicated warehouse
-    // status 20 "Paid and Ready for Delivery", which is the event the customer
-    // actually experiences, and "order" is ambiguous in an app that also has
-    // shop orders. The last-mile rail is three stages, server-authored.
-    val rail = listOf(
-        CanonicalStage(
-            "preparing_dispatch", "Preparing for Dispatch",
-            "Packing your items for the courier.",
-            assigned?.state ?: "done", assigned?.at,
-        ),
-        CanonicalStage(
-            "out_for_delivery", "Out for Delivery",
-            "On its way to your address.",
-            outForDelivery?.state ?: "pending", outForDelivery?.at,
-        ),
-        CanonicalStage(
-            "delivered", "Delivered",
-            "Handed over at your location.",
-            delivered?.state ?: "pending", delivered?.at,
-        ),
-    )
-    return truncateAtFirstUpcoming(rail)
-}
 
 /**
  * Kemar (timeline rule 3, #79650): *"Don't generate the last delivery. Just say
@@ -332,8 +280,6 @@ internal fun <T> truncateAfterFirstPending(rows: List<T>, isPending: (T) -> Bool
     return if (firstPending >= 0) rows.take(firstPending + 1) else rows
 }
 
-private fun truncateAtFirstUpcoming(rail: List<CanonicalStage>): List<CanonicalStage> =
-    truncateAfterFirstPending(rail) { it.state == "pending" }
 
 @Composable
 private fun JustPaidJourney(
@@ -390,7 +336,6 @@ private fun JustPaidJourney(
                                 at = null,
                             ),
                             isLast = index == JUST_PAID_STAGES.lastIndex,
-                            detail = stage.detail,
                         )
                     }
                 }
@@ -696,6 +641,7 @@ private fun DeliveryDetail(
     summary: ActiveDelivery?,
     packageId: Int,
     delivery: TrackedDelivery,
+    history: List<com.ga.airdrop.feature.shipments.PackageHistoryItem>,
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onContactUs: () -> Unit,
@@ -748,30 +694,25 @@ private fun DeliveryDetail(
                     }
                 }
                 Column(Modifier.fillMaxWidth()) {
-                    val canonical = canonicalJourney(delivery)
-                    if (canonical != null) {
-                        // The approved four-stage journey, driven by live data.
-                        canonical.forEachIndexed { index, stage ->
-                            DeliveryTimelineStep(
-                                stage = TrackedDeliveryStage(
-                                    key = stage.key,
-                                    label = stage.label,
-                                    state = stage.state,
-                                    at = stage.at,
-                                ),
-                                isLast = index == canonical.lastIndex,
-                                detail = stage.copy,
-                            )
-                        }
-                    } else {
-                        // Defensive fallback: unrecognised server projection —
-                        // render the ordered server stages verbatim.
-                        delivery.stages.forEachIndexed { index, stage ->
-                            DeliveryTimelineStep(
-                                stage = stage,
-                                isLast = index == delivery.stages.lastIndex,
-                            )
-                        }
+                    // The FULL journey: the package's real recorded warehouse
+                    // history joined to the last mile. Track used to begin at
+                    // "Preparing for Dispatch" with invented copy, so a
+                    // customer never saw that their package had been received,
+                    // cleared customs and processed. Kemar: "It starts at
+                    // shipment received... show the REAL statuses" and "use
+                    // only real generated info not static".
+                    val rows = TrackJourney.build(history, delivery)
+                    rows.forEachIndexed { index, row ->
+                        DeliveryTimelineStep(
+                            stage = TrackedDeliveryStage(
+                                key = row.key,
+                                label = row.label,
+                                state = row.state,
+                                at = row.at,
+                            ),
+                            isLast = index == rows.lastIndex,
+                            statusId = row.statusId,
+                        )
                     }
                 }
             }
@@ -800,15 +741,18 @@ private fun DeliveryDetail(
 
 /**
  * One approved-design timeline row: outlined icon node + connector on the left,
- * label + detail on the right. Live rows show the server timestamp; the
- * just-paid journey passes its canonical copy via [detail]. Upcoming stages
- * fade back (node, icon and text together) so the front of the journey pops.
+ * the event label and its server timestamp on the right. There is deliberately
+ * no per-stage prose slot: the rows used to carry client-authored copy
+ * ("Packing your items for the courier.") that no system had ever asserted.
+ * The label IS the recorded event. Upcoming stages fade back (node, icon and
+ * text together) so the front of the journey pops.
  */
 @Composable
 private fun DeliveryTimelineStep(
     stage: TrackedDeliveryStage,
     isLast: Boolean,
-    detail: String? = null,
+    /** Warehouse status id, for its catalogue glyph. Null on last-mile legs. */
+    statusId: Int? = null,
 ) {
     val colors = AirdropTheme.colors
     Row(
@@ -822,7 +766,7 @@ private fun DeliveryTimelineStep(
             Modifier.width(44.dp).fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            DeliveryStageNode(stage)
+            DeliveryStageNode(stage, statusId)
             if (!isLast) {
                 DeliveryStageConnector(
                     state = stage.state,
@@ -841,14 +785,6 @@ private fun DeliveryTimelineStep(
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
             )
-            detail?.let {
-                Text(
-                    text = it,
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
             formatDeliveryTimestamp(stage.at)?.let {
                 Text(
                     text = it,
@@ -862,7 +798,7 @@ private fun DeliveryTimelineStep(
 }
 
 @Composable
-private fun DeliveryStageNode(stage: TrackedDeliveryStage) {
+private fun DeliveryStageNode(stage: TrackedDeliveryStage, statusId: Int? = null) {
     val colors = AirdropTheme.colors
     val accent = deliveryStageColor(stage.state)
     Box(
@@ -909,7 +845,16 @@ private fun DeliveryStageNode(stage: TrackedDeliveryStage) {
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(deliveryStageIcon(stage.key)),
+                painter = painterResource(
+                    // A warehouse row carries its real status id, so it gets
+                    // the same glyph the customer already knows from Packages.
+                    // Without this every history row fell through
+                    // deliveryStageIcon's `else` and Shipment Received, Port of
+                    // Departure and Processing at Customs all rendered the one
+                    // generic tracking blob.
+                    statusId?.let { ShipmentStatusCatalog.iconRes(it, colors.isDark) }
+                        ?: deliveryStageIcon(stage.key),
+                ),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(accent),
                 modifier = Modifier.size(22.dp),

@@ -15,6 +15,7 @@ import com.ga.airdrop.data.repo.ActiveDelivery
 import com.ga.airdrop.data.repo.DeliveryTrackingGateway
 import com.ga.airdrop.data.repo.DeliveryTrackingRepository
 import com.ga.airdrop.data.repo.TrackedDelivery
+import com.ga.airdrop.feature.shipments.PackageHistoryItem
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
@@ -37,6 +38,12 @@ data class DeliveryCenterUiState(
     val activeDeliveries: List<ActiveDelivery> = emptyList(),
     val selectedPackageId: Int? = null,
     val delivery: TrackedDelivery? = null,
+    /**
+     * The package's REAL recorded warehouse history. Track shows the full
+     * journey (Shipment Received, customs, warehouse ...) joined to the last
+     * mile — not a skeleton that starts at dispatch.
+     */
+    val history: List<PackageHistoryItem> = emptyList(),
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val loadedOnce: Boolean = false,
@@ -70,6 +77,8 @@ data class DeliveryCenterUiState(
 class DeliveryCenterViewModel(
     private val initialPackageId: Int? = null,
     private val gateway: DeliveryTrackingGateway = DeliveryTrackingRepository(ApiClient.service),
+    private val packagesRepo: com.ga.airdrop.feature.shipments.ShipmentsPackagesRepository =
+        com.ga.airdrop.feature.shipments.ShipmentsRepoProvider.packages,
     private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
@@ -241,6 +250,13 @@ class DeliveryCenterViewModel(
     ) {
         gateway.deliveryTracking(packageId).fold(
             onSuccess = { result ->
+                // The warehouse rail comes from the package's own recorded
+                // history. A failure here must NOT blank Track — we still have
+                // the last mile, so the journey degrades to what we do know
+                // rather than showing nothing.
+                val history = runCatching {
+                    packagesRepo.packageDetails(packageId.toString()).getOrNull()?.history
+                }.getOrNull().orEmpty()
                 publish(
                     owner,
                     epoch,
@@ -248,6 +264,7 @@ class DeliveryCenterViewModel(
                         activeDeliveries = activeDeliveries,
                         selectedPackageId = packageId,
                         delivery = result.delivery,
+                        history = history,
                         loading = false,
                         loadedOnce = true,
                     ),
