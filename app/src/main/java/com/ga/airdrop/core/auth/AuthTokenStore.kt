@@ -65,8 +65,17 @@ object AuthTokenStore {
 
     val token: String? get() = _token.value
 
+    /**
+     * False when [init] fell back to plain prefs because the encrypted store
+     * would not open. Diagnostic only — no caller may branch behaviour on it.
+     */
+    @Volatile
+    var usedEncryptedStore: Boolean = true
+        private set
+
     fun init(context: Context) {
         synchronized(transitionLock) {
+            usedEncryptedStore = true
             val restoredSessionId = synchronized(stateLock) {
                 invalidateActiveRequestsLocked()
                 prefs = runCatching {
@@ -83,6 +92,14 @@ object AuthTokenStore {
                 }.getOrElse {
                     // Keystore corruption fallback: plain prefs beat a hard crash at
                     // launch; the token is re-issued at next login anyway.
+                    //
+                    // ⚠️ This fallback is SILENT, and it reads a DIFFERENT file
+                    // from the encrypted store. A process that falls back
+                    // therefore sees no token even though one was saved — which
+                    // is indistinguishable, from the outside, from "the session
+                    // did not survive". Recorded so a diagnostic can tell those
+                    // two apart instead of guessing. Not a behaviour change.
+                    usedEncryptedStore = false
                     context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 }
                 val storedToken = prefs.getString(KEY_TOKEN, null)

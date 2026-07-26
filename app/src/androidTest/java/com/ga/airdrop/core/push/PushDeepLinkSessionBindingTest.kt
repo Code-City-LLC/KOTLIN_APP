@@ -76,6 +76,15 @@ class PushDeepLinkSessionBindingTest {
 
         assertNotEquals(Process.myPid(), restoredPid)
         assertNotEquals(killedProbePid, restoredPid)
+        // Report WHICH store the probe read before asserting the token, so a
+        // failure says "it fell back to plain prefs" rather than the much
+        // scarier and possibly untrue "the session did not survive".
+        // BrightHarbor #181.
+        assertTrue(
+            "probe read the plain-prefs fallback, not the encrypted store — a " +
+                "different file, so an absent token here means nothing about session survival",
+            restored.getBoolean(SessionRestoreProbeProvider.KEY_ENCRYPTED_STORE),
+        )
         assertTrue(restored.getBoolean(SessionRestoreProbeProvider.KEY_TOKEN_PRESENT))
         assertEquals(capturedSessionId, restored.getString(SessionRestoreProbeProvider.KEY_SESSION_ID))
         assertEquals(Routes.PACKAGES, restored.getString(SessionRestoreProbeProvider.KEY_ROUTE))
