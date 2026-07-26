@@ -190,6 +190,10 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    // UiAutomator drives system UI (back key, platform dialogs) WITHOUT
+    // Espresso's RootViewPicker, which waits for window focus and therefore
+    // throws RootViewWithoutFocusException on the headless CI emulator.
+    androidTestImplementation(libs.androidx.uiautomator)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)

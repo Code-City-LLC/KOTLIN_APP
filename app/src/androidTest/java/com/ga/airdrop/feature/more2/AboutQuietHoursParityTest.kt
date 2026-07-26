@@ -18,14 +18,11 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
-import androidx.test.espresso.Espresso.pressBack
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.RootMatchers.isDialog
-import androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom
-import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.push.QuietHoursStore
@@ -46,6 +43,19 @@ class AboutQuietHoursParityTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /**
+     * System UI is driven with UiAutomator, NOT Espresso.
+     *
+     * Espresso routes onView/pressBack through RootViewPicker, which waits for
+     * the view root to have WINDOW FOCUS. The CI emulator runs `-no-window`, so
+     * focus is never granted and all three of these tests died with
+     * RootViewWithoutFocusException — while passing on a windowed local
+     * emulator. UiAutomator talks to the system directly and has no such
+     * dependency, so the test now behaves the same headless and windowed.
+     */
+    private val uiDevice: UiDevice
+        get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
     private val context: Context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
@@ -101,7 +111,7 @@ class AboutQuietHoursParityTest {
         compose.onNodeWithTag("quiet-hours-from-control").assertIsNotEnabled()
         compose.onNodeWithTag("quiet-hours-until-control").assertIsNotEnabled()
 
-        pressBack()
+        uiDevice.pressBack()
         waitForSheetDismissal()
     }
 
@@ -127,7 +137,7 @@ class AboutQuietHoursParityTest {
         assertEquals(0, QuietHoursStore.startMinutes(context))
         assertEquals(1_439, QuietHoursStore.endMinutes(context))
 
-        pressBack()
+        uiDevice.pressBack()
         waitForSheetDismissal()
         openSheet()
 
@@ -144,10 +154,11 @@ class AboutQuietHoursParityTest {
         compose.onNodeWithTag("quiet-hours-from-control").performClick()
         compose.waitForIdle()
 
-        onView(isAssignableFrom(TimePicker::class.java))
-            .inRoot(isDialog())
-            .check(matches(isDisplayed()))
-        pressBack()
+        assertTrue(
+            "Tapping the time control must open the platform TimePicker",
+            uiDevice.wait(Until.hasObject(By.clazz(TimePicker::class.java)), 5_000),
+        )
+        uiDevice.pressBack()
     }
 
     @Test
