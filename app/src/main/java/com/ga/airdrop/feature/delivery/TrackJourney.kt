@@ -2,7 +2,6 @@ package com.ga.airdrop.feature.delivery
 
 import com.ga.airdrop.R
 import com.ga.airdrop.data.model.PackageTimelineEntry
-import java.time.OffsetDateTime
 
 /**
  * The Track journey, as Laravel projects it.
@@ -47,47 +46,9 @@ internal object TrackJourney {
 
     fun needsHelp(statusId: Int?): Boolean = statusId != null && statusId in NEEDS_HELP_STATUSES
 
-    /**
-     * ⏳ TEMPORARY, AND DELIBERATELY ALMOST ALWAYS A NO-OP (Kemar, 2026-07-26).
-     *
-     * `package_status_datetime` is a **varchar**, and ~1,069 legacy rows hold
-     * `YYYY/MM/DD`, which string-sorts AFTER `YYYY-MM-DD`. If the projection
-     * orders on that column as text, a 2024 row can render last. Kemar's call
-     * was to keep a client guard until BronzeMountain confirms the sort key.
-     *
-     * It does NOT reorder by a hardcoded status catalogue — that would be the
-     * client second-guessing the server with a fixed list, the exact bug class
-     * that invented and deleted rows here twice. It sorts on `at_iso`, which is
-     * the **server's own normalized datetime** (measured on pre-staging:
-     * `2026-07-07T20:10:07-04:00`), and only when that disagrees with the order
-     * sent. On every package sampled live the two already agree, so this
-     * returns the list untouched.
-     *
-     * Bail out entirely unless the shape is unambiguous: every dated row parses
-     * and every undated row (a pending step) trails the dated ones. Anything
-     * else passes through — a guard that fires on input it does not understand
-     * is worse than no guard.
-     *
-     * DELETE THIS the moment the projection's ORDER BY is confirmed.
-     */
-    internal fun applyOrderGuard(entries: List<PackageTimelineEntry>): List<PackageTimelineEntry> {
-        val lastDated = entries.indexOfLast { !it.atIso.isNullOrBlank() }
-        if (lastDated < 0) return entries
-        // An undated row before the final dated one means we cannot place it.
-        if (entries.take(lastDated).any { it.atIso.isNullOrBlank() }) return entries
-
-        val dated = entries.take(lastDated + 1)
-        val instants = dated.map { runCatching { OffsetDateTime.parse(it.atIso) }.getOrNull() }
-        if (instants.any { it == null }) return entries
-
-        val sorted = dated.indices.sortedBy { instants[it] }        // stable: ties keep server order
-        if (sorted == dated.indices.toList()) return entries        // the normal case — already right
-        return sorted.map { dated[it] } + entries.drop(lastDated + 1)
-    }
-
     /** Server entries → rendered rows, in the order given. */
     fun rows(entries: List<PackageTimelineEntry>): List<TrackRow> =
-        applyOrderGuard(entries).mapIndexedNotNull { index, entry ->
+        entries.mapIndexedNotNull { index, entry ->
             val label = entry.label?.trim()?.takeIf(String::isNotEmpty) ?: return@mapIndexedNotNull null
             TrackRow(
                 key = entry.key?.trim()?.takeIf(String::isNotEmpty) ?: "entry_$index",
