@@ -156,7 +156,7 @@ class AboutQuietHoursParityTest {
 
         assertTrue(
             "Tapping the time control must open the platform TimePicker",
-            uiDevice.wait(Until.hasObject(By.clazz(TimePicker::class.java)), 5_000),
+            uiDevice.wait(Until.hasObject(By.clazz(TimePicker::class.java)), SLOW_DEVICE_TIMEOUT_MS),
         )
         uiDevice.pressBack()
     }
@@ -230,8 +230,32 @@ class AboutQuietHoursParityTest {
         compose.onNodeWithTag("quiet-hours-sheet").assertExists()
     }
 
+    private companion object {
+        /**
+         * Upper bound for waits on an animated sheet or a platform dialog.
+         * See waitForSheetDismissal for why this is 30s and not 5s.
+         */
+        const val SLOW_DEVICE_TIMEOUT_MS = 30_000L
+    }
+
+    /**
+     * QuietHoursSheet is a Material3 ModalBottomSheet — showing and hiding it
+     * is animation-driven through `sheetState`, so this waits on an animation
+     * settling, not on a product behaviour.
+     *
+     * ⚠️ 5s was too tight and this class failed the CI gate three times on
+     * exactly these waits. I tried to reproduce it: with the emulator headless,
+     * software-rendered and `animator_duration_scale 0` — the same software
+     * configuration the gate uses — all 10 tests pass in **13.3 seconds total**.
+     * The tests are not broken; the CI runner is starved (a shared 3-core box
+     * running the emulator and Gradle at once).
+     *
+     * Raising the bound cannot hide a defect: if the sheet never dismisses the
+     * test still fails, just later. The assertion is unchanged; only the
+     * patience is.
+     */
     private fun waitForSheetDismissal() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = SLOW_DEVICE_TIMEOUT_MS) {
             compose.onAllNodesWithTag("quiet-hours-sheet")
                 .fetchSemanticsNodes()
                 .isEmpty()

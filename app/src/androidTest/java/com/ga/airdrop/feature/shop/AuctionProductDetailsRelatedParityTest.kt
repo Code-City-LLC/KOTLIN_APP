@@ -103,8 +103,21 @@ class AuctionProductDetailsRelatedParityTest {
         )
     }
 
+    /**
+     * ⚠️ THIS ASSERTED THE BUG.
+     *
+     * It was `nullDescriptionUsesSwiftFallbackCopy`, and it required that a
+     * product with no description display PRODUCT_DESCRIPTION_FALLBACK —
+     * "Detailed product description will be loaded from the /products/:id
+     * endpoint once authenticated. Includes specifications, dimensions,
+     * condition, and seller notes." That is an engineer's note about
+     * unfinished work, naming an internal API route, rendered as product copy
+     * and promising details that were not there.
+     *
+     * A missing description is now simply absent, heading and all.
+     */
     @Test
-    fun nullDescriptionUsesSwiftFallbackCopy() {
+    fun aMissingDescriptionShowsNothingRatherThanAPlaceholder() {
         setDetailsContent(
             featured = false,
             product = SampleProduct.copy(description = null),
@@ -112,12 +125,18 @@ class AuctionProductDetailsRelatedParityTest {
             navigations = mutableListOf(),
         )
 
-        waitForDetails()
+        waitForDetailsWithoutDescription()
 
-        compose.onNodeWithText(SwiftDescriptionFallback).performScrollTo().assertIsDisplayed()
-        saveRootScreenshot("auction_description_fallback_swift_light.png")
         assertTrue(
-            "Product details should not use the old Android-only null-description copy",
+            "No description means no Description section — not invented copy",
+            compose.onAllNodesWithText("Description").fetchSemanticsNodes().isEmpty(),
+        )
+        assertTrue(
+            "The internal /products/:id developer note must never reach a customer",
+            compose.onAllNodesWithText(SwiftDescriptionFallback).fetchSemanticsNodes().isEmpty(),
+        )
+        assertTrue(
+            "and not the old Android-only copy either",
             compose.onAllNodesWithText("No description available.").fetchSemanticsNodes().isEmpty(),
         )
     }
@@ -242,6 +261,18 @@ class AuctionProductDetailsRelatedParityTest {
     private fun waitForDetails() {
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithText("Description").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * For the no-description case. waitForDetails() waits on the "Description"
+     * heading, which is precisely what a product without one must NOT render —
+     * so it would wait forever on the very screen it is meant to check.
+     * The title is always present once the details load.
+     */
+    private fun waitForDetailsWithoutDescription() {
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText(SampleProduct.title).fetchSemanticsNodes().isNotEmpty()
         }
     }
 

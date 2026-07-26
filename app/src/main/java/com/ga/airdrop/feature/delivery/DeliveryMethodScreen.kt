@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,9 +36,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -48,12 +46,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.GradientButton
+import com.ga.airdrop.core.designsystem.components.OutlineButton
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
@@ -64,6 +65,8 @@ import com.ga.airdrop.data.model.DeliveryWarehouse
 import com.ga.airdrop.data.model.PlaceResult
 import com.ga.airdrop.feature.cart.CartStore
 import com.ga.airdrop.feature.shop.ShopInnerHeader
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -215,6 +218,9 @@ fun DeliveryMethodScreen(
                     warehouses = state.warehouses,
                     selectedWarehouseId = state.selectedWarehouseId,
                     onWarehouseSelected = viewModel::onWarehouseSelected,
+                    loading = state.warehousesLoading,
+                    error = state.warehousesError,
+                    onRetry = viewModel::loadSettings,
                 )
 
                 DeliveryMode.Delivery -> DeliverySection(
@@ -358,14 +364,58 @@ private fun RequiredHeader(text: String) {
 /* ─── Pickup section ───────────────────────────────────────────────────── */
 
 @Composable
-private fun PickupSection(
+internal fun PickupSection(
     warehouses: List<DeliveryWarehouse>,
     selectedWarehouseId: Int?,
     onWarehouseSelected: (DeliveryWarehouse) -> Unit,
+    loading: Boolean,
+    error: String?,
+    onRetry: () -> Unit,
 ) {
+    val colors = AirdropTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Swift parity: trailing space before the red asterisk.
         RequiredHeader("Select Pickup Location ")
+
+        // ⚠️ These three states exist because deleting the invented-warehouse
+        // fallback (e7a9ea5) left the failure path with NOTHING on it. The view
+        // model set `warehousesError`, no composable read it, and the screen
+        // rendered a blank required section — while the CTA told the customer
+        // to "select a pickup warehouse" from a list with no rows and no way to
+        // populate it. A dead end, and my commit message claimed the opposite.
+        // Loading and failure are now distinct, and the failure is recoverable.
+        if (loading) {
+            Box(
+                Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = colors.orangeMain)
+            }
+            return@Column
+        }
+        if (warehouses.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp)
+                    .testTag("pickup-locations-error"),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = error ?: "We couldn't load the pickup locations.",
+                    style = AirdropType.body2,
+                    color = colors.textDescription,
+                    textAlign = TextAlign.Center,
+                )
+                OutlineButton(
+                    text = "Try Again",
+                    onClick = onRetry,
+                    modifier = Modifier.testTag("pickup-locations-retry"),
+                )
+            }
+            return@Column
+        }
         warehouses.forEach { warehouse ->
             WarehouseRow(
                 warehouse = warehouse,

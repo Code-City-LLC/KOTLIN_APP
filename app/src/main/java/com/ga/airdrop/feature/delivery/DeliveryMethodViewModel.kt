@@ -122,6 +122,7 @@ class DeliveryMethodViewModel(
      */
     fun loadSettings() {
         settingsJob?.cancel()
+        _state.update { it.copy(warehousesLoading = true, warehousesError = null) }
         settingsJob = viewModelScope.launch {
             val result = repo.deliverySettings()
             val warehouses = result.map { it.settings?.warehouses.orEmpty() }.getOrElse { emptyList() }
@@ -129,12 +130,13 @@ class DeliveryMethodViewModel(
                 _state.update {
                     it.copy(
                         warehouses = emptyList(),
-                        warehousesError = "We couldn't load the pickup locations. Please try again.",
+                        warehousesLoading = false,
+                        warehousesError = "We couldn't load the pickup locations.",
                     )
                 }
                 return@launch
             }
-            _state.update { it.copy(warehousesError = null) }
+            _state.update { it.copy(warehousesLoading = false, warehousesError = null) }
             _state.update {
                 it.copy(
                     warehouses = warehouses,
@@ -733,6 +735,8 @@ data class DeliveryUiState(
     val mode: DeliveryMode = DeliveryMode.Pickup,
     val warehouses: List<DeliveryWarehouse> = emptyList(),
     val selectedWarehouseId: Int? = null,
+    /** True while GET /delivery/settings is in flight. */
+    val warehousesLoading: Boolean = true,
     /** Non-null when the pickup locations could not be loaded. */
     val warehousesError: String? = null,
     val pickupLabel: String? = null,
