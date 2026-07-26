@@ -70,7 +70,7 @@ object AuthTokenStore {
      * would not open. Diagnostic only — no caller may branch behaviour on it.
      */
     @Volatile
-    var usedEncryptedStore: Boolean = true
+    internal var usedEncryptedStore: Boolean = true
         private set
 
     fun init(context: Context) {
@@ -99,6 +99,17 @@ object AuthTokenStore {
                     // is indistinguishable, from the outside, from "the session
                     // did not survive". Recorded so a diagnostic can tell those
                     // two apart instead of guessing. Not a behaviour change.
+                    //
+                    // ⚠️⚠️ SECURITY, TRACKED SEPARATELY — DO NOT "FIX" IT HERE.
+                    // `prefs` stays bound to this UNENCRYPTED instance for the
+                    // process lifetime, so a later save() writes the bearer to
+                    // plaintext prefs. The comment above says the token is
+                    // "re-issued at next login anyway", which addresses losing
+                    // it and NOT the fact that the next one is stored in the
+                    // clear. Raised by BrightHarbor (#80504); it needs its own
+                    // decision — fail closed, re-attempt the keystore, or hold
+                    // the token in memory only — and that decision does not
+                    // belong in a Firebase-guard PR.
                     usedEncryptedStore = false
                     context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 }
