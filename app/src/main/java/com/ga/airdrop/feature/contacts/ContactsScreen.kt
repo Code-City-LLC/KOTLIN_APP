@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -58,17 +59,16 @@ import kotlinx.coroutines.delay
  * FigmaContactsViewController + RN ContactsView.
  *
  * Swift is the implementation-precedence guide where it conflicts with Figma:
- * the Figma node still includes a Live Chat row, groups Contact/WhatsApp/Email
- * in one card, and shows a Business Hours copy affordance. The Swift app ships
- * separate section cards, 20pt card gaps and 15pt card padding, and no
- * Business Hours copy button, so Android follows Swift for those conflicts.
+ * Live Chat is the first Help card and routes to the native Nirvana destination.
+ * Contact/WhatsApp/Email remain separate section cards with 20pt gaps and 15pt
+ * padding, and Business Hours has no copy affordance.
  *
- * ⚠️ CORRECTION: this comment used to also claim Swift ships "no Live Chat
- * row", and Android dropped the row on that basis. The premise was FALSE —
- * FigmaContactsViewController.swift:130 calls makeLiveChatCard() and
- * :367 tags it "figma.contacts.liveChat". Figma has it too. Android was the
- * only platform without it, which left LiveAgentChatScreen reachable from a
- * single unrelated entry point. The row is restored.
+ * ⚠️ Do not remove the Live Chat row again. It was once dropped on the claim
+ * that "Swift ships no Live Chat row" — the premise was FALSE.
+ * FigmaContactsViewController.swift:130 calls makeLiveChatCard() and :367 tags
+ * it "figma.contacts.liveChat", and Figma has it too. Android was the only
+ * platform without it, which left LiveAgentChatScreen reachable from a single
+ * unrelated entry point.
  */
 @Composable
 fun ContactsScreen(
@@ -115,22 +115,7 @@ fun ContactsScreen(
                 // Swift contentStack.spacing = 20.
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                // Live Chat first, as Swift orders it (contentStack:130).
-                SectionCard(
-                    modifier = Modifier
-                        .testTag("contacts-card-live-chat")
-                        .clickable { onNavigate(Routes.LIVE_CHAT) },
-                    iconRes = R.drawable.ic_contacts_chat_light,
-                    darkIconRes = R.drawable.ic_contacts_chat_dark,
-                    title = "Live Chat",
-                ) {
-                    ValueRow(
-                        "Chat with a live agent",
-                        onOpen = { onNavigate(Routes.LIVE_CHAT) },
-                        onCopy = {},
-                        showCopy = false,
-                    )
-                }
+                LiveChatCard(onOpen = { onNavigate(Routes.LIVE_CHAT) })
 
                 SectionCard(
                     modifier = Modifier.testTag("contacts-card-contact-number"),
@@ -293,6 +278,47 @@ private data class SocialEntry(
     val handle: String,
     val url: String,
 )
+
+/** Swift makeLiveChatCard — first 59pt Help card, backed by native Nirvana chat. */
+@Composable
+private fun LiveChatCard(onOpen: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(59.dp)
+            .clip(RoundedCornerShape(Spacing.sm1))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Spacing.sm1))
+            .clickable(onClick = onOpen)
+            .padding(horizontal = Spacing.sm1)
+            .testTag("contacts-card-live-chat"),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            painter = painterResource(
+                if (colors.isDark) R.drawable.ic_contacts_chat_dark else R.drawable.ic_contacts_chat_light,
+            ),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+        )
+        Text(
+            text = "Live Chat",
+            style = AirdropType.subtitle1,
+            color = colors.textDarkTitle,
+            modifier = Modifier.weight(1f),
+        )
+        Image(
+            painter = painterResource(R.drawable.ic_chevron),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier
+                .size(24.dp)
+                .rotate(-90f),
+        )
+    }
+}
 
 private fun openPhone(phone: String, open: (String) -> Boolean) {
     val digits = phone

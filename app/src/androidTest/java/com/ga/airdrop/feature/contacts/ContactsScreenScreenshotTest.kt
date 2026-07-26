@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.navigation.Routes
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -58,7 +59,7 @@ class ContactsScreenScreenshotTest {
      * only platform without it.
      */
     @Test
-    fun helpUsesSwiftSeparateCardsAndKeepsLiveChat() {
+    fun helpUsesSwiftSeparateCardsWithLiveChatFirst() {
         setHelpContent(ThemeController.Mode.LIGHT)
 
         compose.onNodeWithTag("contacts-card-live-chat").assertIsDisplayed()
@@ -77,13 +78,31 @@ class ContactsScreenScreenshotTest {
                 .size,
         )
 
+        val liveChat = compose.onNodeWithTag("contacts-card-live-chat").getUnclippedBoundsInRoot()
         val contact = compose.onNodeWithTag("contacts-card-contact-number").getUnclippedBoundsInRoot()
         val whatsapp = compose.onNodeWithTag("contacts-card-whatsapp").getUnclippedBoundsInRoot()
         val email = compose.onNodeWithTag("contacts-card-email").getUnclippedBoundsInRoot()
+        assertClose(59f, boundsHeight(liveChat), "Swift Live Chat card height")
+        assertClose(20f, boundsTop(contact) - boundsBottom(liveChat), "Swift card gap Live Chat/contact")
         assertClose(20f, boundsTop(whatsapp) - boundsBottom(contact), "Swift card gap contact/whatsapp")
         assertClose(20f, boundsTop(email) - boundsBottom(whatsapp), "Swift card gap whatsapp/email")
         assertTrue(boundsWidth(contact) > 300f)
         assertClose(boundsWidth(contact), boundsWidth(whatsapp), "Swift card widths match")
+    }
+
+    @Test
+    fun liveChatCardNavigatesToNativeDestination() {
+        val routes = mutableListOf<String>()
+        setHelpContent(
+            mode = ThemeController.Mode.LIGHT,
+            onNavigate = { routes += it },
+        )
+
+        compose.onNodeWithTag("contacts-card-live-chat").performClick()
+
+        compose.runOnIdle {
+            assertEquals(listOf(Routes.LIVE_CHAT), routes)
+        }
     }
 
     @Test
@@ -226,6 +245,8 @@ class ContactsScreenScreenshotTest {
     private fun boundsBottom(rect: DpRect): Float = rect.bottom.value
 
     private fun boundsWidth(rect: DpRect): Float = (rect.right - rect.left).value
+
+    private fun boundsHeight(rect: DpRect): Float = (rect.bottom - rect.top).value
 
     private fun assertClose(expected: Float, actual: Float, label: String) {
         assertEquals(label, expected, actual, 0.75f)

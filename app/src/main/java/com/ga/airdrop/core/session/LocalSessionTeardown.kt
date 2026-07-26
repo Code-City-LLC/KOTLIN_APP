@@ -18,6 +18,30 @@ import com.ga.airdrop.feature.shipments.clearShipmentsSessionCaches
 import com.ga.airdrop.feature.shop.ShopRecentSearches
 import com.ga.airdrop.feature.shop.clearShopSessionCaches
 
+/** Account-scoped disclosure acceptance; it must never survive a user boundary. */
+internal object LiveAgentChatConsentStore {
+    private const val PREFS = "airdrop_live_chat"
+    private const val AI_CONSENT_KEY = "AirdropAutoPilotAIConsent.v1"
+
+    fun isAccepted(context: Context): Boolean =
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(AI_CONSENT_KEY, false)
+
+    fun accept(context: Context) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(AI_CONSENT_KEY, true)
+            .apply()
+    }
+
+    fun clear(context: Context) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(AI_CONSENT_KEY)
+            .apply()
+    }
+}
+
 /** Canonical local end-of-session sweep shared by every auth boundary. */
 fun clearLocalUserSession(context: Context) {
     val appContext = context.applicationContext
@@ -43,6 +67,7 @@ fun clearLocalUserSession(context: Context) {
     DropAlertPreset.clear()
     ShopRecentSearches.clear()
     clearLegacySessionCachePrefs(appContext)
+    LiveAgentChatConsentStore.clear(appContext)
 
     PushRegistrar.onLogout()
 }

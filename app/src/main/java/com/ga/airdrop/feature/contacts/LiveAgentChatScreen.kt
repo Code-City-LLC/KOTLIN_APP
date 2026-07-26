@@ -1,6 +1,5 @@
 package com.ga.airdrop.feature.contacts
 
-import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,9 +60,7 @@ import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
-
-private const val AI_CONSENT_KEY = "AirdropAutoPilotAIConsent.v1"
-private const val AI_CONSENT_PREFS = "airdrop_live_chat"
+import com.ga.airdrop.core.session.LiveAgentChatConsentStore
 
 @Composable
 fun LiveAgentChatScreen(onBack: () -> Unit) {
@@ -77,11 +74,8 @@ internal fun LiveAgentChatRoute(
     viewModel: LiveAgentChatViewModel,
 ) {
     val context = LocalContext.current
-    val prefs = remember {
-        context.getSharedPreferences(AI_CONSENT_PREFS, Context.MODE_PRIVATE)
-    }
     var consentAccepted by remember {
-        mutableStateOf(prefs.getBoolean(AI_CONSENT_KEY, false))
+        mutableStateOf(LiveAgentChatConsentStore.isAccepted(context))
     }
     val state by viewModel.state.collectAsState()
 
@@ -113,7 +107,7 @@ internal fun LiveAgentChatRoute(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        prefs.edit().putBoolean(AI_CONSENT_KEY, true).apply()
+                        LiveAgentChatConsentStore.accept(context)
                         consentAccepted = true
                     },
                 ) {
@@ -190,6 +184,7 @@ internal fun LiveAgentChatContent(
             loading = state.loading,
             sending = state.sending,
             error = state.error,
+            status = state.status,
             onInputChange = onInputChange,
             onSend = onSend,
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -386,6 +381,7 @@ private fun LiveChatInputBar(
     loading: Boolean,
     sending: Boolean,
     error: String?,
+    status: String?,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
@@ -477,13 +473,16 @@ private fun LiveChatInputBar(
                     )
                 }
             }
-            if (error != null) {
+            val statusText = error ?: status
+            if (statusText != null) {
                 Text(
-                    error,
+                    statusText,
                     style = AirdropType.body3,
                     color = colors.textDescription,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("live-chat-status"),
                 )
             }
         }
