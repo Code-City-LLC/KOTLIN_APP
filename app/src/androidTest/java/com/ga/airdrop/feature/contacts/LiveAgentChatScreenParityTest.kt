@@ -65,6 +65,22 @@ class LiveAgentChatScreenParityTest {
         compose.onNodeWithText("How can I help you Ahmed?").assertIsDisplayed()
     }
 
+    @Test
+    fun delayedReplyStatusIsVisibleWithoutReplacingTheComposer() {
+        setContent(
+            mode = ThemeController.Mode.LIGHT,
+            state = LiveAgentChatUiState(
+                input = "I can keep typing",
+                status = LIVE_CHAT_STILL_WAITING_STATUS,
+            ),
+        )
+
+        compose.onNodeWithTag("live-chat-status").assertIsDisplayed()
+        compose.onNodeWithText(LIVE_CHAT_STILL_WAITING_STATUS).assertIsDisplayed()
+        compose.onNodeWithText("I can keep typing").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Send message").assertIsDisplayed()
+    }
+
     private fun setContent(
         mode: ThemeController.Mode,
         state: LiveAgentChatUiState,

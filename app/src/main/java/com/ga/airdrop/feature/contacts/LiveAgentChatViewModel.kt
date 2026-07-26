@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.data.model.AirdropUser
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,14 +32,25 @@ internal data class LiveAgentChatUiState(
     val loading: Boolean = false,
     val sending: Boolean = false,
     val error: String? = null,
+    val status: String? = null,
     val conversationId: String? = null,
     val agentDisplayName: String = "Nirvana",
     val customerDisplayName: String = "You",
     val historyCount: Int = 0,
 )
 
+internal const val LIVE_CHAT_WAITING_STATUS = "Waiting for Nirvana…"
+internal const val LIVE_CHAT_STILL_WAITING_STATUS = "Still waiting for Nirvana…"
+internal const val LIVE_CHAT_RECONNECTING_STATUS = "Reconnecting to Nirvana…"
+internal const val LIVE_CHAT_DELAYED_STATUS = "Message sent — reply delayed"
+internal val LIVE_CHAT_POLL_SCHEDULE_MILLIS =
+    List(10) { 3_000L } + List(9) { 10_000L }
+private const val LIVE_CHAT_INITIAL_POLL_ATTEMPTS = 10
+
 internal class LiveAgentChatViewModel(
-    private val repository: LiveAgentChatRepository = LiveAgentChatRepository(),
+    private val repository: LiveAgentChatDataSource = LiveAgentChatRepository(),
+    private val pollDelay: suspend (Long) -> Unit = { delay(it) },
+    private val pollScheduleMillis: List<Long> = LIVE_CHAT_POLL_SCHEDULE_MILLIS,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LiveAgentChatUiState())
@@ -45,8 +58,8 @@ internal class LiveAgentChatViewModel(
 
     private var currentUser: AirdropUser? = null
     private val displayedRemoteMessageIds = linkedSetOf<String>()
-    private val pendingAssistantFingerprints = linkedSetOf<String>()
     private var sessionStarting = false
+    private var pollJob: Job? = null
 
     fun start() {
         val snapshot = _state.value
@@ -54,7 +67,7 @@ internal class LiveAgentChatViewModel(
         viewModelScope.launch {
             runCatching {
                 sessionStarting = true
-                _state.update { it.copy(loading = true, error = null) }
+                _state.update { it.copy(loading = true, error = null, status = null) }
                 val user = resolveCurrentUser()
                 val session = repository.startSession(user)
                 applySession(user, session)
@@ -63,6 +76,7 @@ internal class LiveAgentChatViewModel(
                     it.copy(
                         loading = false,
                         error = LiveAgentChatRepository.userFacingStatus(err),
+                        status = null,
                     )
                 }
             }
@@ -100,9 +114,13 @@ internal class LiveAgentChatViewModel(
 
     private fun deliver(turn: LiveAgentChatTurn) {
         val body = turn.body
-        _state.update { it.copy(sending = true, error = null) }
+        pollJob?.cancel()
+        pollJob = null
+        _state.update { it.copy(sending = true, error = null, status = null) }
         viewModelScope.launch {
-            runCatching {
+            var inlineAssistantMessageId: String? = null
+            var inlineAssistantFingerprint: String? = null
+            val canonicalConversationId = try {
                 val user = resolveCurrentUser()
                 val conversationId = ensureConversation(user)
                 val result = repository.sendMessage(
@@ -110,28 +128,54 @@ internal class LiveAgentChatViewModel(
                     body = body,
                     user = user,
                 )
+                // A brand-new session may expose the customer's external id.
+                // The send response is authoritative and returns the canonical
+                // conversation UUID required by polling and human handoff.
+                val canonicalConversationId = result.conversationId
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: conversationId
+                _state.update { it.copy(conversationId = canonicalConversationId) }
                 val returned = result.message
                 when {
                     returned != null && !returned.isCustomerAuthored && returned.body.isNotBlank() -> {
+                        inlineAssistantMessageId = returned.id
+                        // The inline response may carry a synthetic
+                        // "<inbound-id>:reply" id while polling returns the
+                        // canonical persisted outbound id. Track both forms.
+                        inlineAssistantFingerprint = fingerprint(returned.body)
                         markDisplayed(returned)
                         appendAssistant(returned.body, returned.senderName, returned.id)
                     }
                     !result.reply.isNullOrBlank() -> {
-                        pendingAssistantFingerprints += fingerprint(result.reply)
+                        inlineAssistantFingerprint = fingerprint(result.reply)
                         appendAssistant(result.reply, _state.value.agentDisplayName)
                     }
                 }
-                pollForReply(conversationId)
-            }.onFailure { err ->
+                canonicalConversationId
+            } catch (err: CancellationException) {
+                _state.update { it.copy(sending = false) }
+                throw err
+            } catch (err: Throwable) {
                 // Mark this specific turn failed so it can be resent, and surface the banner.
                 _state.update {
                     it.copy(
+                        sending = false,
                         error = LiveAgentChatRepository.userFacingStatus(err),
+                        status = null,
                         messages = it.messages.map { m -> if (m.id == turn.id) m.copy(failed = true) else m },
                     )
                 }
+                return@launch
             }
+            // Poll in a separate lifecycle-owned job so the composer remains
+            // usable throughout the bounded 30s initial + 90s extended window.
             _state.update { it.copy(sending = false) }
+            startPolling(
+                conversationId = canonicalConversationId,
+                inlineAssistantMessageId = inlineAssistantMessageId,
+                inlineAssistantFingerprint = inlineAssistantFingerprint,
+            )
         }
     }
 
@@ -162,6 +206,7 @@ internal class LiveAgentChatViewModel(
             it.copy(
                 loading = false,
                 error = null,
+                status = null,
                 conversationId = session.conversationId,
                 agentDisplayName = agent,
                 customerDisplayName = displayName(user),
@@ -171,43 +216,110 @@ internal class LiveAgentChatViewModel(
         }
     }
 
-    private suspend fun pollForReply(conversationId: String) {
-        var failures = 0
-        repeat(6) {
-            delay(1_500)
-            runCatching {
-                repository.messages(conversationId)
-            }.onSuccess { messages ->
-                failures = 0
-                val appended = appendRemoteAssistantMessages(messages)
-                if (appended) return
-            }.onFailure {
-                failures += 1
-                if (failures >= 2) return
+    private fun startPolling(
+        conversationId: String,
+        inlineAssistantMessageId: String?,
+        inlineAssistantFingerprint: String?,
+    ) {
+        pollJob?.cancel()
+        val awaitingReply =
+            inlineAssistantMessageId == null && inlineAssistantFingerprint == null
+        if (awaitingReply) {
+            _state.update { it.copy(status = LIVE_CHAT_WAITING_STATUS) }
+        }
+        pollJob = viewModelScope.launch {
+            val received = pollForReply(
+                conversationId = conversationId,
+                inlineAssistantMessageId = inlineAssistantMessageId,
+                inlineAssistantFingerprint = inlineAssistantFingerprint,
+                surfaceWaitingStatus = awaitingReply,
+            )
+            _state.update {
+                it.copy(
+                    status = when {
+                        received -> null
+                        awaitingReply -> LIVE_CHAT_DELAYED_STATUS
+                        else -> it.status
+                    },
+                )
             }
         }
     }
 
-    private fun appendRemoteAssistantMessages(messages: List<AutoPilotAppChatMessage>): Boolean {
+    private suspend fun pollForReply(
+        conversationId: String,
+        inlineAssistantMessageId: String?,
+        inlineAssistantFingerprint: String?,
+        surfaceWaitingStatus: Boolean,
+    ): Boolean {
+        pollScheduleMillis.forEachIndexed { index, intervalMillis ->
+            if (surfaceWaitingStatus) {
+                _state.update {
+                    it.copy(
+                        status = if (index < LIVE_CHAT_INITIAL_POLL_ATTEMPTS) {
+                            LIVE_CHAT_WAITING_STATUS
+                        } else {
+                            LIVE_CHAT_STILL_WAITING_STATUS
+                        },
+                    )
+                }
+            }
+            pollDelay(intervalMillis)
+            val messages = try {
+                repository.messages(conversationId)
+            } catch (err: CancellationException) {
+                throw err
+            } catch (_: Throwable) {
+                if (surfaceWaitingStatus) {
+                    _state.update { it.copy(status = LIVE_CHAT_RECONNECTING_STATUS) }
+                }
+                return@forEachIndexed
+            }
+            if (
+                appendRemoteAssistantMessages(
+                    messages = messages,
+                    inlineAssistantMessageId = inlineAssistantMessageId,
+                    inlineAssistantFingerprint = inlineAssistantFingerprint,
+                )
+            ) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun appendRemoteAssistantMessages(
+        messages: List<AutoPilotAppChatMessage>,
+        inlineAssistantMessageId: String?,
+        inlineAssistantFingerprint: String?,
+    ): Boolean {
         val agent = _state.value.agentDisplayName
+        var inlineReplyConfirmed = false
         val newTurns = messages
             .filter { !it.isCustomerAuthored && it.body.isNotBlank() }
-            .filterNot { displayedRemoteMessageIds.contains(it.id) }
             .mapNotNull { message ->
-                markDisplayed(message)
-                val fp = fingerprint(message.body)
-                if (pendingAssistantFingerprints.remove(fp)) {
-                    null
-                } else {
-                    message.toTurn(agent)
+                val fingerprint = fingerprint(message.body)
+                val confirmsInlineReply =
+                    message.id == inlineAssistantMessageId ||
+                        fingerprint == inlineAssistantFingerprint
+                if (confirmsInlineReply) {
+                    inlineReplyConfirmed = true
+                    markDisplayed(message)
+                    return@mapNotNull null
                 }
+                if (displayedRemoteMessageIds.contains(message.id)) {
+                    return@mapNotNull null
+                }
+                markDisplayed(message)
+                message.toTurn(agent)
             }
         _state.update {
             it.copy(historyCount = messages.count { msg -> msg.body.isNotBlank() })
         }
-        if (newTurns.isEmpty()) return false
-        _state.update { it.copy(messages = it.messages + newTurns) }
-        return true
+        if (newTurns.isNotEmpty()) {
+            _state.update { it.copy(messages = it.messages + newTurns) }
+        }
+        return inlineReplyConfirmed || newTurns.isNotEmpty()
     }
 
     private fun appendAssistant(body: String, senderName: String?, id: String = UUID.randomUUID().toString()) {
