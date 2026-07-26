@@ -62,14 +62,30 @@ internal object TrackJourney {
         }
 
     /**
-     * The server's glyph key → a drawable.
+     * The server's glyph key → a drawable. Keys are `App\Support\StatusIcons`
+     * (`KEYS` + `DELIVERY_ICONS`), published by BronzeMountain in #80240 and
+     * read back out of the deployed source before this mapping was written.
      *
-     * ⚠️ The vocabulary is still moving: within minutes on 2026-07-26 the same
-     * "Out for Delivery" row came back as `in_transit` on one package and
-     * `out_for_delivery` on another. Both are mapped. An unrecognised key falls
-     * back to the status catalogue when there is a status id, and to a neutral
-     * package glyph otherwise — it never guesses at a shape. Asked BrightHarbor
-     * to publish the closed set (#79945).
+     * ⚠️ I HAD `in_transit` AND `out_for_delivery` COLLAPSED ONTO ONE ICON.
+     * That was wrong, and it was my assumption rather than a server
+     * inconsistency. I saw both keys arrive for rows I read as the same event
+     * and concluded the vocabulary was still settling. They are two different
+     * events and a single package can have both:
+     *
+     *   in_transit       package status 12, In-Transit to counter — a warehouse
+     *                    movement, no driver involved. Truck + clock.
+     *   out_for_delivery a DELIVERY LEG from package_deliveries.out_for_delivery_at
+     *                    — a driver physically has the package.
+     *
+     * Collapsing them showed the driver glyph for a warehouse movement and lost
+     * information the customer needs. They stay visually distinct.
+     *
+     * The set is CLOSED. A key outside it means the server added one without
+     * telling us: fall back to the status catalogue when there is a status id,
+     * a neutral package glyph otherwise, and raise it — never quietly invent a
+     * mapping. (This is also why `counter`/`in_transit_counter` are gone: I made
+     * those two keys up, and a branch for a key the server cannot send reads
+     * like a contract that exists.)
      */
     fun iconRes(iconKey: String?, statusId: Int?, dark: Boolean): Int = when (iconKey) {
         "drop_alerted" ->
@@ -82,7 +98,7 @@ internal object TrackJourney {
             if (dark) R.drawable.ic_shipments_status_arrived_port_jam_dark else R.drawable.ic_shipments_status_arrived_port_jam
         "customs_processing" ->
             if (dark) R.drawable.ic_shipments_status_processing_customs_dark else R.drawable.ic_shipments_status_processing_customs
-        "customs_detained" ->
+        "detained" ->
             if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
         "customs_released" ->
             if (dark) R.drawable.ic_shipments_status_released_customs_dark else R.drawable.ic_shipments_status_released_customs
@@ -94,16 +110,18 @@ internal object TrackJourney {
             if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup
         "uncollected" ->
             if (dark) R.drawable.ic_shipments_status_uncollected_dark else R.drawable.ic_shipments_status_uncollected
-        "dangerous_goods" ->
+        "dangerous" ->
             if (dark) R.drawable.ic_shipments_status_dangerous_goods_dark else R.drawable.ic_shipments_status_dangerous_goods
-        "returned_merchant" ->
+        "returned" ->
             if (dark) R.drawable.ic_shipments_status_returned_merchant_dark else R.drawable.ic_shipments_status_returned_merchant
-        "counter", "in_transit_counter" ->
+        "auction" ->
+            if (dark) R.drawable.ic_shipments_status_auction_dark else R.drawable.ic_shipments_status_auction
+        // Status 12 — a warehouse movement to the counter, NOT a driver leg.
+        "in_transit" ->
             if (dark) R.drawable.ic_shipments_status_in_transit_counter_dark else R.drawable.ic_shipments_status_in_transit_counter
-        // Last-mile legs.
+        // Last-mile legs (StatusIcons::DELIVERY_ICONS). These carry no status id.
         "dispatch" -> R.drawable.ic_shipments_status_dispatch
-        // Both spellings have been observed for the same row; see the note above.
-        "out_for_delivery", "in_transit" ->
+        "out_for_delivery" ->
             if (dark) R.drawable.ic_shipments_status_out_for_delivery_dark else R.drawable.ic_shipments_status_out_for_delivery
         "delivered" ->
             if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered

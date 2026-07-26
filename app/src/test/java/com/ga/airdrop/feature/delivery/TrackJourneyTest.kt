@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.delivery
 import com.ga.airdrop.data.model.PackageTimelineEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -149,16 +150,61 @@ class TrackJourneyTest {
     }
 
     /**
-     * The icon vocabulary is still moving — within minutes on 2026-07-26 the
-     * same "Out for Delivery" row came back as `in_transit` on one package and
-     * `out_for_delivery` on another.
+     * ⚠️ THIS TEST ASSERTED MY OWN WRONG ASSUMPTION. It was
+     * `both observed spellings of the out-for-delivery glyph resolve alike`,
+     * and it pinned `in_transit` and `out_for_delivery` to ONE icon.
+     *
+     * They are two different events (BronzeMountain #80240, confirmed against
+     * `App\Support\StatusIcons` in deployed source): `in_transit` is package
+     * status 12, a warehouse movement to the counter with no driver;
+     * `out_for_delivery` is a delivery leg where a driver has the package. Both
+     * can appear on one package. Showing the driver glyph for a warehouse
+     * movement lost real information.
      */
     @Test
-    fun `both observed spellings of the out-for-delivery glyph resolve alike`() {
+    fun `in_transit and out_for_delivery are different events with different glyphs`() {
+        val warehouseMovement = TrackJourney.iconRes("in_transit", null, dark = false)
+        val driverLeg = TrackJourney.iconRes("out_for_delivery", null, dark = false)
+        assertNotEquals("status 12 is not a driver leg", warehouseMovement, driverLeg)
         assertEquals(
-            TrackJourney.iconRes("out_for_delivery", null, dark = false),
-            TrackJourney.iconRes("in_transit", null, dark = false),
+            com.ga.airdrop.R.drawable.ic_shipments_status_in_transit_counter,
+            warehouseMovement,
         )
+        assertEquals(
+            com.ga.airdrop.R.drawable.ic_shipments_status_out_for_delivery,
+            driverLeg,
+        )
+    }
+
+    /**
+     * The vocabulary is CLOSED — `StatusIcons::KEYS` plus the delivery legs.
+     * Every one must resolve without falling through to the status-id
+     * fallback, because a delivery leg has no status id to fall back to.
+     *
+     * Four of these were wrong until 2026-07-26: I had spelled them
+     * `customs_detained`, `dangerous_goods` and `returned_merchant`, and had no
+     * `auction` branch at all. The status-id fallback was quietly covering for
+     * three of them, which is exactly how a mismatch survives review.
+     */
+    @Test
+    fun `every published icon key resolves without the status fallback`() {
+        val published = listOf(
+            "auction", "customs_processing", "customs_released", "dangerous",
+            "delivered", "detained", "dispatch", "drop_alerted", "in_transit",
+            "out_for_delivery", "paid_ready_pickup", "port_arrived",
+            "port_departure", "ready_pickup", "returned", "shipment_received",
+            "uncollected", "warehouse",
+        )
+        listOf(false, true).forEach { dark ->
+            published.forEach { key ->
+                assertNotEquals(
+                    "$key (dark=$dark) fell through to the neutral fallback",
+                    com.ga.airdrop.R.drawable.ic_packages,
+                    TrackJourney.iconRes(key, statusId = null, dark = dark),
+                )
+            }
+        }
+        assertEquals("the published set is 18 keys", 18, published.size)
     }
 
     /** An unknown key falls back to the status catalogue, never to a guess. */
