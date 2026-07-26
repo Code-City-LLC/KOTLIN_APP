@@ -183,6 +183,11 @@ class JustPaidJourneyParityTest {
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithTag("just-paid-status-101").fetchSemanticsNodes().isNotEmpty()
         }
+        // Scroll it into view BEFORE the capture below, or the screenshot is
+        // evidence of a row nobody can see. A semantics assertion passes on an
+        // offscreen node; an image of an offscreen node proves nothing.
+        // BrightHarbor #179 viewport fix.
+        compose.onNodeWithTag("just-paid-status-101").performScrollTo().assertIsDisplayed()
         assertTrue(
             compose.onAllNodesWithText("Status unavailable").fetchSemanticsNodes().isNotEmpty(),
         )

@@ -261,7 +261,35 @@ preserve_flavor() {
   mkdir -p "$destination"
   cp -R "$results_root" "$destination/results"
   cp -R "$reports_root" "$destination/reports"
+  collect_device_screenshots "$destination"
   assert_results "$flavor" "$destination/results"
+}
+
+# Screenshot artifacts live in the app's EXTERNAL FILES DIR, which the workflow
+# never sees and which `connectedAndroidTest` deletes on uninstall. Without this
+# the images exist only for the lifetime of the run, so "physical proof" is
+# unverifiable from CI. Pull them into the proof tree the workflow uploads, and
+# print host paths so they are findable from the log. BrightHarbor #179.
+collect_device_screenshots() {
+  local destination="$1"
+  local shots="$destination/screenshots"
+  local pulled=0
+  mkdir -p "$shots"
+  for package in com.ga.airdrop.app com.ga.airdrop.app.staging; do
+    local remote="/sdcard/Android/data/$package/files/screenshots"
+    if adb shell "test -d $remote" >/dev/null 2>&1; then
+      adb pull "$remote" "$shots" >/dev/null 2>&1 && pulled=1
+    fi
+  done
+  if [ "$pulled" -eq 1 ]; then
+    find "$shots" -name '*.png' -print | while read -r image; do
+      printf 'CONNECTED_SESSION_SCREENSHOT %s\n' "$image"
+    done
+  else
+    # Not an error: most classes capture nothing. Say so rather than leaving an
+    # empty directory that reads as "the capture failed".
+    printf 'CONNECTED_SESSION_SCREENSHOT none captured for %s\n' "$destination"
+  fi
 }
 
 write_xml_fixture() {
