@@ -19,6 +19,7 @@ import com.ga.airdrop.feature.shipments.PackagesSortStore
 import com.ga.airdrop.feature.shipments.ShipmentsRepoBinding
 import com.ga.airdrop.feature.shop.ShopRecentSearches
 import com.ga.airdrop.feature.shop.ShopRepoBinding
+import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import okhttp3.OkHttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -37,7 +38,25 @@ class AirdropApp : Application(), ImageLoaderFactory {
         super.onCreate()
         // Report crashes on real builds only; debug crashes stay off the prod
         // Crashlytics dashboard (project airdrop-app-b9423).
-        FirebaseCrashlytics.getInstance().isCrashlyticsCollectionEnabled = !BuildConfig.DEBUG
+        //
+        // ⚠️ GUARDED BECAUSE onCreate RUNS IN EVERY PROCESS, NOT JUST THE MAIN ONE.
+        //
+        // FirebaseCrashlytics.getInstance() throws
+        // "Default FirebaseApp is not initialized in this process" when the
+        // ContentProvider that normally bootstraps Firebase has not run for
+        // that process. `:session_restore_probe` is exactly such a process, and
+        // this line crashed it on startup — taking
+        // PushDeepLinkSessionBindingTest.processRestoreUnderDifferentAccountCannotReplay
+        // down with it. Reproduced on main at e5f4bd3, so it predates the
+        // branches it was blocking. Root cause identified by BrightHarbor.
+        //
+        // Checking for an initialised FirebaseApp rather than comparing process
+        // names: the condition we actually depend on is Firebase being ready,
+        // and a name check would silently rot the moment a process is renamed
+        // or added.
+        if (FirebaseApp.getApps(this).isNotEmpty()) {
+            FirebaseCrashlytics.getInstance().isCrashlyticsCollectionEnabled = !BuildConfig.DEBUG
+        }
         AuthTokenStore.init(this)
         ThemeController.init(this)
         TextSizeController.init(this)
