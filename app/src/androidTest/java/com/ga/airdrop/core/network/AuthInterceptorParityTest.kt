@@ -15,6 +15,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -68,17 +69,29 @@ class AuthInterceptorParityTest {
      * clear meant pinning "log the customer out whenever the refresh call is
      * unlucky", which is exactly the "app logs me out too often" report.
      *
-     * The rule now: the app never logs the customer out (Kemar, 2026-07-26).
-     * Only the customer tapping Log Out, the biometric lock screen, and
-     * post-registration end a session. So the 401 is handed back to the caller
-     * — the screen shows its own error and its own retry — and the session
-     * survives untouched.
+     * ⚠️ THEN IT WAS OVER-CORRECTED, AND THIS TEST CAUGHT IT IN CI.
+     *
+     * The first fix made the app never tear down at all. Kemar reversed that
+     * the same day to SwiftHawk's narrower rule, which both platforms now run:
+     *
+     *     401 on a normal request         -> stay signed in
+     *     refresh throws / 5xx / no token -> stay signed in
+     *     refresh answers 401             -> session cleared
+     *
+     * `RecordingChain(responseCode = 401)` answers 401 to EVERY dispatch,
+     * including the refresh — so this scenario is a refresh-confirmed dead
+     * session and the teardown is correct. I flipped the JVM unit tests when
+     * the rule changed and missed this connected one; the gate caught it.
+     *
+     * The distinction that matters is preserved by the OTHER two tests in this
+     * file: a no-auth 401 and a dropped connection both still keep the session.
+     * Losing signal is not the same as being told the principal is gone.
      *
      * The half of the old test that was always right is kept verbatim: an
      * authenticated request still gets the bearer and the JSON Accept header.
      */
     @Test
-    fun authenticatedRequestAttachesBearerAndKeepsCustomerSignedInOn401() {
+    fun authenticatedRequestAttachesBearerAndClearsSessionWhenRefreshAnswers401() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         AuthTokenStore.init(context)
         AuthTokenStore.save("stale-token")
@@ -103,16 +116,16 @@ class AuthInterceptorParityTest {
             chain.proceededRequests[1].url.encodedPath.endsWith("auth/refresh"),
         )
 
-        // The caller gets the 401 back so the screen can show its own error.
+        // The caller still gets the 401 back so the screen can show its error.
         assertEquals(401, response.code)
-        // INVERTED: the customer stays signed in.
-        assertEquals(
-            "a 401 the refresh could not resolve must not log the customer out",
-            "stale-token",
+        // The refresh itself answered 401 — the server has confirmed the
+        // principal is gone, and that is the one signal that ends a session.
+        assertNull(
+            "a refresh that answers 401 is the confirmed-dead signal",
             AuthTokenStore.token,
         )
-        assertEquals(
-            "the session generation must survive intact, not be torn down and rebuilt",
+        assertNotEquals(
+            "the dead session generation must not survive",
             sessionBefore,
             AuthTokenStore.currentSessionId(),
         )
