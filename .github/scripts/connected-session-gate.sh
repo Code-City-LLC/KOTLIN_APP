@@ -292,10 +292,34 @@ collect_device_screenshots() {
     *) echo "collect_device_screenshots: unknown flavor '$flavor'" >&2; return 1 ;;
   esac
 
+  # When the capturing class is in this run, its images are REQUIRED evidence.
+  # Otherwise "none captured" would let the gate go green having collected
+  # nothing — a proof step that passes by producing no proof, which is the
+  # failure this whole collector exists to prevent. BrightHarbor #179.
+  local expects_images=0
+  local expected_shots=(
+    just_paid_ard_only.png
+    just_paid_blank_status.png
+    just_paid_partial.png
+    just_paid_total_failure.png
+    just_paid_no_ids.png
+  )
+  local requested
+  for requested in "${requested_classes[@]}"; do
+    if [[ "$requested" == *JustPaidJourneyParityTest ]]; then
+      expects_images=1
+      break
+    fi
+  done
+
   local remote="/sdcard/Android/data/$package/files/screenshots"
   if ! adb shell "test -d $remote" >/dev/null 2>&1; then
-    # Not an error: most classes capture nothing.
-    printf 'CONNECTED_SESSION_SCREENSHOT %s: none captured\n' "$flavor"
+    if [ "$expects_images" -eq 1 ]; then
+      echo "$flavor: JustPaidJourneyParityTest ran but $package captured no screenshots at $remote" >&2
+      return 1
+    fi
+    # Only acceptable when nothing in this run captures images.
+    printf 'CONNECTED_SESSION_SCREENSHOT %s: none expected, none captured\n' "$flavor"
     return 0
   fi
 
@@ -306,6 +330,23 @@ collect_device_screenshots() {
   find "$shots" -name '*.png' -print | while read -r image; do
     printf 'CONNECTED_SESSION_SCREENSHOT %s %s\n' "$flavor" "$image"
   done
+
+  if [ "$expects_images" -eq 1 ]; then
+    # Name each file explicitly. A count alone would pass on five copies of the
+    # same state, which is exactly the kind of evidence that looks complete and
+    # proves nothing.
+    local missing=()
+    local expected
+    for expected in "${expected_shots[@]}"; do
+      find "$shots" -name "$expected" | grep -q . || missing+=("$expected")
+    done
+    if [ "${#missing[@]}" -gt 0 ]; then
+      echo "$flavor: missing required screenshots from $package: ${missing[*]}" >&2
+      return 1
+    fi
+    printf 'CONNECTED_SESSION_SCREENSHOT %s: all %s required images present\n' \
+      "$flavor" "${#expected_shots[@]}"
+  fi
 
   # Clear the device copy so the NEXT flavor cannot inherit these files if its
   # own capture fails — the failure would otherwise be invisible.
