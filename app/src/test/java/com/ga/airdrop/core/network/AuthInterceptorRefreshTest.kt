@@ -202,6 +202,38 @@ class AuthInterceptorRefreshTest {
     }
 
     /**
+     * A 200 that PARSES but carries no usable bearer — distinct from the
+     * body-less case below, which never reaches the decoder at all.
+     *
+     * Raised by BrightHarbor (#80238) and it was a real gap: the only 200
+     * rejection pinned here was an empty body. These three shapes all decode
+     * successfully and then yield nothing to retry with, which is a plausible
+     * server answer during a partial outage or behind a proxy that rewrites
+     * bodies. None of them may cost the customer their session — nothing about
+     * them says the principal is gone.
+     */
+    @Test
+    fun `a 200 refresh carrying no usable token keeps the customer signed in`() {
+        listOf(
+            """{"success":true,"message":"ok"}""",  // no token field at all
+            """{"token":null}""",                   // explicit null
+            """{"token":"   "}""",                  // present but blank
+        ).forEach { tokenless ->
+            AuthTokenStore.save("old-token")
+            val chain = ScriptedChain(apiRequest()) { req, _ ->
+                if (isRefresh(req)) response(req, 200, tokenless) else response(req, 401)
+            }
+
+            val result = interceptor.intercept(chain)
+
+            assertEquals(401, result.code)
+            assertEquals("no bearer to retry with is not a dead session: $tokenless", "old-token", AuthTokenStore.token)
+            assertNotNull(AuthTokenStore.snapshot().sessionId)
+            assertEquals("must not retry with nothing", 2, chain.proceeded.size)
+        }
+    }
+
+    /**
      * A 5xx is AirDrop's own outage, never a statement about this customer.
      * Pinned at BrightHarbor's request (#80225): before this, the 5xx case was
      * only ever asserted in a comment, and the whole teardown now turns on
