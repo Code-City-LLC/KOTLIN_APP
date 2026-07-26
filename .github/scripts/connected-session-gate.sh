@@ -340,12 +340,19 @@ run_self_test() (
   fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/connected-session-gate-src.XXXXXX")"
   mkdir -p "$fixture_root/com/ga/airdrop/feature/shipments" \
     "$fixture_root/com/ga/airdrop/core/network"
-  : > "$fixture_root/com/ga/airdrop/feature/shipments/PackageDetailsParityTest.kt"
-  : > "$fixture_root/com/ga/airdrop/feature/shipments/InvoiceViewerParityTest.kt"
+  # Fixtures must contain a real @Test: selection now skips *Test.kt files that
+  # declare none (a placeholder class produces no testcases and would fail the
+  # XML contract). Empty fixtures here would silently test nothing.
+  printf '@Test fun a() {}\n' > "$fixture_root/com/ga/airdrop/feature/shipments/PackageDetailsParityTest.kt"
+  printf '@Test fun a() {}\n' > "$fixture_root/com/ga/airdrop/feature/shipments/InvoiceViewerParityTest.kt"
   # A support file, not a test — must NOT be selected (mirrors the real
   # FakeAuthenticatedSessionBoundary.kt that lives beside the tests).
-  : > "$fixture_root/com/ga/airdrop/feature/shipments/FakeSessionBoundary.kt"
-  : > "$fixture_root/com/ga/airdrop/core/network/AuthInterceptorParityTest.kt"
+  printf 'class FakeSessionBoundary\n' > "$fixture_root/com/ga/airdrop/feature/shipments/FakeSessionBoundary.kt"
+  # A *Test.kt with NO @Test — the NotificationsParityTest shape. Must be
+  # skipped, or every PR touching that package becomes unmergeable.
+  printf '/** placeholder, no tests yet */\nclass PlaceholderParityTest\n' \
+    > "$fixture_root/com/ga/airdrop/feature/shipments/PlaceholderParityTest.kt"
+  printf '@Test fun a() {}\n' > "$fixture_root/com/ga/airdrop/core/network/AuthInterceptorParityTest.kt"
   source_actual="$(printf '%s\n' \
     'app/src/main/java/com/ga/airdrop/feature/shipments/CustomsNotice.kt' \
     'app/src/main/java/com/ga/airdrop/feature/shipments/PackageDetailsScreen.kt' \
