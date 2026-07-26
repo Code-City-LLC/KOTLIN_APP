@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
@@ -227,7 +229,7 @@ private fun DeliveryCenterScaffold(
         )
 
         Column(Modifier.fillMaxSize()) {
-            HomeDetailsHeader(title = "Delivery Center", onBack = onBack)
+            HomeDetailsHeader(title = "Track", onBack = onBack)
             content()
         }
     }
@@ -281,11 +283,11 @@ private fun canonicalJourney(delivery: TrackedDelivery): List<CanonicalStage>? {
     val outForDelivery = byKey["out_for_delivery"]
     val delivered = byKey["delivered"]
     if (assigned == null && outForDelivery == null && delivered == null) return null
-    return listOf(
-        CanonicalStage(
-            "order_confirmed", "Order Confirmed",
-            "Payment received, order booked.", "done", null,
-        ),
+    // Laravel #79690 §4: "Order Confirmed" is REMOVED — it duplicated warehouse
+    // status 20 "Paid and Ready for Delivery", which is the event the customer
+    // actually experiences, and "order" is ambiguous in an app that also has
+    // shop orders. The last-mile rail is three stages, server-authored.
+    val rail = listOf(
         CanonicalStage(
             "preparing_dispatch", "Preparing for Dispatch",
             "Packing your items for the courier.",
@@ -302,7 +304,25 @@ private fun canonicalJourney(delivery: TrackedDelivery): List<CanonicalStage>? {
             delivered?.state ?: "pending", delivered?.at,
         ),
     )
+    return truncateAtFirstUpcoming(rail)
 }
+
+/**
+ * Kemar (timeline rule 3, #79650): *"Don't generate the last delivery. Just say
+ * Out for Delivery. The next one is not gonna come until... we're only gonna
+ * have one blurred out."*
+ *
+ * Everything that has HAPPENED, plus the SINGLE next thing — never a queue of
+ * greyed-out future steps. Applied here, in the one place the rail is
+ * assembled, so it cannot hold for one rail and drift on the other.
+ */
+internal fun <T> truncateAfterFirstPending(rows: List<T>, isPending: (T) -> Boolean): List<T> {
+    val firstPending = rows.indexOfFirst(isPending)
+    return if (firstPending >= 0) rows.take(firstPending + 1) else rows
+}
+
+private fun truncateAtFirstUpcoming(rail: List<CanonicalStage>): List<CanonicalStage> =
+    truncateAfterFirstPending(rail) { it.state == "pending" }
 
 @Composable
 private fun JustPaidJourney(
@@ -382,6 +402,12 @@ private fun CircularDeliveryHero() {
     // Kemar's approved hero: the truck BIG, inside its rounded box — the soft
     // gray well hugging the full-width illustration (nothing cropped).
     val colors = AirdropTheme.colors
+    // Kemar (timeline rule 1, #79650): "It's not supposed to have a shadow.
+    // It's supposed to be in line. The shadow goes on the bottom of the truck."
+    // The PANEL stays flush — no elevation. The only shadow is a GROUND shadow
+    // cast by the truck itself. Drawn as a blurred black silhouette of the same
+    // artwork so it follows the truck's outline rather than a rectangle (Swift
+    // achieves this with shadowPath = nil; alpha 0.30, offset y 10, radius 9).
     Box(
         Modifier
             .fillMaxWidth()
@@ -389,6 +415,18 @@ private fun CircularDeliveryHero() {
             .background(colors.gray150),
         contentAlignment = Alignment.Center,
     ) {
+        Image(
+            painter = painterResource(R.drawable.img_delivery_deliver),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(Color.Black),
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .aspectRatio(1000f / 667f)
+                .offset(y = 10.dp)
+                .blur(9.dp)
+                .alpha(0.30f),
+        )
         Image(
             painter = painterResource(R.drawable.img_delivery_deliver),
             contentDescription = null,
@@ -891,19 +929,26 @@ private fun DeliveryStageConnector(state: String, modifier: Modifier = Modifier)
     Canvas(modifier.width(44.dp)) {
         val centerX = size.width / 2f
         val stroke = 2.dp.toPx()
+        // Kemar (timeline rule 2, #79650): "The lines going from the box to the
+        // next box don't connect to each box... just goes half, and then it
+        // stops." A 13dp inset at BOTH ends leaves clear air, so the segment
+        // floats instead of reading as a tether joining two circles.
+        val inset = 13.dp.toPx()
+        val lineTop = inset
+        val lineBottom = (size.height - inset).coerceAtLeast(inset)
         when (state) {
             "done" -> drawLine(
                 DeliveryStagePalette.Passed,
-                Offset(centerX, 0f),
-                Offset(centerX, size.height),
+                Offset(centerX, lineTop),
+                Offset(centerX, lineBottom),
                 stroke,
                 StrokeCap.Round,
             )
             "current" -> {
                 drawLine(
                     track,
-                    Offset(centerX, 0f),
-                    Offset(centerX, size.height),
+                    Offset(centerX, lineTop),
+                    Offset(centerX, lineBottom),
                     stroke,
                     StrokeCap.Round,
                 )
@@ -914,14 +959,14 @@ private fun DeliveryStageConnector(state: String, modifier: Modifier = Modifier)
                     drawCircle(
                         color = DeliveryStagePalette.Current.copy(alpha = alpha),
                         radius = radius,
-                        center = Offset(centerX, fraction * size.height),
+                        center = Offset(centerX, lineTop + fraction * (lineBottom - lineTop)),
                     )
                 }
             }
             else -> drawLine(
                 track,
-                Offset(centerX, 0f),
-                Offset(centerX, size.height),
+                Offset(centerX, lineTop),
+                Offset(centerX, lineBottom),
                 stroke,
                 StrokeCap.Round,
             )

@@ -778,7 +778,11 @@ private fun ReferAndDeliveryRow(onNavigate: (String) -> Unit) {
             Routes.REFER_A_FRIEND,
         ),
         Activity(
-            "Delivery Center",
+            // Kemar 2026-07-26: "Delivery Center" is now "Track" — it combines
+            // tracking + delivery. USER-VISIBLE STRING ONLY; route keys, test
+            // tags and API paths keep the deliveryCenter name (server/test
+            // contracts). Same rule SwiftHawk applied on iOS (#79612).
+            "Track",
             // Theme-aware duotone (icon_duotone flips light/dark) with the orange
             // accent — one drawable serves both modes.
             R.drawable.ic_shipments_status_delivered,

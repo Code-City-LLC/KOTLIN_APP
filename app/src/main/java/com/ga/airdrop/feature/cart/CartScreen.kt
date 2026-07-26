@@ -196,6 +196,14 @@ fun CartScreen(
                             line = line,
                             onRemove = { viewModel.removeItem(line) },
                             onOpenActions = { actionLine = line },
+                            // Package lines open Package Details; an auction
+                            // line has no package to open, so it stays inert.
+                            onOpenPackage = {
+                                val pkgId = line.packageId ?: line.id
+                                if (!line.isAuction && pkgId > 0) {
+                                    onNavigate(Routes.packageDetails(pkgId.toString()))
+                                }
+                            },
                         )
                     }
                 }
@@ -719,6 +727,7 @@ private fun CartItemCard(
     line: CartStore.CartLine,
     onRemove: () -> Unit,
     onOpenActions: () -> Unit,
+    onOpenPackage: () -> Unit = {},
 ) {
     if (line.resolvedKind == CartStore.CartLineKind.AUCTION) {
         CartSaleItemCard(
@@ -737,7 +746,12 @@ private fun CartItemCard(
         Modifier
             .fillMaxWidth()
             .combinedClickable(
-                onClick = {},
+                // SwiftHawk #79612: the cart row must open Package Details.
+                // The line already carries the real package id; on iOS no tap
+                // handler had EVER been written and ours was an empty lambda.
+                // The trash control below has its own clickable, so deleting
+                // can never double as navigating.
+                onClick = onOpenPackage,
                 onLongClick = onOpenActions,
             )
             .testTag("cart-line-${line.id}")
