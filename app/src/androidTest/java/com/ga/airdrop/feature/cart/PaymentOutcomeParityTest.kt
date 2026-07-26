@@ -26,7 +26,7 @@ class PaymentOutcomeParityTest {
                 PaymentReturnContent(
                     sessionId = "cs_unpaid",
                     verify = { PaymentReturnResult.NotPaid("unpaid", terminal = true) },
-                    onPaid = { _, _ -> error("not paid") },
+                    onPaid = { _, _, _ -> error("not paid") },
                     onNotPaid = { navigated = true },
                     onUnconfirmed = { error("not unconfirmed") },
                 )
@@ -50,7 +50,7 @@ class PaymentOutcomeParityTest {
                 PaymentReturnContent(
                     sessionId = "cs_processing",
                     verify = { PaymentReturnResult.NotPaid("processing", terminal = false) },
-                    onPaid = { _, _ -> error("not paid") },
+                    onPaid = { _, _, _ -> error("not paid") },
                     onNotPaid = { terminalRetry = true },
                     onUnconfirmed = { safeDetail = it },
                 )
@@ -76,7 +76,7 @@ class PaymentOutcomeParityTest {
                 PaymentReturnContent(
                     sessionId = "cs_unknown",
                     verify = { PaymentReturnResult.Unconfirmed("network down") },
-                    onPaid = { _, _ -> error("not paid") },
+                    onPaid = { _, _, _ -> error("not paid") },
                     onNotPaid = { error("not unpaid") },
                     onUnconfirmed = { detail = it },
                 )
@@ -101,7 +101,7 @@ class PaymentOutcomeParityTest {
                 PaymentReturnContent(
                     sessionId = "cs_paid",
                     verify = { PaymentReturnResult.Success("cs_paid", "USD 12.00") },
-                    onPaid = { ref, _ -> paidRef = ref },
+                    onPaid = { ref, _, _ -> paidRef = ref },
                     onNotPaid = { error("not unpaid") },
                     onUnconfirmed = { error("not unconfirmed") },
                 )
@@ -111,6 +111,37 @@ class PaymentOutcomeParityTest {
         compose.waitForIdle()
         compose.runOnIdle { assertEquals("cs_paid", paidRef) }
         compose.onNodeWithTag("payment-outcome-alert").assertDoesNotExist()
+    }
+
+    /**
+     * The package ids from the verify response must survive the handoff to
+     * navigation — they are the only record of which packages this payment
+     * settled, and the checkout store that knew about the session is cleared
+     * the moment it commits. If they are dropped here the post-checkout screen
+     * silently falls back to "nothing to show" and no test upstream would
+     * notice. Flagged as untested by BrightHarbor (#80393 item 4).
+     */
+    @Test
+    fun theVerifiedPackageIdsReachTheNavigationCallback() {
+        var paidIds: List<Int>? = null
+        compose.setContent {
+            AirdropTheme {
+                PaymentReturnContent(
+                    sessionId = "cs_paid",
+                    verify = {
+                        PaymentReturnResult.Success("cs_paid", "USD 12.00", listOf(153901, 153902))
+                    },
+                    onPaid = { _, _, ids -> paidIds = ids },
+                    onNotPaid = { error("not unpaid") },
+                    onUnconfirmed = { error("not unconfirmed") },
+                )
+            }
+        }
+
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(listOf(153901, 153902), paidIds)
+        }
     }
 
     @Test
