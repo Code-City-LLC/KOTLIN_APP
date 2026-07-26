@@ -9,6 +9,8 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 // ── Warehouses (GET /warehouse) ──
 
@@ -22,6 +24,18 @@ data class Warehouse(
     val state: String? = null,
     val zipCode: String? = null,
     val phoneNumber: String? = null,
+    /** e.g. "Unit G36" — the warehouse suite, prefixed onto Address Line 2. */
+    val unit: String? = null,
+    /**
+     * Server-owned shipping-method tokens for Address Line 2, keyed
+     * "standard" / "express" / "seadrop" -> "AIR" / "EXPRESS" / "SEA".
+     * Kemar: the token must reflect the actual method, and SeaDrop shows as
+     * **SEA**, not "SEADROP". Server-driven so Laravel, iOS and Android cannot
+     * drift; the client only falls back if the field is absent.
+     */
+    val addressLine2Tokens: Map<String, String> = emptyMap(),
+    /** Separator between the unit and the token, e.g. " - ". */
+    val addressLine2Separator: String? = null,
 )
 
 object WarehouseSerializer : KSerializer<Warehouse> {
@@ -43,6 +57,14 @@ object WarehouseSerializer : KSerializer<Warehouse> {
             state = obj.flexString("state"),
             zipCode = obj.flexString("zip_code"),
             phoneNumber = obj.flexString("phone_number"),
+            unit = obj.flexString("unit"),
+            addressLine2Tokens = (obj["address_line_2_tokens"] as? JsonObject)
+                ?.mapNotNull { (k, v) ->
+                    (v as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { k to it }
+                }
+                ?.toMap()
+                .orEmpty(),
+            addressLine2Separator = obj.flexString("address_line_2_separator"),
         )
     }
 }

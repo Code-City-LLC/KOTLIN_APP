@@ -217,8 +217,14 @@ interface AirdropApiService {
 
     // ── Warehouses ──
 
+    // Single OBJECT under `data`, not a page. It was typed as
+    // Paginated<Warehouse>, so the list came back empty on a 200 and the
+    // Warehouses screen silently rendered hardcoded FALLBACK_* constants
+    // instead of server data — invisible because those constants happened to
+    // match production. That also dropped `unit` and `address_line_2_tokens`,
+    // which is why Address Line 2 lost its "Unit G36 - " prefix.
     @GET("warehouse")
-    suspend fun warehouses(): Paginated<Warehouse>
+    suspend fun warehouses(): DataEnvelope<Warehouse>
 
     // ── AirCoins ──
 

@@ -48,7 +48,7 @@ class MiscRepository(private val service: AirdropApiService) {
     // ── Warehouses / rates / calculator ──
 
     suspend fun warehouses(): Result<List<Warehouse>> =
-        apiResult { service.warehouses().items }
+        apiResult { listOfNotNull(service.warehouses().data) }
 
     suspend fun exchangeRate(): Result<ExchangeRate> =
         apiResult { service.exchangeRates().data ?: error("Missing exchange rate") }

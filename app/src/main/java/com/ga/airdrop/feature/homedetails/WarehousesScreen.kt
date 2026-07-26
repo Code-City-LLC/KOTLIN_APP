@@ -67,7 +67,6 @@ enum class WarehouseType(
     val prettyName: String,
     val bigTitle: String,
     val subtitle: String,
-    val addressLine2Prefix: String,
     val tint: Color,
     val heroRes: Int,
     val circleIconRes: Int,
@@ -77,7 +76,6 @@ enum class WarehouseType(
         prettyName = "Standard",
         bigTitle = "AirDrop (Air Freight)",
         subtitle = "2 to 3 business days after items are delivered to our warehouse.",
-        addressLine2Prefix = "AIR – ",
         tint = Color(0xFF6C46C5),
         heroRes = R.drawable.img_homedet_hero_standard,
         circleIconRes = R.drawable.ic_standard_shipping,
@@ -87,7 +85,6 @@ enum class WarehouseType(
         prettyName = "SeaDrop",
         bigTitle = "SeaDrop (Sea Freight)",
         subtitle = "2 to 4 weeks after items are delivered to our warehouse.",
-        addressLine2Prefix = "SEADROP – ",
         tint = Color(0xFF0A96D4),
         heroRes = R.drawable.img_homedet_hero_seadrop,
         circleIconRes = R.drawable.ic_sea_drop_shipping,
@@ -97,7 +94,6 @@ enum class WarehouseType(
         prettyName = "Express",
         bigTitle = "Express (Air Express)",
         subtitle = "1 to 2 business days after items are delivered to our warehouse.",
-        addressLine2Prefix = "EXPRESS – ",
         tint = Color(0xFFF15114),
         heroRes = R.drawable.img_homedet_hero_express,
         circleIconRes = R.drawable.ic_express_shipping,
@@ -280,7 +276,10 @@ private fun warehouseFields(
         ),
         WarehouseField(
             "Address Line 2",
-            if (account.isEmpty()) "—" else "${type.addressLine2Prefix}$account",
+            // "Unit G36 - AIR – 14823". The unit prefix was missing entirely
+            // and SeaDrop rendered as "SEADROP"; both fixed, and the method
+            // token now comes from the server so all three platforms match.
+            WarehouseAddressLine2.format(warehouse, type.key, account) ?: "—",
             isAccountLine = true,
         ),
         WarehouseField("City", capitalizeFirst(warehouse?.city ?: FALLBACK_CITY)),

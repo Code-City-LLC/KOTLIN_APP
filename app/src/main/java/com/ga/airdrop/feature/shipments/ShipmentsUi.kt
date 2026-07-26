@@ -55,6 +55,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.SubcomposeAsyncImage
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.AirdropChrome
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
@@ -458,9 +459,10 @@ fun ShipmentsDetailHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            // Swift makeInnerHeader: OPAQUE gray100 surface (never a
-            // translucent wash) + 1pt bottom divider.
-            .background(colors.gray100)
+            // GLASS, per Kemar (2026-07-26) — was an opaque gray100 wash.
+            // Single source of truth in AirdropChrome so the inner headers
+            // cannot drift from the tab chrome.
+            .background(AirdropChrome.detailHeaderBackground(colors.gray100))
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(

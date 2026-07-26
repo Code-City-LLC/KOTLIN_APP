@@ -50,6 +50,20 @@ internal object AirdropChrome {
     fun headerBackground(overImage: Boolean, gray200: Color): Color =
         gray200.copy(alpha = SCRIM_ALPHA)
 
+    /**
+     * Inner detail-screen header (Packages, Package Details, Orders, Payments,
+     * Invoice ...) — translucent, same glass family as the tab chrome.
+     *
+     * ⚠️ Kemar (2026-07-26): "The packages section at the top, it should be
+     * glass. I don't see any form of transparency there." This surface was
+     * hardcoded to an OPAQUE gray100 with a comment citing Swift's
+     * makeInnerHeader. Kemar has overruled Swift on chrome translucency before
+     * (the tab header/footer lock) and has now done so here. Uses gray100 —
+     * the inner headers sit on gray100 pages, not the gray200 tab surface —
+     * at the shared [SCRIM_ALPHA].
+     */
+    fun detailHeaderBackground(gray100: Color): Color = gray100.copy(alpha = SCRIM_ALPHA)
+
     /** Bottom tab bar background — translucent theme surface. */
     fun bottomBarBackground(gray200: Color): Color = gray200.copy(alpha = SCRIM_ALPHA)
 }
