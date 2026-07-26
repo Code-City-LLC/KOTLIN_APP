@@ -17,41 +17,48 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.prefs.NotificationAccountPreferences
 import com.ga.airdrop.core.prefs.NotificationPreferenceMatrix
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * ⚠️ EVERY ASSERTION HERE SCROLLS FIRST, ON PURPOSE.
+ * ⚠️ MY VIEWPORT HYPOTHESIS WAS WRONG. READ THIS BEFORE THEORISING AGAIN.
  *
- * These tests failed intermittently on CI — and only on CI — with
- * `AssertionError: Assert failed: The component is not displayed!`, a
- * DIFFERENT test in this class each run. They pass locally every time,
- * including under the full connected gate (716/716) and at 560dpi, which is
- * why three earlier hypotheses (a session-teardown side effect, viewport
- * geometry, cross-test contamination) were each refuted.
+ * This class fails intermittently on CI and never locally. I believed the
+ * cause was that it was the only parity suite asserting visibility without
+ * `performScrollTo()` (4 bare assertions here, vs 25 and 12 in the sibling
+ * suites), so the result depended on where the fold landed.
  *
- * The measured difference is in the tests, not the product. Across the parity
- * suites:
+ * **That is refuted.** With scrolling added, CI failed again — but with a
+ * different error, and the difference is everything:
  *
- *     NotificationsScreenParityTest   bare assertIsDisplayed 4   performScrollTo 0
- *     PackageDetailsParityTest        bare assertIsDisplayed 5   performScrollTo 25
- *     GoldPriorityParityTest          bare assertIsDisplayed 13  performScrollTo 12
+ *     before:  "The component is not displayed!"
+ *     after:   "could not find ANY node containing 'You’re all set!'"
  *
- * This class was the ONLY one asserting visibility without scrolling first,
- * while its targets sit inside a `verticalScroll`. `assertIsDisplayed()`
- * requires the node to be on screen, so the result depends on where the fold
- * happens to land — hardware-sensitive by construction.
+ * The node does not EXIST. It is not offscreen — the screen rendered the other
+ * copy, "You’re all caught up.", which means `notificationsOn` read FALSE when
+ * the test had just committed `master = true`.
  *
- * Scrolling to the node does not weaken anything: it still asserts the node is
- * DISPLAYED, and still fails if the wrong copy renders. It only removes the
- * dependence on the viewport.
+ * So this is a real state-resolution problem, not a layout one. The scrolling
+ * stays because it turned a misleading error into an honest one, and that is
+ * how the actual cause became visible — but it is NOT the fix.
  *
- * ⚠️ Stated honestly: I could NOT reproduce the CI failure locally. This is a
- * robustness fix on strong circumstantial evidence, not a proven root cause.
- * If it recurs after this, the cause is elsewhere and this comment should be
- * treated as a refuted hypothesis rather than a settled explanation.
+ * WHERE TO LOOK. `NotificationsScreenContent` reads
+ * `NotificationAccountPreferences.currentMasterEnabled()`, which is
+ * `currentMatrix()?.master == true`. `currentMatrix()` resolves the account
+ * from `AuthTokenStore.requestProvenance(...)` and then reads inside
+ * `AuthTokenStore.runWhileCurrentSession(expectedSessionId, expectedAccountId)`.
+ * If that guard does not hold, it returns null — and `?.master == true`
+ * converts null into **false**, which renders as "not enabled" rather than as
+ * "could not read". An unreadable preference is indistinguishable from a
+ * disabled one, which is the same conflation that has been fixed on two other
+ * screens this week.
+ *
+ * The assertions below deliberately pin the PREFERENCE first and the rendered
+ * copy second, so the next CI failure says which link broke instead of only
+ * that the screen looked wrong.
  */
 @RunWith(AndroidJUnit4::class)
 class NotificationsScreenParityTest {
@@ -75,6 +82,15 @@ class NotificationsScreenParityTest {
         NotificationAccountPreferences.init(context)
         NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = true))
 
+        // Pin the PREFERENCE before the render. If this fails, the fault is in
+        // account/session resolution, not in the composable — and CI will say
+        // so instead of only reporting that the wrong copy appeared.
+        assertTrue(
+            "the committed master preference must be readable for the current account " +
+                "before the screen is composed — if THIS fails the fault is in account/session " +
+                "resolution, not in the composable",
+            NotificationAccountPreferences.currentMasterEnabled(),
+        )
         compose.setContent {
             AirdropTheme {
                 NotificationsScreenContent(
@@ -104,6 +120,15 @@ class NotificationsScreenParityTest {
         NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = false))
         AuthTokenStore.save("account-b-token", authenticatedAccountId = 202)
 
+        // Pin the PREFERENCE before the render. If this fails, the fault is in
+        // account/session resolution, not in the composable — and CI will say
+        // so instead of only reporting that the wrong copy appeared.
+        assertTrue(
+            "the committed master preference must be readable for the current account " +
+                "before the screen is composed — if THIS fails the fault is in account/session " +
+                "resolution, not in the composable",
+            NotificationAccountPreferences.currentMasterEnabled(),
+        )
         compose.setContent {
             AirdropTheme {
                 NotificationsScreenContent(
@@ -139,6 +164,15 @@ class NotificationsScreenParityTest {
             lifecycleOwner.handle(Lifecycle.Event.ON_RESUME)
         }
 
+        // Pin the PREFERENCE before the render. If this fails, the fault is in
+        // account/session resolution, not in the composable — and CI will say
+        // so instead of only reporting that the wrong copy appeared.
+        assertTrue(
+            "the committed master preference must be readable for the current account " +
+                "before the screen is composed — if THIS fails the fault is in account/session " +
+                "resolution, not in the composable",
+            NotificationAccountPreferences.currentMasterEnabled(),
+        )
         compose.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 AirdropTheme {
