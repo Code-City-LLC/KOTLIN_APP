@@ -99,6 +99,19 @@ data class CheckoutSessionStatus(
     val amountTotal: Double? = null,
     @Serializable(with = FlexibleStringSerializer::class)
     val currency: String? = null,
+    /**
+     * The packages this checkout actually settled — see [PaymentIntentStatus.packageIds]
+     * for where the ids come from and why the Stripe metadata is the wrong source.
+     *
+     * ⚠️ THIS is the model the app verifies through. `PaymentReturnViewModel`
+     * calls `checkoutSessionStatus`, not `paymentIntentStatus`, so adding the
+     * field only to the PaymentIntent model would have left Kemar's
+     * "fetch the real packages" screen with an empty list on the path that
+     * actually runs — and an empty list is indistinguishable from "nothing was
+     * paid for", so it would have silently kept the static rail with no error.
+     */
+    @SerialName("package_ids")
+    val packageIds: List<Int> = emptyList(),
 )
 
 // POST /payments/create-payment-sheet — Stripe PaymentSheet bundle
@@ -141,6 +154,31 @@ data class PaymentIntentStatus(
     @SerialName("invoice_id")
     @Serializable(with = FlexibleStringSerializer::class)
     val invoiceId: String? = null,
+    /**
+     * The packages this payment ACTUALLY settled (BronzeMountain 92e739ce).
+     *
+     * Kemar asked that the post-checkout screen show the real packages instead
+     * of a static rail; this is the field that makes that possible, and it
+     * rides both verification paths so it does not matter which one ran:
+     * `GET payments/payment-intent/{pi}/status` and `GET payments/{sessionId}/status`.
+     * (The handoff quoted `payments/session/{cs}/status`; BrightHarbor checked
+     * and that route does not exist. Kotlin already calls the correct one —
+     * see AirdropApiService.checkoutSessionStatus.)
+     *
+     * ⚠️ NOT the Stripe `packages` metadata, which is a deliberate trap here.
+     * That metadata holds tracking codes and is written at checkout — BEFORE
+     * payment — so it records what the customer *intended* to buy. These ids
+     * come from `packages.packages_invoice_id`, stamped by the fulfilment
+     * webhook, and record what was actually paid for. The two diverge on a
+     * partial fulfilment, and a post-checkout screen must show the second or it
+     * shows the customer packages they did not pay for.
+     *
+     * Always an array, never null — an unpaid or unfulfilled payment returns
+     * `[]` — so callers iterate without a null check. Defaulted to empty so an
+     * older server that omits the key still decodes.
+     */
+    @SerialName("package_ids")
+    val packageIds: List<Int> = emptyList(),
 )
 
 // GET /payments/{id}/invoice JSON envelope: {data:{url|file_url}},
