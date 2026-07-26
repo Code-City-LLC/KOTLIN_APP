@@ -122,13 +122,28 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
-        refreshStoredSession()
-        // Replays the cached FCM token to /device-tokens/register when logged
-        // in (dedupes on last-registered) — covers login-before-token installs,
-        // permission grants, and app updates that predate PushRegistrar.
-        PushRegistrar.registerIfLoggedIn()
-        // Keep the header bell badge honest on every foreground.
-        NotificationBadgeSync.refresh()
+        // ⚠️ ORDER MATTERS. /auth/refresh DELETES the current access token and
+        // issues a new one (AuthController::refresh — `currentAccessToken()
+        // ->delete()`), so any request that started with the pre-rotation
+        // bearer 401s the moment the rotation lands. That 401 then walks the
+        // interceptor's recovery path, tries to refresh with the now-deleted
+        // token, fails again, and tears down a session that was perfectly
+        // valid — a spurious logout on an ordinary foreground.
+        //
+        // Reproduced on API 35: badge sync + foreground refresh fired together
+        // gave `200 /auth/refresh`, `200 /user/profile`, then `401
+        // /user/notifications` x2 and `401 /auth/refresh` x2, landing on the
+        // auth screen. So the two authenticated calls below are sequenced
+        // AFTER the refresh settles rather than racing it.
+        refreshStoredSession {
+            // Replays the cached FCM token to /device-tokens/register when
+            // logged in (dedupes on last-registered) — covers
+            // login-before-token installs, permission grants, and app updates
+            // that predate PushRegistrar.
+            PushRegistrar.registerIfLoggedIn()
+            // Keep the header bell badge honest on every foreground.
+            NotificationBadgeSync.refresh()
+        }
     }
 
     private fun maybeRequestNotificationPermission() {
@@ -148,9 +163,14 @@ class MainActivity : FragmentActivity() {
      * errors leave the session untouched (the 401-recovery interceptor path
      * still guards individual calls).
      */
-    private fun refreshStoredSession() {
+    private fun refreshStoredSession(afterRefresh: () -> Unit = {}) {
         val refreshingSession = AuthTokenStore.snapshot()
-        if (refreshingSession.token == null) return
+        // Logged out: nothing to rotate, and the follow-ups are no-ops that
+        // gate on a session themselves — run them without waiting.
+        if (refreshingSession.token == null) {
+            afterRefresh()
+            return
+        }
         lifecycleScope.launch {
             runCatching { ApiClient.service.refreshToken(EmptyRequest()) }
                 .onSuccess {
@@ -163,6 +183,9 @@ class MainActivity : FragmentActivity() {
                         null,
                     )
                 }
+            // Runs on both arms: a failed refresh leaves the old session intact
+            // (only a 401 clears it), and these calls session-gate themselves.
+            afterRefresh()
         }
     }
 

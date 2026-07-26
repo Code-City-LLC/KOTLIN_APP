@@ -478,6 +478,14 @@ private fun PackageDetailsContent(
             )
         }
 
+        // Storage fees — Laravel's server-owned `storage` block. Rendered
+        // whenever the server says the package is eligible, independently of
+        // the charges gate: a customer accruing storage needs to see it even
+        // in states where the Breakdown card is hidden.
+        detail?.storage?.takeIf { it.eligible }?.let { storage ->
+            StorageFeeCard(storage = storage, exchangeRate = state.exchangeRate)
+        }
+
         // Breakdown of Charges + Add to Cart — Swift showCharges gate
         // (statusInt == 7 || == 18), not >= 7. Swift (:834-890) ALWAYS renders
         // the Breakdown card (header + Subtotal) in this state, then a plain

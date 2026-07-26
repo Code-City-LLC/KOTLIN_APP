@@ -91,6 +91,7 @@ private fun PackageDetail.toShipmentDetail() = ShipmentPackageDetail(
     },
     additionalCharges = additionalCharges,
     additionalChargesTotal = additionalChargesTotal,
+    storage = storage,
     exchangeRate = exchangeRate,
 )
 
