@@ -160,30 +160,64 @@ class TrackJourneyTest {
     }
 
     /**
-     * ⚠️ THIS TEST ASSERTED MY OWN WRONG ASSUMPTION. It was
-     * `both observed spellings of the out-for-delivery glyph resolve alike`,
-     * and it pinned `in_transit` and `out_for_delivery` to ONE icon.
+     * ⚠️ THIS TEST HAS NOW BEEN WRONG IN BOTH DIRECTIONS. Read the history
+     * before changing it again.
      *
-     * They are two different events (BronzeMountain #80240, confirmed against
-     * `App\Support\StatusIcons` in deployed source): `in_transit` is package
-     * status 12, a warehouse movement to the counter with no driver;
-     * `out_for_delivery` is a delivery leg where a driver has the package. Both
-     * can appear on one package. Showing the driver glyph for a warehouse
-     * movement lost real information.
+     * v1 pinned `in_transit` and `out_for_delivery` to ONE glyph — my own
+     * assumption that the server vocabulary was still settling. Wrong.
+     * v2 pinned them to DIFFERENT glyphs, on the correct observation that they
+     * are different EVENTS (`App\Support\StatusIcons`, deployed source):
+     * `in_transit` is package status 12, a warehouse movement to the counter
+     * with no driver; `out_for_delivery` is a delivery leg where a driver
+     * physically has the package. Both can appear on one package.
+     *
+     * v3 — this one — is the OWNER'S CALL, and it is a product decision, not a
+     * correction of v2. Kemar, 2026-07-26, verbatim: "In transit to counter can
+     * be the same as out for delivery. Why? Because we hardly ever use that
+     * update. When the time comes, we will update it, but we hardly ever use
+     * it. So make note of that." Figma 40000692-4169 is assigned to both rows.
+     *
+     * So the events stay distinct and the ARTWORK is deliberately shared. This
+     * test now pins exactly that, and would catch someone "fixing" the
+     * duplicate back out — which is the likely next mistake, because it looks
+     * like the bug v2 fixed.
      */
     @Test
-    fun `in_transit and out_for_delivery are different events with different glyphs`() {
+    fun `in_transit deliberately shares the out_for_delivery glyph, by owner decision`() {
         val warehouseMovement = TrackJourney.iconRes("in_transit", null, dark = false)
         val driverLeg = TrackJourney.iconRes("out_for_delivery", null, dark = false)
-        assertNotEquals("status 12 is not a driver leg", warehouseMovement, driverLeg)
+
         assertEquals(
-            com.ga.airdrop.R.drawable.ic_shipments_status_in_transit_counter,
+            "Kemar assigned Figma 40000692-4169 to BOTH rows — this duplicate is authorised",
+            driverLeg,
             warehouseMovement,
         )
         assertEquals(
             com.ga.airdrop.R.drawable.ic_shipments_status_out_for_delivery,
-            driverLeg,
+            warehouseMovement,
         )
+    }
+
+    /**
+     * The glyph is shared; the EVENTS are not. Merging the keys would be a real
+     * defect and is not what the owner authorised — only the artwork is shared.
+     * Kept as a separate test so that lifting the duplicate later (when status
+     * 12 gets its own icon) cannot quietly take this guarantee with it.
+     */
+    @Test
+    fun `sharing the glyph does not merge the two events`() {
+        val rows = TrackJourney.rows(
+            listOf(
+                entry("status_12_0", "In-Transit to counter", status = 12, icon = "in_transit"),
+                entry("leg_ofd_1", "Out for Delivery", status = null, icon = "out_for_delivery"),
+            ),
+        )
+
+        assertEquals(2, rows.size)
+        assertEquals("in_transit", rows.first().iconKey)
+        assertEquals("out_for_delivery", rows.last().iconKey)
+        assertEquals("status 12 is a warehouse movement", 12, rows.first().statusId)
+        assertEquals("a delivery leg carries no status id", null, rows.last().statusId)
     }
 
     /**
