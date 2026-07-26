@@ -1,12 +1,19 @@
 package com.ga.airdrop.feature.delivery
 
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
+import java.io.FileOutputStream
 import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.feature.shipments.DamageReportUploadFile
 import com.ga.airdrop.feature.shipments.InvoiceUploadFile
@@ -47,6 +54,26 @@ class JustPaidJourneyParityTest {
     @After
     fun tearDown() {
         ShipmentsRepoProvider.packages = realPackages
+    }
+
+    /**
+     * Physical proof. Semantics assertions prove the right NODES exist; an
+     * image proves a human can see the result and that nothing unexpected — a
+     * Stripe id, a courier number — is sitting on screen next to them. The
+     * path is printed so the artifact is findable from the test log rather
+     * than only from a device pull. BrightHarbor #179 physical-proof hold.
+     */
+    private fun capture(filename: String) {
+        val dir = File(
+            InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null),
+            "screenshots/just_paid",
+        ).apply { mkdirs() }
+        val output = File(dir, filename)
+        FileOutputStream(output).use { stream ->
+            compose.onRoot().captureToImage().asAndroidBitmap()
+                .compress(Bitmap.CompressFormat.PNG, 100, stream)
+        }
+        println("JUST_PAID_ARTIFACT ${output.absolutePath}")
     }
 
     /** Resolves only the ids it is given; every other lookup fails. */
@@ -144,6 +171,8 @@ class JustPaidJourneyParityTest {
             0,
             compose.onAllNodesWithText("COURIER-101").fetchSemanticsNodes().size,
         )
+
+        capture("just_paid_ard_only.png")
     }
 
     /** A status the server did not send is shown as unavailable, never authored. */
@@ -162,6 +191,8 @@ class JustPaidJourneyParityTest {
             0,
             compose.onAllNodesWithText("Paid").fetchSemanticsNodes().size,
         )
+
+        capture("just_paid_blank_status.png")
     }
 
     /**
@@ -183,6 +214,8 @@ class JustPaidJourneyParityTest {
             0,
             compose.onAllNodesWithTag("just-paid-package-102").fetchSemanticsNodes().size,
         )
+
+        capture("just_paid_partial.png")
     }
 
     /** Nothing readable: say so, and confirm the payment went through. */
@@ -199,6 +232,8 @@ class JustPaidJourneyParityTest {
             0,
             compose.onAllNodesWithTag("just-paid-none").fetchSemanticsNodes().size,
         )
+
+        capture("just_paid_total_failure.png")
     }
 
     /**
@@ -218,5 +253,7 @@ class JustPaidJourneyParityTest {
             0,
             compose.onAllNodesWithTag("just-paid-unavailable").fetchSemanticsNodes().size,
         )
+
+        capture("just_paid_no_ids.png")
     }
 }
