@@ -45,6 +45,19 @@ data class DeliveryCenterUiState(
      * owns it now.
      */
     val timeline: List<PackageTimelineEntry> = emptyList(),
+    /**
+     * True when the canonical journey could NOT be read, while the last-mile
+     * delivery data was fetched fine.
+     *
+     * ⚠️ Degrading to the last mile is DELIBERATE and correct — a timeline
+     * failure must not blank a Track screen we have real delivery data for.
+     * The defect was doing it SILENTLY: a rail showing only the last mile is
+     * indistinguishable from a package that genuinely has no warehouse
+     * history, so the customer is quietly shown a shorter journey than the one
+     * that happened. This flag is what lets the UI say "the earlier steps are
+     * missing" instead of implying they never occurred.
+     */
+    val timelineUnavailable: Boolean = false,
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val loadedOnce: Boolean = false,
@@ -251,8 +264,12 @@ class DeliveryCenterViewModel(
             onSuccess = { result ->
                 // The canonical journey. A failure here must NOT blank Track —
                 // we still have the last mile, so the rail degrades to what we
-                // do know rather than showing nothing.
-                val timeline = gateway.packageTimeline(packageId).getOrNull().orEmpty()
+                // do know rather than showing nothing. That part was always
+                // right; what was missing is TELLING the customer the earlier
+                // steps could not be read, instead of silently showing a
+                // shorter journey than the one that happened.
+                val timelineResult = gateway.packageTimeline(packageId)
+                val timeline = timelineResult.getOrNull().orEmpty()
                 publish(
                     owner,
                     epoch,
@@ -261,6 +278,7 @@ class DeliveryCenterViewModel(
                         selectedPackageId = packageId,
                         delivery = result.delivery,
                         timeline = timeline,
+                        timelineUnavailable = timelineResult.isFailure,
                         loading = false,
                         loadedOnce = true,
                     ),
