@@ -21,6 +21,15 @@ import org.junit.Test
  * here it produces a PARTIAL truth rather than an empty one, which is why it
  * survived the sweep that caught the others.
  *
+ * ⚠️ AND THE FIRST VERSION OF THE BANNER WAS WRONG. It said "Earlier tracking
+ * steps couldn't be loaded", asserting a PARTIAL loss. The loss is TOTAL: the
+ * last-mile legs (dispatch / out_for_delivery / delivered) are timeline icon
+ * keys composed by the SAME endpoint, so when it fails the rail is empty, not
+ * shortened. Saying "earlier" invites the customer to read the empty rail as
+ * "nothing else has happened" — the same false-shorter-journey this file
+ * exists to prevent, reintroduced through copy. Caught by an adversarial audit
+ * of this work, not by this test.
+ *
  * This pins the state contract. The banner itself is asserted by tag
  * `track-timeline-partial` in the Compose layer.
  */

@@ -763,14 +763,29 @@ private fun DeliveryDetail(
                     // Laravel's canonical journey, rendered as sent. No
                     // reordering, filtering, capping or relabelling here — see
                     // TrackJourney for why the client stopped deriving this.
-                    // ⚠️ The rail below is DEGRADED, not complete. Saying so is
-                    // the whole point: a last-mile-only rail is otherwise
-                    // indistinguishable from a package that genuinely has no
-                    // warehouse history, so the customer is quietly shown a
-                    // shorter journey than the one that actually happened.
+                    // ⚠️ MY FIRST VERSION OF THIS BANNER WAS WRONG, and wrong in
+                    // the exact way this branch exists to fix. It said "Earlier
+                    // tracking steps couldn't be loaded", which asserts a
+                    // PARTIAL loss. The loss is TOTAL.
+                    //
+                    // I had assumed the rail degrades to the last mile when the
+                    // timeline fails. It cannot: `dispatch`, `out_for_delivery`
+                    // and `delivered` are timeline ICON KEYS — the last mile is
+                    // composed by GET /packages/{id}/timeline, the very call
+                    // that failed (see TrackJourney's KDoc: the endpoint owns
+                    // "last-mile composition"). rows(emptyList()) is empty, and
+                    // TrackJourney.rows is the ONLY source of rail rows here —
+                    // the `delivery` parameter is a non-null gate, never
+                    // rendered as steps.
+                    //
+                    // So the customer sees NO rows at all. Telling them only the
+                    // "earlier" steps are missing invites them to read the empty
+                    // space as "nothing else has happened yet" — which is a
+                    // shorter journey than the real one, i.e. precisely the
+                    // defect this branch removes, reintroduced by copy.
                     if (timelineUnavailable) {
                         Text(
-                            text = "Earlier tracking steps couldn't be loaded.",
+                            text = "Tracking steps couldn't be loaded.",
                             style = AirdropType.body2,
                             color = colors.textDescription,
                             modifier = Modifier

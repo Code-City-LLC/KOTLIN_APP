@@ -49,13 +49,23 @@ data class DeliveryCenterUiState(
      * True when the canonical journey could NOT be read, while the last-mile
      * delivery data was fetched fine.
      *
-     * ⚠️ Degrading to the last mile is DELIBERATE and correct — a timeline
-     * failure must not blank a Track screen we have real delivery data for.
-     * The defect was doing it SILENTLY: a rail showing only the last mile is
-     * indistinguishable from a package that genuinely has no warehouse
-     * history, so the customer is quietly shown a shorter journey than the one
-     * that happened. This flag is what lets the UI say "the earlier steps are
-     * missing" instead of implying they never occurred.
+     * ⚠️ I ORIGINALLY DOCUMENTED THIS AS "degrades to the last mile". THAT WAS
+     * WRONG and the comment is corrected rather than deleted, because the wrong
+     * model is the interesting part.
+     *
+     * The last mile does NOT survive a timeline failure: `dispatch`,
+     * `out_for_delivery` and `delivered` are timeline icon keys, and
+     * TrackJourney's KDoc states the endpoint owns "last-mile composition".
+     * One call supplies the whole rail, so when it fails the rail is EMPTY —
+     * not shortened. Keeping the screen (the Your Delivery card, tracking
+     * number, contact action) is still right and still the reason not to blank
+     * it; but there is no partial journey to show.
+     *
+     * The flag therefore means "we could not read ANY of this package's
+     * journey", and the UI must say exactly that. Claiming only the earlier
+     * steps are missing invites the customer to read the empty rail as
+     * "nothing else has happened", which is the same false-shorter-journey this
+     * branch exists to remove.
      */
     val timelineUnavailable: Boolean = false,
     val loading: Boolean = true,
