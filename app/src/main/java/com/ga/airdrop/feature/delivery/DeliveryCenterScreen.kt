@@ -194,6 +194,7 @@ internal fun DeliveryCenterScreenContent(
                     packageId = requireNotNull(state.selectedPackageId),
                     delivery = requireNotNull(state.delivery),
                     timeline = state.timeline,
+                    timelineUnavailable = state.timelineUnavailable,
                     refreshing = state.refreshing,
                     onRefresh = onRefresh,
                     onContactUs = onContactUs,
@@ -706,6 +707,7 @@ private fun DeliveryDetail(
     packageId: Int,
     delivery: TrackedDelivery,
     timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry>,
+    timelineUnavailable: Boolean,
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onContactUs: () -> Unit,
@@ -761,6 +763,21 @@ private fun DeliveryDetail(
                     // Laravel's canonical journey, rendered as sent. No
                     // reordering, filtering, capping or relabelling here — see
                     // TrackJourney for why the client stopped deriving this.
+                    // ⚠️ The rail below is DEGRADED, not complete. Saying so is
+                    // the whole point: a last-mile-only rail is otherwise
+                    // indistinguishable from a package that genuinely has no
+                    // warehouse history, so the customer is quietly shown a
+                    // shorter journey than the one that actually happened.
+                    if (timelineUnavailable) {
+                        Text(
+                            text = "Earlier tracking steps couldn't be loaded.",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            modifier = Modifier
+                                .padding(bottom = Spacing.sm)
+                                .testTag("track-timeline-partial"),
+                        )
+                    }
                     val rows = TrackJourney.rows(timeline)
                     rows.forEachIndexed { index, row ->
                         DeliveryTimelineStep(
