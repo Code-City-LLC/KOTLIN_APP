@@ -147,7 +147,12 @@ private fun ActiveDeliverySummary.toDomain(): ActiveDelivery {
 }
 
 private fun DeliveryTracking.toDomain(): TrackedDelivery {
-    val normalizedStatus = status?.trim()?.takeIf { it in DELIVERY_STATUSES }
+    // SwiftHawk #79761 §1: a fixed status list is fine for ORDERING but must
+    // NEVER decide what is allowed to render. Filtering here meant any status
+    // Laravel adds later would be dropped silently — no error, no placeholder,
+    // the customer simply never sees that step. Kemar says many more statuses
+    // are coming. Accept anything non-blank.
+    val normalizedStatus = status?.trim()?.takeIf(String::isNotEmpty)
         ?: error(DELIVERY_CONTRACT_ERROR)
     if (stages.isEmpty()) error(DELIVERY_CONTRACT_ERROR)
     val normalizedStages = stages.map(DeliveryTrackingStage::toDomain)
@@ -155,8 +160,14 @@ private fun DeliveryTracking.toDomain(): TrackedDelivery {
         error(DELIVERY_CONTRACT_ERROR)
     }
     val currentCount = normalizedStages.count { it.state == "current" }
-    val expectedCurrentCount = if (normalizedStatus in TERMINAL_DELIVERY_STATUSES) 0 else 1
-    if (currentCount != expectedCurrentCount) error(DELIVERY_CONTRACT_ERROR)
+    // Terminal journeys mark nothing current. For a status we do not yet know,
+    // we cannot assert how many rows should be current — so only enforce the
+    // invariant for statuses whose semantics we actually know.
+    val known = normalizedStatus in DELIVERY_STATUSES
+    if (known) {
+        val expectedCurrentCount = if (normalizedStatus in TERMINAL_DELIVERY_STATUSES) 0 else 1
+        if (currentCount != expectedCurrentCount) error(DELIVERY_CONTRACT_ERROR)
+    }
 
     return TrackedDelivery(
         status = normalizedStatus,
@@ -173,7 +184,10 @@ private fun DeliveryTrackingStage.toDomain(): TrackedDeliveryStage {
         ?: error(DELIVERY_CONTRACT_ERROR)
     val normalizedLabel = label?.trim()?.takeIf(String::isNotEmpty)
         ?: error(DELIVERY_CONTRACT_ERROR)
-    val normalizedState = state?.trim()?.takeIf { it in DELIVERY_STAGE_STATES }
+    // Same rule for the stage state: an unrecognised state renders as
+    // "pending" rather than rejecting the whole timeline.
+    val normalizedState = state?.trim()?.takeIf(String::isNotEmpty)
+        ?.let { if (it in DELIVERY_STAGE_STATES) it else "pending" }
         ?: error(DELIVERY_CONTRACT_ERROR)
     return TrackedDeliveryStage(
         key = normalizedKey,
@@ -185,6 +199,7 @@ private fun DeliveryTrackingStage.toDomain(): TrackedDeliveryStage {
 
 private const val DELIVERY_CONTRACT_ERROR =
     "Delivery information is unavailable. Please try again."
+/** Known statuses — used for ORDERING and invariants only, never as a filter. */
 private val DELIVERY_STATUSES =
     setOf("assigned", "out_for_delivery", "delivered", "failed", "cancelled")
 /** Statuses `/deliveries/active` may return. `delivered` added per #79690 §3. */

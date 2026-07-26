@@ -372,17 +372,18 @@ object ShipmentsFormat {
             null -> "-"
             else -> "—"
         }
+        // SwiftHawk #79761 §2 — DISPLAY format is the LAST SIX digits grouped
+        // 3 + 3:  ARD00000138634 -> "ARD 138 634".
+        // Display only: the full reference still goes to the API and is what
+        // search matches. Fewer than six digits is shown as-is and NEVER
+        // zero-padded — padding would misrepresent a short reference.
         val prefix = stripped.takeWhile { it.isLetter() }.uppercase(Locale.US)
-        val digits = stripped.filter { it.isDigit() }.takeLast(11)
-        val grouped = when {
-            digits.length <= 3 -> digits
-            digits.length <= 7 -> digits.dropLast(4) + " " + digits.takeLast(4)
-            else -> {
-                val tail8 = digits.takeLast(8)
-                listOf(digits.dropLast(8), tail8.take(4), tail8.takeLast(4))
-                    .filter { it.isNotEmpty() }
-                    .joinToString(" ")
-            }
+        val digits = stripped.filter { it.isDigit() }
+        val grouped = if (digits.length >= 6) {
+            val six = digits.takeLast(6)
+            six.take(3) + " " + six.takeLast(3)
+        } else {
+            digits
         }
         return listOf(prefix, grouped).filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "-" }
     }

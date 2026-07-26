@@ -1010,10 +1010,12 @@ private val BANNED_STAGE_PHRASES = listOf("driver", "courier", "dispatcher", "ri
 
 private fun deliveryStageIcon(key: String): Int = when (key) {
     "order_confirmed" -> R.drawable.ic_shipments_status_shipment_received
-    "preparing_dispatch" -> R.drawable.ic_shipments_status_processing_warehouse
-    // "assigned" is shown to customers as "Preparing for Dispatch", so it must
-    // carry that stage's icon — not Order Confirmed's.
-    "assigned" -> R.drawable.ic_shipments_status_processing_warehouse
+    // SwiftHawk #79761 §3 + Laravel's ruling relayed in #79741: "Preparing for
+    // Dispatch" was rendering the SAME conveyor glyph as status 6 "Processing
+    // at our Warehouse" — two different steps reading as one. It takes status
+    // 20's paid_ready_pickup glyph, which is also distinct from the in-transit
+    // truck used by Out for Delivery, so no two rails share an icon.
+    "assigned", "preparing_dispatch" -> R.drawable.ic_shipments_status_paid_ready_pickup
     "out_for_delivery" -> R.drawable.ic_shipments_status_in_transit_counter
     "delivered" -> R.drawable.ic_shipments_status_delivered
     else -> R.drawable.ic_tracking
