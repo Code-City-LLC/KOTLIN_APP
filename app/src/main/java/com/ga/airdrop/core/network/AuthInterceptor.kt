@@ -123,10 +123,14 @@ class AuthInterceptor internal constructor(
         // not do it for them.
         //
         // The ONE teardown that remains is the account-identity guard in
-        // LocalSessionTeardown: if the server answers with a different
-        // account's data than the one signed in, we tear down rather than
-        // render another customer's packages. That path is deliberate and
-        // must stay (Kemar confirmed).
+        // The account-identity guard is the one protection that remains, and
+        // it is NOT a logout: AuthTokenStore.bindAccountId returns false when
+        // the server answers with a different account than the one signed in,
+        // and the caller aborts that load. Another customer's data is refused,
+        // never rendered — and the session is untouched. (Corrected after
+        // BrightHarbor #80131 caught this comment claiming a teardown that does
+        // not exist in source. A comment describing an automatic clear is how
+        // one gets reintroduced.)
         return original401
     }
 

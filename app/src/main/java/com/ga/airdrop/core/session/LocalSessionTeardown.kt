@@ -74,9 +74,16 @@ fun clearLocalUserSession(context: Context) {
 
 /**
  * Explicit customer logout has one extra product rule: the next successful
- * login must enter the existing onboarding sequence before Home. Other local
- * session boundaries (registration, account deletion, rejected bearer) keep
+ * login must enter the existing onboarding sequence before Home. The other
+ * session boundaries — registration completion and account deletion — keep
  * their current routing and therefore continue to call [clearLocalUserSession].
+ *
+ * ⚠️ "rejected bearer" used to be listed here as a third boundary. It is not
+ * one any more, and there is no such callsite in source: the app does not log
+ * the customer out on a 401, a failed refresh, or a dropped connection
+ * (Kemar 2026-07-26 — "if the customer doesn't log out, it never logs out").
+ * Corrected after BrightHarbor #80131; a doc comment naming a boundary that
+ * does not exist reads as an instruction to add one back.
  */
 fun clearLocalUserSessionAfterCustomerLogout(context: Context) {
     OnboardingStore.requireAfterNextLogin(context)
