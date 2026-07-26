@@ -95,9 +95,19 @@ internal object NotificationBadgeSync {
 
     private fun refresh(owner: AuthenticatedSessionOwner) {
         val started = generation.incrementAndGet()
+        // ⚠️ CAPTURE THE GATEWAY HERE, NOT INSIDE THE COROUTINE.
+        //
+        // `gateway` is @Volatile and the launch below runs later, so reading it
+        // inside the coroutine resolves whatever is installed at EXECUTION
+        // time. A test that swaps in a fake and restores the real one in
+        // tearDown would then have its queued refresh run against the REAL
+        // gateway and hit the network anyway — the exact failure this seam
+        // exists to prevent. Binding at launch time makes the substitution
+        // deterministic. BrightHarbor #180 hold 1/3.
+        val probe = gateway
         scope.launch {
             val unread = runCatching {
-                gateway.unreadCount(PROBE_PAGE_SIZE)
+                probe.unreadCount(PROBE_PAGE_SIZE)
             }.getOrNull() ?: return@launch // network/parse failure: keep the last good badge
             if (generation.get() != started) return@launch // a newer refresh/session won
             SessionStore.updateForSession(owner) {

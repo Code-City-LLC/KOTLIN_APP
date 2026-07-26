@@ -68,6 +68,7 @@ class NotificationsScreenParityTest {
     val compose = createComposeRule()
 
     private val realGateway = com.ga.airdrop.core.push.NotificationBadgeSync.gateway
+    private val probeCalls = java.util.concurrent.atomic.AtomicInteger(0)
 
     @Before
     fun isolateTheBadgeNetworkSideEffect() {
@@ -84,8 +85,43 @@ class NotificationsScreenParityTest {
         // own, failed intermittently on CI with the wrong copy on screen.
         // BrightHarbor's ruling: inject the gateway rather than no-op the sync
         // or dodge the auth transition — the transition is what is under test.
+        probeCalls.set(0)
         com.ga.airdrop.core.push.NotificationBadgeSync.gateway =
-            com.ga.airdrop.core.push.NotificationBadgeGateway { null }
+            com.ga.airdrop.core.push.NotificationBadgeGateway {
+                probeCalls.incrementAndGet()
+                null
+            }
+    }
+
+    /**
+     * Proves the seam is REAL rather than assumed: the fake must be the thing
+     * that actually runs, and the session must survive it untouched.
+     *
+     * Without this, a substitution that silently failed would leave these tests
+     * hitting the network exactly as before — and passing, because the flake is
+     * intermittent. BrightHarbor #180 hold 2/3.
+     */
+    @Test
+    fun theInjectedProbeRunsAndTheSessionSurvivesTheBadgeFetch() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        AuthTokenStore.init(context)
+        AuthTokenStore.clear()
+        AuthTokenStore.save("account-a-token", authenticatedAccountId = 101)
+        val sessionAfterSave = AuthTokenStore.currentSessionId()
+
+        // save() fires onAuthenticatedSessionChanged, so the probe must have
+        // been asked — through the fake, never the network.
+        compose.waitUntil(timeoutMillis = 5_000) { probeCalls.get() > 0 }
+        assertTrue("the injected probe must be the one invoked", probeCalls.get() > 0)
+
+        // No real 401, therefore no teardown: auth, session and account intact.
+        assertEquals("the token must survive the badge probe", "account-a-token", AuthTokenStore.token)
+        assertEquals(
+            "the session generation must not be torn down and rebuilt",
+            sessionAfterSave,
+            AuthTokenStore.currentSessionId(),
+        )
+        assertEquals("the account provenance must be unchanged", 101, AuthTokenStore.snapshot().accountId)
     }
 
     @After
@@ -105,6 +141,9 @@ class NotificationsScreenParityTest {
         NotificationAccountPreferences.init(context)
         NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = true))
 
+        // The account this test actually composes under — 202 in the
+        // cross-account case, which is the whole point of that test.
+        val expectedAccountId = 101
         // Pin the PREFERENCE before the render. If this fails, the fault is in
         // account/session resolution, not in the composable — and CI will say
         // so instead of only reporting that the wrong copy appeared.
@@ -113,6 +152,11 @@ class NotificationsScreenParityTest {
                 "before the screen is composed — if THIS fails the fault is in account/session " +
                 "resolution, not in the composable",
             NotificationAccountPreferences.currentMasterEnabled(),
+        )
+        assertEquals(
+            "the preference must be scoped to the account under test, not another one",
+            expectedAccountId,
+            AuthTokenStore.snapshot().accountId,
         )
         compose.setContent {
             AirdropTheme {
@@ -143,6 +187,9 @@ class NotificationsScreenParityTest {
         NotificationAccountPreferences.commit(101, NotificationPreferenceMatrix(master = false))
         AuthTokenStore.save("account-b-token", authenticatedAccountId = 202)
 
+        // The account this test actually composes under — 202 in the
+        // cross-account case, which is the whole point of that test.
+        val expectedAccountId = 202
         // Pin the PREFERENCE before the render. If this fails, the fault is in
         // account/session resolution, not in the composable — and CI will say
         // so instead of only reporting that the wrong copy appeared.
@@ -151,6 +198,11 @@ class NotificationsScreenParityTest {
                 "before the screen is composed — if THIS fails the fault is in account/session " +
                 "resolution, not in the composable",
             NotificationAccountPreferences.currentMasterEnabled(),
+        )
+        assertEquals(
+            "the preference must be scoped to the account under test, not another one",
+            expectedAccountId,
+            AuthTokenStore.snapshot().accountId,
         )
         compose.setContent {
             AirdropTheme {
@@ -187,6 +239,9 @@ class NotificationsScreenParityTest {
             lifecycleOwner.handle(Lifecycle.Event.ON_RESUME)
         }
 
+        // The account this test actually composes under — 202 in the
+        // cross-account case, which is the whole point of that test.
+        val expectedAccountId = 101
         // Pin the PREFERENCE before the render. If this fails, the fault is in
         // account/session resolution, not in the composable — and CI will say
         // so instead of only reporting that the wrong copy appeared.
@@ -195,6 +250,11 @@ class NotificationsScreenParityTest {
                 "before the screen is composed — if THIS fails the fault is in account/session " +
                 "resolution, not in the composable",
             NotificationAccountPreferences.currentMasterEnabled(),
+        )
+        assertEquals(
+            "the preference must be scoped to the account under test, not another one",
+            expectedAccountId,
+            AuthTokenStore.snapshot().accountId,
         )
         compose.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
