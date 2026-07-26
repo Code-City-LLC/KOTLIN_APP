@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.provider.MediaStore
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.captureToImage
@@ -19,6 +20,15 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -27,8 +37,13 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
+import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.AuctionProduct
+import com.ga.airdrop.data.model.Warehouse
 import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.homedetails.WarehousesRepository
+import com.ga.airdrop.feature.homedetails.WarehousesViewModel
 import com.ga.airdrop.feature.homedetails.homeDetailsGraph
 import java.io.File
 import java.io.FileOutputStream
@@ -348,6 +363,8 @@ class HomeActivityTilesScreenshotTest {
             WarehouseNavGraphCase(
                 type = "standard",
                 expectedTitle = "AirDrop (Air Freight)",
+                expectedAddressLine1 = "3505 NW 107th Ave",
+                expectedAddressLine2 = "Unit G36 - AIR – 14823",
                 screenshot = "home_warehouse_standard_after_tap.png",
             )
         )
@@ -359,6 +376,8 @@ class HomeActivityTilesScreenshotTest {
             WarehouseNavGraphCase(
                 type = "seadrop",
                 expectedTitle = "SeaDrop (Sea Freight)",
+                expectedAddressLine1 = "2100 NW 129th Ave",
+                expectedAddressLine2 = "Unit G36 - SEA – 14823",
                 screenshot = "home_warehouse_seadrop_after_tap.png",
             )
         )
@@ -370,28 +389,70 @@ class HomeActivityTilesScreenshotTest {
             WarehouseNavGraphCase(
                 type = "express",
                 expectedTitle = "Express (Air Express)",
+                expectedAddressLine1 = "7801 NW 37th St",
+                expectedAddressLine2 = "Unit G36 - EXPRESS – 14823",
                 screenshot = "home_warehouse_express_after_tap.png",
             )
         )
     }
 
+    /**
+     * What these three tests exist for: the HOME → WAREHOUSES **navigation**.
+     * The Home card emits `warehouses?type=<type>`, homeDetailsGraph's optional
+     * `?type=` argument has to match that route, and the Warehouses destination
+     * has to open on the tapped shipping method. The real [homeDetailsGraph] is
+     * still what gets registered here — nothing about the route is re-declared
+     * locally, or the wiring under test would be the test's own copy.
+     *
+     * Why this needed changing (2026-07-26): the only proof the tap landed used
+     * to be the big method title, which WarehousesScreen renders **exclusively**
+     * in its loaded state. When the FALLBACK_ADDRESS_* constants were deleted
+     * the destination stopped inventing a US address on a failed or in-flight
+     * fetch, so with no `/warehouse` rows behind it the screen correctly showed
+     * its error state and the title never appeared. The navigation these tests
+     * guard was never at fault.
+     *
+     * The fix supplies the data the destination needs — it does NOT accept the
+     * error screen. Each Warehouses back-stack entry is seeded with a
+     * [WarehousesViewModel] over a fake `/warehouse` + `/user` pair before the
+     * destination first composes, so the genuine screen renders a genuine
+     * address card. Assertions are deliberately layered:
+     *   1. route + `type` argument straight off the NavController (this is the
+     *      navigation contract, and it holds no matter what the screen renders),
+     *   2. the per-type address actually on screen (Address Line 1 and the
+     *      server-token Address Line 2 differ per method, so a tap that landed
+     *      on the wrong tab cannot pass), and
+     *   3. `warehouse-error` asserted absent, so this can never quietly go green
+     *      on the error state again.
+     */
     private fun assertWarehouseCardOpensFromHomeNavGraph(warehouseCase: WarehouseNavGraphCase) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             ThemeController.set(ThemeController.Mode.LIGHT)
         }
 
+        lateinit var navController: NavHostController
         compose.setContent {
             AirdropTheme {
-                val navController = rememberNavController()
+                val controller = rememberNavController()
+                navController = controller
+                DisposableEffect(controller) {
+                    val listener = NavController.OnDestinationChangedListener { host, destination, _ ->
+                        if (destination.route?.substringBefore('?') == Routes.WAREHOUSES) {
+                            host.currentBackStackEntry?.let(::seedWarehouseDestination)
+                        }
+                    }
+                    controller.addOnDestinationChangedListener(listener)
+                    onDispose { controller.removeOnDestinationChangedListener(listener) }
+                }
                 NavHost(
-                    navController = navController,
+                    navController = controller,
                     startDestination = Routes.HOME,
                 ) {
                     composable(Routes.HOME) {
-                        HomeScreen(onNavigate = { navController.navigate(it) })
+                        HomeScreen(onNavigate = { controller.navigate(it) })
                     }
-                    homeDetailsGraph(navController)
+                    homeDetailsGraph(controller)
                 }
             }
         }
@@ -401,9 +462,33 @@ class HomeActivityTilesScreenshotTest {
         compose.onNodeWithTag("home-warehouse-carousel")
             .performScrollToNode(hasTestTag("home-warehouse-${warehouseCase.type}"))
         compose.onNodeWithTag("home-warehouse-${warehouseCase.type}").performClick()
+
+        compose.runOnIdle {
+            val entry = navController.currentBackStackEntry
+            assertEquals(
+                "Home's ${warehouseCase.type} card must land on homeDetailsGraph's warehouses route",
+                Routes.WAREHOUSES + "?type={type}",
+                entry?.destination?.route,
+            )
+            assertEquals(
+                "the tapped shipping method must survive the route as the type argument",
+                warehouseCase.type,
+                entry?.arguments?.getString("type"),
+            )
+        }
+
         compose.waitUntil(timeoutMillis = 8_000) {
             compose.onAllNodesWithText(warehouseCase.expectedTitle).fetchSemanticsNodes().isNotEmpty()
         }
+        assertTrue(
+            "the destination must render the address card, not the error state",
+            compose.onAllNodesWithTag("warehouse-error").fetchSemanticsNodes().isEmpty(),
+        )
+        compose.onNodeWithText(warehouseCase.expectedAddressLine1, useUnmergedTree = true)
+            .assertExists()
+        compose.onNodeWithText(warehouseCase.expectedAddressLine2, useUnmergedTree = true)
+            .assertExists()
+
         val bitmap = captureBitmapWithRetry("${warehouseCase.type} warehouse destination") {
             compose.onRoot().captureToImage().asAndroidBitmap()
         }
@@ -411,6 +496,80 @@ class HomeActivityTilesScreenshotTest {
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+    }
+
+    /**
+     * Puts a server-backed [WarehousesViewModel] into the Warehouses back-stack
+     * entry's own ViewModelStore under the exact key `viewModel()` will look up,
+     * so the destination composed by [homeDetailsGraph] gets the seeded instance
+     * instead of building one over the live API. Runs on the main thread from
+     * the destination-changed callback, i.e. before the destination composes.
+     */
+    private fun seedWarehouseDestination(entry: NavBackStackEntry) {
+        if (entry.lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
+            installSeededWarehousesViewModel(entry)
+            return
+        }
+        entry.lifecycle.addObserver(object : LifecycleEventObserver {
+            override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
+                if (event == Lifecycle.Event.ON_CREATE) {
+                    source.lifecycle.removeObserver(this)
+                    installSeededWarehousesViewModel(entry)
+                }
+            }
+        })
+    }
+
+    private fun installSeededWarehousesViewModel(entry: NavBackStackEntry) {
+        val factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
+                WarehousesViewModel(
+                    repository = SeededWarehousesRepository,
+                    sessionBoundary = FakeAuthenticatedSessionBoundary(),
+                ) as T
+        }
+        ViewModelProvider(entry, factory)[WarehousesViewModel::class.java]
+    }
+
+    /** The `/user` + `/warehouse` payloads the Warehouses destination reads. */
+    private object SeededWarehousesRepository : WarehousesRepository {
+        override suspend fun currentUser(): Result<AirdropUser> = Result.success(
+            AirdropUser(
+                id = 1,
+                accountNumber = "14823",
+                firstName = "Kemar",
+                lastName = "Campbell",
+            ),
+        )
+
+        override suspend fun warehouses(): Result<List<Warehouse>> = Result.success(
+            listOf(
+                warehouseRow(id = 1, name = "Standard", address = "3505 NW 107th Ave"),
+                warehouseRow(id = 2, name = "SeaDrop", address = "2100 NW 129th Ave"),
+                warehouseRow(id = 3, name = "Express", address = "7801 NW 37th St"),
+            ),
+        )
+
+        // One row per shipping method, each with its own street, so an
+        // assertion on the rendered address also proves which method landed.
+        private fun warehouseRow(id: Int, name: String, address: String) = Warehouse(
+            id = id,
+            name = name,
+            country = "United States",
+            address = address,
+            city = "Miami",
+            state = "Florida",
+            zipCode = "33178",
+            phoneNumber = "13055550142",
+            unit = "Unit G36",
+            addressLine2Tokens = mapOf(
+                "standard" to "AIR",
+                "seadrop" to "SEA",
+                "express" to "EXPRESS",
+            ),
+            addressLine2Separator = " - ",
+        )
     }
 
     private fun captureHomeScreens(
@@ -728,6 +887,8 @@ class HomeActivityTilesScreenshotTest {
     private data class WarehouseNavGraphCase(
         val type: String,
         val expectedTitle: String,
+        val expectedAddressLine1: String,
+        val expectedAddressLine2: String,
         val screenshot: String,
     )
 
