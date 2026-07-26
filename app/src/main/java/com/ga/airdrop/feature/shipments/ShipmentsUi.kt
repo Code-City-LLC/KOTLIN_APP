@@ -143,6 +143,17 @@ object ShipmentStatusCatalog {
         PackageStatusInfo(17, "Sale", "#345c0b", 15),
         PackageStatusInfo(18, "Paid and Ready for Pick Up", "#19d144", 16),
         PackageStatusInfo(19, "Returned to Merchant", "#ff6b6b", 17),
+        // Status 20 — what a package becomes right after checkout. It was
+        // missing from this list entirely, so a status-20 package could not be
+        // filtered for at all, and if /package-statuses failed the fallback
+        // list silently omitted it.
+        //
+        // Kemar chose to reuse the "Paid and Ready for Pick Up" styling rather
+        // than have me invent a colour. #19d144 is therefore INHERITED from
+        // status 18, not designed for this row — if a distinct colour is ever
+        // wanted, this is the line to change and the decision is recorded here
+        // so nobody assumes the duplicate is accidental.
+        PackageStatusInfo(20, "Paid and Ready for Delivery", "#19d144", 18),
     )
 
     /** Per-status Figma glyph (FigmaPackagesFilterViewController.statusIcon). */
@@ -170,6 +181,10 @@ object ShipmentStatusCatalog {
         17 -> if (dark) R.drawable.ic_shipments_status_auction_dark else R.drawable.ic_shipments_status_auction
         18 -> if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup
         19 -> if (dark) R.drawable.ic_shipments_status_returned_merchant_dark else R.drawable.ic_shipments_status_returned_merchant
+        // Transcribed from Laravel's StatusIcons::MAP (20 => paid_ready_pickup),
+        // which is the server contract — not a glyph chosen here. Without this
+        // a status-20 package fell to the neutral box below.
+        20 -> if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup
         else -> R.drawable.ic_packages
     }
 
