@@ -170,8 +170,18 @@ fun CartScreen(
             } else if (isEmpty) {
                 EmptyCartCard(onShopNow = onShopNow)
             } else {
-                state.appleHero?.let { product ->
-                    CartAppleHero(product = product, onOpenAmazon = onOpenAmazon)
+                // Promotions hero. 460d7be swapped the static Figma banner for
+                // a server-driven one, but left NO fallback — so whenever the
+                // promotions feed is empty (which is the normal case on
+                // pre-staging, and any time merchandising has nothing running)
+                // the top of My Cart simply rendered nothing. Figma always
+                // opens this screen with a promo banner, so fall back to the
+                // exported one instead of showing a gap.
+                val heroProduct = state.appleHero
+                if (heroProduct != null) {
+                    CartAppleHero(product = heroProduct, onOpenAmazon = onOpenAmazon)
+                } else {
+                    CartMacBookHero()
                 }
 
                 // Exact order: hero → Basket → cards → compact Your Note row.
@@ -336,6 +346,29 @@ private fun CartAppleHero(
             modifier = Modifier.testTag("cart-apple-disclosure"),
         )
     }
+}
+
+/**
+ * Promotions hero at the top of My Cart — restored.
+ *
+ * Removed by 460d7be ("adopt Swift promotions and retail rail parity"), which
+ * also deleted the exported asset from the repo. Figma's My Cart opens with
+ * this promotional banner above "Basket (n Items)", and it had been built to
+ * the exact 335x172 exported frame. Kemar asked for it back.
+ */
+@Composable
+private fun CartMacBookHero() {
+    Image(
+        painter = painterResource(R.drawable.img_cart_macbook_hero),
+        contentDescription = "The New MacBook Pro",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .fillMaxWidth()
+            // 335x172 is the exact exported Figma frame inside 20dp insets.
+            .height(172.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .testTag("cart-macbook-hero"),
+    )
 }
 
 @Composable

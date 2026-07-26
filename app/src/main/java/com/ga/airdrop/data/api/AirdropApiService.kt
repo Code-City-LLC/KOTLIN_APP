@@ -262,7 +262,13 @@ interface AirdropApiService {
     // ── Exchange rates ──
 
     @GET("exchange-rates")
-    suspend fun exchangeRates(): ExchangeRate
+    // Envelope, NOT the bare object. The body is
+    // {"success":..,"data":{"exchange_rate":"162.00",..},"meta":..} — decoding
+    // it straight into ExchangeRate looked for the rate at the TOP level,
+    // found nothing, and every caller silently fell back to the hardcoded
+    // DEFAULT_USD_TO_JMD. That is why the app has been quoting 160.625 while
+    // the server said 162.00.
+    suspend fun exchangeRates(): DataEnvelope<ExchangeRate>
 
     // ── Shipments / packages ──
 

@@ -51,7 +51,7 @@ class MiscRepository(private val service: AirdropApiService) {
         apiResult { service.warehouses().items }
 
     suspend fun exchangeRate(): Result<ExchangeRate> =
-        apiResult { service.exchangeRates() }
+        apiResult { service.exchangeRates().data ?: error("Missing exchange rate") }
 
     suspend fun shippingRates(): Result<ShippingRates> = apiResult {
         service.shippingRates().data ?: error("Failed to load shipping rates")

@@ -1,8 +1,6 @@
 package com.ga.airdrop.feature.shipments
 
 import androidx.compose.runtime.Composable
-import com.ga.airdrop.core.designsystem.theme.AirdropTheme
-import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.data.model.PackageStorage
 
 /**
@@ -18,26 +16,18 @@ import com.ga.airdrop.data.model.PackageStorage
  * code; real effective rates measured $0.2968–$0.3859/day.)
  */
 @Composable
-internal fun StorageFeeCard(storage: PackageStorage, exchangeRate: Double) {
-    val colors = AirdropTheme.colors
-    val fee = storage.fee ?: 0.0
-    val hasFee = fee > 0.0
-
+internal fun StorageFeeCard(storage: PackageStorage) {
     ShipmentsSectionCard(title = "Storage") {
-        ShipmentsListRow(
-            label = "Storage Fees",
-            value = when {
-                storage.writtenOff == true -> "Waived"
-                hasFee -> ShipmentsFormat.usdJmd(fee, exchangeRate)
-                else -> "None yet"
-            },
-            // Money owed reads as an alert; "Waived"/"None yet" must not.
-            valueColor = if (hasFee && storage.writtenOff != true) {
-                AlertPalette.Pending
-            } else {
-                colors.textDarkTitle
-            },
-        )
+        // NOTE: the AMOUNT is deliberately NOT repeated here. The warehouse
+        // charge already appears as a "Storage Fee" row inside Breakdown of
+        // Charges on this same screen (it arrives in additional_charges), so
+        // printing it again a few rows above was pure duplication — and two
+        // renderings of one figure can only ever drift apart. This card adds
+        // what Breakdown cannot: how long the package has been in storage and
+        // where the customer stands against their tier's free window.
+        if (storage.writtenOff == true) {
+            ShipmentsListRow(label = "Storage Fees", value = "Waived")
+        }
         storage.daysInStorage?.let { days ->
             ShipmentsListRow(
                 label = "Days in Storage",

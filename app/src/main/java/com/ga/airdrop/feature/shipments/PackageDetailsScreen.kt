@@ -487,7 +487,7 @@ private fun PackageDetailsContent(
             // screen (Breakdown, Exchange Rate, Total) uses effectiveRate,
             // and showing the same charge at two different JMD figures on
             // one screen is worse than showing none.
-            StorageFeeCard(storage = storage, exchangeRate = state.effectiveRate)
+            StorageFeeCard(storage = storage)
         }
 
         // Breakdown of Charges + Add to Cart — Swift showCharges gate
