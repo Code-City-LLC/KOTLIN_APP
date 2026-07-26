@@ -11,7 +11,11 @@ data class ActiveDelivery(
     val description: String?,
     val status: String,
     val scheduledDate: String?,
-    val currentStageKey: String,
+    /**
+     * Null for a DELIVERED delivery — nothing is "current" once terminal.
+     * Laravel #79690 §3. This used to be non-null and threw.
+     */
+    val currentStageKey: String?,
     val updatedAt: String?,
 )
 
@@ -120,10 +124,17 @@ class DeliveryTrackingRepository(
 
 private fun ActiveDeliverySummary.toDomain(): ActiveDelivery {
     val id = packageId?.takeIf { it > 0 } ?: error(DELIVERY_CONTRACT_ERROR)
-    val normalizedStatus = status?.trim()?.takeIf { it in ACTIVE_DELIVERY_STATUSES }
+    // Laravel #79690 §3: /deliveries/active now RETURNS `delivered` (sorted
+    // last) so a finished journey stays on Track. This allow-list was
+    // {assigned, out_for_delivery} and `error()`d on anything else — and
+    // because the throw happens inside the list map, ONE delivered row
+    // rejected the ENTIRE payload and Track rendered "Couldn't load" over a
+    // perfectly good response. Reproduced live on pre-staging before fixing.
+    // failed/cancelled stay excluded — Laravel does not send them here.
+    val normalizedStatus = status?.trim()?.takeIf { it in ACTIVE_LIST_STATUSES }
         ?: error(DELIVERY_CONTRACT_ERROR)
+    // Null on a delivered row (nothing is current). Optional, never fatal.
     val normalizedStage = currentStageKey?.trim()?.takeIf(String::isNotEmpty)
-        ?: error(DELIVERY_CONTRACT_ERROR)
     return ActiveDelivery(
         packageId = id,
         trackingCode = trackingCode?.trim()?.takeIf(String::isNotEmpty),
@@ -176,6 +187,7 @@ private const val DELIVERY_CONTRACT_ERROR =
     "Delivery information is unavailable. Please try again."
 private val DELIVERY_STATUSES =
     setOf("assigned", "out_for_delivery", "delivered", "failed", "cancelled")
-private val ACTIVE_DELIVERY_STATUSES = setOf("assigned", "out_for_delivery")
+/** Statuses `/deliveries/active` may return. `delivered` added per #79690 §3. */
+private val ACTIVE_LIST_STATUSES = setOf("assigned", "out_for_delivery", "delivered")
 private val TERMINAL_DELIVERY_STATUSES = setOf("delivered", "failed", "cancelled")
 private val DELIVERY_STAGE_STATES = setOf("done", "current", "pending")
