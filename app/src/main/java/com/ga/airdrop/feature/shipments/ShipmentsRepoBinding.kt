@@ -100,6 +100,9 @@ private fun Payment.toShipment() = ShipmentPayment(
     invoiceId = invoiceId,
     paymentType = paymentType,
     method = method,
+    // The wire has always carried this; dropping it here is what forced the
+    // card onto a hard-coded "$" and mislabelled every JMD payment.
+    currency = currency,
     totalAmount = totalAmount,
     trackingCode = trackingCode,
     paymentDate = paymentDate,
