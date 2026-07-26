@@ -261,7 +261,96 @@ preserve_flavor() {
   mkdir -p "$destination"
   cp -R "$results_root" "$destination/results"
   cp -R "$reports_root" "$destination/reports"
+  collect_device_screenshots "$flavor" "$destination"
   assert_results "$flavor" "$destination/results"
+}
+
+# Screenshot artifacts live in the app's EXTERNAL FILES DIR, which the workflow
+# never sees and which `connectedAndroidTest` deletes on uninstall. Without this
+# the images exist only for the lifetime of the run, so "physical proof" is
+# unverifiable from CI. Pull them into the proof tree the workflow uploads, and
+# print host paths so they are findable from the log. BrightHarbor #179.
+collect_device_screenshots() {
+  local flavor="$1"
+  local destination="$2"
+  local shots="$destination/screenshots"
+  mkdir -p "$shots"
+
+  # ⚠️ PULL ONLY THIS FLAVOR'S PACKAGE.
+  #
+  # Both APKs stay installed across the run (leaveApksInstalledAfterRun), and
+  # the two flavors write IDENTICAL basenames — just_paid_partial.png and so
+  # on. Scanning both packages into one directory therefore lets the staging
+  # run's images land in the prod proof, or overwrite it, and the artifact
+  # would look complete while showing the wrong flavor's screens. Evidence that
+  # silently substitutes one run for another is worse than no evidence.
+  # BrightHarbor #179.
+  local package
+  case "$flavor" in
+    prod) package="com.ga.airdrop.app" ;;
+    staging) package="com.ga.airdrop.app.staging" ;;
+    *) echo "collect_device_screenshots: unknown flavor '$flavor'" >&2; return 1 ;;
+  esac
+
+  # When the capturing class is in this run, its images are REQUIRED evidence.
+  # Otherwise "none captured" would let the gate go green having collected
+  # nothing — a proof step that passes by producing no proof, which is the
+  # failure this whole collector exists to prevent. BrightHarbor #179.
+  local expects_images=0
+  local expected_shots=(
+    just_paid_ard_only.png
+    just_paid_blank_status.png
+    just_paid_partial.png
+    just_paid_total_failure.png
+    just_paid_no_ids.png
+  )
+  local requested
+  for requested in "${requested_classes[@]}"; do
+    if [[ "$requested" == *JustPaidJourneyParityTest ]]; then
+      expects_images=1
+      break
+    fi
+  done
+
+  local remote="/sdcard/Android/data/$package/files/screenshots"
+  if ! adb shell "test -d $remote" >/dev/null 2>&1; then
+    if [ "$expects_images" -eq 1 ]; then
+      echo "$flavor: JustPaidJourneyParityTest ran but $package captured no screenshots at $remote" >&2
+      return 1
+    fi
+    # Only acceptable when nothing in this run captures images.
+    printf 'CONNECTED_SESSION_SCREENSHOT %s: none expected, none captured\n' "$flavor"
+    return 0
+  fi
+
+  adb pull "$remote" "$shots" >/dev/null 2>&1 || true
+  local count
+  count="$(find "$shots" -name '*.png' | wc -l | tr -d ' ')"
+  printf 'CONNECTED_SESSION_SCREENSHOT %s: %s image(s) from %s\n' "$flavor" "$count" "$package"
+  find "$shots" -name '*.png' -print | while read -r image; do
+    printf 'CONNECTED_SESSION_SCREENSHOT %s %s\n' "$flavor" "$image"
+  done
+
+  if [ "$expects_images" -eq 1 ]; then
+    # Name each file explicitly. A count alone would pass on five copies of the
+    # same state, which is exactly the kind of evidence that looks complete and
+    # proves nothing.
+    local missing=()
+    local expected
+    for expected in "${expected_shots[@]}"; do
+      find "$shots" -name "$expected" | grep -q . || missing+=("$expected")
+    done
+    if [ "${#missing[@]}" -gt 0 ]; then
+      echo "$flavor: missing required screenshots from $package: ${missing[*]}" >&2
+      return 1
+    fi
+    printf 'CONNECTED_SESSION_SCREENSHOT %s: all %s required images present\n' \
+      "$flavor" "${#expected_shots[@]}"
+  fi
+
+  # Clear the device copy so the NEXT flavor cannot inherit these files if its
+  # own capture fails — the failure would otherwise be invisible.
+  adb shell "rm -rf $remote" >/dev/null 2>&1 || true
 }
 
 write_xml_fixture() {
@@ -466,12 +555,19 @@ main() {
   # is the only reason this had not bitten there.
   rm -rf "$results_root" "$reports_root"
 
+  # leaveApksInstalledAfterRun is REQUIRED for the screenshot pull in
+  # preserve_flavor. connectedAndroidTest uninstalls the app when it finishes,
+  # and the captures live in the app's external files dir — so without this the
+  # pull runs against a directory that no longer exists and silently collects
+  # nothing, while still reporting "none captured". BrightHarbor #179.
   ./gradlew --no-daemon --stacktrace :app:connectedProdDebugAndroidTest \
+    -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
     "-Pandroid.testInstrumentationRunnerArguments.class=$classes_csv"
   preserve_flavor prod
 
   rm -rf "$results_root" "$reports_root"
   ./gradlew --no-daemon --stacktrace :app:connectedStagingDebugAndroidTest \
+    -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
     "-Pandroid.testInstrumentationRunnerArguments.class=$classes_csv"
   preserve_flavor staging
 
