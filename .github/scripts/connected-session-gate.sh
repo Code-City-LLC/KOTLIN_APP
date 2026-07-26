@@ -7,7 +7,11 @@ mandatory_classes=(
   "com.ga.airdrop.feature.more.NotificationSettingsParityTest"
   "com.ga.airdrop.feature.homedetails.NotificationsScreenParityTest"
 )
-mandatory_class_counts=(10 9 14 3)
+# NotificationsScreenParityTest went 3 -> 4 in 5a766a5 on this branch (the test
+# that asserts the preference actually commits). The contract was not updated
+# with it, so the gate would have aborted on a count mismatch — masked until now
+# only because the skip check runs first and aborted earlier.
+mandatory_class_counts=(10 9 14 4)
 
 # Tests permitted to be @Ignore'd, each with the issue that must resolve it.
 # `fully.qualified.Class.testName=reason`, one per line.
