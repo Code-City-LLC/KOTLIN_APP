@@ -240,12 +240,20 @@ abort "#{label}: no connected-test XML files under #{root}" if files.empty?
 
 totals = Hash.new(0)
 class_tests = Hash.new(0)
-skipped_names = []
+skipped_names = []      # @Ignore  -- empty <skipped>, counted by the attribute
+assumption_names = []   # Assume   -- <skipped> with text, NOT counted
 
 # Parsed from the single bash-side definition; see `allowed_skips` at the top.
 ALLOWED_SKIPS = ENV.fetch("ALLOWED_SKIPS_SPEC").lines.map(&:strip).reject(&:empty?)
   .each_with_object({}) do |line, map|
-    name, _, reason = line.partition("=")
+    name, separator, reason = line.partition("=")
+    # The header comment promises "a quarantine cannot be added without saying
+    # which issue closes it". Nothing enforced that: an entry with no `=reason`
+    # parsed to reason == "" and became a silent permanent exemption, printed in
+    # the log as though a reason had been given. Enforce what the comment claims.
+    if separator.empty? || reason.strip.empty?
+      abort "#{label}: ALLOWED_SKIPS entry has no reason -- expected `fully.qualified.Class.testName=#ISSUE why`, got: #{line}"
+    end
     map[name] = reason
   end.freeze
 files.each do |path|
@@ -258,8 +266,29 @@ files.each do |path|
   end
   REXML::XPath.each(document, "//testcase") do |testcase|
     class_tests[testcase.attributes["classname"].to_s] += 1
-    unless REXML::XPath.first(testcase, "skipped").nil?
-      skipped_names << "#{testcase.attributes['classname']}.#{testcase.attributes['name']}"
+    skipped = REXML::XPath.first(testcase, "skipped")
+    next if skipped.nil?
+    name = "#{testcase.attributes['classname']}.#{testcase.attributes['name']}"
+    # ⚠️ AGP writes <skipped> for TWO different outcomes and counts only ONE of
+    # them in the suite attribute. Verified in ddmlib 31.10.1 bytecode
+    # (com.android.ddmlib.testrunner.XmlTestRunListener):
+    #
+    #   ASSUMPTION_FAILURE -> printFailedTest(w, "skipped", stackTrace)
+    #                         => <skipped> WITH text
+    #   IGNORED            -> startTag("skipped") + endTag
+    #                         => EMPTY <skipped>
+    #   attribute skipped   = getNumTestsInState(IGNORED)   -- IGNORED ONLY
+    #
+    # So an `Assume` failure emits a node the attribute never counts. Treating
+    # the two alike made the reconciliation below abort on any assumption
+    # failure — inexpressibly, since it runs BEFORE the allow-list.
+    # `HttpsImageLoadInstrumentedTest` calls assumeTrue when the prod feed
+    # serves no cleartext image, i.e. in the HEALTHY case, so every PR touching
+    # core/network/ would have died here.
+    if skipped.text.to_s.strip.empty?
+      skipped_names << name
+    else
+      assumption_names << name
     end
   end
   puts "#{label}: #{path} tests=#{suite.attributes['tests']} failures=#{suite.attributes['failures']} errors=#{suite.attributes['errors']} skipped=#{suite.attributes['skipped']}"
@@ -283,7 +312,17 @@ end
 # Reconciling the two means the allow-list is only ever consulted with a
 # complete set of names, or the run aborts. BrightHarbor #80597.
 unless totals["skipped"] == skipped_names.length
-  abort "#{label}: skip accounting mismatch -- suite attributes report #{totals['skipped']} skipped but #{skipped_names.length} <skipped> testcase node(s) parsed (#{skipped_names.empty? ? 'none' : skipped_names.join(', ')}). Every skip must be identifiable by name."
+  abort "#{label}: skip accounting mismatch -- suite attributes report #{totals['skipped']} skipped but #{skipped_names.length} @Ignore <skipped> node(s) parsed (#{skipped_names.empty? ? 'none' : skipped_names.join(', ')}). Every @Ignore must be identifiable by name."
+end
+
+# Assumption failures were ALWAYS invisible to this gate: the old `skipped == 0`
+# check read the same attribute, which never counted them. They are surfaced
+# here rather than made fatal — a test whose premise did not hold is a real gap
+# in coverage, but failing the build on it would abort every PR touching
+# core/network/ whenever the prod feed happens to serve no cleartext image.
+# Reported, so the gap is visible instead of silent.
+assumption_names.uniq.each do |name|
+  puts "#{label}: NOTE assumption not met, test did not run: #{name}"
 end
 
 unexpected_skips = skipped_names.reject { |name| ALLOWED_SKIPS.key?(name) }
@@ -437,7 +476,8 @@ write_xml_fixture() {
   local fixture_classes
   fixture_classes="$(printf '%s\n' "$@")"
   DESTINATION="$destination" FIXTURE_CLASSES="$fixture_classes" \
-    FIXTURE_SKIPS="${FIXTURE_SKIPS:-}" FIXTURE_SUITE_SKIPPED="${FIXTURE_SUITE_SKIPPED:-}" ruby <<'RUBY'
+    FIXTURE_SKIPS="${FIXTURE_SKIPS:-}" FIXTURE_SUITE_SKIPPED="${FIXTURE_SUITE_SKIPPED:-}" \
+    FIXTURE_ASSUMPTION_SKIPS="${FIXTURE_ASSUMPTION_SKIPS:-}" ruby <<'RUBY'
 require "fileutils"
 require "rexml/document"
 require "rexml/formatters/pretty"
@@ -467,7 +507,21 @@ skips.each do |entry|
     "name" => test_name,
     "classname" => class_name,
   })
+  # EMPTY <skipped> == @Ignore, which the suite attribute counts.
   testcase.add_element("skipped")
+end
+# <skipped> WITH text == assumption failure, which the attribute does NOT count.
+# Shaped to match ddmlib's printFailedTest(w, "skipped", stackTrace).
+ENV.fetch("FIXTURE_ASSUMPTION_SKIPS", "").lines.map(&:strip).reject(&:empty?).each do |entry|
+  class_name, _, test_name = entry.rpartition("#")
+  testcase = suite.add_element("testcase", {
+    "name" => test_name,
+    "classname" => class_name,
+  })
+  testcase.add_element("skipped").add_text(
+    "org.junit.AssumptionViolatedException: prod feed served no cleartext http:// product image to test",
+  )
+  suite.attributes["tests"] = (suite.attributes["tests"].to_i + 1).to_s
 end
 File.open(File.join(ENV.fetch("DESTINATION"), "TEST-connected-session-self-test.xml"), "w") do |file|
   REXML::Formatters::Pretty.new(2).write(document, file)
@@ -612,6 +666,47 @@ run_self_test() (
 
   # (c) An allow-list entry whose class ran but whose test did NOT skip is a
   #     stale quarantine and must abort, so a fixed test cannot stay excused.
+  # (d) An assumption failure emits a <skipped> node the suite attribute does
+  #     NOT count. It must PASS — and be reported, not swallowed. Regression
+  #     test for the abort that ade0c15 would have caused on every PR touching
+  #     core/network/, where HttpsImageLoadInstrumentedTest calls assumeTrue.
+  local assumption_out
+  FIXTURE_SKIPS="$declared_skips" \
+    FIXTURE_ASSUMPTION_SKIPS="com.ga.airdrop.core.network.HttpsImageLoadInstrumentedTest#httpsUpgradeIsApplied"$'\n' \
+    write_xml_fixture "$temp_root/assumption-skip" "${valid_fixture_classes[@]}"
+  if ! assumption_out="$(assert_results self-test-assumption-skip "$temp_root/assumption-skip" 2>&1)"; then
+    printf 'assumption-failure self-test aborted, but an unmet assumption must not fail the gate\n%s\n' \
+      "$assumption_out" >&2
+    return 1
+  fi
+  case "$assumption_out" in
+    *"NOTE assumption not met, test did not run: com.ga.airdrop.core.network.HttpsImageLoadInstrumentedTest.httpsUpgradeIsApplied"*) ;;
+    *)
+      printf 'assumption-failure self-test passed SILENTLY -- the skipped test was never reported\n%s\n' \
+        "$assumption_out" >&2
+      return 1
+      ;;
+  esac
+
+  # (e) An allow-list entry with no `=reason` must be rejected, because the
+  #     header comment promises exactly that. Run in a subshell so the override
+  #     cannot leak into the remaining cases.
+  local reasonless_out
+  if reasonless_out="$(
+      allowed_skips=("com.ga.airdrop.feature.shop.SomeTest.someMethod")
+      assert_results self-test-reasonless-entry "$temp_root/prod" 2>&1
+    )"; then
+    printf 'reason-less ALLOWED_SKIPS entry was accepted; the header comment claims it cannot be\n' >&2
+    return 1
+  fi
+  case "$reasonless_out" in
+    *"ALLOWED_SKIPS entry has no reason"*) ;;
+    *)
+      printf 'reason-less entry aborted for the wrong reason\n%s\n' "$reasonless_out" >&2
+      return 1
+      ;;
+  esac
+
   local first_allowed="${allowed_skips[0]%%=*}"
   write_xml_fixture "$temp_root/stale-allow-entry" "${valid_fixture_classes[@]}" "${first_allowed%.*}"
   expect_gate_abort self-test-stale-allow-entry "$temp_root/stale-allow-entry" \
