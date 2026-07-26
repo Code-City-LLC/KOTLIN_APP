@@ -495,7 +495,16 @@ private data class Activity(
 @Composable
 private fun ActivityGrid(onNavigate: (String) -> Unit) {
     val activities = listOf(
-        Activity("Services", R.drawable.ic_services, R.drawable.ic_services_dark, Routes.SERVICES),
+        // Kemar 2026-07-26: Track and Services SWAP places — Track belongs in
+        // the activity grid (first slot, where Services was) and Services moves
+        // down to the lower row. Track is a thing customers do constantly;
+        // Services is read-once marketing.
+        Activity(
+            "Track",
+            R.drawable.ic_shipments_status_delivered,
+            R.drawable.ic_shipments_status_delivered,
+            Routes.deliveryCenter(),
+        ),
         Activity("Ship Tax", R.drawable.ic_ship_tax, R.drawable.ic_ship_tax_dark, Routes.SALES_TAXES),
         Activity("Calculator", R.drawable.ic_calculator, R.drawable.ic_calculator_dark, Routes.CALCULATOR),
         Activity("Drop Alert", R.drawable.ic_drop_alert, R.drawable.ic_drop_alert_dark, Routes.DROP_ALERT),
@@ -765,8 +774,8 @@ private fun EmptyAuctionCard() {
 
 // ─── Refer a friend + Delivery Center tiles ──────────────────────────────
 // Kemar: turn Refer-a-Friend into a Services-style box and sit it beside a new
-// Delivery Center box (two equal 108dp tiles, same visual language as the
-// activity grid). Delivery Center → the tracking hub.
+// Lower box (two equal 108dp tiles, same visual language as the activity
+// grid): Refer a friend + Services. Track moved UP into the activity grid.
 
 @Composable
 private fun ReferAndDeliveryRow(onNavigate: (String) -> Unit) {
@@ -778,16 +787,11 @@ private fun ReferAndDeliveryRow(onNavigate: (String) -> Unit) {
             Routes.REFER_A_FRIEND,
         ),
         Activity(
-            // Kemar 2026-07-26: "Delivery Center" is now "Track" — it combines
-            // tracking + delivery. USER-VISIBLE STRING ONLY; route keys, test
-            // tags and API paths keep the deliveryCenter name (server/test
-            // contracts). Same rule SwiftHawk applied on iOS (#79612).
-            "Track",
-            // Theme-aware duotone (icon_duotone flips light/dark) with the orange
-            // accent — one drawable serves both modes.
-            R.drawable.ic_shipments_status_delivered,
-            R.drawable.ic_shipments_status_delivered,
-            Routes.deliveryCenter(),
+            // Swapped down from the activity grid — see the Track tile above.
+            "Services",
+            R.drawable.ic_services,
+            R.drawable.ic_services_dark,
+            Routes.SERVICES,
         ),
     )
     Row(

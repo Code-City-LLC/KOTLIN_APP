@@ -385,15 +385,9 @@ private fun JustPaidJourney(
                 }
             }
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp, bottom = 10.dp)
-                .navigationBarsPadding(),
-            contentAlignment = Alignment.Center,
-        ) {
-            ContactAction(onContactUs)
-        }
+        // Kemar 2026-07-26: the pinned "Contact us for more information" is
+        // removed from the bottom of Track. Contact remains on the Help tab.
+        Spacer(Modifier.navigationBarsPadding())
     }
 }
 
@@ -606,12 +600,7 @@ private fun ActiveDeliveriesList(
                         RefreshAction(onRefresh)
                     }
                 }
-                Text(
-                    text = "Choose a package to see its live delivery journey.",
-                    style = AirdropType.body2,
-                    color = AirdropTheme.colors.textDescription,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                // Kemar 2026-07-26: subtitle removed — the list explains itself.
             }
         }
         items(deliveries, key = ActiveDelivery::packageId) { delivery ->
@@ -635,11 +624,16 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        // Kemar 2026-07-26: each row's icon carries ITS OWN status colour —
+        // not one flat orange for every delivery. Green = delivered,
+        // orange = in flight, red = failed, grey = cancelled, with the circle
+        // tinted from the same colour so the row reads at a glance.
+        val statusColor = deliveryStatusColor(delivery.status)
         Box(
             Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(colors.peachLight),
+                .background(statusColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -649,7 +643,7 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
                 // worked on the detail journey.
                 painter = painterResource(deliveryStageIcon(delivery.status)),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(colors.orangeMain),
+                colorFilter = ColorFilter.tint(statusColor),
                 modifier = Modifier.size(25.dp),
             )
         }
@@ -778,14 +772,14 @@ private fun DeliveryDetail(
                 .navigationBarsPadding(),
             contentAlignment = Alignment.Center,
         ) {
+            // Contact removed from the bottom of Track (Kemar 2026-07-26);
+            // this slot now only carries the refresh indicator.
             if (refreshing) {
                 CircularProgressIndicator(
                     color = colors.orangeMain,
                     strokeWidth = 2.dp,
                     modifier = Modifier.size(20.dp),
                 )
-            } else {
-                ContactAction(onContactUs)
             }
         }
     }
