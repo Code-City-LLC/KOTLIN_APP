@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -59,8 +60,28 @@ class PaymentsOrdersParityTest {
         saveRootScreenshot("payments_swift_dark.png")
     }
 
+    /**
+     * ⚠️ RENAMED AND HALF-INVERTED. This was
+     * `paymentsListLoadFailureRendersEmptyStateWithoutModal`, and it pinned the
+     * defect: a failed list load rendering "No payments found", i.e. telling a
+     * customer they have no payment history — on the screen they use to find
+     * invoices — because a request failed.
+     *
+     * That behaviour was justified in `PaymentsViewModel` by a comment claiming
+     * Swift "lets the empty/list state render". Swift does the opposite:
+     * `FigmaPaymentsViewController:329` is
+     * `emptyLabel?.text = loadErrorMessage ?? "No payments found"` — the error
+     * goes IN the empty slot.
+     *
+     * The other half of the old test was RIGHT and is kept verbatim: a list
+     * failure must not raise the modal. That belongs to invoice downloads only,
+     * and `invoiceDownloadFailureShowsSwiftAlertTitle` below still owns it.
+     *
+     * Also still pinned: the raw exception text never reaches the customer.
+     * "list offline" is a server-side string, not something to show anyone.
+     */
     @Test
-    fun paymentsListLoadFailureRendersEmptyStateWithoutModal() {
+    fun paymentsListLoadFailureStatesTheFailureAndRaisesNoModal() {
         setPaymentsContent(
             mode = ThemeController.Mode.LIGHT,
             repo = FakePaymentsRepository(
@@ -69,9 +90,15 @@ class PaymentsOrdersParityTest {
         )
 
         compose.waitUntil(timeoutMillis = 5_000) {
-            compose.onAllNodesWithText("No payments found").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag("payments-load-error").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("No payments found").assertIsDisplayed()
+        compose.onNodeWithTag("payments-load-error").assertIsDisplayed()
+
+        // ⚠️ The point of the change: the customer must NOT be told they have
+        // no payment history when the request simply failed.
+        assertTextMissing("No payments found")
+
+        // Unchanged guarantees from the original test.
         assertTextMissing("Download failed")
         assertTextMissing("list offline")
         assertTextMissing("OK")

@@ -99,6 +99,23 @@ fun PackagesScreen(
             }
             if (state.loading && state.items.isEmpty()) {
                 item(key = "loading") { ShipmentsLoadingIndicator() }
+            } else if (state.items.isEmpty() && state.error != null) {
+                // ⚠️ "We could not read your packages" is NOT "you have no
+                // packages". This branch used to be absent, so a dropped
+                // connection told the customer their shipments did not exist —
+                // and the failure was already known: PackagesViewModel.load()
+                // sets error = e.message and nothing ever read it.
+                //
+                // Gated on items.isEmpty() so a failed NEXT page never blanks
+                // the rows the customer is already looking at; that case keeps
+                // the list and lets pull-to-refresh retry.
+                item(key = "load-error") {
+                    ShipmentsErrorLabel(
+                        message = "Couldn't load your packages.",
+                        onRetry = viewModel::refresh,
+                        testTag = "packages-load-error",
+                    )
+                }
             } else if (state.visibleItems.isEmpty()) {
                 item(key = "empty") { ShipmentsEmptyLabel("No packages found") }
             } else {

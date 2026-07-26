@@ -25,6 +25,20 @@ data class ShipmentsUiState(
     val payments: List<ShipmentPayment> = emptyList(),
     val orders: List<ShipmentOrder> = emptyList(),
     val error: String? = null,
+    /**
+     * Per-section load failures. Deliberately THREE flags, not one shared
+     * error: the shortlists are independent requests, so a packages failure
+     * must not make the payments row claim a problem it does not have — nor
+     * the reverse, which is what a single flag would produce.
+     *
+     * ⚠️ Before these existed, all three calls had ONLY an onSuccess branch.
+     * A failure was dropped, the state kept its default emptyList(), and the
+     * hub told the customer they had no packages AND no payments AND no
+     * orders — three false statements from one dropped request.
+     */
+    val packagesFailed: Boolean = false,
+    val paymentsFailed: Boolean = false,
+    val ordersFailed: Boolean = false,
 )
 
 data class QuickTrackRecent(
@@ -71,7 +85,7 @@ class ShipmentsViewModel(
     fun refresh() {
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            _state.update { it.copy(loading = true, error = null, packagesFailed = false, paymentsFailed = false, ordersFailed = false) }
             repo.exchangeRate().onSuccess { rate ->
                 com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
                 _state.update { it.copy(exchangeRate = rate) }
@@ -82,13 +96,19 @@ class ShipmentsViewModel(
                 _state.update { it.copy(error = e.message) }
             }
             repo.packagesShortlist().onSuccess { packages ->
-                _state.update { it.copy(packages = packages.take(10)) }
+                _state.update { it.copy(packages = packages.take(10), packagesFailed = false) }
+            }.onFailure {
+                _state.update { it.copy(packagesFailed = true) }
             }
             repo.paymentsShortlist().onSuccess { payments ->
-                _state.update { it.copy(payments = payments.take(4)) }
+                _state.update { it.copy(payments = payments.take(4), paymentsFailed = false) }
+            }.onFailure {
+                _state.update { it.copy(paymentsFailed = true) }
             }
             repo.ordersShortlist().onSuccess { orders ->
-                _state.update { it.copy(orders = orders.take(6)) }
+                _state.update { it.copy(orders = orders.take(6), ordersFailed = false) }
+            }.onFailure {
+                _state.update { it.copy(ordersFailed = true) }
             }
             _state.update { it.copy(loading = false) }
         }

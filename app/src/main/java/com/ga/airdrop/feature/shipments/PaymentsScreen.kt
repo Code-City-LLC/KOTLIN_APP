@@ -141,6 +141,18 @@ fun PaymentsScreen(
             }
             if (state.loading && state.items.isEmpty()) {
                 item(key = "loading") { ShipmentsLoadingIndicator() }
+            } else if (state.items.isEmpty() && state.loadError != null) {
+                // Swift puts the error IN the empty slot here
+                // (FigmaPaymentsViewController:329). Telling a customer they
+                // have no payment history — on the screen they use to find
+                // invoices — is the one thing this must never do.
+                item(key = "load-error") {
+                    ShipmentsErrorLabel(
+                        message = "Couldn't load your payments.",
+                        onRetry = viewModel::refresh,
+                        testTag = "payments-load-error",
+                    )
+                }
             } else if (state.items.isEmpty()) {
                 item(key = "empty") { ShipmentsEmptyLabel("No payments found") }
             } else {
