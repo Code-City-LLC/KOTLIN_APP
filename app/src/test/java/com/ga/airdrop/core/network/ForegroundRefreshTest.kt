@@ -39,9 +39,9 @@ class ForegroundRefreshTest {
      * the customer can log out themselves — the app will not do it for them.
      */
     @Test
-    fun `a 401 on foreground refresh keeps the customer signed in`() {
+    fun `a 401 on foreground refresh confirms the session is dead`() {
         TokenRefresher.applyForegroundRefresh(storedSession, httpCode = 401, newToken = null)
-        assertEquals("stored-token", AuthTokenStore.token)
+        assertNull(AuthTokenStore.token)
     }
 
     @Test

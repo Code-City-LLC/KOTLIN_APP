@@ -141,8 +141,14 @@ class AuthInterceptorRefreshTest {
      * a dropped connection, a timeout, a tunnel — and null used to mean
      * "clear the session". Losing signal at the wrong moment signed people out.
      */
+    /**
+     * Kemar reversed this on 2026-07-26 so both platforms match SwiftHawk's
+     * rule: a refresh that answers **401** is the one outcome that means the
+     * principal is gone, and it does log the customer out. Everything else —
+     * a throw, a 5xx, a body-less 200 — keeps the session.
+     */
     @Test
-    fun `a failed refresh keeps the customer signed in and returns the 401`() {
+    fun `a refresh that answers 401 confirms the session is dead`() {
         val chain = ScriptedChain(apiRequest()) { req, _ ->
             if (isRefresh(req)) response(req, 401) else response(req, 401)
         }
@@ -150,12 +156,16 @@ class AuthInterceptorRefreshTest {
         val result = interceptor.intercept(chain)
 
         assertEquals(401, result.code)
-        assertEquals("the session must survive a failed refresh", "old-token", AuthTokenStore.token)
-        assertNotNull(AuthTokenStore.snapshot().sessionId)
+        assertNull("a refresh 401 is the one confirmed-dead signal", AuthTokenStore.token)
         assertEquals(2, chain.proceeded.size) // original + refresh, no retry
     }
 
-    /** The real-world case: the network dies mid-refresh. */
+    /**
+     * The real-world case, and the reason the teardown is narrowed to an
+     * explicit 401: performRefresh ends in `runCatching { }.getOrNull()`, so
+     * null means ANY failure. Clearing on null was the original bug — losing
+     * signal logged the customer out.
+     */
     @Test
     fun `a refresh that throws keeps the customer signed in`() {
         val chain = ScriptedChain(apiRequest()) { req, _ ->
