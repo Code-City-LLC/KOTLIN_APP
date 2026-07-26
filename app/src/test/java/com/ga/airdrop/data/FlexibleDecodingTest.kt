@@ -118,9 +118,24 @@ class FlexibleDecodingTest {
             AirCoinsStatus.serializer(),
             """{"data":{"accumulated":"120","redeemed":"20","available":"100"}}""",
         )
-        assertEquals(100, status.available)
-        assertEquals(100, status.balance)
-        assertEquals(120, status.accumulated)
+        assertEquals(100.0, status.available!!, 0.0001)
+        assertEquals(100.0, status.balance!!, 0.0001)
+        assertEquals(120.0, status.accumulated!!, 0.0001)
+    }
+
+    /**
+     * Coins are fractional on the wire. These were Int and `flexInt` truncated
+     * `462.25` to `462`, so a customer silently lost part of their balance.
+     */
+    @Test
+    fun `aircoins keep their fractional part`() {
+        val status = AirdropJson.decodeFromString(
+            AirCoinsStatus.serializer(),
+            """{"data":{"accumulated":462.25,"redeemed":0.5,"available":461.75}}""",
+        )
+        assertEquals(462.25, status.accumulated!!, 0.0001)
+        assertEquals(0.5, status.redeemed!!, 0.0001)
+        assertEquals(461.75, status.available!!, 0.0001)
     }
 
     @Test

@@ -74,9 +74,18 @@ fun clearLocalUserSession(context: Context) {
 
 /**
  * Explicit customer logout has one extra product rule: the next successful
- * login must enter the existing onboarding sequence before Home. Other local
- * session boundaries (registration, account deletion, rejected bearer) keep
+ * login must enter the existing onboarding sequence before Home. The other
+ * session boundaries — registration completion and account deletion — keep
  * their current routing and therefore continue to call [clearLocalUserSession].
+ *
+ * ⚠️ "rejected bearer" is deliberately NOT listed here as a boundary, even
+ * though one narrow rejection does end a session: a refresh answering 401
+ * (Kemar 2026-07-26, matching SwiftHawk). That path calls AuthTokenStore.clear
+ * directly and does not wipe local state, because the customer did not ask to
+ * leave — their token died and they should land back where they were once they
+ * sign in. A plain 401, a 5xx, a dropped connection clear nothing at all.
+ * Corrected after BrightHarbor #80131 and again after #80225; a doc comment
+ * naming a boundary loosely reads as an instruction to widen it.
  */
 fun clearLocalUserSessionAfterCustomerLogout(context: Context) {
     OnboardingStore.requireAfterNextLogin(context)

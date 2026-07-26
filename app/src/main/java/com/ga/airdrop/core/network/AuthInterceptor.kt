@@ -86,8 +86,10 @@ class AuthInterceptor internal constructor(
         // Swift :347 — try a single refresh + retry before tearing down the
         // session. TokenRefresher coalesces concurrent 401s onto one network
         // refresh; callers queued behind it receive the exact rotated snapshot.
+        // Per-call, not per-interceptor. See performRefresh's `rejected` param.
+        val refreshRejected = java.util.concurrent.atomic.AtomicBoolean(false)
         val refreshedSnapshot = TokenRefresher.refresh(currentSnapshot) { expectedToken ->
-            performRefresh(chain, currentSnapshot, expectedToken)
+            performRefresh(chain, currentSnapshot, expectedToken, refreshRejected)
         }
         val retryToken = refreshedSnapshot?.token
         if (retryToken != null) {
@@ -102,10 +104,30 @@ class AuthInterceptor internal constructor(
             }
         }
 
-        // Refresh failed: force-logout only if this exact request generation
-        // still owns the session. Matching bearer text is insufficient because
-        // a fresh login can legitimately receive the same token string.
-        AuthTokenStore.clear(currentSnapshot)
+        // ⚠️ EXACTLY ONE TEARDOWN PATH, AND THIS IS IT.
+        //
+        // Kemar ruled (2026-07-26, reversing his earlier call) that Android
+        // adopts SwiftHawk's rule so both platforms behave identically:
+        //
+        //     401 on any normal request        -> stay signed in
+        //     refresh throws / 5xx / body-less -> stay signed in
+        //     refresh answers 401              -> LOG OUT
+        //
+        // The distinction matters because performRefresh ends in
+        // `runCatching { ... }.getOrNull()`, so a null return means ANY failure
+        // — a dropped connection, a timeout, a tunnel. Clearing on null was the
+        // original bug: losing signal logged the customer out. Only an explicit
+        // HTTP 401 from /auth/refresh clears now.
+        //
+        // ⚠️ KNOWN RISK, raised with Kemar before he chose and still open:
+        // AuthController::refresh DELETES the current token before returning
+        // the replacement, so a lost response leaves the device presenting a
+        // token the server already dropped. Refresh then answers 401 for a
+        // perfectly healthy account and this path logs that customer out. It is
+        // safe only once Laravel ships response-loss-safe rotation.
+        if (refreshRejected.get()) {
+            AuthTokenStore.clear(currentSnapshot)
+        }
         return original401
     }
 
@@ -120,6 +142,14 @@ class AuthInterceptor internal constructor(
         chain: Interceptor.Chain,
         expectedSession: AuthTokenStore.Snapshot,
         expectedToken: String,
+        /**
+         * Set to true ONLY when /auth/refresh itself answers 401. Passed in per
+         * call rather than held on the interceptor: this class is a singleton
+         * on the OkHttp client, so an instance field would race across
+         * concurrent requests and one caller's dead session could tear down
+         * another's.
+         */
+        rejected: java.util.concurrent.atomic.AtomicBoolean,
     ): String? = runCatching {
         val refreshRequest = Request.Builder()
             .url(BuildConfig.API_BASE_URL.trimEnd('/') + "/auth/refresh")
@@ -128,6 +158,10 @@ class AuthInterceptor internal constructor(
             .header("Authorization", "Bearer $expectedToken")
             .build()
         proceedForSession(chain, refreshRequest, expectedSession).use { refreshResponse ->
+            // A 401 here is the ONE outcome that means the principal is gone.
+            // Recorded separately so the caller can tell it apart from every
+            // other failure — see the teardown block below.
+            if (refreshResponse.code == 401) rejected.set(true)
             if (!refreshResponse.isSuccessful) return null
             val body = refreshResponse.body?.string().orEmpty()
             if (body.isBlank()) return null

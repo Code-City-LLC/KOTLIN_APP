@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.more2
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,8 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -34,14 +39,22 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
  * Authorized User Detail — Figma node 40001185:5345, behavior from
- * FigmaAuthorizedUserDetailViewController:146-148 — the surface is READ-ONLY
- * (Activate/Deactivate + Delete only). Swift/RN deliberately expose no Edit
- * affordance, so Android renders none either.
+ * FigmaAuthorizedUserDetailViewController.
+ *
+ * ⚠️ This file used to carry a comment asserting the surface was READ-ONLY
+ * because "Swift/RN deliberately expose no Edit affordance", citing
+ * FigmaAuthorizedUserDetailViewController:146-148. That citation went STALE
+ * when iOS shipped an Edit button on 2026-07-13 (36ff3b3); it now lives at
+ * :135-143. Android was defending an absence that no longer existed, which
+ * left Android users unable to change an authorized user's email or phone at
+ * all — despite the entire edit path already being built.
  */
 @Composable
 fun AuthorizedUserDetailScreen(
     userId: Int,
     onBack: () -> Unit,
+    /** Opens the prefilled edit form. Null renders no Edit control. */
+    onEdit: (() -> Unit)? = null,
     viewModel: AuthorizedUserDetailViewModel = viewModel(
         factory = detailFactory(userId),
         key = "authorizedUserDetail_$userId",
@@ -55,6 +68,24 @@ fun AuthorizedUserDetailScreen(
         if (state.deleted) onBack()
     }
 
+    // Returning from the edit form must re-read the user. This destination
+    // stays on the back stack while editing, so its ViewModel is retained and
+    // init{}'s load() never runs again — without this the detail keeps showing
+    // the pre-edit email/phone even though the PUT succeeded. Skips the first
+    // RESUME because init{} has already loaded.
+    val detailLifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(detailLifecycleOwner, viewModel) {
+        val lifecycle = detailLifecycleOwner.lifecycle
+        var skipFirstResume = true
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (skipFirstResume) skipFirstResume = false else viewModel.load()
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -64,6 +95,24 @@ fun AuthorizedUserDetailScreen(
         More2InnerHeader(
             title = "User Details",
             onBack = onBack,
+            // Swift parity: "Edit" sits at the trailing edge of the detail
+            // header, orange, and is suppressed until the user has loaded.
+            rightContent = if (onEdit != null && state.user != null) {
+                {
+                    Text(
+                        text = "Edit",
+                        style = AirdropType.subtitle1,
+                        color = colors.orangeMain,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = Spacing.md)
+                            .testTag("authorized-user-detail-edit")
+                            .clickable(onClick = onEdit),
+                    )
+                }
+            } else {
+                null
+            },
         )
 
         Box(Modifier.weight(1f)) {

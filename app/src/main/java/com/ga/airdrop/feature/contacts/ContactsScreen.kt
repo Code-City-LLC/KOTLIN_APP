@@ -41,8 +41,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ga.airdrop.R
@@ -62,6 +62,13 @@ import kotlinx.coroutines.delay
  * Live Chat is the first Help card and routes to the native Nirvana destination.
  * Contact/WhatsApp/Email remain separate section cards with 20pt gaps and 15pt
  * padding, and Business Hours has no copy affordance.
+ *
+ * ⚠️ Do not remove the Live Chat row again. It was once dropped on the claim
+ * that "Swift ships no Live Chat row" — the premise was FALSE.
+ * FigmaContactsViewController.swift:130 calls makeLiveChatCard() and :367 tags
+ * it "figma.contacts.liveChat", and Figma has it too. Android was the only
+ * platform without it, which left LiveAgentChatScreen reachable from a single
+ * unrelated entry point.
  */
 @Composable
 fun ContactsScreen(
@@ -411,7 +418,13 @@ private fun CopyButton(value: String, onCopy: (String) -> Unit) {
 
 /** Value row — Swift: subtitle1 value + trailing 24 copy. */
 @Composable
-private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Unit) {
+private fun ValueRow(
+    text: String,
+    onOpen: (() -> Unit)?,
+    onCopy: (String) -> Unit,
+    // Live Chat is an action, not a value to copy.
+    showCopy: Boolean = true,
+) {
     val colors = AirdropTheme.colors
     Row(
         modifier = Modifier
@@ -428,7 +441,7 @@ private fun ValueRow(text: String, onOpen: (() -> Unit)?, onCopy: (String) -> Un
                 .weight(1f)
                 .then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier),
         )
-        CopyButton(text, onCopy)
+        if (showCopy) CopyButton(text, onCopy)
     }
 }
 

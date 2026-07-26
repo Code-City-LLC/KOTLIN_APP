@@ -111,8 +111,22 @@ fun HomeScreen(
     LaunchedEffect(Unit) { CartStore.init(context) }
     DisposableEffect(lifecycleOwner, viewModel) {
         val lifecycle = lifecycleOwner.lifecycle
+        // Same guard as ShipmentsUi.kt:82. Without it this fires an
+        // unauthenticated-race /user/profile at the same moment
+        // MainActivity.onStart runs /auth/refresh — and that endpoint DELETES
+        // the current token, so the in-flight profile call 401s with the
+        // pre-rotation bearer, walks the interceptor's recovery path, and tears
+        // down a valid session. /user/profile is not session-bound
+        // (AirdropApiService.kt:159), so nothing else stops it.
+        var skipInitialResumeReplay = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (skipInitialResumeReplay) {
+                    skipInitialResumeReplay = false
+                } else {
+                    viewModel.refresh()
+                }
+            }
         }
         lifecycle.addObserver(observer)
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
@@ -472,6 +486,13 @@ private fun WarehouseCarousel(onOpen: (String) -> Unit, modifier: Modifier = Mod
 // ─── Activity grid — Swift makeActivitiesGrid (Figma 40000770:6493) ───────
 
 private data class Activity(
+    /**
+     * Stable identity for tests, independent of the visible copy. The tag used
+     * to be derived from [label], so renaming a tile silently broke every test
+     * that referenced it — which is exactly what happened when Track and
+     * Services swapped places and `home-activity-delivery-center` vanished.
+     */
+    val key: String,
     val label: String,
     val lightIconRes: Int,
     val darkIconRes: Int,
@@ -481,10 +502,29 @@ private data class Activity(
 @Composable
 private fun ActivityGrid(onNavigate: (String) -> Unit) {
     val activities = listOf(
-        Activity("Services", R.drawable.ic_services, R.drawable.ic_services_dark, Routes.SERVICES),
-        Activity("Ship Tax", R.drawable.ic_ship_tax, R.drawable.ic_ship_tax_dark, Routes.SALES_TAXES),
-        Activity("Calculator", R.drawable.ic_calculator, R.drawable.ic_calculator_dark, Routes.CALCULATOR),
-        Activity("Drop Alert", R.drawable.ic_drop_alert, R.drawable.ic_drop_alert_dark, Routes.DROP_ALERT),
+        // Kemar 2026-07-26: Track and Services SWAP places — Track belongs in
+        // the activity grid (first slot, where Services was) and Services moves
+        // down to the lower row. Track is a thing customers do constantly;
+        // Services is read-once marketing.
+        Activity(
+            "track",
+            "Track",
+            R.drawable.ic_shipments_status_delivered,
+            R.drawable.ic_shipments_status_delivered,
+            Routes.deliveryCenter(),
+        ),
+        Activity(
+            "ship-tax", "Ship Tax",
+            R.drawable.ic_ship_tax, R.drawable.ic_ship_tax_dark, Routes.SALES_TAXES,
+        ),
+        Activity(
+            "calculator", "Calculator",
+            R.drawable.ic_calculator, R.drawable.ic_calculator_dark, Routes.CALCULATOR,
+        ),
+        Activity(
+            "drop-alert", "Drop Alert",
+            R.drawable.ic_drop_alert, R.drawable.ic_drop_alert_dark, Routes.DROP_ALERT,
+        ),
     )
     Column(
         // Swift wrap: grid inset top 20, horizontal 20; rows gap 10.
@@ -508,7 +548,7 @@ private fun ActivityGrid(onNavigate: (String) -> Unit) {
 @Composable
 private fun ActivityCard(activity: Activity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
-    val tagSuffix = activity.label.lowercase(Locale.US).replace(" ", "-")
+    val tagSuffix = activity.key
     val shape = RoundedCornerShape(Spacing.sm1)
     Column(
         modifier = modifier
@@ -751,25 +791,26 @@ private fun EmptyAuctionCard() {
 
 // ─── Refer a friend + Delivery Center tiles ──────────────────────────────
 // Kemar: turn Refer-a-Friend into a Services-style box and sit it beside a new
-// Delivery Center box (two equal 108dp tiles, same visual language as the
-// activity grid). Delivery Center → the tracking hub.
+// Lower box (two equal 108dp tiles, same visual language as the activity
+// grid): Refer a friend + Services. Track moved UP into the activity grid.
 
 @Composable
 private fun ReferAndDeliveryRow(onNavigate: (String) -> Unit) {
     val tiles = listOf(
         Activity(
+            "refer-a-friend",
             "Refer a friend",
             R.drawable.ic_more_refer,
             R.drawable.ic_more_refer_dark,
             Routes.REFER_A_FRIEND,
         ),
         Activity(
-            "Delivery Center",
-            // Theme-aware duotone (icon_duotone flips light/dark) with the orange
-            // accent — one drawable serves both modes.
-            R.drawable.ic_shipments_status_delivered,
-            R.drawable.ic_shipments_status_delivered,
-            Routes.deliveryCenter(),
+            // Swapped down from the activity grid — see the Track tile above.
+            "services",
+            "Services",
+            R.drawable.ic_services,
+            R.drawable.ic_services_dark,
+            Routes.SERVICES,
         ),
     )
     Row(

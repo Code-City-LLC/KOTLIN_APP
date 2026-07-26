@@ -1,5 +1,7 @@
 package com.ga.airdrop.feature.shipments
 
+import com.ga.airdrop.data.model.PackageStorage
+
 /*
  * Data contracts for the SHIPMENTS feature group.
  *
@@ -75,6 +77,8 @@ data class ShipmentPackageDetail(
     val invoices: List<PackageInvoiceDoc> = emptyList(),
     val additionalCharges: Map<String, Double> = emptyMap(),
     val additionalChargesTotal: Double? = null,
+    /** Server-owned storage-fee block; null when the payload predates it. */
+    val storage: PackageStorage? = null,
     val exchangeRate: Double? = null,
 )
 

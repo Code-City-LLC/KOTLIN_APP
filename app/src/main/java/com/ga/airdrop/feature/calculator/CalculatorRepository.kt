@@ -41,7 +41,7 @@ interface CalculatorRepository {
     /** GET /products?search=… — Swift `AirdropAPI.searchProducts` (RN parity). */
     suspend fun searchProducts(query: String, limit: Int = 20): List<CalcProduct>
 
-    /** GET /exchange-rates → usd_to_jmd; fallback 156.0 (Swift APIConfig.usdToJmdFallback). */
+    /** GET /exchange-rates → the live USD→JMD rate; last known rate if unreachable. */
     suspend fun usdToJmdRate(): Double
 }
 
@@ -53,9 +53,10 @@ private data class ShipmentCalculationRequest(
     val invoice_amount: Double,
     val weight_unit: String = "lbs",
     val dimension_unit: String = "inch",
-    // Do NOT invent duty rates: the Swift app always sends 45 and displays
-    // whatever `breakdown.customs_duty` the server answers with.
-    val custom_duty_percentage: Double = 45.0,
+    // custom_duty_percentage is deliberately ABSENT. BrightHarbor #79936:
+    // "raw custom_duty_percentage is accepted for legacy compatibility, but
+    // mobile must NOT author it. Omit it so server defaults apply." Kotlin was
+    // hardcoding 45.0 — a duty rate the client has no business choosing.
     val incorrect_shipping_info: Boolean = false,
     val weight_lbs: Double? = null,
     val package_length: Double? = null,
@@ -121,7 +122,30 @@ class RemoteCalculatorRepository(
                 fuelSurcharge = breakdown.flexDouble("fuel_surcharge") ?: 0.0,
                 airdropCharges = breakdown.flexDouble("airdrop_charges") ?: 0.0,
                 customsDuty = breakdown.flexDouble("customs_duty") ?: 0.0,
-                totalWithDuty = breakdown.flexDouble("total_with_duty") ?: 0.0,
+                // ⚠️ `total_with_duty` and `total_charges` are NOT totals.
+                // Measured live: on airdrop_standard `total_with_duty` == 90.90
+                // == `customs_duty`; on airdrop_express `total_charges` == 87.30
+                // == `customs_duty`; on seadrop `total_charges` == 202.50 and
+                // folds in the merchant invoice. One key, three meanings.
+                //
+                // `grand_total` is composed server-side, identically for every
+                // method, as round(airdrop_charges + customs_duty, 2) — see
+                // ShippingCalculatorService::withCanonicalKeys(). It is not an
+                // alias of any legacy key; aliasing was rejected because the
+                // legacy keys disagree. Three-of-three consensus, BronzeMountain
+                // #80146. The legacy keys are read only as a fallback for a
+                // server that predates grand_total.
+                totalWithDuty = breakdown.flexDouble("grand_total")
+                    ?: breakdown.flexDouble("total_with_duty")
+                    ?: breakdown.flexDouble("total_charges")
+                    ?: 0.0,
+                // Conditional — it applies only when the address is bad, so it
+                // is deliberately NOT inside grand_total. Folding it in would
+                // OVER-quote every normal customer, the mirror of the
+                // under-quote just fixed. Rendered as its own line when non-zero.
+                badAddressFee = breakdown.flexDouble("bad_address_fee"),
+                tariff = breakdown.flexDouble("tariff"),
+                billOfLadingProcessing = breakdown.flexDouble("bill_of_lading_processing"),
                 cifValue = calculations?.flexDouble("cif_value") ?: 0.0,
                 totalWeightLbs = calculations?.flexDouble("total_weight_lbs"),
             )
@@ -174,15 +198,35 @@ class RemoteCalculatorRepository(
         return String.format(Locale.US, "$%,.2f", value)
     }
 
+    /**
+     * GET /exchange-rates.
+     *
+     * ⚠️ This used to read `usd_to_jmd` — a key the server does not send. The
+     * live body is `{"data":{"id":1,"exchange_rate":"162.00","formatted_rate":162.0}}`,
+     * with the rate as a STRING. `flexDouble("usd_to_jmd")` therefore returned
+     * null on every call, `getOrNull()` collapsed to the stored value, and the
+     * function silently "succeeded" with a stale rate — while
+     * CalculatorViewModel then wrote that stale value BACK into
+     * ExchangeRateStore as if it were live. The shared data layer was fixed for
+     * exactly this (Shipping.kt ExchangeRate); the calculator's own hand-rolled
+     * call was missed.
+     *
+     * Reads the real keys now, still preferring the last known rate over
+     * nothing when the network is down — but a decode mismatch can no longer
+     * masquerade as a successful fetch.
+     */
     override suspend fun usdToJmdRate(): Double = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url("/exchange-rates")).get().build()
         runCatching {
             client.newCall(request).execute().use { response ->
-                val text = response.body?.string().orEmpty()
-                val root = json.parseToJsonElement(text) as? JsonObject
-                root?.flexDouble("usd_to_jmd")
-                    ?: root?.objectAt("data")?.flexDouble("usd_to_jmd")
+                val root = json.parseToJsonElement(response.body?.string().orEmpty()) as? JsonObject
+                val data = root?.objectAt("data") ?: root
+                // `exchange_rate` is a string; `formatted_rate` is a number.
+                // `usd_to_jmd` is kept only for older deployments.
+                data?.flexDouble("exchange_rate")
+                    ?: data?.flexDouble("formatted_rate")
+                    ?: data?.flexDouble("usd_to_jmd")
             }
-        }.getOrNull() ?: ExchangeRateStore.current
+        }.getOrNull()?.takeIf { it > 0 } ?: ExchangeRateStore.current
     }
 }

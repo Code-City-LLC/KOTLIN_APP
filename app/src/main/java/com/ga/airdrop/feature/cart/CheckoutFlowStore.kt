@@ -275,6 +275,22 @@ object CheckoutFlowStore {
         return next
     }
 
+    /**
+     * Fulfillment ("delivery" / "pickup") of the flow that is being paid for,
+     * for the CURRENT session — resolved without the caller needing an owner.
+     *
+     * The Stripe return path navigated to payment-success with NO fulfillment,
+     * so it defaulted to the pickup variant and told delivery buyers to collect
+     * at the branch. The flow already knows; it just was not read.
+     */
+    @Synchronized
+    fun currentFulfillment(): String? =
+        currentAuthenticatedOwner()
+            ?.let { current(it) }
+            ?.deliveryMode
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
     @Synchronized
     fun current(owner: AuthenticatedSessionOwner): CheckoutFlow? =
         if (bindFlowOwner(owner)) flow else null

@@ -125,7 +125,11 @@ class HomeViewModel(
             }
             if (!sessionBoundary.isCurrent(owner)) return@launch
             repository.airCoinsStatus().onSuccess { status ->
-                val label = (status.available ?: status.balance)?.toString().orEmpty()
+                val label = (status.available ?: status.balance)?.let { coins ->
+                    // Header pill: whole numbers stay clean, fractions survive.
+                    if (coins % 1.0 == 0.0) coins.toLong().toString()
+                    else java.text.DecimalFormat("#,##0.##").format(coins)
+                }.orEmpty()
                 sessionBoundary.apply(owner) {
                     _state.update { it.copy(airCoins = label) }
                     SessionStore.updateForSession(owner) { it.copy(airCoins = label) }

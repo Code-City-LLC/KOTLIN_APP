@@ -15,6 +15,7 @@ import com.ga.airdrop.data.repo.ActiveDelivery
 import com.ga.airdrop.data.repo.DeliveryTrackingGateway
 import com.ga.airdrop.data.repo.DeliveryTrackingRepository
 import com.ga.airdrop.data.repo.TrackedDelivery
+import com.ga.airdrop.data.model.PackageTimelineEntry
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
@@ -37,6 +38,13 @@ data class DeliveryCenterUiState(
     val activeDeliveries: List<ActiveDelivery> = emptyList(),
     val selectedPackageId: Int? = null,
     val delivery: TrackedDelivery? = null,
+    /**
+     * Laravel's canonical journey for the selected package — the full rail,
+     * already ordered, labelled, iconed and capped to one pending step. Kotlin
+     * used to build this itself from raw history plus the last mile; the server
+     * owns it now.
+     */
+    val timeline: List<PackageTimelineEntry> = emptyList(),
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val loadedOnce: Boolean = false,
@@ -241,6 +249,10 @@ class DeliveryCenterViewModel(
     ) {
         gateway.deliveryTracking(packageId).fold(
             onSuccess = { result ->
+                // The canonical journey. A failure here must NOT blank Track —
+                // we still have the last mile, so the rail degrades to what we
+                // do know rather than showing nothing.
+                val timeline = gateway.packageTimeline(packageId).getOrNull().orEmpty()
                 publish(
                     owner,
                     epoch,
@@ -248,6 +260,7 @@ class DeliveryCenterViewModel(
                         activeDeliveries = activeDeliveries,
                         selectedPackageId = packageId,
                         delivery = result.delivery,
+                        timeline = timeline,
                         loading = false,
                         loadedOnce = true,
                     ),

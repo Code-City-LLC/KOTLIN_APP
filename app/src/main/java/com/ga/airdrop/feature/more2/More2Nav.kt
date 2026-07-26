@@ -59,12 +59,16 @@ fun NavGraphBuilder.more2Graph(navController: NavHostController) {
         arguments = listOf(navArgument("userId") { type = NavType.StringType }),
     ) { entry ->
         val userId = entry.arguments?.getString("userId")?.toIntOrNull() ?: 0
-        // Swift FigmaAuthorizedUserDetailViewController.swift:146-148 — the
-        // detail surface is read-only (Activate/Deactivate + Delete only); no
-        // Edit affordance. Matches RN; no iOS-only edit button.
+        // Swift FigmaAuthorizedUserDetailViewController.swift:135-143 ships an
+        // "Edit" control in the detail header (36ff3b3, 2026-07-13). Android had
+        // the whole edit path built — route, prefilled form, "Save Changes",
+        // PUT /authorized-users/{id} — but nothing ever navigated to it WITH an
+        // id, so isEditMode could never become true and the form was
+        // unreachable. This is the missing door handle.
         AuthorizedUserDetailScreen(
             userId = userId,
             onBack = { navController.popBackStack() },
+            onEdit = { navController.navigate(Routes.addAuthorizedUser(userId.toString())) },
         )
     }
 

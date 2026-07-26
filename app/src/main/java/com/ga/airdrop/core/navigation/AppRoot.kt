@@ -103,12 +103,16 @@ fun AppRoot(
         }
     }
 
-    // Reactive logout — Swift SceneDelegate.handleAPISessionInvalidated parity
-    // (BUG_AUDIT C6): when the bearer disappears while the user is inside the
-    // authenticated graph (401 sweep, failed foreground refresh, account
-    // deletion), reset to the auth landing instead of leaving dead screens.
-    // Auth-graph routes are exempt so splash routing and the explicit
-    // logout/deletion navigations don't double-fire.
+    // When the bearer disappears while the user is inside the authenticated
+    // graph, reset to the auth landing instead of leaving dead screens.
+    //
+    // ⚠️ This is NOT a "reactive logout" and must never grow into one. As of
+    // 2026-07-26 the only things that null the bearer are: the customer tapping
+    // Log Out, the biometric lock screen's log-out, account deletion, and a
+    // refresh that came back **401** — the server's confirmed-dead answer. A
+    // plain 401 on an ordinary request does not, nor does a network error, a
+    // 5xx, or a dropped connection. This effect only follows a bearer that is
+    // already gone; it decides nothing itself.
     androidx.compose.runtime.LaunchedEffect(token, currentRoute) {
         if (shouldResetToAuthLanding(token, currentRoute)) {
             navController.navigate(Routes.AUTH_LANDING) {
@@ -334,7 +338,16 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
         com.ga.airdrop.feature.cart.PaymentReturnHost(
             sessionId = entry.arguments?.getString("sessionId").orEmpty(),
             onPaid = { ref, amount ->
-                navController.navigate(Routes.paymentSuccess(ref, amount)) {
+                navController.navigate(
+                    // Fulfillment MUST be carried: without it the success
+                    // screen falls back to the pickup variant and tells a
+                    // delivery buyer to collect at the branch.
+                    Routes.paymentSuccess(
+                        ref,
+                        amount,
+                        com.ga.airdrop.feature.cart.CheckoutFlowStore.currentFulfillment(),
+                    ),
+                ) {
                     // Pop through the cart so Back from Success never lands on
                     // a stale Delivery Method / cleared cart (verify finding).
                     popUpTo(Routes.CART) { inclusive = true }
@@ -363,7 +376,16 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     composable(Routes.PAYMENT_CANCELLED) {
         com.ga.airdrop.feature.cart.PaymentCancelledHost(
             onPaid = { ref, amount ->
-                navController.navigate(Routes.paymentSuccess(ref, amount)) {
+                navController.navigate(
+                    // Fulfillment MUST be carried: without it the success
+                    // screen falls back to the pickup variant and tells a
+                    // delivery buyer to collect at the branch.
+                    Routes.paymentSuccess(
+                        ref,
+                        amount,
+                        com.ga.airdrop.feature.cart.CheckoutFlowStore.currentFulfillment(),
+                    ),
+                ) {
                     popUpTo(Routes.CART) { inclusive = true }
                     launchSingleTop = true
                 }

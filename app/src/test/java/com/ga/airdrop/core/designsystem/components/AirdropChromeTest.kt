@@ -54,6 +54,13 @@ class AirdropChromeTest {
     @Test
     fun bottomBarBackgroundIsFrostedTranslucent() {
         assertFrosted("Bottom tab bar", AirdropChrome.bottomBarBackground(gray200).alpha)
+        // Kemar 2026-07-26: the inner detail headers (Packages et al) are glass
+        // too. This was an opaque gray100 wash; the lock now covers it so an
+        // "opaque header" revert fails the build here as well.
+        assertFrosted(
+            "Inner detail header",
+            AirdropChrome.detailHeaderBackground(Color(0xFFFFFFFF)).alpha,
+        )
     }
 
     /**

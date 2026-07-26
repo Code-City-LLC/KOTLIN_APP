@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
@@ -72,6 +74,7 @@ import com.ga.airdrop.data.repo.ActiveDelivery
 import com.ga.airdrop.data.repo.TrackedDelivery
 import com.ga.airdrop.data.repo.TrackedDeliveryStage
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
+import com.ga.airdrop.feature.shipments.ShipmentStatusCatalog
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -90,6 +93,7 @@ object DeliveryCenterTags {
     const val CONTACT = "delivery-center-contact"
     const val JOURNEY = "delivery-center-journey"
     fun row(packageId: Int) = "delivery-center-row-$packageId"
+    fun contactFor(stageKey: String) = "delivery-center-contact-$stageKey"
     fun stage(key: String) = "delivery-center-stage-$key"
 }
 
@@ -184,6 +188,7 @@ internal fun DeliveryCenterScreenContent(
                     summary = state.selectedSummary,
                     packageId = requireNotNull(state.selectedPackageId),
                     delivery = requireNotNull(state.delivery),
+                    timeline = state.timeline,
                     refreshing = state.refreshing,
                     onRefresh = onRefresh,
                     onContactUs = onContactUs,
@@ -227,7 +232,7 @@ private fun DeliveryCenterScaffold(
         )
 
         Column(Modifier.fillMaxSize()) {
-            HomeDetailsHeader(title = "Delivery Center", onBack = onBack)
+            HomeDetailsHeader(title = "Track", onBack = onBack)
             content()
         }
     }
@@ -239,70 +244,43 @@ private data class JourneyStage(
     val key: String,
     val label: String,
     val state: String,
-    val detail: String,
-)
-
-private val JUST_PAID_STAGES = listOf(
-    JourneyStage(
-        "order_confirmed", "Order Confirmed", "done",
-        "Payment received, order booked.",
-    ),
-    JourneyStage(
-        "preparing_dispatch", "Preparing for Dispatch", "current",
-        "Packing your items for the courier.",
-    ),
-    JourneyStage(
-        "out_for_delivery", "Out for Delivery", "pending",
-        "On its way to your address.",
-    ),
-    JourneyStage(
-        "delivered", "Delivered", "pending",
-        "Handed over at your location.",
-    ),
 )
 
 /**
- * Kemar's approved FOUR-stage journey is the canonical tracking display. Live
- * server data maps onto it (assigned → Preparing for Dispatch) so the customer
- * always sees the same four-step path, with server states + timestamps driving
- * each step. Unknown server projections fall back to the raw server stages.
+ * Just-paid journey — shown immediately after checkout, before Laravel has a
+ * `package_deliveries` row to report.
+ *
+ * ⚠️ BrightHarbor #79775 caught this carrying SUPERSEDED UI: it still had
+ * "Order Confirmed" and all four stages while the live rail had already moved
+ * to the three-stage, one-upcoming-step contract — so the two Track entry
+ * paths looked different for the same package. Fixing one path and leaving the
+ * other is exactly the regression shape that has bitten repeatedly today.
+ *
+ * Now matches the live rail: no Order Confirmed (Laravel #79690 §4), and
+ * truncated to a single upcoming step (Kemar rule 3, #79650).
  */
-private data class CanonicalStage(
-    val key: String,
-    val label: String,
-    val copy: String,
-    val state: String,
-    val at: String?,
-)
+private val JUST_PAID_STAGES = truncateAfterFirstPending(
+    listOf(
+        JourneyStage("preparing_dispatch", "Preparing for Dispatch", "current"),
+        JourneyStage("out_for_delivery", "Out for Delivery", "pending"),
+        JourneyStage("delivered", "Delivered", "pending"),
+    ),
+) { it.state == "pending" }
 
-private fun canonicalJourney(delivery: TrackedDelivery): List<CanonicalStage>? {
-    val byKey = delivery.stages.associateBy(TrackedDeliveryStage::key)
-    val assigned = byKey["assigned"]
-    val outForDelivery = byKey["out_for_delivery"]
-    val delivered = byKey["delivered"]
-    if (assigned == null && outForDelivery == null && delivered == null) return null
-    return listOf(
-        CanonicalStage(
-            "order_confirmed", "Order Confirmed",
-            "Payment received, order booked.", "done", null,
-        ),
-        CanonicalStage(
-            "preparing_dispatch", "Preparing for Dispatch",
-            "Packing your items for the courier.",
-            assigned?.state ?: "done", assigned?.at,
-        ),
-        CanonicalStage(
-            "out_for_delivery", "Out for Delivery",
-            "On its way to your address.",
-            outForDelivery?.state ?: "pending", outForDelivery?.at,
-        ),
-        CanonicalStage(
-            "delivered", "Delivered",
-            "Handed over at your location.",
-            delivered?.state ?: "pending", delivered?.at,
-        ),
-    )
+/**
+ * Kemar (timeline rule 3, #79650): *"Don't generate the last delivery. Just say
+ * Out for Delivery. The next one is not gonna come until... we're only gonna
+ * have one blurred out."*
+ *
+ * Everything that has HAPPENED, plus the SINGLE next thing — never a queue of
+ * greyed-out future steps. Applied here, in the one place the rail is
+ * assembled, so it cannot hold for one rail and drift on the other.
+ */
+internal fun <T> truncateAfterFirstPending(rows: List<T>, isPending: (T) -> Boolean): List<T> {
+    val firstPending = rows.indexOfFirst(isPending)
+    return if (firstPending >= 0) rows.take(firstPending + 1) else rows
 }
+
 
 @Composable
 private fun JustPaidJourney(
@@ -359,21 +337,14 @@ private fun JustPaidJourney(
                                 at = null,
                             ),
                             isLast = index == JUST_PAID_STAGES.lastIndex,
-                            detail = stage.detail,
                         )
                     }
                 }
             }
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp, bottom = 10.dp)
-                .navigationBarsPadding(),
-            contentAlignment = Alignment.Center,
-        ) {
-            ContactAction(onContactUs)
-        }
+        // Kemar 2026-07-26: the pinned "Contact us for more information" is
+        // removed from the bottom of Track. Contact remains on the Help tab.
+        Spacer(Modifier.navigationBarsPadding())
     }
 }
 
@@ -382,6 +353,12 @@ private fun CircularDeliveryHero() {
     // Kemar's approved hero: the truck BIG, inside its rounded box — the soft
     // gray well hugging the full-width illustration (nothing cropped).
     val colors = AirdropTheme.colors
+    // Kemar (timeline rule 1, #79650): "It's not supposed to have a shadow.
+    // It's supposed to be in line. The shadow goes on the bottom of the truck."
+    // The PANEL stays flush — no elevation. The only shadow is a GROUND shadow
+    // cast by the truck itself. Drawn as a blurred black silhouette of the same
+    // artwork so it follows the truck's outline rather than a rectangle (Swift
+    // achieves this with shadowPath = nil; alpha 0.30, offset y 10, radius 9).
     Box(
         Modifier
             .fillMaxWidth()
@@ -389,6 +366,18 @@ private fun CircularDeliveryHero() {
             .background(colors.gray150),
         contentAlignment = Alignment.Center,
     ) {
+        Image(
+            painter = painterResource(R.drawable.img_delivery_deliver),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(Color.Black),
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .aspectRatio(1000f / 667f)
+                .offset(y = 10.dp)
+                .blur(9.dp)
+                .alpha(0.30f),
+        )
         Image(
             painter = painterResource(R.drawable.img_delivery_deliver),
             contentDescription = null,
@@ -568,12 +557,7 @@ private fun ActiveDeliveriesList(
                         RefreshAction(onRefresh)
                     }
                 }
-                Text(
-                    text = "Choose a package to see its live delivery journey.",
-                    style = AirdropType.body2,
-                    color = AirdropTheme.colors.textDescription,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                // Kemar 2026-07-26: subtitle removed — the list explains itself.
             }
         }
         items(deliveries, key = ActiveDelivery::packageId) { delivery ->
@@ -597,17 +581,26 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        // Kemar 2026-07-26: each row's icon carries ITS OWN status colour —
+        // not one flat orange for every delivery. Green = delivered,
+        // orange = in flight, red = failed, grey = cancelled, with the circle
+        // tinted from the same colour so the row reads at a glance.
+        val statusColor = deliveryStatusColor(delivery.status)
         Box(
             Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(colors.peachLight),
+                .background(statusColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_shipments_status_in_transit_counter),
+                // Per-status icon. This was hardcoded to the in-transit truck,
+                // so EVERY row in the list showed the same glyph no matter what
+                // stage the delivery was actually at — the stage icons only
+                // worked on the detail journey.
+                painter = painterResource(deliveryStageIcon(delivery.status)),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(colors.orangeMain),
+                colorFilter = ColorFilter.tint(statusColor),
                 modifier = Modifier.size(25.dp),
             )
         }
@@ -629,7 +622,7 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
                 )
             }
             Text(
-                text = humanizeDeliveryStatus(delivery.status),
+                text = customerSafeStatusLabel(delivery.status),
                 style = AirdropType.body2.copy(fontWeight = FontWeight.SemiBold),
                 color = deliveryStatusColor(delivery.status),
             )
@@ -649,6 +642,7 @@ private fun DeliveryDetail(
     summary: ActiveDelivery?,
     packageId: Int,
     delivery: TrackedDelivery,
+    timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry>,
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onContactUs: () -> Unit,
@@ -701,30 +695,23 @@ private fun DeliveryDetail(
                     }
                 }
                 Column(Modifier.fillMaxWidth()) {
-                    val canonical = canonicalJourney(delivery)
-                    if (canonical != null) {
-                        // The approved four-stage journey, driven by live data.
-                        canonical.forEachIndexed { index, stage ->
-                            DeliveryTimelineStep(
-                                stage = TrackedDeliveryStage(
-                                    key = stage.key,
-                                    label = stage.label,
-                                    state = stage.state,
-                                    at = stage.at,
-                                ),
-                                isLast = index == canonical.lastIndex,
-                                detail = stage.copy,
-                            )
-                        }
-                    } else {
-                        // Defensive fallback: unrecognised server projection —
-                        // render the ordered server stages verbatim.
-                        delivery.stages.forEachIndexed { index, stage ->
-                            DeliveryTimelineStep(
-                                stage = stage,
-                                isLast = index == delivery.stages.lastIndex,
-                            )
-                        }
+                    // Laravel's canonical journey, rendered as sent. No
+                    // reordering, filtering, capping or relabelling here — see
+                    // TrackJourney for why the client stopped deriving this.
+                    val rows = TrackJourney.rows(timeline)
+                    rows.forEachIndexed { index, row ->
+                        DeliveryTimelineStep(
+                            stage = TrackedDeliveryStage(
+                                key = row.key,
+                                label = row.label,
+                                state = row.state,
+                                at = row.at,
+                            ),
+                            isLast = index == rows.lastIndex,
+                            statusId = row.statusId,
+                            iconKey = row.iconKey,
+                            onContactUs = if (row.needsHelp) onContactUs else null,
+                        )
                     }
                 }
             }
@@ -736,14 +723,14 @@ private fun DeliveryDetail(
                 .navigationBarsPadding(),
             contentAlignment = Alignment.Center,
         ) {
+            // Contact removed from the bottom of Track (Kemar 2026-07-26);
+            // this slot now only carries the refresh indicator.
             if (refreshing) {
                 CircularProgressIndicator(
                     color = colors.orangeMain,
                     strokeWidth = 2.dp,
                     modifier = Modifier.size(20.dp),
                 )
-            } else {
-                ContactAction(onContactUs)
             }
         }
     }
@@ -753,15 +740,26 @@ private fun DeliveryDetail(
 
 /**
  * One approved-design timeline row: outlined icon node + connector on the left,
- * label + detail on the right. Live rows show the server timestamp; the
- * just-paid journey passes its canonical copy via [detail]. Upcoming stages
- * fade back (node, icon and text together) so the front of the journey pops.
+ * the event label and its server timestamp on the right. There is deliberately
+ * no per-stage prose slot: the rows used to carry client-authored copy
+ * ("Packing your items for the courier.") that no system had ever asserted.
+ * The label IS the recorded event. Upcoming stages fade back (node, icon and
+ * text together) so the front of the journey pops.
  */
 @Composable
 private fun DeliveryTimelineStep(
     stage: TrackedDeliveryStage,
     isLast: Boolean,
-    detail: String? = null,
+    /** Warehouse status id, for its catalogue glyph. Null on last-mile legs. */
+    statusId: Int? = null,
+    /** The server's glyph key for this row. */
+    iconKey: String? = null,
+    /**
+     * Non-null on a row that has gone wrong (detained, uncollected, dangerous
+     * goods, returned). Kemar 2026-07-26: show those statuses, and give the
+     * customer the way out right there rather than making them hunt for it.
+     */
+    onContactUs: (() -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
     Row(
@@ -775,7 +773,7 @@ private fun DeliveryTimelineStep(
             Modifier.width(44.dp).fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            DeliveryStageNode(stage)
+            DeliveryStageNode(stage, statusId, iconKey)
             if (!isLast) {
                 DeliveryStageConnector(
                     state = stage.state,
@@ -794,14 +792,6 @@ private fun DeliveryTimelineStep(
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
             )
-            detail?.let {
-                Text(
-                    text = it,
-                    style = AirdropType.body2,
-                    color = colors.textDescription,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
             formatDeliveryTimestamp(stage.at)?.let {
                 Text(
                     text = it,
@@ -810,12 +800,27 @@ private fun DeliveryTimelineStep(
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
+            onContactUs?.let { contact ->
+                Text(
+                    text = "Contact us about this",
+                    style = AirdropType.subtitle1,
+                    color = colors.orangeMain,
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .testTag(DeliveryCenterTags.contactFor(stage.key))
+                        .clickable(onClick = contact),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun DeliveryStageNode(stage: TrackedDeliveryStage) {
+private fun DeliveryStageNode(
+    stage: TrackedDeliveryStage,
+    statusId: Int? = null,
+    iconKey: String? = null,
+) {
     val colors = AirdropTheme.colors
     val accent = deliveryStageColor(stage.state)
     Box(
@@ -862,7 +867,11 @@ private fun DeliveryStageNode(stage: TrackedDeliveryStage) {
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                painter = painterResource(deliveryStageIcon(stage.key)),
+                painter = painterResource(
+                    // The server names the glyph. Unknown keys fall back to the
+                    // status catalogue rather than guessing at a shape.
+                    TrackJourney.iconRes(iconKey, statusId, colors.isDark),
+                ),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(accent),
                 modifier = Modifier.size(22.dp),
@@ -887,19 +896,26 @@ private fun DeliveryStageConnector(state: String, modifier: Modifier = Modifier)
     Canvas(modifier.width(44.dp)) {
         val centerX = size.width / 2f
         val stroke = 2.dp.toPx()
+        // Kemar (timeline rule 2, #79650): "The lines going from the box to the
+        // next box don't connect to each box... just goes half, and then it
+        // stops." A 13dp inset at BOTH ends leaves clear air, so the segment
+        // floats instead of reading as a tether joining two circles.
+        val inset = 13.dp.toPx()
+        val lineTop = inset
+        val lineBottom = (size.height - inset).coerceAtLeast(inset)
         when (state) {
             "done" -> drawLine(
                 DeliveryStagePalette.Passed,
-                Offset(centerX, 0f),
-                Offset(centerX, size.height),
+                Offset(centerX, lineTop),
+                Offset(centerX, lineBottom),
                 stroke,
                 StrokeCap.Round,
             )
             "current" -> {
                 drawLine(
                     track,
-                    Offset(centerX, 0f),
-                    Offset(centerX, size.height),
+                    Offset(centerX, lineTop),
+                    Offset(centerX, lineBottom),
                     stroke,
                     StrokeCap.Round,
                 )
@@ -910,14 +926,14 @@ private fun DeliveryStageConnector(state: String, modifier: Modifier = Modifier)
                     drawCircle(
                         color = DeliveryStagePalette.Current.copy(alpha = alpha),
                         radius = radius,
-                        center = Offset(centerX, fraction * size.height),
+                        center = Offset(centerX, lineTop + fraction * (lineBottom - lineTop)),
                     )
                 }
             }
             else -> drawLine(
                 track,
-                Offset(centerX, 0f),
-                Offset(centerX, size.height),
+                Offset(centerX, lineTop),
+                Offset(centerX, lineBottom),
                 stroke,
                 StrokeCap.Round,
             )
@@ -967,9 +983,16 @@ private val BANNED_STAGE_PHRASES = listOf("driver", "courier", "dispatcher", "ri
 
 private fun deliveryStageIcon(key: String): Int = when (key) {
     "order_confirmed" -> R.drawable.ic_shipments_status_shipment_received
-    "preparing_dispatch" -> R.drawable.ic_shipments_status_processing_warehouse
-    "assigned" -> R.drawable.ic_shipments_status_shipment_received
-    "out_for_delivery" -> R.drawable.ic_shipments_status_in_transit_counter
+    // "Preparing for Dispatch" — Figma 787:33962, the node Kemar chose
+    // directly (Laravel #79774). NOT the conveyor (that is status 6
+    // "Processing at our Warehouse") and NOT a truck (the set holds exactly
+    // one truck and Out for Delivery owns it). My earlier paid_ready_pickup
+    // guess was wrong — the owner ruling exists and this is it.
+    "assigned", "preparing_dispatch" -> R.drawable.ic_shipments_status_dispatch
+    // Out for Delivery has its own glyph now — Figma 40000692:4169, assigned by
+    // Kemar (SwiftHawk #79921). It used to borrow status 12's, so two rows of
+    // the same journey drew the same picture.
+    "out_for_delivery" -> R.drawable.ic_shipments_status_out_for_delivery
     "delivered" -> R.drawable.ic_shipments_status_delivered
     else -> R.drawable.ic_tracking
 }
@@ -1012,6 +1035,24 @@ private fun ContactAction(onContactUs: () -> Unit, modifier: Modifier = Modifier
             color = colors.textDarkTitle,
         )
     }
+}
+
+/**
+ * Customer-facing label for a bare server status, for the Active-deliveries
+ * list. The detail journey already routed every stage through
+ * [customerSafeStageLabel]; the LIST did not, so it printed the raw
+ * operations status — "Assigned" — straight to the customer. The canonical
+ * customer journey is Order Confirmed -> Preparing for Dispatch -> Out for
+ * Delivery -> Delivered; "Assigned" is not one of its stages.
+ *
+ * Unknown keys fall back to title-case, but never leak an operations word.
+ */
+internal fun customerSafeStatusLabel(status: String): String {
+    val key = status.trim().lowercase(Locale.US)
+    APPROVED_STAGE_LABELS[key]?.let { return it }
+    val humanized = humanizeDeliveryStatus(status)
+    val lowered = humanized.lowercase(Locale.US)
+    return if (BANNED_STAGE_PHRASES.any { lowered.contains(it) }) "In Progress" else humanized
 }
 
 internal fun humanizeDeliveryStatus(status: String): String =

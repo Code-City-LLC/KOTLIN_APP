@@ -9,6 +9,8 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 // ── Warehouses (GET /warehouse) ──
 
@@ -22,6 +24,18 @@ data class Warehouse(
     val state: String? = null,
     val zipCode: String? = null,
     val phoneNumber: String? = null,
+    /** e.g. "Unit G36" — the warehouse suite, prefixed onto Address Line 2. */
+    val unit: String? = null,
+    /**
+     * Server-owned shipping-method tokens for Address Line 2, keyed
+     * "standard" / "express" / "seadrop" -> "AIR" / "EXPRESS" / "SEA".
+     * Kemar: the token must reflect the actual method, and SeaDrop shows as
+     * **SEA**, not "SEADROP". Server-driven so Laravel, iOS and Android cannot
+     * drift; the client only falls back if the field is absent.
+     */
+    val addressLine2Tokens: Map<String, String> = emptyMap(),
+    /** Separator between the unit and the token, e.g. " - ". */
+    val addressLine2Separator: String? = null,
 )
 
 object WarehouseSerializer : KSerializer<Warehouse> {
@@ -43,18 +57,50 @@ object WarehouseSerializer : KSerializer<Warehouse> {
             state = obj.flexString("state"),
             zipCode = obj.flexString("zip_code"),
             phoneNumber = obj.flexString("phone_number"),
+            unit = obj.flexString("unit"),
+            addressLine2Tokens = (obj["address_line_2_tokens"] as? JsonObject)
+                ?.mapNotNull { (k, v) ->
+                    (v as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { k to it }
+                }
+                ?.toMap()
+                .orEmpty(),
+            addressLine2Separator = obj.flexString("address_line_2_separator"),
         )
     }
 }
 
 // ── Exchange rate (GET /exchange-rates) ──
 
+/**
+ * GET /exchange-rates.
+ *
+ * ⚠️ The server does NOT send `usd_to_jmd`. The live body is
+ * `{"id":1,"exchange_rate":"162.00","formatted_rate":162.0}` (verified on both
+ * pre-staging and production). Reading only `usd_to_jmd` meant this ALWAYS
+ * decoded to null, the repo raised "Missing exchange rate", and every screen
+ * fell back to the hardcoded `ExchangeRateStore` default — so the global rate
+ * has never once loaded. `exchange_rate` arrives as a STRING, hence the
+ * flexible serializer; `formatted_rate` is the numeric twin and is accepted as
+ * a fallback.
+ */
 @Serializable
 data class ExchangeRate(
+    @SerialName("exchange_rate")
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val exchangeRate: Double? = null,
+    @SerialName("formatted_rate")
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val formattedRate: Double? = null,
+    // Kept so any older/alternate payload still decodes.
     @SerialName("usd_to_jmd")
     @Serializable(with = FlexibleDoubleSerializer::class)
-    val usdToJmd: Double? = null,
-)
+    val usdToJmdLegacy: Double? = null,
+) {
+    /** First non-null, positive rate across the accepted spellings. */
+    val usdToJmd: Double?
+        get() = listOfNotNull(exchangeRate, formattedRate, usdToJmdLegacy)
+            .firstOrNull { it > 0.0 }
+}
 
 // ── Shipping rates (GET /shipping-rates, wrapped in {data:{...}}) ──
 
@@ -90,6 +136,19 @@ data class AdditionalFees(
     @SerialName("incorrect_shipping_info") val incorrectShippingInfo: Double? = null,
     @SerialName("document_letter_rate") val documentLetterRate: Double? = null,
     @SerialName("customs_threshold") val customsThreshold: Double? = null,
+    /**
+     * In & Out fee. The screen used to hardcode 5.00 / 0.50-per-lb / 50.00
+     * while the server sends 3.00 / 1.00 / 100.00 — every one of the three
+     * numbers was wrong, and the field was never modelled at all.
+     */
+    @SerialName("in_out_fee") val inOutFee: InOutFee? = null,
+)
+
+@Serializable
+data class InOutFee(
+    @SerialName("first_lb") val firstLb: Double? = null,
+    @SerialName("additional_lb") val additionalLb: Double? = null,
+    @SerialName("flat_rate_100_lbs") val flatRate100Lbs: Double? = null,
 )
 
 @Serializable

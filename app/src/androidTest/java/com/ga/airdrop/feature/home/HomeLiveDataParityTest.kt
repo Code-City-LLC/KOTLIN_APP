@@ -165,7 +165,7 @@ class HomeLiveDataParityTest {
 
         override suspend fun airCoinsStatus(): Result<AirCoinsStatus> {
             airCoinsCalls.incrementAndGet()
-            return Result.success(AirCoinsStatus(available = 42, balance = 7))
+            return Result.success(AirCoinsStatus(available = 42.0, balance = 7.0))
         }
 
         override suspend fun auctionProductsShortlist(): Result<List<AuctionProduct>> {

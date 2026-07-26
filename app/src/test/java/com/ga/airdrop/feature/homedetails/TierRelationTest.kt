@@ -91,10 +91,29 @@ class TierRelationTest {
         )
     }
 
+    /**
+     * Kemar's eyes-on ruling (0b8349b): **no blank tier pages**. He visually
+     * rejected the blank bottom actions on Sapphire/Inactive/Corporate, and
+     * that ruling supersedes Swift's hidden-on-lower rule.
+     *
+     * This test previously asserted the opposite — pinning the nulls that
+     * 66dcebb reintroduced — so it was locking in the very thing he rejected.
+     */
     @Test
-    fun currentSwiftHidesDowngradeAndPreviewCtas() {
-        assertNull(tierCtaLabel(TierRelation.DOWNGRADE, "Sapphire Saver"))
-        assertNull(tierCtaLabel(TierRelation.PREVIEW, "Corporate"))
+    fun everyTierPageShowsACta() {
+        assertEquals(
+            "Your Tier: Gold Standard",
+            tierCtaLabel(TierRelation.DOWNGRADE, "Sapphire Saver", customerTierName = "Gold Standard"),
+        )
+        assertEquals("Contact Us", tierCtaLabel(TierRelation.PREVIEW, "Corporate"))
+        assertEquals("Your Tier", tierCtaLabel(TierRelation.CURRENT, "Gold Standard"))
+        assertEquals("Upgrade to Diamond Elite", tierCtaLabel(TierRelation.UPGRADE, "Diamond Elite"))
+    }
+
+    /** Only the brief resolving window may render no label. */
+    @Test
+    fun downgradeCtaWaitsForTheCustomerTierToResolve() {
+        assertNull(tierCtaLabel(TierRelation.DOWNGRADE, "Sapphire Saver", customerTierName = null))
     }
 
     // ── benefit-row resolution (server copy + static legacy pages) ──

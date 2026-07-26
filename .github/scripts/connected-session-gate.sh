@@ -76,6 +76,12 @@ test_classes_from_source_paths() {
       found=0
       for test_file in "$root/$package"/*Test.kt; do
         [[ -e "$test_file" ]] || continue
+        # A *Test.kt file with no @Test produces no testcases, and
+        # assert_results FAILS any requested class that produced none. Selecting
+        # one would block every PR touching that package.
+        # (feature/homedetails/NotificationsParityTest.kt is exactly this: a
+        # doc-only placeholder class with an empty body.)
+        grep -q "@Test" "$test_file" || continue
         relative="${test_file#"$root"/}"
         printf '%s\n' "${relative%.kt}"
         found=1
@@ -334,12 +340,19 @@ run_self_test() (
   fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/connected-session-gate-src.XXXXXX")"
   mkdir -p "$fixture_root/com/ga/airdrop/feature/shipments" \
     "$fixture_root/com/ga/airdrop/core/network"
-  : > "$fixture_root/com/ga/airdrop/feature/shipments/PackageDetailsParityTest.kt"
-  : > "$fixture_root/com/ga/airdrop/feature/shipments/InvoiceViewerParityTest.kt"
+  # Fixtures must contain a real @Test: selection now skips *Test.kt files that
+  # declare none (a placeholder class produces no testcases and would fail the
+  # XML contract). Empty fixtures here would silently test nothing.
+  printf '@Test fun a() {}\n' > "$fixture_root/com/ga/airdrop/feature/shipments/PackageDetailsParityTest.kt"
+  printf '@Test fun a() {}\n' > "$fixture_root/com/ga/airdrop/feature/shipments/InvoiceViewerParityTest.kt"
   # A support file, not a test — must NOT be selected (mirrors the real
   # FakeAuthenticatedSessionBoundary.kt that lives beside the tests).
-  : > "$fixture_root/com/ga/airdrop/feature/shipments/FakeSessionBoundary.kt"
-  : > "$fixture_root/com/ga/airdrop/core/network/AuthInterceptorParityTest.kt"
+  printf 'class FakeSessionBoundary\n' > "$fixture_root/com/ga/airdrop/feature/shipments/FakeSessionBoundary.kt"
+  # A *Test.kt with NO @Test — the NotificationsParityTest shape. Must be
+  # skipped, or every PR touching that package becomes unmergeable.
+  printf '/** placeholder, no tests yet */\nclass PlaceholderParityTest\n' \
+    > "$fixture_root/com/ga/airdrop/feature/shipments/PlaceholderParityTest.kt"
+  printf '@Test fun a() {}\n' > "$fixture_root/com/ga/airdrop/core/network/AuthInterceptorParityTest.kt"
   source_actual="$(printf '%s\n' \
     'app/src/main/java/com/ga/airdrop/feature/shipments/CustomsNotice.kt' \
     'app/src/main/java/com/ga/airdrop/feature/shipments/PackageDetailsScreen.kt' \
@@ -392,6 +405,17 @@ run_self_test() (
   printf 'connected-session-gate self-test: PASS\n'
 )
 
+# Disable window/transition/animator scales on every attached device.
+quiet_animations() {
+  local device scale
+  for device in $(adb devices | awk '/\tdevice$/ {print $1}'); do
+    for scale in window_animation_scale transition_animation_scale animator_duration_scale; do
+      adb -s "$device" shell settings put global "$scale" 0 >/dev/null 2>&1 || true
+    done
+    printf 'Animations disabled on %s\n' "$device" >&2
+  done
+}
+
 main() {
   local mode="${1:-}"
   local classes_csv
@@ -418,11 +442,29 @@ main() {
     return
   fi
 
+  # android-emulator-runner already sets window_animation_scale and
+  # transition_animation_scale to 0 — but NOT animator_duration_scale, and that
+  # is the one Compose reads. A Compose waitUntil on a sheet dismissal is
+  # waiting on an animator, so the action's own "Disabling animations" step does
+  # not cover it. This closes that gap. Failures are tolerated: a device that
+  # refuses the setting must not take the gate down with it.
+  quiet_animations
+
   proof_root="${RUNNER_TEMP:?RUNNER_TEMP is required}/connected-session-proof"
   rm -rf "$proof_root"
   mkdir -p "$proof_root"
   record_requested_classes
   classes_csv="$(join_requested_classes)"
+
+  # Clear results BEFORE the run, not only after. preserve_flavor copies
+  # whatever is sitting in $results_root, so anything left there by an earlier
+  # run is folded into this flavor's proof and counted. Running the gate
+  # locally after a focused test run reproduced exactly that: every mandatory
+  # class reported double its expected count (10 -> 20, 9 -> 18, 14 -> 28,
+  # 3 -> 6) because a stale staging XML was still on disk, and the gate failed
+  # before it ever reached the staging phase. CI happens to start clean, which
+  # is the only reason this had not bitten there.
+  rm -rf "$results_root" "$reports_root"
 
   ./gradlew --no-daemon --stacktrace :app:connectedProdDebugAndroidTest \
     "-Pandroid.testInstrumentationRunnerArguments.class=$classes_csv"

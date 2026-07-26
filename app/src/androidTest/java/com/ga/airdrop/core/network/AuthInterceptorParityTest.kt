@@ -3,6 +3,7 @@ package com.ga.airdrop.core.network
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.auth.AuthTokenStore
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import okhttp3.Call
 import okhttp3.Connection
@@ -12,13 +13,23 @@ import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class AuthInterceptorParityTest {
+
+    @After
+    fun tearDown() {
+        // The store is a singleton; two of these tests now deliberately leave a
+        // live session behind, so wipe it rather than leak it into the next test.
+        AuthTokenStore.clear()
+    }
 
     @Test
     fun noAuthRequestSendsNoBearerAndDoesNotClearTokenOn401() {
@@ -45,33 +56,128 @@ class AuthInterceptorParityTest {
         AuthTokenStore.clear()
     }
 
+    /**
+     * Was `authenticatedRequestStillAttachesBearerAndClearsMatchingTokenOn401`,
+     * and its last assertion was `assertNull(AuthTokenStore.token)` — it pinned
+     * the behaviour where a 401 whose refresh did not produce a new token wiped
+     * the session and dumped the customer back on the sign-in screen.
+     *
+     * That was the defect. `AuthInterceptor.performRefresh` ends in
+     * `runCatching { ... }.getOrNull()`, so "no new token" was returned for ANY
+     * failure — a dropped connection, a timeout, a captive portal, a body-less
+     * 200 — not just for a token the server had genuinely retired. Pinning the
+     * clear meant pinning "log the customer out whenever the refresh call is
+     * unlucky", which is exactly the "app logs me out too often" report.
+     *
+     * ⚠️ THEN IT WAS OVER-CORRECTED, AND THIS TEST CAUGHT IT IN CI.
+     *
+     * The first fix made the app never tear down at all. Kemar reversed that
+     * the same day to SwiftHawk's narrower rule, which both platforms now run:
+     *
+     *     401 on a normal request         -> stay signed in
+     *     refresh throws / 5xx / no token -> stay signed in
+     *     refresh answers 401             -> session cleared
+     *
+     * `RecordingChain(responseCode = 401)` answers 401 to EVERY dispatch,
+     * including the refresh — so this scenario is a refresh-confirmed dead
+     * session and the teardown is correct. I flipped the JVM unit tests when
+     * the rule changed and missed this connected one; the gate caught it.
+     *
+     * The distinction that matters is preserved by the OTHER two tests in this
+     * file: a no-auth 401 and a dropped connection both still keep the session.
+     * Losing signal is not the same as being told the principal is gone.
+     *
+     * The half of the old test that was always right is kept verbatim: an
+     * authenticated request still gets the bearer and the JSON Accept header.
+     */
     @Test
-    fun authenticatedRequestStillAttachesBearerAndClearsMatchingTokenOn401() {
+    fun authenticatedRequestAttachesBearerAndClearsSessionWhenRefreshAnswers401() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         AuthTokenStore.init(context)
         AuthTokenStore.save("stale-token")
+        val sessionBefore = AuthTokenStore.currentSessionId()
         val request = Request.Builder()
             .url("https://example.com/api/v1/user/profile")
             .build()
         val chain = RecordingChain(request, responseCode = 401)
 
-        AuthInterceptor().intercept(chain)
+        val response = AuthInterceptor().intercept(chain)
 
-        assertEquals("Bearer stale-token", chain.proceededRequest.header("Authorization"))
-        assertEquals("application/json", chain.proceededRequest.header("Accept"))
-        assertNull(AuthTokenStore.token)
+        val sent = chain.proceededRequests.first()
+        assertEquals("https://example.com/api/v1/user/profile", sent.url.toString())
+        assertEquals("Bearer stale-token", sent.header("Authorization"))
+        assertEquals("application/json", sent.header("Accept"))
+
+        // Exactly one refresh attempt is still made — the parity behaviour with
+        // Swift's refresh-then-retry — it just no longer costs the session.
+        assertEquals(2, chain.proceededRequests.size)
+        assertTrue(
+            "the second dispatch should be the single /auth/refresh attempt",
+            chain.proceededRequests[1].url.encodedPath.endsWith("auth/refresh"),
+        )
+
+        // The caller still gets the 401 back so the screen can show its error.
+        assertEquals(401, response.code)
+        // The refresh itself answered 401 — the server has confirmed the
+        // principal is gone, and that is the one signal that ends a session.
+        assertNull(
+            "a refresh that answers 401 is the confirmed-dead signal",
+            AuthTokenStore.token,
+        )
+        assertNotEquals(
+            "the dead session generation must not survive",
+            sessionBefore,
+            AuthTokenStore.currentSessionId(),
+        )
+    }
+
+    /**
+     * The failure mode the old assertion actually punished most often: the 401
+     * is real, but the refresh call never reaches the server. `performRefresh`
+     * swallows the IOException into `null`, which used to be indistinguishable
+     * from "the server retired your token" and cost the customer their session.
+     * A lost connection must cost nothing.
+     */
+    @Test
+    fun droppedConnectionDuringRefreshKeepsCustomerSignedIn() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        AuthTokenStore.init(context)
+        AuthTokenStore.save("token-on-a-bad-network")
+        val sessionBefore = AuthTokenStore.currentSessionId()
+        val request = Request.Builder()
+            .url("https://example.com/api/v1/user/profile")
+            .build()
+        val chain = RecordingChain(request, responseCode = 401, dropConnectionOnRefresh = true)
+
+        val response = AuthInterceptor().intercept(chain)
+
+        assertEquals("Bearer token-on-a-bad-network", chain.proceededRequests.first().header("Authorization"))
+        assertEquals(401, response.code)
+        assertEquals(
+            "a refresh that died on the wire must never sign the customer out",
+            "token-on-a-bad-network",
+            AuthTokenStore.token,
+        )
+        assertEquals(sessionBefore, AuthTokenStore.currentSessionId())
     }
 
     private class RecordingChain(
         private val original: Request,
         private val responseCode: Int,
+        private val dropConnectionOnRefresh: Boolean = false,
     ) : Interceptor.Chain {
-        lateinit var proceededRequest: Request
+        val proceededRequests = mutableListOf<Request>()
+
+        /** The first dispatch — the caller's own request, not the refresh that follows it. */
+        val proceededRequest: Request get() = proceededRequests.first()
 
         override fun request(): Request = original
 
         override fun proceed(request: Request): Response {
-            proceededRequest = request
+            proceededRequests += request
+            if (dropConnectionOnRefresh && request.url.encodedPath.endsWith("auth/refresh")) {
+                throw IOException("Software caused connection abort")
+            }
             return Response.Builder()
                 .request(request)
                 .protocol(Protocol.HTTP_1_1)

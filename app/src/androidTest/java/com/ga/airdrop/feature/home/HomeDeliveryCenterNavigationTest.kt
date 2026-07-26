@@ -27,7 +27,10 @@ class HomeDeliveryCenterNavigationTest {
             }
         }
 
-        compose.onNodeWithTag("home-activity-delivery-center")
+        // The Track tile — Kemar 2026-07-26 swapped it up into the activity
+        // grid and moved Services down. The tag is now keyed off the tile's
+        // stable id, not its copy, so a future rename cannot break this again.
+        compose.onNodeWithTag("home-activity-track")
             .performScrollTo()
             .performClick()
 

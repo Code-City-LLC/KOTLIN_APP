@@ -19,9 +19,11 @@ data class AirCoinBalanceUiState(
     val status: AirCoinsStatus? = null,
     val loading: Boolean = false,
 ) {
-    val accumulated: Int get() = status?.accumulated ?: status?.balance ?: 0
-    val redeemed: Int get() = status?.redeemed ?: 0
-    val available: Int get() = status?.available ?: status?.balance ?: 0
+    // Doubles: Laravel emits fractional balances (462.25) and the old Int
+    // model truncated them, so a customer silently lost the fraction of a coin.
+    val accumulated: Double get() = status?.accumulated ?: status?.balance ?: 0.0
+    val redeemed: Double get() = status?.redeemed ?: 0.0
+    val available: Double get() = status?.available ?: status?.balance ?: 0.0
 }
 
 class AirCoinBalanceViewModel(

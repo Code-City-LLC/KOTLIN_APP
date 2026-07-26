@@ -55,6 +55,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.SubcomposeAsyncImage
 import com.ga.airdrop.R
+import com.ga.airdrop.core.designsystem.components.AirdropChrome
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
@@ -158,7 +159,8 @@ object ShipmentStatusCatalog {
         10 -> if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
         12 -> if (dark) R.drawable.ic_shipments_status_in_transit_counter_dark else R.drawable.ic_shipments_status_in_transit_counter
         14 -> if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
-        15 -> if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
+        // Uncollected must NOT reuse the Detained glyph — BronzeMountain #79803.
+        15 -> if (dark) R.drawable.ic_shipments_status_uncollected_dark else R.drawable.ic_shipments_status_uncollected
         16 -> if (dark) R.drawable.ic_shipments_status_dangerous_goods_dark else R.drawable.ic_shipments_status_dangerous_goods
         17 -> if (dark) R.drawable.ic_shipments_status_auction_dark else R.drawable.ic_shipments_status_auction
         18 -> if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup
@@ -174,6 +176,29 @@ object ShipmentStatusCatalog {
         return if (normalize(value) == "auction") "Sale" else value
     }
 
+    /**
+     * The label to put in front of a customer for a package.
+     *
+     * The card used to render `statusName ?: status ?: "—"` raw, so when the
+     * name was absent (or was itself a code) the customer saw a bare **"7"** as
+     * their package status — and packageStatusColor's `else` branch tinted it
+     * GREEN, i.e. it read as a completed state. Resolves a numeric code through
+     * the catalogue before falling back.
+     */
+    fun displayName(statusName: String?, status: String?): String {
+        customerFacingName(statusName)?.takeIf { it.isNotBlank() && !isBareCode(it) }?.let { return it }
+        // Either field may carry the numeric code.
+        listOfNotNull(statusName, status).forEach { candidate ->
+            candidate.trim().toIntOrNull()?.let { code ->
+                defaults.firstOrNull { it.id == code }?.name
+                    ?.let { return customerFacingName(it) ?: it }
+            }
+        }
+        return customerFacingName(status)?.takeIf { it.isNotBlank() && !isBareCode(it) } ?: "—"
+    }
+
+    private fun isBareCode(value: String) = value.trim().toIntOrNull() != null
+
     fun idFor(statusName: String?): Int? {
         val target = normalize(statusName ?: return null)
         if (target == "auction" || target == "sale") return 17
@@ -184,72 +209,13 @@ object ShipmentStatusCatalog {
     private fun normalize(s: String) = s.lowercase(Locale.US).filter { it.isLetterOrDigit() }
 }
 
-data class PackageTimelineStatus(
-    val id: Int,
-    val label: String,
-)
-
-data class PackageTimelineRow(
-    val status: PackageTimelineStatus,
-    val history: PackageHistoryItem?,
-)
-
-object PackageTimelineProgression {
-    val visibleStatuses = listOf(
-        PackageTimelineStatus(1, "Drop Alerted"),
-        PackageTimelineStatus(2, "Shipment Received"),
-        PackageTimelineStatus(3, "Port of Departure MIA"),
-        PackageTimelineStatus(4, "Arrived at Port JAM"),
-        PackageTimelineStatus(7, "Ready for Pickup"),
-        PackageTimelineStatus(18, "Paid and Ready for Pick Up"),
-        PackageTimelineStatus(8, "Delivered"),
-    )
-
-    private val actualProgression = listOf(1, 2, 3, 4, 5, 6, 7, 18, 8, 9, 10, 12, 14, 15, 16, 17)
-    private val inFlightOrange = Color(0xFFF07F17)
-
-    fun statusesFor(currentStatus: Int?, showFullTimeline: Boolean = false): List<PackageTimelineStatus> {
-        if (currentStatus == null) return if (showFullTimeline) visibleStatuses else emptyList()
-
-        val visibleIndex = visibleStatuses.indexOfFirst { it.id == currentStatus }
-        if (showFullTimeline) return visibleStatuses
-        if (visibleIndex >= 0) return visibleStatuses.take(visibleIndex + 1)
-
-        val progressionIndex = actualProgression.indexOf(currentStatus)
-        if (progressionIndex < 0) return visibleStatuses
-
-        val lastVisibleIndex = visibleStatuses.indexOfLast { status ->
-            val statusProgressionIndex = actualProgression.indexOf(status.id)
-            statusProgressionIndex >= 0 && statusProgressionIndex <= progressionIndex
-        }
-        return if (lastVisibleIndex >= 0) visibleStatuses.take(lastVisibleIndex + 1) else emptyList()
-    }
-
-    fun inlineRows(detail: ShipmentPackageDetail): List<PackageTimelineRow> {
-        val currentStatus = detail.status?.trim()?.toIntOrNull()
-        return statusesFor(currentStatus, showFullTimeline = false).map { status ->
-            PackageTimelineRow(
-                status = status,
-                history = detail.history.firstOrNull { it.status == status.id },
-            )
-        }
-    }
-
-    fun colorFor(statusId: Int, currentStatus: Int?, placeholder: Color): Color {
-        if (currentStatus == null) return placeholder
-        if (statusId == currentStatus) {
-            return if (statusId <= 4) inFlightOrange else AlertPalette.Completed
-        }
-
-        val currentIndex = actualProgression.indexOf(currentStatus)
-        val statusIndex = actualProgression.indexOf(statusId)
-        return if (currentIndex >= 0 && statusIndex >= 0 && statusIndex < currentIndex) {
-            AlertPalette.Completed
-        } else {
-            placeholder
-        }
-    }
-}
+// PackageTimelineStatus / PackageTimelineRow / PackageTimelineProgression were
+// deleted on 2026-07-26. They implemented a fixed seven-rung ladder that the
+// package-details screen rendered INSTEAD of the package's recorded history:
+// it invented steps for a package that had none (status 20, zero history rows
+// → all seven rungs printed) and hid real ones the ladder had no entry for
+// (Released From Customs, Processing at our Warehouse). The rail is now built
+// by TrackJourney.warehouseRail from the real history, shared with Track.
 
 /** Status → text color, substring rules from FigmaPackagesViewController. */
 fun packageStatusColor(statusName: String?): Color {
@@ -348,17 +314,18 @@ object ShipmentsFormat {
             null -> "-"
             else -> "—"
         }
+        // SwiftHawk #79761 §2 — DISPLAY format is the LAST SIX digits grouped
+        // 3 + 3:  ARD00000138634 -> "ARD 138 634".
+        // Display only: the full reference still goes to the API and is what
+        // search matches. Fewer than six digits is shown as-is and NEVER
+        // zero-padded — padding would misrepresent a short reference.
         val prefix = stripped.takeWhile { it.isLetter() }.uppercase(Locale.US)
-        val digits = stripped.filter { it.isDigit() }.takeLast(11)
-        val grouped = when {
-            digits.length <= 3 -> digits
-            digits.length <= 7 -> digits.dropLast(4) + " " + digits.takeLast(4)
-            else -> {
-                val tail8 = digits.takeLast(8)
-                listOf(digits.dropLast(8), tail8.take(4), tail8.takeLast(4))
-                    .filter { it.isNotEmpty() }
-                    .joinToString(" ")
-            }
+        val digits = stripped.filter { it.isDigit() }
+        val grouped = if (digits.length >= 6) {
+            val six = digits.takeLast(6)
+            six.take(3) + " " + six.takeLast(3)
+        } else {
+            digits
         }
         return listOf(prefix, grouped).filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "-" }
     }
@@ -458,9 +425,10 @@ fun ShipmentsDetailHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            // Swift makeInnerHeader: OPAQUE gray100 surface (never a
-            // translucent wash) + 1pt bottom divider.
-            .background(colors.gray100)
+            // GLASS, per Kemar (2026-07-26) — was an opaque gray100 wash.
+            // Single source of truth in AirdropChrome so the inner headers
+            // cannot drift from the tab chrome.
+            .background(AirdropChrome.detailHeaderBackground(colors.gray100))
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(
@@ -821,9 +789,11 @@ fun PackageCard(
                 Column(Modifier.weight(1f)) {
                     Text(text = "Status", style = AirdropType.subtitle2, color = colors.textDescription)
                     Text(
-                        text = pkg.statusName ?: pkg.status ?: "—",
+                        text = ShipmentStatusCatalog.displayName(pkg.statusName, pkg.status),
                         style = AirdropType.title2,
-                        color = packageStatusColor(pkg.statusName ?: pkg.status),
+                        color = packageStatusColor(
+                            ShipmentStatusCatalog.displayName(pkg.statusName, pkg.status),
+                        ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = testTag?.let { Modifier.testTag("$it-status-value") } ?: Modifier,

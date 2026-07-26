@@ -49,7 +49,7 @@ class AuthenticatedResponseSessionBindingTest {
                 currentUserCalls.incrementAndGet()
                 return Result.success(AirdropUser(id = 101, firstName = "Kemar"))
             }
-            override suspend fun airCoinsStatus() = Result.success(AirCoinsStatus(available = 22))
+            override suspend fun airCoinsStatus() = Result.success(AirCoinsStatus(available = 22.0))
             override suspend fun auctionProductsShortlist() = Result.success(emptyList<AuctionProduct>())
         }
 
@@ -71,7 +71,7 @@ class AuthenticatedResponseSessionBindingTest {
                 if (calls.incrementAndGet() == 1) accountA.awaitResult()
                 else Result.success(AirdropUser(firstName = "Account B"))
 
-            override suspend fun airCoinsStatus() = Result.success(AirCoinsStatus(available = 22))
+            override suspend fun airCoinsStatus() = Result.success(AirCoinsStatus(available = 22.0))
             override suspend fun auctionProductsShortlist() =
                 Result.success(listOf(AuctionProduct(id = 2, name = "Account B item")))
         }

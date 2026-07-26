@@ -17,6 +17,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -86,6 +87,7 @@ class PaymentPackageDetailsParityTest {
             paymentsRepo = payments,
             packagesRepo = packages,
             hubRepo = StaticHubRepository(),
+            tracking = FakeTimelineGateway(emptyList()),
         )
 
         compose.waitUntil(timeoutMillis = 5_000) {
@@ -198,14 +200,41 @@ class PaymentPackageDetailsParityTest {
         assertEquals(0, compose.onAllNodesWithText("USD 100.00 / JMD 16,100.00").fetchSemanticsNodes().size)
     }
 
+    /**
+     * ⚠️ THIS ASSERTION USED TO PIN THE BUG.
+     *
+     * The fixture records exactly two history rows (statuses 1 and 2), yet this
+     * asserted that "Paid and Ready for Pick Up" was displayed and that all
+     * SEVEN rungs (1, 2, 3, 4, 7, 18, 8) rendered — five of them events the
+     * fixture never recorded — plus `assertTextExists("-")`, the dash the
+     * invented rungs printed in place of a date. It was the third copy of the
+     * fabricated-ladder defect, held in place by its own test.
+     *
+     * The fixture's `status` is 18, so the rail is: the two recorded rows, plus
+     * the current status appended because no history row records it. Nothing
+     * else.
+     */
     private fun assertHistorySwiftParity() {
         compose.onNodeWithText("View History").assertIsDisplayed()
+
+        // The two recorded events, by their catalogue names.
+        compose.onNodeWithTag("payment-history-step-1").assertIsDisplayed()
+        compose.onNodeWithTag("payment-history-step-2").assertIsDisplayed()
+        // The current status, which no history row records.
         compose.onNodeWithText("Paid and Ready for Pick Up").assertIsDisplayed()
-        assertTextExists("-")
         assertEquals(0, compose.onAllNodesWithText("Paid and Ready for Pickup").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithText("N/A").fetchSemanticsNodes().size)
 
-        listOf(1, 2, 3, 4, 7, 18, 8).forEach { statusId ->
+        // Rungs this package never reached must not be drawn.
+        listOf(3, 4, 7, 8).forEach { statusId ->
+            assertEquals(
+                "status $statusId was never recorded and must not appear",
+                0,
+                compose.onAllNodesWithTag("payment-history-step-$statusId").fetchSemanticsNodes().size,
+            )
+        }
+
+        listOf(1, 2, 18).forEach { statusId ->
             assertAtLeast(
                 74f,
                 boundsHeight(compose.onNodeWithTag("payment-history-step-$statusId").getUnclippedBoundsInRoot()),
@@ -219,6 +248,14 @@ class PaymentPackageDetailsParityTest {
         exchangeRate = 160.0,
         payment = samplePayment(),
         detail = sampleDetail(),
+        // The rail is Laravel's projection now, not something the screen
+        // derives from `detail.history`.
+        timeline = FakeTimelineGateway.fromHistory(sampleDetail()) + listOf(
+            com.ga.airdrop.data.model.PackageTimelineEntry(
+                key = "status_18", status = 18, label = "Paid and Ready for Pick Up",
+                icon = "paid_ready_pickup", at = null, state = "current", source = "status",
+            ),
+        ),
     )
 
     private class RecordingPaymentsRepository : ShipmentsPaymentsRepository {

@@ -4,6 +4,7 @@ import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.model.ActiveDeliverySummary
 import com.ga.airdrop.data.model.DeliveryTracking
 import com.ga.airdrop.data.model.DeliveryTrackingStage
+import com.ga.airdrop.data.model.PackageTimelineEntry
 
 data class ActiveDelivery(
     val packageId: Int,
@@ -11,7 +12,11 @@ data class ActiveDelivery(
     val description: String?,
     val status: String,
     val scheduledDate: String?,
-    val currentStageKey: String,
+    /**
+     * Null for a DELIVERED delivery — nothing is "current" once terminal.
+     * Laravel #79690 §3. This used to be non-null and threw.
+     */
+    val currentStageKey: String?,
     val updatedAt: String?,
 )
 
@@ -45,6 +50,12 @@ data class DeliveryTrackingResult(
 interface DeliveryTrackingGateway {
     suspend fun activeDeliveries(page: Int, perPage: Int): Result<ActiveDeliveriesPage>
     suspend fun deliveryTracking(packageId: Int): Result<DeliveryTrackingResult>
+
+    /**
+     * Laravel's canonical journey. The client does not reorder, filter, cap or
+     * relabel what comes back — see TrackJourney.
+     */
+    suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>>
 }
 
 /**
@@ -54,6 +65,11 @@ interface DeliveryTrackingGateway {
 class DeliveryTrackingRepository(
     private val service: AirdropApiService,
 ) : DeliveryTrackingGateway {
+
+    override suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>> =
+        runCatching {
+            service.packageTimeline(packageId).data?.entries.orEmpty()
+        }
 
     override suspend fun activeDeliveries(
         page: Int,
@@ -120,10 +136,17 @@ class DeliveryTrackingRepository(
 
 private fun ActiveDeliverySummary.toDomain(): ActiveDelivery {
     val id = packageId?.takeIf { it > 0 } ?: error(DELIVERY_CONTRACT_ERROR)
-    val normalizedStatus = status?.trim()?.takeIf { it in ACTIVE_DELIVERY_STATUSES }
+    // Laravel #79690 §3: /deliveries/active now RETURNS `delivered` (sorted
+    // last) so a finished journey stays on Track. This allow-list was
+    // {assigned, out_for_delivery} and `error()`d on anything else — and
+    // because the throw happens inside the list map, ONE delivered row
+    // rejected the ENTIRE payload and Track rendered "Couldn't load" over a
+    // perfectly good response. Reproduced live on pre-staging before fixing.
+    // failed/cancelled stay excluded — Laravel does not send them here.
+    val normalizedStatus = status?.trim()?.takeIf { it in ACTIVE_LIST_STATUSES }
         ?: error(DELIVERY_CONTRACT_ERROR)
+    // Null on a delivered row (nothing is current). Optional, never fatal.
     val normalizedStage = currentStageKey?.trim()?.takeIf(String::isNotEmpty)
-        ?: error(DELIVERY_CONTRACT_ERROR)
     return ActiveDelivery(
         packageId = id,
         trackingCode = trackingCode?.trim()?.takeIf(String::isNotEmpty),
@@ -136,7 +159,12 @@ private fun ActiveDeliverySummary.toDomain(): ActiveDelivery {
 }
 
 private fun DeliveryTracking.toDomain(): TrackedDelivery {
-    val normalizedStatus = status?.trim()?.takeIf { it in DELIVERY_STATUSES }
+    // SwiftHawk #79761 §1: a fixed status list is fine for ORDERING but must
+    // NEVER decide what is allowed to render. Filtering here meant any status
+    // Laravel adds later would be dropped silently — no error, no placeholder,
+    // the customer simply never sees that step. Kemar says many more statuses
+    // are coming. Accept anything non-blank.
+    val normalizedStatus = status?.trim()?.takeIf(String::isNotEmpty)
         ?: error(DELIVERY_CONTRACT_ERROR)
     if (stages.isEmpty()) error(DELIVERY_CONTRACT_ERROR)
     val normalizedStages = stages.map(DeliveryTrackingStage::toDomain)
@@ -144,8 +172,14 @@ private fun DeliveryTracking.toDomain(): TrackedDelivery {
         error(DELIVERY_CONTRACT_ERROR)
     }
     val currentCount = normalizedStages.count { it.state == "current" }
-    val expectedCurrentCount = if (normalizedStatus in TERMINAL_DELIVERY_STATUSES) 0 else 1
-    if (currentCount != expectedCurrentCount) error(DELIVERY_CONTRACT_ERROR)
+    // Terminal journeys mark nothing current. For a status we do not yet know,
+    // we cannot assert how many rows should be current — so only enforce the
+    // invariant for statuses whose semantics we actually know.
+    val known = normalizedStatus in DELIVERY_STATUSES
+    if (known) {
+        val expectedCurrentCount = if (normalizedStatus in TERMINAL_DELIVERY_STATUSES) 0 else 1
+        if (currentCount != expectedCurrentCount) error(DELIVERY_CONTRACT_ERROR)
+    }
 
     return TrackedDelivery(
         status = normalizedStatus,
@@ -162,7 +196,10 @@ private fun DeliveryTrackingStage.toDomain(): TrackedDeliveryStage {
         ?: error(DELIVERY_CONTRACT_ERROR)
     val normalizedLabel = label?.trim()?.takeIf(String::isNotEmpty)
         ?: error(DELIVERY_CONTRACT_ERROR)
-    val normalizedState = state?.trim()?.takeIf { it in DELIVERY_STAGE_STATES }
+    // Same rule for the stage state: an unrecognised state renders as
+    // "pending" rather than rejecting the whole timeline.
+    val normalizedState = state?.trim()?.takeIf(String::isNotEmpty)
+        ?.let { if (it in DELIVERY_STAGE_STATES) it else "pending" }
         ?: error(DELIVERY_CONTRACT_ERROR)
     return TrackedDeliveryStage(
         key = normalizedKey,
@@ -174,8 +211,10 @@ private fun DeliveryTrackingStage.toDomain(): TrackedDeliveryStage {
 
 private const val DELIVERY_CONTRACT_ERROR =
     "Delivery information is unavailable. Please try again."
+/** Known statuses — used for ORDERING and invariants only, never as a filter. */
 private val DELIVERY_STATUSES =
     setOf("assigned", "out_for_delivery", "delivered", "failed", "cancelled")
-private val ACTIVE_DELIVERY_STATUSES = setOf("assigned", "out_for_delivery")
+/** Statuses `/deliveries/active` may return. `delivered` added per #79690 §3. */
+private val ACTIVE_LIST_STATUSES = setOf("assigned", "out_for_delivery", "delivered")
 private val TERMINAL_DELIVERY_STATUSES = setOf("delivered", "failed", "cancelled")
 private val DELIVERY_STAGE_STATES = setOf("done", "current", "pending")

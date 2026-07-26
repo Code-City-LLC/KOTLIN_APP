@@ -77,7 +77,8 @@ class HomeHairlineParityTest {
             setTheme(ThemeController.Mode.LIGHT)
         }
 
-        listOf("refer-a-friend", "delivery-center").forEach { tile ->
+        // The companion row is Refer a friend + Services since the swap.
+        listOf("refer-a-friend", "services").forEach { tile ->
             val tag = "home-activity-$tile"
             compose.onNodeWithTag(tag).performScrollTo()
             compose.waitForIdle()

@@ -151,7 +151,11 @@ private fun ConversionRow() {
         ConversionPill(
             text = "1 AirCoin",
             testTag = "aircoin-balance-left-pill",
-            modifier = Modifier.width(120.dp),
+            // weight, not a hardcoded 120dp: the strip is 336 wide with a 51
+            // arrow, so each pill is exactly (336-51)/2 = 142.5 as Figma
+            // specifies. The fixed 120 left 22.5dp of dead air per pill and
+            // had been failing AirCoinParityScreenshotTest silently.
+            modifier = Modifier.weight(1f),
         )
         Box(
             modifier = Modifier
@@ -174,7 +178,11 @@ private fun ConversionRow() {
         ConversionPill(
             text = "1 USD",
             testTag = "aircoin-balance-right-pill",
-            modifier = Modifier.width(120.dp),
+            // weight, not a hardcoded 120dp: the strip is 336 wide with a 51
+            // arrow, so each pill is exactly (336-51)/2 = 142.5 as Figma
+            // specifies. The fixed 120 left 22.5dp of dead air per pill and
+            // had been failing AirCoinParityScreenshotTest silently.
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -202,7 +210,7 @@ private fun ConversionPill(text: String, testTag: String, modifier: Modifier = M
 // ─── Stats card (Figma 40001911:23041) ─────────────────────────────────────
 
 @Composable
-private fun StatsCard(accumulated: Int, redeemed: Int, available: Int) {
+private fun StatsCard(accumulated: Double, redeemed: Double, available: Double) {
     val colors = AirdropTheme.colors
     Column(
         Modifier
@@ -237,7 +245,7 @@ private fun StatsCard(accumulated: Int, redeemed: Int, available: Int) {
 }
 
 @Composable
-private fun StatRow(iconRes: Int, label: String, amount: Int, testTag: String) {
+private fun StatRow(iconRes: Int, label: String, amount: Double, testTag: String) {
     val colors = AirdropTheme.colors
     Row(
         Modifier
@@ -263,7 +271,13 @@ private fun StatRow(iconRes: Int, label: String, amount: Int, testTag: String) {
             )
         }
         Text(
-            text = "A₡ $amount",
+            // Trim a whole number to "462", keep the fraction when there is one
+            // ("462.25") — the balance used to be an Int and silently truncated.
+            text = "A₡ " + if (amount % 1.0 == 0.0) {
+                amount.toLong().toString()
+            } else {
+                java.text.DecimalFormat("#,##0.##").format(amount)
+            },
             style = AirdropType.title2,
             color = colors.textDarkTitle,
         )

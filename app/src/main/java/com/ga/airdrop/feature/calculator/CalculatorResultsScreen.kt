@@ -125,11 +125,22 @@ fun CalculatorResultsScreen(
                     if (charges.customsDuty > 0) {
                         ChargeRow("Customs Duty", charges.customsDuty)
                     }
+                    // Applies only when the address was flagged bad, so it is
+                    // outside the headline total by design (BronzeMountain
+                    // #80146). Shown here so a customer who owes it sees it
+                    // rather than finding it on the invoice.
+                    charges.badAddressFee?.takeIf { it > 0 }?.let {
+                        ChargeRow("Bad Address Fee", it)
+                    }
                 }
             }
 
             TotalPill(label = "Total Airdrop Charges", amount = charges.airdropCharges)
-            // RN renders both totals; Figma omits the second (Swift parity).
+            // The server's own grand_total (airdrop_charges + customs_duty).
+            // Kemar ruled today that the headline EXCLUDES the merchant invoice
+            // — the customer already paid the merchant, and only seadrop's
+            // legacy formula folded it in (BronzeMountain #80146). Shown only
+            // when it differs from the AirDrop charges, i.e. when duty applies.
             if (charges.totalWithDuty > 0 && abs(charges.totalWithDuty - charges.airdropCharges) > 0.005) {
                 TotalPill(label = "Total with Duty", amount = charges.totalWithDuty)
             }

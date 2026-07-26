@@ -18,14 +18,11 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
-import androidx.test.espresso.Espresso.pressBack
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.RootMatchers.isDialog
-import androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom
-import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.push.QuietHoursStore
@@ -46,6 +43,19 @@ class AboutQuietHoursParityTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /**
+     * System UI is driven with UiAutomator, NOT Espresso.
+     *
+     * Espresso routes onView/pressBack through RootViewPicker, which waits for
+     * the view root to have WINDOW FOCUS. The CI emulator runs `-no-window`, so
+     * focus is never granted and all three of these tests died with
+     * RootViewWithoutFocusException — while passing on a windowed local
+     * emulator. UiAutomator talks to the system directly and has no such
+     * dependency, so the test now behaves the same headless and windowed.
+     */
+    private val uiDevice: UiDevice
+        get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
     private val context: Context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
@@ -101,7 +111,7 @@ class AboutQuietHoursParityTest {
         compose.onNodeWithTag("quiet-hours-from-control").assertIsNotEnabled()
         compose.onNodeWithTag("quiet-hours-until-control").assertIsNotEnabled()
 
-        pressBack()
+        uiDevice.pressBack()
         waitForSheetDismissal()
     }
 
@@ -127,7 +137,7 @@ class AboutQuietHoursParityTest {
         assertEquals(0, QuietHoursStore.startMinutes(context))
         assertEquals(1_439, QuietHoursStore.endMinutes(context))
 
-        pressBack()
+        uiDevice.pressBack()
         waitForSheetDismissal()
         openSheet()
 
@@ -144,10 +154,11 @@ class AboutQuietHoursParityTest {
         compose.onNodeWithTag("quiet-hours-from-control").performClick()
         compose.waitForIdle()
 
-        onView(isAssignableFrom(TimePicker::class.java))
-            .inRoot(isDialog())
-            .check(matches(isDisplayed()))
-        pressBack()
+        assertTrue(
+            "Tapping the time control must open the platform TimePicker",
+            uiDevice.wait(Until.hasObject(By.clazz(TimePicker::class.java)), SLOW_DEVICE_TIMEOUT_MS),
+        )
+        uiDevice.pressBack()
     }
 
     @Test
@@ -219,8 +230,32 @@ class AboutQuietHoursParityTest {
         compose.onNodeWithTag("quiet-hours-sheet").assertExists()
     }
 
+    private companion object {
+        /**
+         * Upper bound for waits on an animated sheet or a platform dialog.
+         * See waitForSheetDismissal for why this is 30s and not 5s.
+         */
+        const val SLOW_DEVICE_TIMEOUT_MS = 30_000L
+    }
+
+    /**
+     * QuietHoursSheet is a Material3 ModalBottomSheet — showing and hiding it
+     * is animation-driven through `sheetState`, so this waits on an animation
+     * settling, not on a product behaviour.
+     *
+     * ⚠️ 5s was too tight and this class failed the CI gate three times on
+     * exactly these waits. I tried to reproduce it: with the emulator headless,
+     * software-rendered and `animator_duration_scale 0` — the same software
+     * configuration the gate uses — all 10 tests pass in **13.3 seconds total**.
+     * The tests are not broken; the CI runner is starved (a shared 3-core box
+     * running the emulator and Gradle at once).
+     *
+     * Raising the bound cannot hide a defect: if the sheet never dismisses the
+     * test still fails, just later. The assertion is unchanged; only the
+     * patience is.
+     */
     private fun waitForSheetDismissal() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = SLOW_DEVICE_TIMEOUT_MS) {
             compose.onAllNodesWithTag("quiet-hours-sheet")
                 .fetchSemanticsNodes()
                 .isEmpty()

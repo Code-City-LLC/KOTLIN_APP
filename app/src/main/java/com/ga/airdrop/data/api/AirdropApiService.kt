@@ -45,6 +45,7 @@ import com.ga.airdrop.data.model.Package
 import com.ga.airdrop.data.model.PackageCartMutation
 import com.ga.airdrop.data.model.PackageCategory
 import com.ga.airdrop.data.model.PackageDetail
+import com.ga.airdrop.data.model.PackageTimelinePayload
 import com.ga.airdrop.data.model.PackageInvoicesMutationResponse
 import com.ga.airdrop.data.model.PackageStatus
 import com.ga.airdrop.data.model.Paginated
@@ -217,8 +218,14 @@ interface AirdropApiService {
 
     // ── Warehouses ──
 
+    // Single OBJECT under `data`, not a page. It was typed as
+    // Paginated<Warehouse>, so the list came back empty on a 200 and the
+    // Warehouses screen silently rendered hardcoded FALLBACK_* constants
+    // instead of server data — invisible because those constants happened to
+    // match production. That also dropped `unit` and `address_line_2_tokens`,
+    // which is why Address Line 2 lost its "Unit G36 - " prefix.
     @GET("warehouse")
-    suspend fun warehouses(): Paginated<Warehouse>
+    suspend fun warehouses(): DataEnvelope<Warehouse>
 
     // ── AirCoins ──
 
@@ -262,7 +269,13 @@ interface AirdropApiService {
     // ── Exchange rates ──
 
     @GET("exchange-rates")
-    suspend fun exchangeRates(): ExchangeRate
+    // Envelope, NOT the bare object. The body is
+    // {"success":..,"data":{"exchange_rate":"162.00",..},"meta":..} — decoding
+    // it straight into ExchangeRate looked for the rate at the TOP level,
+    // found nothing, and every caller silently fell back to the hardcoded
+    // DEFAULT_USD_TO_JMD. That is why the app has been quoting 160.625 while
+    // the server said 162.00.
+    suspend fun exchangeRates(): DataEnvelope<ExchangeRate>
 
     // ── Shipments / packages ──
 
@@ -294,6 +307,16 @@ interface AirdropApiService {
         @Query("page") page: Int,
         @Query("per_page") perPage: Int,
     ): DataEnvelope<ActiveDeliveriesPayload>
+
+    /**
+     * The canonical package journey. Laravel owns order, labels, icon keys,
+     * state, duplicate collapse, last-mile composition and the single pending
+     * step — see PackageTimelinePayload for why the client stopped deriving it.
+     */
+    @GET("packages/{id}/timeline")
+    suspend fun packageTimeline(
+        @Path("id") packageId: Int,
+    ): DataEnvelope<PackageTimelinePayload>
 
     @GET("packages/{id}/delivery-tracking")
     suspend fun packageDeliveryTracking(

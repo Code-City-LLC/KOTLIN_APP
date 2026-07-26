@@ -167,6 +167,8 @@ data class PackageDetail(
     val totalPrice: Double? = null,
     val additionalCharges: Map<String, Double> = emptyMap(),
     val additionalChargesTotal: Double? = null,
+    /** Laravel `storage` block (StorageFeeService). Absent on older payloads. */
+    val storage: PackageStorage? = null,
     val customDuty: Double? = null,
     val consignee: String? = null,
     val shipper: String? = null,
@@ -189,6 +191,45 @@ data class PackageDetail(
     val exchangeRate: Double? = null,
     val history: List<PackageHistoryItem> = emptyList(),
     val invoices: List<PackageInvoiceDocument> = emptyList(),
+)
+
+/**
+ * Laravel's `storage` block — one shared calculation owned by
+ * `App\Services\StorageFeeService` (BronzeMountain, pre_staging 7123a3aa).
+ *
+ * ⚠️ The client MUST NOT recompute any of this. The warehouse writes the
+ * applied charge into `package_additional_charges` and customers are invoiced
+ * from it; a second, independently-derived figure would contradict the ledger
+ * and the invoice. Laravel deliberately reports rather than calculates, and so
+ * do we — render these fields, never a rate x days of our own.
+ */
+data class PackageStorage(
+    val eligible: Boolean,
+    val daysInStorage: Int?,
+    /** Applied fee. Arrives as a STRING ("488.00") on the wire. */
+    val fee: Double?,
+    val currency: String?,
+    /** Free days sold by the customer's tier (DIAM 60 / PLAT 45 / GOLD 30 / RUBY 15 / SAVR 7). */
+    val freeDays: Int?,
+    val daysUntilFees: Int?,
+    val inFreePeriod: Boolean?,
+    /** When storage started accruing; wire format "yyyy-MM-dd HH:mm:ss". */
+    val since: String?,
+    val accruing: Boolean?,
+    val writtenOff: Boolean?,
+)
+
+internal fun JsonObject.toPackageStorage() = PackageStorage(
+    eligible = flexBool("eligible") ?: false,
+    daysInStorage = flexInt("days_in_storage"),
+    fee = flexDouble("fee"),
+    currency = flexString("currency"),
+    freeDays = flexInt("free_days"),
+    daysUntilFees = flexInt("days_until_fees"),
+    inFreePeriod = flexBool("in_free_period"),
+    since = flexString("since"),
+    accruing = flexBool("accruing"),
+    writtenOff = flexBool("written_off"),
 )
 
 object PackageDetailSerializer : KSerializer<PackageDetail> {
@@ -258,6 +299,7 @@ object PackageDetailSerializer : KSerializer<PackageDetail> {
             volume = obj.flexDouble("volume"),
             numberOfPieces = obj.flexInt("number_of_pieces"),
             exchangeRate = obj.flexDouble("exchange_rate"),
+            storage = (obj["storage"] as? JsonObject)?.toPackageStorage(),
             history = json.decodeListOrNull(PackageHistoryItem.serializer(), obj["history"])
                 ?: emptyList(),
             invoices = invoices,

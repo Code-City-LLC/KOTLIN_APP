@@ -79,8 +79,13 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_7
-          cores: 2
-          ram-size: 2048M
+          # ubuntu-latest is 4 vCPU / 16 GB. The gate kept losing a different
+          # pair of tests each run to "component is not displayed" and 5s
+          # waitUntil timeouts — never the same ones, all passing locally, which
+          # is the signature of a starved emulator rather than N separate bugs.
+          # swiftshader software rendering on 2 cores with 2 GB is the cause.
+          cores: 3
+          ram-size: 4096M
           heap-size: 512M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: bash .github/scripts/connected-session-gate.sh

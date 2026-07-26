@@ -122,8 +122,17 @@ class ShopInnerHeaderParityTest {
 
         assertClose(24f, targetWidth, "Figma back touch-frame width")
         assertClose(24f, targetHeight, "Figma back touch-frame height")
-        assertClose(18f, glyphWidth, "Figma back glyph width")
-        assertClose(15f, glyphHeight, "Figma back glyph height")
+        // ⚠️ Stale since 2026-07-20. This asserted an 18dp glyph, which the shop
+        // header had before `7c1b475 fix(ui): unify all header back arrows to
+        // the Swift left chevron` (Kemar 2026-07-20) moved every header in the
+        // app to a 24dp ic_more2_back_chevron — shipments, calculator, shop,
+        // contacts and live chat all size it at 24 today. That commit did not
+        // touch this test, and the path-filtered connected gate never selected
+        // it, so it sat failing for six days until an unrelated change to a
+        // shop file pulled it into the changed set. The implementation is
+        // right and consistent; the assertion was left behind.
+        assertClose(24f, glyphWidth, "Figma back glyph width")
+        assertClose(24f, glyphHeight, "Figma back glyph height")
         assertClose(
             target.left.value + targetWidth / 2f,
             glyph.left.value + glyphWidth / 2f,

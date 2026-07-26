@@ -19,6 +19,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Timeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -128,8 +129,25 @@ class AuthInterceptorRefreshTest {
         assertEquals("Bearer new-token", chain.proceeded[2].header("Authorization"))
     }
 
+    /**
+     * ⚠️ THIS ONCE ASSERTED THE OPPOSITE, TWICE. It began as `failed refresh
+     * clears the session`, briefly became `a failed refresh keeps the customer
+     * signed in`, and is now the narrow rule both platforms run: a refresh that
+     * answers **401** — and only that — ends the session.
+     *
+     * The line being drawn is *confirmed dead* vs *lost signal*. A 401 from the
+     * refresh endpoint is the server stating the principal is gone. A timeout
+     * is the server saying nothing at all.
+     *
+     * The failure mode this fixes: performRefresh ends in
+     * `runCatching { ... }.getOrNull()`, so it returns null for ANY failure —
+     * a dropped connection, a timeout, a tunnel — and null used to mean
+     * "clear the session". Losing signal at the wrong moment signed people out.
+     * Everything except an explicit 401 — a throw, a 5xx, a body-less 200 —
+     * still keeps the session.
+     */
     @Test
-    fun `failed refresh clears the session and returns the original 401`() {
+    fun `a refresh that answers 401 confirms the session is dead`() {
         val chain = ScriptedChain(apiRequest()) { req, _ ->
             if (isRefresh(req)) response(req, 401) else response(req, 401)
         }
@@ -137,9 +155,27 @@ class AuthInterceptorRefreshTest {
         val result = interceptor.intercept(chain)
 
         assertEquals(401, result.code)
-        assertNull(AuthTokenStore.token)
-        assertNull(AuthTokenStore.snapshot().sessionId)
+        assertNull("a refresh 401 is the one confirmed-dead signal", AuthTokenStore.token)
         assertEquals(2, chain.proceeded.size) // original + refresh, no retry
+    }
+
+    /**
+     * The real-world case, and the reason the teardown is narrowed to an
+     * explicit 401: performRefresh ends in `runCatching { }.getOrNull()`, so
+     * null means ANY failure. Clearing on null was the original bug — losing
+     * signal logged the customer out.
+     */
+    @Test
+    fun `a refresh that throws keeps the customer signed in`() {
+        val chain = ScriptedChain(apiRequest()) { req, _ ->
+            if (isRefresh(req)) throw java.io.IOException("connection dropped") else response(req, 401)
+        }
+
+        val result = interceptor.intercept(chain)
+
+        assertEquals(401, result.code)
+        assertEquals("a dropped connection must never sign anyone out", "old-token", AuthTokenStore.token)
+        assertNotNull(AuthTokenStore.snapshot().sessionId)
     }
 
     @Test
@@ -165,8 +201,62 @@ class AuthInterceptorRefreshTest {
         assertEquals("Bearer old-token", chain.proceeded[1].header("Authorization"))
     }
 
+    /**
+     * A 200 that PARSES but carries no usable bearer — distinct from the
+     * body-less case below, which never reaches the decoder at all.
+     *
+     * Raised by BrightHarbor (#80238) and it was a real gap: the only 200
+     * rejection pinned here was an empty body. These three shapes all decode
+     * successfully and then yield nothing to retry with, which is a plausible
+     * server answer during a partial outage or behind a proxy that rewrites
+     * bodies. None of them may cost the customer their session — nothing about
+     * them says the principal is gone.
+     */
     @Test
-    fun `body-less 200 refresh is rejected like Swift, session cleared`() {
+    fun `a 200 refresh carrying no usable token keeps the customer signed in`() {
+        listOf(
+            """{"success":true,"message":"ok"}""",  // no token field at all
+            """{"token":null}""",                   // explicit null
+            """{"token":"   "}""",                  // present but blank
+        ).forEach { tokenless ->
+            AuthTokenStore.save("old-token")
+            val chain = ScriptedChain(apiRequest()) { req, _ ->
+                if (isRefresh(req)) response(req, 200, tokenless) else response(req, 401)
+            }
+
+            val result = interceptor.intercept(chain)
+
+            assertEquals(401, result.code)
+            assertEquals("no bearer to retry with is not a dead session: $tokenless", "old-token", AuthTokenStore.token)
+            assertNotNull(AuthTokenStore.snapshot().sessionId)
+            assertEquals("must not retry with nothing", 2, chain.proceeded.size)
+        }
+    }
+
+    /**
+     * A 5xx is AirDrop's own outage, never a statement about this customer.
+     * Pinned at BrightHarbor's request (#80225): before this, the 5xx case was
+     * only ever asserted in a comment, and the whole teardown now turns on
+     * distinguishing one status code from every other failure.
+     */
+    @Test
+    fun `a 500 from the refresh endpoint keeps the customer signed in`() {
+        listOf(500, 502, 503).forEach { serverError ->
+            AuthTokenStore.save("old-token")
+            val chain = ScriptedChain(apiRequest()) { req, _ ->
+                if (isRefresh(req)) response(req, serverError) else response(req, 401)
+            }
+
+            val result = interceptor.intercept(chain)
+
+            assertEquals(401, result.code)
+            assertEquals("$serverError is our outage, not a dead session", "old-token", AuthTokenStore.token)
+            assertNotNull(AuthTokenStore.snapshot().sessionId)
+        }
+    }
+
+    @Test
+    fun `a body-less 200 refresh is rejected but keeps the customer signed in`() {
         val chain = ScriptedChain(apiRequest()) { req, _ ->
             if (isRefresh(req)) response(req, 200, "") else response(req, 401)
         }
@@ -174,7 +264,9 @@ class AuthInterceptorRefreshTest {
         val result = interceptor.intercept(chain)
 
         assertEquals(401, result.code)
-        assertNull(AuthTokenStore.token)
+        // The bad refresh is still rejected — it just no longer costs the
+        // customer their session.
+        assertEquals("old-token", AuthTokenStore.token)
     }
 
     @Test

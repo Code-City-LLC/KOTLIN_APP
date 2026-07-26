@@ -224,8 +224,22 @@ class PackageDetailsParityTest {
             .assertIsDisplayed()
     }
 
+    /**
+     * ⚠️ THIS TEST USED TO ASSERT THE BUG.
+     *
+     * It was named `timelineUsesSwiftVisibleProgressionWhenHistoryIsSparseAtReadyForPickup`,
+     * and for a package whose history contained exactly ONE event it asserted
+     * that the screen displayed FOUR MORE — Drop Alerted, Shipment Received,
+     * Port of Departure MIA, Arrived at Port JAM — none of which that package
+     * had ever recorded. It was pinning the fabrication in place, along with
+     * the filtering ("Swift hides backend-only status 6") and the internal
+     * comment ("Ready at counter"). Green CI meant nothing here.
+     *
+     * A sparse history is not an invitation to fill in the gaps. It means the
+     * package really has one recorded event, and one is what the customer sees.
+     */
     @Test
-    fun timelineUsesSwiftVisibleProgressionWhenHistoryIsSparseAtReadyForPickup() {
+    fun aSparseHistoryRendersOnlyWhatWasRecorded() {
         setPackageDetailsContent(
             mode = ThemeController.Mode.LIGHT,
             detail = sampleDetail(
@@ -242,45 +256,95 @@ class PackageDetailsParityTest {
             ),
         )
 
+        compose.onNodeWithTag("package-details-section-timeline")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Ready for Pickup")
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        // Nothing this package did not record may appear.
         listOf(
             "Drop Alerted",
             "Shipment Received",
             "Port of Departure MIA",
             "Arrived at Port JAM",
+            "Processing at our Warehouse",
+            "Paid and Ready for Pick Up",
+        ).forEach { invented ->
+            assertEquals(
+                "\"$invented\" is not in this package's history and must not be drawn",
+                0,
+                compose.onAllNodesWithText(invented).fetchSemanticsNodes().size,
+            )
+        }
+
+        // package_comment is internal (batch-process strings, payment internals,
+        // driver notes) — BrightHarbor #79824. It never reaches the customer.
+        assertEquals(
+            "Internal history comments must not reach the customer",
+            0,
+            compose.onAllNodesWithText("Ready at counter").fetchSemanticsNodes().size,
+        )
+
+        val icon = compose.onNodeWithTag("package-details-timeline-icon-7")
+            .performScrollTo()
+            .getUnclippedBoundsInRoot()
+        assertClose(24f, boundsWidth(icon), "timeline icon 7 width")
+        assertClose(24f, boundsHeight(icon), "timeline icon 7 height")
+        // One row, so no connector below it.
+        assertEquals(0, compose.onAllNodesWithTag("package-details-timeline-connector-7").fetchSemanticsNodes().size)
+    }
+
+    /** The full journey, in catalogue order, when the package really has one. */
+    @Test
+    fun aFullHistoryRendersEveryRecordedStatusInOrder() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(
+                status = "8",
+                statusName = "Delivered",
+                history = listOf(
+                    PackageHistoryItem(status = 2, statusName = "Shipment Received", changedDate = "2024-01-08T00:10:00Z"),
+                    PackageHistoryItem(status = 3, statusName = "Port of Departure -MIA", changedDate = "2024-01-12T00:10:00Z"),
+                    PackageHistoryItem(status = 4, statusName = "Arrived at Port -JAM", changedDate = "2024-01-14T00:10:00Z"),
+                    PackageHistoryItem(status = 5, statusName = "Released From Customs", changedDate = "2024-01-16T00:10:00Z"),
+                    PackageHistoryItem(status = 6, statusName = "Processing at our Warehouse", changedDate = "2024-01-18T00:10:00Z"),
+                    PackageHistoryItem(status = 7, statusName = "Ready for Pickup", changedDate = "2024-01-19T00:10:00Z"),
+                ),
+            ),
+        )
+
+        // Released From Customs and Processing at our Warehouse had NO rung on
+        // the old ladder, so a package that really passed through them showed
+        // neither. Both must be here.
+        listOf(
+            "Shipment Received",
+            "Port of Departure -MIA",
+            "Arrived at Port -JAM",
+            "Released From Customs",
+            "Processing at our Warehouse",
             "Ready for Pickup",
-        ).forEach { text ->
-            compose.onNodeWithText(text)
+        ).forEach { recorded ->
+            compose.onNodeWithText(recorded)
                 .performScrollTo()
                 .assertIsDisplayed()
         }
-        compose.onNodeWithText("Ready at counter")
-            .performScrollTo()
-            .assertIsDisplayed()
         assertEquals(
-            "Swift hides backend-only status 6 from the compact package timeline",
+            "Drop Alerted was never recorded for this package",
             0,
-            compose.onAllNodesWithText("Processing at our Warehouse").fetchSemanticsNodes().size,
-        )
-        assertEquals(
-            "Swift stops the compact package timeline at Ready for Pickup for status 7",
-            0,
-            compose.onAllNodesWithText("Paid and Ready for Pick Up").fetchSemanticsNodes().size,
+            compose.onAllNodesWithText("Drop Alerted").fetchSemanticsNodes().size,
         )
 
-        listOf(1, 2, 3, 4, 7).forEach { statusId ->
-            val icon = compose.onNodeWithTag("package-details-timeline-icon-$statusId")
-                .performScrollTo()
-                .getUnclippedBoundsInRoot()
-            assertClose(24f, boundsWidth(icon), "Swift timeline icon $statusId width")
-            assertClose(24f, boundsHeight(icon), "Swift timeline icon $statusId height")
-        }
-        assertEquals(1, compose.onAllNodesWithTag("package-details-timeline-connector-1").fetchSemanticsNodes().size)
-        assertEquals(1, compose.onAllNodesWithTag("package-details-timeline-connector-4").fetchSemanticsNodes().size)
-        assertEquals(0, compose.onAllNodesWithTag("package-details-timeline-connector-7").fetchSemanticsNodes().size)
-        assertNodeContainsColor(
-            tag = "package-details-timeline-icon-7",
-            target = 0xFF39A634.toInt(),
-            label = "Ready for Pickup timeline icon should be Swift completed green",
+        val received = compose.onNodeWithTag("package-details-timeline-row-2")
+            .performScrollTo()
+            .getUnclippedBoundsInRoot().top
+        val warehouse = compose.onNodeWithTag("package-details-timeline-row-6")
+            .performScrollTo()
+            .getUnclippedBoundsInRoot().top
+        assertTrue(
+            "Shipment Received must precede Processing at our Warehouse",
+            received < warehouse,
         )
     }
 
@@ -359,6 +423,9 @@ class PackageDetailsParityTest {
             // "Cart update failed" instead of the success dialog.
             cartServer = AlwaysOkCartServerGateway(),
             sessionBoundary = FakeAuthenticatedSessionBoundary(),
+            // The rail is Laravel's now; without this the VM reaches for the
+            // real endpoint and the Shipment Timeline card renders empty.
+            tracking = FakeTimelineGateway(detail),
         )
         compose.setContent {
             AirdropThemeProvider {
@@ -404,9 +471,15 @@ class PackageDetailsParityTest {
         compose.onNodeWithText("Drop Alerted")
             .performScrollTo()
             .assertIsDisplayed()
-        compose.onNodeWithText("Received at warehouse")
-            .performScrollTo()
-            .assertIsDisplayed()
+        // "Received at warehouse" is this package's history COMMENT. It used to
+        // be asserted as displayed — pinning the leak of an internal column that
+        // also carries batch-process strings and payment internals. It must be
+        // absent (BrightHarbor #79824).
+        assertEquals(
+            "Internal history comments must not reach the customer",
+            0,
+            compose.onAllNodesWithText("Received at warehouse").fetchSemanticsNodes().size,
+        )
         assertEquals(
             "Swift omits missing timeline dates instead of showing Figma's static N/A",
             0,

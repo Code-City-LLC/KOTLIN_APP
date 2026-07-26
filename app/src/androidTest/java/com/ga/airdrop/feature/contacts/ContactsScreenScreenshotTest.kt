@@ -51,6 +51,13 @@ class ContactsScreenScreenshotTest {
         )
     }
 
+    /**
+     * Renamed from `helpUsesSwiftSeparateCardsAndNoLiveChat`, which asserted
+     * that Help has NO Live Chat row "for Swift parity". That premise was
+     * FALSE — FigmaContactsViewController.swift:130 calls makeLiveChatCard()
+     * and Figma has the row too. The test was locking Android into being the
+     * only platform without it.
+     */
     @Test
     fun helpUsesSwiftSeparateCardsWithLiveChatFirst() {
         setHelpContent(ThemeController.Mode.LIGHT)

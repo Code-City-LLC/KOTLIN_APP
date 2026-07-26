@@ -55,9 +55,17 @@ import com.ga.airdrop.feature.cart.CartStore
 import java.net.URI
 import java.util.Locale
 
-private const val PRODUCT_DESCRIPTION_FALLBACK =
-    "Detailed product description will be loaded from the /products/:id endpoint once authenticated. " +
-        "Includes specifications, dimensions, condition, and seller notes."
+// PRODUCT_DESCRIPTION_FALLBACK was deleted on 2026-07-26. It read
+//
+//   "Detailed product description will be loaded from the /products/:id
+//    endpoint once authenticated. Includes specifications, dimensions,
+//    condition, and seller notes."
+//
+// — an engineer's note about unfinished work, naming an internal API route,
+// rendered under the "Description" heading in body copy indistinguishable from
+// a real product description. It also promised specifications, dimensions and
+// seller notes that were not there. Any product with a blank description
+// showed it. A missing description is now simply absent.
 
 /**
  * Auction Product Details — Figma 40002072:24025, behavior from
@@ -451,22 +459,28 @@ private fun DetailsContent(
 
         // ─── Description — Swift :561-599: subtitle1 title, body2
         //     textDescription body (4 lines collapsed), underlined See all. ───
-        Text(text = "Description", style = AirdropType.subtitle1, color = colors.textDarkTitle)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = descriptionAnnotated(product.description),
-            style = AirdropType.body2,
-            color = colors.textDescription,
-            maxLines = if (expanded) Int.MAX_VALUE else 4,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = if (expanded) "See less" else "See all",
-            style = AirdropType.underlineLink.copy(textDecoration = TextDecoration.Underline),
-            color = BrandPalette.OrangeMain,
-            modifier = Modifier.clickable(onClick = onToggleExpanded),
-        )
+        // The whole section goes when there is nothing to describe. A heading
+        // over an empty body reads as a loading failure; inventing copy to fill
+        // it is worse.
+        val description = descriptionAnnotated(product.description)
+        if (description.isNotEmpty()) {
+            Text(text = "Description", style = AirdropType.subtitle1, color = colors.textDarkTitle)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = description,
+                style = AirdropType.body2,
+                color = colors.textDescription,
+                maxLines = if (expanded) Int.MAX_VALUE else 4,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = if (expanded) "See less" else "See all",
+                style = AirdropType.underlineLink.copy(textDecoration = TextDecoration.Underline),
+                color = BrandPalette.OrangeMain,
+                modifier = Modifier.clickable(onClick = onToggleExpanded),
+            )
+        }
 
         // ─── Related Products (auction mode only) — Swift :237-240, :643-654. ───
         if (!featured) {
@@ -583,8 +597,9 @@ private fun QuantityStepper(quantity: Int, onChange: (Int) -> Unit) {
  * renderProductDescription): <br>/<p> to newlines, drop other tags and
  * preserve `**bold**` markers for the attributed builder.
  */
+/** Empty when the product has no description — never a placeholder. */
 private fun cleanDescription(raw: String?): String {
-    if (raw.isNullOrBlank()) return PRODUCT_DESCRIPTION_FALLBACK
+    if (raw.isNullOrBlank()) return ""
     return raw
         .replace(Regex("<br\\s*/?>"), "\n")
         .replace(Regex("</p>"), "\n\n")
