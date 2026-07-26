@@ -47,6 +47,7 @@ class PackageDetailsParityTest {
     val compose = createComposeRule()
 
     private lateinit var packagesRepo: FakePackagesRepository
+    private lateinit var timelineGateway: FakeTimelineGateway
     private lateinit var packageDetailsViewModel: PackageDetailsViewModel
     private val navigatedRoutes = mutableListOf<String>()
 
@@ -537,10 +538,70 @@ class PackageDetailsParityTest {
         )
     }
 
+    /**
+     * ⚠️ A SUCCESSFUL RESPONSE WE CANNOT READ IS NOT AN EMPTY JOURNEY EITHER.
+     *
+     * `TrackJourney.rows()` drops any entry with a blank label, so a nonempty
+     * but malformed payload maps to zero rows. Branching on `rows.isEmpty()`
+     * alone therefore still presented a garbled response as CONFIRMED zero
+     * history — the same conflation as the failure case, one level deeper.
+     * The gate is now on the RAW payload. BrightHarbor #80372.
+     */
+    @Test
+    fun aSuccessfulButUnreadablePayloadIsNotConfirmedZeroHistory() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "20", statusName = "Paid and Ready for Delivery"),
+            // Nonempty, successful, and entirely unusable: no labels.
+            timelineEntries = listOf(
+                com.ga.airdrop.data.model.PackageTimelineEntry(key = "a", label = "  "),
+                com.ga.airdrop.data.model.PackageTimelineEntry(key = "b", label = null),
+            ),
+        )
+
+        compose.onNodeWithTag("package-details-section-timeline").performScrollTo()
+        compose.onNodeWithTag("package-details-timeline-unavailable").assertExists()
+        assertEquals(
+            "an unreadable payload must not be presented as a confirmed present state",
+            0,
+            compose.onAllNodesWithTag("package-details-timeline-current-only")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    /**
+     * The recovery affordance must DO something. The first version of this
+     * error state told customers to "pull to refresh" on a screen that is a
+     * plain verticalScroll with no PullToRefresh and no onRefresh — an
+     * instruction to perform a gesture that does nothing. BrightHarbor #80372.
+     */
+    @Test
+    fun theTimelineErrorOffersARetryThatActuallyRefetches() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "20", statusName = "Paid and Ready for Delivery"),
+            timelineFails = true,
+        )
+
+        compose.onNodeWithTag("package-details-section-timeline").performScrollTo()
+        val before = timelineGateway.timelineRequests
+
+        compose.onNodeWithTag("package-details-timeline-retry").performScrollTo().performClick()
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            timelineGateway.timelineRequests > before
+        }
+        assertTrue(
+            "tapping retry must re-request the canonical timeline, not just redraw",
+            timelineGateway.timelineRequests > before,
+        )
+    }
+
     private fun setPackageDetailsContent(
         mode: ThemeController.Mode,
         detail: ShipmentPackageDetail = sampleDetail(),
         timelineFails: Boolean = false,
+        timelineEntries: List<com.ga.airdrop.data.model.PackageTimelineEntry>? = null,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -548,6 +609,10 @@ class PackageDetailsParityTest {
             CartStore.clear()
         }
         navigatedRoutes.clear()
+        timelineGateway = FakeTimelineGateway(
+            timelineEntries ?: FakeTimelineGateway.fromHistory(detail),
+            fails = timelineFails,
+        )
         packagesRepo = FakePackagesRepository(detail)
         packageDetailsViewModel = PackageDetailsViewModel(
             packageId = "7",
@@ -560,10 +625,7 @@ class PackageDetailsParityTest {
             sessionBoundary = FakeAuthenticatedSessionBoundary(),
             // The rail is Laravel's now; without this the VM reaches for the
             // real endpoint and the Shipment Timeline card renders empty.
-            tracking = FakeTimelineGateway(
-                FakeTimelineGateway.fromHistory(detail),
-                fails = timelineFails,
-            ),
+            tracking = timelineGateway,
         )
         compose.setContent {
             AirdropThemeProvider {

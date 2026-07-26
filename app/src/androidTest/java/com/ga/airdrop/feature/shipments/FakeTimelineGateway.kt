@@ -38,8 +38,19 @@ class FakeTimelineGateway(
     override suspend fun deliveryTracking(packageId: Int): Result<DeliveryTrackingResult> =
         Result.failure(UnsupportedOperationException("not used by package screens"))
 
-    override suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>> =
-        if (fails) Result.failure(java.io.IOException("timeline unavailable")) else Result.success(entries)
+    /** Counts real requests so a retry control can be proven to re-fetch. */
+    @Volatile
+    var timelineRequests: Int = 0
+        private set
+
+    override suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>> {
+        timelineRequests++
+        return if (fails) {
+            Result.failure(java.io.IOException("timeline unavailable"))
+        } else {
+            Result.success(entries)
+        }
+    }
 
     companion object {
         fun fromHistory(detail: ShipmentPackageDetail?): List<PackageTimelineEntry> {

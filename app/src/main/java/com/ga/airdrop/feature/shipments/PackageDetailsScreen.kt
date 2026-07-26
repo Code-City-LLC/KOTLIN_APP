@@ -187,6 +187,7 @@ fun PackageDetailsScreen(
                             onAddToCart = viewModel::addToCart,
                             onReportDamage = { viewModel.showReportDamageSheet(true) },
                             onContactUs = { onNavigate(Routes.CONTACTS) },
+                            onRetryTimeline = { viewModel.refresh() },
                         )
                     }
                 }
@@ -339,6 +340,12 @@ private fun PackageDetailsContent(
     onReportDamage: () -> Unit,
     /** Opens Contact us from a timeline row that has gone wrong. */
     onContactUs: () -> Unit,
+    /**
+     * Re-requests the canonical timeline. Real, not decorative: the error state
+     * previously told customers to "pull to refresh" on a screen with no
+     * pull-to-refresh at all (BrightHarbor #80372).
+     */
+    onRetryTimeline: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -409,7 +416,23 @@ private fun PackageDetailsContent(
             contentSpacing = 12.dp,
         ) {
             val rows = TrackJourney.rows(state.timeline)
-            if (rows.isEmpty() && state.timelineOutcome == TimelineOutcome.FAILED) {
+            // ⚠️ THREE DISTINCT SITUATIONS, THREE DIFFERENT ANSWERS.
+            //
+            //   FAILED                        -> we could not read it. Say so.
+            //   LOADED + raw payload empty    -> genuinely no recorded events.
+            //   LOADED + raw entries present
+            //     but all dropped as invalid  -> we read something we could not
+            //                                    understand. NOT "no history".
+            //
+            // The third is the subtle one, and it is why this gates on the RAW
+            // payload rather than on the mapped rows: TrackJourney drops any
+            // entry with a blank label, so a malformed-but-successful response
+            // maps to zero rows and would otherwise be presented as confirmed
+            // zero history. BrightHarbor #80372.
+            val readFailed = state.timelineOutcome == TimelineOutcome.FAILED
+            val payloadUnusable = state.timelineOutcome == TimelineOutcome.LOADED &&
+                state.timeline.isNotEmpty() && rows.isEmpty()
+            if (rows.isEmpty() && (readFailed || payloadUnusable)) {
                 // ⚠️ A FAILED READ IS NOT AN EMPTY JOURNEY.
                 //
                 // `packageTimeline(...).getOrNull().orEmpty()` collapses every
@@ -422,10 +445,24 @@ private fun PackageDetailsContent(
                 //
                 // Caught by BrightHarbor reviewing #178 before it merged.
                 Text(
-                    text = "Tracking updates couldn't be loaded. Pull to refresh to try again.",
+                    text = "Tracking updates couldn't be loaded.",
                     style = AirdropType.body2,
                     color = colors.textDescription,
                     modifier = Modifier.testTag("package-details-timeline-unavailable"),
+                )
+                // ⚠️ This used to read "Pull to refresh to try again" — on a
+                // screen that is a plain verticalScroll with no PullToRefresh
+                // and no onRefresh anywhere. It instructed customers to perform
+                // a gesture that does nothing. Telling someone to retry with no
+                // way to retry is worse than showing the error alone.
+                // BrightHarbor #80372.
+                Text(
+                    text = "Try again",
+                    style = AirdropType.body2,
+                    color = colors.orangeMain,
+                    modifier = Modifier
+                        .clickable(onClick = onRetryTimeline)
+                        .testTag("package-details-timeline-retry"),
                 )
             } else if (rows.isEmpty() && state.timelineOutcome == TimelineOutcome.LOADED) {
                 // ⚠️ ZERO RECORDED HISTORY. Until now this card rendered its
