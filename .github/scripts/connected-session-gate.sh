@@ -442,13 +442,12 @@ main() {
     return
   fi
 
-  # The CI emulator is headless, software-rendered and slow. Compose tests that
-  # wait on a sheet or dialog animation (waitUntil, 5s) time out there while
-  # passing locally in a fraction of that — AboutQuietHoursParityTest failed all
-  # three of its dismissal waits on a run whose only change was a test tag.
-  # Turning the animators off is the standard remedy and it applies to all 289
-  # tests, not just the ones that have flaked so far. Failures are tolerated:
-  # a device that refuses the setting must not take the gate down with it.
+  # android-emulator-runner already sets window_animation_scale and
+  # transition_animation_scale to 0 — but NOT animator_duration_scale, and that
+  # is the one Compose reads. A Compose waitUntil on a sheet dismissal is
+  # waiting on an animator, so the action's own "Disabling animations" step does
+  # not cover it. This closes that gap. Failures are tolerated: a device that
+  # refuses the setting must not take the gate down with it.
   quiet_animations
 
   proof_root="${RUNNER_TEMP:?RUNNER_TEMP is required}/connected-session-proof"
