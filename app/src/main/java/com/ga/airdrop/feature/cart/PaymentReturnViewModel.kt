@@ -41,8 +41,20 @@ import kotlinx.coroutines.delay
  * imply failure.
  */
 sealed interface PaymentReturnResult {
-    data class Success(val orderReference: String?, val formattedAmount: String?) :
-        PaymentReturnResult
+    data class Success(
+        val orderReference: String?,
+        val formattedAmount: String?,
+        /**
+         * The packages this payment actually settled, from the verify response
+         * (`package_ids`, BronzeMountain 92e739ce). Kemar: the post-checkout
+         * screen shows the REAL packages, not a static rail.
+         *
+         * Empty is a legitimate answer — an unfulfilled payment returns `[]` —
+         * so the screen must handle "paid, nothing to show yet" without
+         * inventing anything.
+         */
+        val packageIds: List<Int> = emptyList(),
+    ) : PaymentReturnResult
 
     data class NotPaid(val statusText: String, val terminal: Boolean = false) : PaymentReturnResult
     data class Unconfirmed(val detail: String) : PaymentReturnResult
@@ -149,7 +161,7 @@ internal suspend fun verifySession(
                     } else {
                         null
                     }
-                    PaymentReturnResult.Success(sessionId, amount)
+                    PaymentReturnResult.Success(sessionId, amount, s.packageIds)
                 } else {
                     val statusText = s.paymentStatus ?: s.status ?: "unknown"
                     PaymentReturnResult.NotPaid(
@@ -185,7 +197,7 @@ internal fun isTerminalNonPaidStatus(status: String?, paymentStatus: String?): B
 @Composable
 fun PaymentReturnHost(
     sessionId: String,
-    onPaid: (ref: String?, amount: String?) -> Unit,
+    onPaid: (ref: String?, amount: String?, packageIds: List<Int>) -> Unit,
     onNotPaid: (statusText: String) -> Unit,
     onUnconfirmed: (detail: String) -> Unit,
     viewModel: PaymentReturnViewModel = viewModel(),
@@ -204,7 +216,7 @@ fun PaymentReturnHost(
 internal fun PaymentReturnContent(
     sessionId: String,
     verify: suspend (String) -> PaymentReturnResult,
-    onPaid: (ref: String?, amount: String?) -> Unit,
+    onPaid: (ref: String?, amount: String?, packageIds: List<Int>) -> Unit,
     onNotPaid: (statusText: String) -> Unit,
     onUnconfirmed: (detail: String) -> Unit,
 ) {
@@ -212,7 +224,8 @@ internal fun PaymentReturnContent(
 
     LaunchedEffect(sessionId) {
         when (val result = verify(sessionId)) {
-            is PaymentReturnResult.Success -> onPaid(result.orderReference, result.formattedAmount)
+            is PaymentReturnResult.Success ->
+                onPaid(result.orderReference, result.formattedAmount, result.packageIds)
             // Alert first; navigation runs on dismiss.
             is PaymentReturnResult.NotPaid -> pendingAlert = result
             is PaymentReturnResult.Unconfirmed -> pendingAlert = result
@@ -269,7 +282,7 @@ internal fun PaymentReturnContent(
 fun PaymentCancelledHost(
     onTerminalNotPaid: () -> Unit,
     onUnconfirmed: () -> Unit,
-    onPaid: (ref: String?, amount: String?) -> Unit = { _, _ -> },
+    onPaid: (ref: String?, amount: String?, packageIds: List<Int>) -> Unit = { _, _, _ -> },
     verify: (suspend () -> PaymentReturnResult)? = null,
     viewModel: PaymentReturnViewModel = viewModel(),
 ) {
@@ -279,7 +292,7 @@ fun PaymentCancelledHost(
     }
     when (val outcome = result) {
         is PaymentReturnResult.Success -> LaunchedEffect(outcome) {
-            onPaid(outcome.orderReference, outcome.formattedAmount)
+            onPaid(outcome.orderReference, outcome.formattedAmount, outcome.packageIds)
         }
         is PaymentReturnResult.NotPaid -> PaymentOutcomeAlert(
             title = if (outcome.terminal) "Payment cancelled" else "Couldn't confirm cancellation",
