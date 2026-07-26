@@ -29,6 +29,11 @@ class SessionRestoreProbeProvider : ContentProvider() {
             putBoolean(KEY_TOKEN_PRESENT, snapshot.token != null)
             putString(KEY_ROUTE, PushDeepLink.consume(snapshot))
             putInt(KEY_PROCESS_ID, Process.myPid())
+            // Distinguishes "the session did not survive" from "this process
+            // could not open the encrypted store and read a different file".
+            // Those look identical from the assertion side and have completely
+            // different meanings. BrightHarbor #181.
+            putBoolean(KEY_ENCRYPTED_STORE, AuthTokenStore.usedEncryptedStore)
         }
         Handler(Looper.getMainLooper()).postDelayed({ Process.killProcess(Process.myPid()) }, 100L)
         return result
@@ -58,6 +63,7 @@ class SessionRestoreProbeProvider : ContentProvider() {
         const val KEY_SESSION_ID = "sessionId"
         const val KEY_TOKEN_PRESENT = "tokenPresent"
         const val KEY_ROUTE = "route"
+        const val KEY_ENCRYPTED_STORE = "encrypted_store"
         const val KEY_PROCESS_ID = "processId"
     }
 }
