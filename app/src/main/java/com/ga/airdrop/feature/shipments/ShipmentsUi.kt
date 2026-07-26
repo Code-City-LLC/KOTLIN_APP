@@ -283,6 +283,30 @@ object ShipmentsFormat {
     /** "$1,550.00" */
     fun price(value: Double?): String = value?.let { "$" + money(it) } ?: "-"
 
+    /**
+     * "JMD 64,841.58" / "USD 400.00" — prefixed with the SERVER'S currency code.
+     *
+     * ⚠️ USE THIS FOR ANYTHING THE SERVER SENDS A CURRENCY FOR. [price] hard-codes
+     * a dollar sign, so an NCB payment of JA$64,841.58 rendered as "$64,841.58"
+     * — a customer reading their payment history saw what looked like a US
+     * charge, off by a factor of ~162.
+     *
+     * iOS fixed this exact defect on 2026-05-23 and left the reason in
+     * `FigmaPaymentsViewController.formatPrice`: "this used to be hardcoded '$'
+     * via en_US currency format, so a JMD payment rendered as '$1234.56'. Use
+     * the payment's actual currency code as the prefix." Android kept the bug
+     * for two months because nothing compared the two.
+     *
+     * Shape matches Swift exactly, including USD: code, space, amount. The
+     * absent/blank case falls back to USD, which is what Swift does — but note
+     * that is a *default*, not knowledge, and it is the only guess here.
+     */
+    fun priceIn(value: Double?, currency: String?): String {
+        val amount = value ?: return "-"
+        val code = currency?.trim()?.uppercase(Locale.US)?.takeIf { it.isNotEmpty() } ?: "USD"
+        return "$code ${money(amount)}"
+    }
+
     /** "USD 403.35" */
     fun usd(value: Double?): String = value?.let { "USD " + money(it) } ?: "-"
 
@@ -877,7 +901,10 @@ fun PaymentCard(
             Column {
                 Text(text = "Amount", style = AirdropType.subtitle2, color = colors.textDescription)
                 Text(
-                    text = ShipmentsFormat.price(payment.totalAmount),
+                    // Currency-aware: an NCB payment is JMD and must not wear a
+                    // dollar sign. Swift FigmaPaymentsViewController:355 does
+                    // the same via formatPrice(_:currency:).
+                    text = ShipmentsFormat.priceIn(payment.totalAmount, payment.currency),
                     style = AirdropType.title2,
                     color = BrandPalette.OrangeMain,
                 )
