@@ -140,7 +140,7 @@ class GoldPriorityParityTest {
     }
 
     @Test
-    fun lowerTierHasNoCtaButKeepsTheScreenLevelFade() {
+    fun lowerTierShowsTheInfoCtaAndKeepsTheScreenLevelFade() {
         setGoldPriorityContent(
             mode = ThemeController.Mode.LIGHT,
             initialPage = rubyIndex,
@@ -154,9 +154,15 @@ class GoldPriorityParityTest {
         compose.onNodeWithText("Sapphire Saver").assertIsDisplayed()
 
         compose.onNodeWithTag("gold-priority-lines", useUnmergedTree = true).assertExists()
-        assertEquals(0, compose.onAllNodesWithTag("gold-priority-cta").fetchSemanticsNodes().size)
+        // Kemar 0b8349b: every tier page shows the glass button. A lower page
+        // gets the info CTA naming the customer's OWN tier.
+        compose.onNodeWithTag("gold-priority-cta").assertIsDisplayed()
+        assertEquals(
+            1,
+            compose.onAllNodesWithText("Your Tier: Ruby Starter").fetchSemanticsNodes().size,
+        )
         compose.onNodeWithTag("gold-priority-fade-sapphire").assertIsDisplayed()
-        saveRootScreenshot("gold_priority_sapphire_cta_hidden_with_fade.png")
+        saveRootScreenshot("gold_priority_sapphire_info_cta_with_fade.png")
     }
 
     private fun assertRubyCurrentFadeAndCta(
@@ -416,15 +422,17 @@ class GoldPriorityParityTest {
             compose.onAllNodesWithTag("tier-change-sheet").fetchSemanticsNodes().isEmpty()
         }
 
-        // Swipe down to Sapphire (below the customer): accepted Swift hides
-        // the CTA but keeps the shared screen-level bottom fade.
+        // Swipe down to Sapphire (below the customer). Kemar's ruling
+        // (0b8349b): NO blank tier pages — a lower page shows the info CTA
+        // "Your Tier: <customer tier>", which opens the same breakdown.
         compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
         compose.waitForIdle()
         compose.onNodeWithTag("gold-priority-root").performTouchInput { swipeLeft() }
         compose.waitForIdle()
+        compose.onNodeWithTag("gold-priority-cta").assertIsDisplayed()
         assertEquals(
-            0,
-            compose.onAllNodesWithTag("gold-priority-cta").fetchSemanticsNodes().size,
+            1,
+            compose.onAllNodesWithText("Your Tier: Ruby Starter").fetchSemanticsNodes().size,
         )
         compose.onNodeWithTag("gold-priority-fade-sapphire").assertIsDisplayed()
     }
