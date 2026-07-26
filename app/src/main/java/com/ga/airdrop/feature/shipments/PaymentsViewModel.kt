@@ -26,7 +26,14 @@ data class PaymentsUiState(
     val typeFilter: PaymentTypeFilter = PaymentTypeFilter.Package,
     val showTypeFilter: Boolean = false,
     val downloadingInvoiceId: Int? = null,
+    /** Invoice DOWNLOAD failure — surfaces an alert dialog. Not the list. */
     val error: String? = null,
+    /**
+     * LIST-load failure. Deliberately separate from [error]: Swift keeps these
+     * apart too (`loadErrorMessage` vs the download alert), because one belongs
+     * in the empty slot and the other is a modal.
+     */
+    val loadError: String? = null,
 )
 
 /** One-shot navigation event: open the invoice viewer with a resolved URL. */
@@ -147,12 +154,21 @@ class PaymentsViewModel(
                     )
                 }
                 currentPage = requestedPage + 1
-            }.onFailure {
+            }.onFailure { e ->
                 _state.update {
-                    // Swift FigmaPaymentsViewController prints list-load
-                    // failures and lets the empty/list state render. Only
-                    // invoice download failures surface an alert.
-                    it.copy(loading = false, loadingMore = false)
+                    // ⚠️ THE PREVIOUS COMMENT HERE WAS FACTUALLY WRONG. It said
+                    // Swift "lets the empty/list state render" on a list-load
+                    // failure. Swift does the opposite:
+                    //   FigmaPaymentsViewController:329
+                    //     emptyLabel?.text = loadErrorMessage ?? "No payments found"
+                    //   FigmaPaymentsViewController:663
+                    //     loadErrorMessage = "Couldn't load payments.\nPull down to retry."
+                    // It puts the ERROR in the empty slot. The half that was
+                    // right: only download failures get the modal.
+                    //
+                    // Collapsing them told a customer they had no payment
+                    // history — on the screen they use to find invoices.
+                    it.copy(loading = false, loadingMore = false, loadError = e.message)
                 }
             }
         }
