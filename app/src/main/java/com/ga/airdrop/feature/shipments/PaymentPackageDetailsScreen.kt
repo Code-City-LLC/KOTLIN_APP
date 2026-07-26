@@ -39,6 +39,7 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.feature.delivery.TrackJourney
 
 /**
  * Payment package details — behavior from
@@ -316,34 +317,45 @@ private fun ChargeTableRow(name: String, usd: String, jmd: String, color: Color)
 
 // ─── View History — Figma 40001761:29389 (Metro Step Card) ─────────────────
 
-/** The 7 canonical stops of the payment shipment timeline (Swift order). */
-private val timelineStops = listOf(
-    1 to "Drop Alerted",
-    2 to "Shipment Received",
-    3 to "Port of Departure MIA",
-    4 to "Arrived at Port JAM",
-    7 to "Ready for Pickup",
-    18 to "Paid and Ready for Pick Up",
-    8 to "Delivered",
-)
-
-/** Deep orange used for the in-flight step while still overseas (<= JAM). */
+/** Deep orange for the row the package is on right now. */
 private val InFlightOrange = Color(0xFFF07F17)
 
+/**
+ * View History — the package's REAL recorded history.
+ *
+ * ⚠️ THIS WAS THE THIRD COPY of the same defect. It rendered `timelineStops`,
+ * a hardcoded list of seven status ids (1, 2, 3, 4, 7, 18, 8), and consulted
+ * `history` only to look up a date. Like the two before it, it failed in both
+ * directions at once:
+ *
+ *  - It INVENTED. Every stop before `reachedIndex` was painted
+ *    AlertPalette.Completed whether or not a history row existed, with the date
+ *    rendered as "-". A package whose history begins at Ready for Pickup printed
+ *    Drop Alerted, Shipment Received, Port of Departure MIA and Arrived at Port
+ *    JAM as completed steps that no system ever recorded.
+ *  - It DELETED. The list has no entry for Released From Customs (5),
+ *    Processing at our Warehouse (6), Processing at Customs (9), Detained at
+ *    Customs (10), In-Transit to counter (12), Proof of Delivery (14),
+ *    Uncollected (15), Dangerous Goods (16), Sale (17) or Returned to Merchant
+ *    (19). On a screen titled "View History", customs clearance and warehouse
+ *    processing simply did not exist.
+ *  - Worse, `indexOfLast` skipped unlisted ids, so a Returned to Merchant or
+ *    Detained at Customs package left the marker on a stale earlier stop and the
+ *    rail asserted the package was still on its way to pickup. The one event
+ *    requiring the customer to act was nowhere on screen.
+ *
+ * Now built by TrackJourney.warehouseRail — the same builder as Track and
+ * Package Details — so the three screens cannot drift apart again.
+ */
 @Composable
 internal fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
     val colors = AirdropTheme.colors
     val detail = state.detail
-    val statusInt = detail?.status?.toIntOrNull() ?: 0
-    val history = detail?.history.orEmpty()
-
-    fun historyDate(statusId: Int): String? =
-        history.firstOrNull { it.status == statusId }?.changedDate
-
-    // Progress index: furthest stop reached via history or the current status.
-    val reachedIndex = timelineStops.indexOfLast { (id, _) ->
-        id == statusInt || historyDate(id) != null
-    }
+    val rows = TrackJourney.rail(
+        history = detail?.history.orEmpty(),
+        currentStatusId = detail?.status?.trim()?.toIntOrNull(),
+        currentStatusName = detail?.statusName,
+    )
 
     Column(
         Modifier
@@ -365,22 +377,22 @@ internal fun PaymentShipmentTimeline(state: PaymentPackageDetailsUiState) {
                     .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
                     .padding(start = Spacing.md, end = Spacing.md, top = Spacing.md, bottom = Spacing.sm),
             ) {
-                timelineStops.forEachIndexed { index, (statusId, title) ->
-                    val date = historyDate(statusId)
-                    val color = when {
-                        index < reachedIndex -> AlertPalette.Completed
-                        index == reachedIndex && statusInt <= 4 -> InFlightOrange
-                        index == reachedIndex -> AlertPalette.Completed
-                        else -> colors.textPlaceholder
+                rows.forEachIndexed { index, row ->
+                    // Everything on this rail already happened; the last row is
+                    // where the package is now.
+                    val color = if (index == rows.lastIndex) {
+                        if ((row.statusId ?: 0) <= 4) InFlightOrange else AlertPalette.Completed
+                    } else {
+                        AlertPalette.Completed
                     }
                     MetroStep(
-                        iconRes = ShipmentStatusCatalog.iconRes(statusId, dark = colors.isDark),
-                        title = title,
+                        iconRes = ShipmentStatusCatalog.iconRes(row.statusId ?: 0, dark = colors.isDark),
+                        title = row.label,
                         titleColor = color,
-                        date = timelineDateOrDash(date),
-                        showConnector = index != timelineStops.lastIndex,
+                        date = timelineDateOrDash(row.at),
+                        showConnector = index != rows.lastIndex,
                         connectorColor = color,
-                        modifier = Modifier.testTag("payment-history-step-$statusId"),
+                        modifier = Modifier.testTag("payment-history-step-${row.statusId ?: row.label}"),
                     )
                 }
             }

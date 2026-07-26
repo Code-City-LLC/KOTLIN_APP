@@ -122,60 +122,69 @@ class CalculatorViewModel(
             return
         }
         val packageCount = maxOf(1, form.packages.toIntOrNull() ?: 1)
-        // Actual weight when supplied; SeaDrop falls back to package count as
-        // a proxy weight (Swift parity).
         val parsedWeight = form.actualWeight.replace(',', '.').toDoubleOrNull() ?: 0.0
-        val weightLbs = when {
-            parsedWeight > 0 && form.weightUnit == WeightUnit.KG -> maxOf(0.5, parsedWeight / 0.453592)
-            parsedWeight > 0 -> maxOf(0.5, parsedWeight)
-            else -> maxOf(0.5, packageCount.toDouble())
+        // No weight is NO weight. This used to substitute the package count as
+        // "a proxy weight", so three packages of unknown weight were priced as
+        // three pounds — a number nobody entered and nothing measured.
+        val weightLbs: Double? = when {
+            parsedWeight <= 0 -> null
+            form.weightUnit == WeightUnit.KG -> maxOf(0.5, parsedWeight / 0.453592)
+            else -> maxOf(0.5, parsedWeight)
+        }
+        // The server requires weight for the airdrop methods (Scribe:
+        // "required for airdrop methods"). Ask for it rather than invent it.
+        if (weightLbs == null && form.method != ShippingMethod.SEADROP) {
+            _state.update {
+                it.copy(alert = CalcAlert("Missing weight", "Enter the weight of a package to price this shipment."))
+            }
+            return
         }
 
-        when (form.method) {
-            ShippingMethod.STANDARD -> {
-                // Offline formula; `live = null` tells the results screen to
-                // run ShippingCalculator itself so the breakdown stays there.
-                runCatching { ShippingCalculator.airdropStandard(weightLbs, invoice) }
-                    .onSuccess { publishResult(form, invoice, weightLbs, live = null) }
-                    .onFailure { e ->
-                        _state.update {
-                            it.copy(alert = CalcAlert("Cannot calculate", e.message ?: "Invalid input."))
-                        }
-                    }
-            }
-
-            ShippingMethod.SEADROP, ShippingMethod.EXPRESS -> {
-                _state.update { it.copy(calculating = true) }
-                val dimensions = parseDimensions(form)
-                viewModelScope.launch {
-                    runCatching {
-                        repository.calculateShipment(
-                            shippingMethod = form.method.apiValue,
-                            invoiceAmount = invoice,
-                            weightLbs = weightLbs,
-                            numberOfPackages = packageCount,
-                            lengthInches = dimensions.first,
-                            widthInches = dimensions.second,
-                            heightInches = dimensions.third,
-                        )
-                    }.onSuccess { live ->
-                        _state.update { it.copy(calculating = false) }
-                        publishResult(form, invoice, weightLbs, live)
-                    }.onFailure { e ->
-                        _state.update { it.copy(calculating = false) }
-                        // Offline fallback — Swift pushes the results screen
-                        // with no live payload when the API is unreachable.
-                        val fallback = runCatching {
-                            ShippingCalculator.airdropStandard(weightLbs, invoice)
-                        }.getOrNull()
-                        if (fallback != null) {
-                            publishResult(form, invoice, weightLbs, live = null)
-                        } else {
-                            _state.update {
-                                it.copy(alert = CalcAlert("Cannot calculate", e.message ?: "Please try again."))
-                            }
-                        }
-                    }
+        // EVERY method now asks the server. AirDrop Standard used to run a
+        // client-side formula (ShippingCalculator) that under-quoted twice over:
+        //   * its rate table was stale — freight `3 + weight*3` with no rounding
+        //     against the server's tiered card applied to the weight rounded UP
+        //     to the next pound, and a hardcoded 1.00 fuel surcharge against the
+        //     server's 1.50; and
+        //   * it ignored `packageCount` entirely, so the quote was identical for
+        //     1 package and for 6. Measured on pre-staging at 5.5 lb / $150,
+        //     six packages quoted USD 23.50 against a real USD 165.00 — 86% low,
+        //     from a number the customer had typed into a required field.
+        // POST /shipping/calculate has always accepted number_of_packages and
+        // returns the whole breakdown. Kemar 2026-07-26: server rates, and an
+        // error if they cannot be fetched. Never quote a number no system
+        // authored.
+        _state.update { it.copy(calculating = true) }
+        val dimensions = parseDimensions(form)
+        viewModelScope.launch {
+            runCatching {
+                repository.calculateShipment(
+                    shippingMethod = form.method.apiValue,
+                    invoiceAmount = invoice,
+                    weightLbs = weightLbs,
+                    numberOfPackages = packageCount,
+                    lengthInches = dimensions.first,
+                    widthInches = dimensions.second,
+                    heightInches = dimensions.third,
+                )
+            }.onSuccess { live ->
+                _state.update { it.copy(calculating = false) }
+                publishResult(form, invoice, weightLbs ?: 0.0, live)
+            }.onFailure { e ->
+                // No offline fallback. It used to push the results screen with
+                // the client formula — and for SeaDrop and Express that meant
+                // silently running the AIR formula while the screen still said
+                // "SeaDrop Results". A wrong price shown confidently is worse
+                // than no price.
+                _state.update {
+                    it.copy(
+                        calculating = false,
+                        alert = CalcAlert(
+                            "Couldn't get current rates",
+                            "We couldn't reach our pricing service, so we can't quote this " +
+                                "shipment right now. Please check your connection and try again.",
+                        ),
+                    )
                 }
             }
         }

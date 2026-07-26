@@ -41,7 +41,7 @@ interface CalculatorRepository {
     /** GET /products?search=… — Swift `AirdropAPI.searchProducts` (RN parity). */
     suspend fun searchProducts(query: String, limit: Int = 20): List<CalcProduct>
 
-    /** GET /exchange-rates → usd_to_jmd; fallback 156.0 (Swift APIConfig.usdToJmdFallback). */
+    /** GET /exchange-rates → the live USD→JMD rate; last known rate if unreachable. */
     suspend fun usdToJmdRate(): Double
 }
 
@@ -174,15 +174,35 @@ class RemoteCalculatorRepository(
         return String.format(Locale.US, "$%,.2f", value)
     }
 
+    /**
+     * GET /exchange-rates.
+     *
+     * ⚠️ This used to read `usd_to_jmd` — a key the server does not send. The
+     * live body is `{"data":{"id":1,"exchange_rate":"162.00","formatted_rate":162.0}}`,
+     * with the rate as a STRING. `flexDouble("usd_to_jmd")` therefore returned
+     * null on every call, `getOrNull()` collapsed to the stored value, and the
+     * function silently "succeeded" with a stale rate — while
+     * CalculatorViewModel then wrote that stale value BACK into
+     * ExchangeRateStore as if it were live. The shared data layer was fixed for
+     * exactly this (Shipping.kt ExchangeRate); the calculator's own hand-rolled
+     * call was missed.
+     *
+     * Reads the real keys now, still preferring the last known rate over
+     * nothing when the network is down — but a decode mismatch can no longer
+     * masquerade as a successful fetch.
+     */
     override suspend fun usdToJmdRate(): Double = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url("/exchange-rates")).get().build()
         runCatching {
             client.newCall(request).execute().use { response ->
-                val text = response.body?.string().orEmpty()
-                val root = json.parseToJsonElement(text) as? JsonObject
-                root?.flexDouble("usd_to_jmd")
-                    ?: root?.objectAt("data")?.flexDouble("usd_to_jmd")
+                val root = json.parseToJsonElement(response.body?.string().orEmpty()) as? JsonObject
+                val data = root?.objectAt("data") ?: root
+                // `exchange_rate` is a string; `formatted_rate` is a number.
+                // `usd_to_jmd` is kept only for older deployments.
+                data?.flexDouble("exchange_rate")
+                    ?: data?.flexDouble("formatted_rate")
+                    ?: data?.flexDouble("usd_to_jmd")
             }
-        }.getOrNull() ?: ExchangeRateStore.current
+        }.getOrNull()?.takeIf { it > 0 } ?: ExchangeRateStore.current
     }
 }

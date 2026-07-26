@@ -456,6 +456,16 @@ main() {
   record_requested_classes
   classes_csv="$(join_requested_classes)"
 
+  # Clear results BEFORE the run, not only after. preserve_flavor copies
+  # whatever is sitting in $results_root, so anything left there by an earlier
+  # run is folded into this flavor's proof and counted. Running the gate
+  # locally after a focused test run reproduced exactly that: every mandatory
+  # class reported double its expected count (10 -> 20, 9 -> 18, 14 -> 28,
+  # 3 -> 6) because a stale staging XML was still on disk, and the gate failed
+  # before it ever reached the staging phase. CI happens to start clean, which
+  # is the only reason this had not bitten there.
+  rm -rf "$results_root" "$reports_root"
+
   ./gradlew --no-daemon --stacktrace :app:connectedProdDebugAndroidTest \
     "-Pandroid.testInstrumentationRunnerArguments.class=$classes_csv"
   preserve_flavor prod

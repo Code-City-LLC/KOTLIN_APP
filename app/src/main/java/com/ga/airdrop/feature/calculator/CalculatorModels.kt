@@ -61,8 +61,9 @@ data class ShipmentCalculation(
 /**
  * Everything the results screens need — the calculator screen builds this and
  * publishes it on the graph-scoped [CalculatorViewModel] (Android counterpart
- * of the Swift results-VC initializer arguments). `live == null` means
- * AirDrop Standard: the results screen re-runs [ShippingCalculator] itself.
+ * of the Swift results-VC initializer arguments). `live` is the server's own
+ * breakdown from POST /shipping/calculate and is always present — the screen
+ * is never reached without it.
  */
 data class CalculationResult(
     val method: ShippingMethod,
@@ -94,35 +95,25 @@ data class Charges(
  * payload for SeaDrop/Express, offline Airdrop Standard formula otherwise.
  */
 fun resolveCharges(result: CalculationResult): Charges {
-    val live = result.live
-    if (live != null) {
-        return Charges(
-            totalWeightLbs = live.totalWeightLbs ?: result.weightLbs,
-            invoiceAmount = result.invoiceUsd,
-            cifValue = live.cifValue,
-            insurance = live.insurance,
-            freight = live.freight,
-            fuelSurcharge = live.fuelSurcharge,
-            customsDuty = live.customsDuty,
-            airdropCharges = live.airdropCharges,
-            totalWithDuty = live.totalWithDuty,
-        )
-    }
-    val safeWeight = maxOf(0.5, result.weightLbs)
-    val safeInvoice = maxOf(0.01, result.invoiceUsd)
-    return runCatching { ShippingCalculator.airdropStandard(safeWeight, safeInvoice) }
-        .map { r ->
-            Charges(
-                totalWeightLbs = safeWeight,
-                invoiceAmount = r.costValue,
-                cifValue = r.cifValue,
-                insurance = r.insuranceValue,
-                freight = r.freightValue,
-                fuelSurcharge = r.fuelValue,
-                customsDuty = 0.0,
-                airdropCharges = r.airdropValue,
-                totalWithDuty = r.grandTotal,
-            )
-        }
-        .getOrDefault(Charges(totalWeightLbs = safeWeight, invoiceAmount = result.invoiceUsd))
+    // `live` is now always present: every method goes through
+    // POST /shipping/calculate and a failure raises an error instead of
+    // pushing this screen. The client-side ShippingCalculator fallback that
+    // used to sit here is gone — it under-quoted by up to 86% because it
+    // ignored the package count, and it rendered indistinguishably from a
+    // real quote.
+    val live = result.live ?: return Charges(
+        totalWeightLbs = result.weightLbs,
+        invoiceAmount = result.invoiceUsd,
+    )
+    return Charges(
+        totalWeightLbs = live.totalWeightLbs ?: result.weightLbs,
+        invoiceAmount = result.invoiceUsd,
+        cifValue = live.cifValue,
+        insurance = live.insurance,
+        freight = live.freight,
+        fuelSurcharge = live.fuelSurcharge,
+        customsDuty = live.customsDuty,
+        airdropCharges = live.airdropCharges,
+        totalWithDuty = live.totalWithDuty,
+    )
 }

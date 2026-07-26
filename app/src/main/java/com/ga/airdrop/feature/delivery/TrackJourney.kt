@@ -98,6 +98,40 @@ internal object TrackJourney {
                 acc
             }
 
+    /**
+     * The warehouse rail, plus the package's CURRENT status when no history row
+     * records it.
+     *
+     * History normally ends at the current status, but it is not guaranteed —
+     * a status can be set without a history row being written. When that
+     * happens the rail silently lags reality and a customer sees a stale last
+     * step. Appending the current status is not fabrication: the server says
+     * `status: 18`, so the package IS at 18.
+     *
+     * Status 8 is still excluded — the delivery leg reports Delivered.
+     */
+    fun rail(
+        history: List<PackageHistoryItem>,
+        currentStatusId: Int?,
+        currentStatusName: String?,
+    ): List<TrackRow> {
+        val rows = warehouseRail(history)
+        if (currentStatusId == STATUS_DELIVERED) return rows
+        val label = currentStatusName?.trim()?.takeIf(String::isNotEmpty)
+            ?: ShipmentStatusCatalog.defaults.firstOrNull { it.id == currentStatusId }?.name
+            ?: return rows
+        val key = "status_${currentStatusId ?: "unknown"}"
+        if (rows.any { it.key == key }) return rows
+        return rows + TrackRow(
+            key = key,
+            label = label,
+            state = "done",
+            at = null,
+            statusId = currentStatusId,
+            needsHelp = needsHelp(currentStatusId),
+        )
+    }
+
     /** The last mile, exactly as the server projects it. */
     fun lastMileRail(delivery: TrackedDelivery?): List<TrackRow> =
         delivery?.stages.orEmpty().map { stage ->

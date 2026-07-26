@@ -71,7 +71,6 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.common.AirdropUploadSourceConfig
 import com.ga.airdrop.feature.common.AirdropUploadSourceSheet
 import com.ga.airdrop.feature.delivery.TrackJourney
-import com.ga.airdrop.feature.delivery.TrackRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -387,30 +386,11 @@ private fun PackageDetailsContent(
             titleContentGap = 14.dp,
             contentSpacing = 12.dp,
         ) {
-            val rows = TrackJourney.warehouseRail(detail.history)
-                .ifEmpty {
-                    // No recorded history: show where the package actually is,
-                    // using the server's own label. One honest row beats seven
-                    // guessed ones.
-                    val statusId = detail.status?.trim()?.toIntOrNull()
-                    val label = detail.statusName?.trim()?.takeIf { it.isNotEmpty() }
-                        ?: ShipmentStatusCatalog.defaults
-                            .firstOrNull { it.id == statusId }?.name
-                    if (label == null) {
-                        emptyList()
-                    } else {
-                        listOf(
-                            TrackRow(
-                                key = "status_${statusId ?: "unknown"}",
-                                label = label,
-                                state = "done",
-                                at = null,
-                                statusId = statusId,
-                                needsHelp = TrackJourney.needsHelp(statusId),
-                            ),
-                        )
-                    }
-                }
+            val rows = TrackJourney.rail(
+                history = detail.history,
+                currentStatusId = detail.status?.trim()?.toIntOrNull(),
+                currentStatusName = detail.statusName,
+            )
             rows.forEachIndexed { index, row ->
                 TimelineIconRow(
                     statusName = row.label,
