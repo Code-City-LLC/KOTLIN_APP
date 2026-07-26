@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -24,8 +25,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -79,7 +80,25 @@ fun FaqScreen(
             )
             Spacer(Modifier.height(Spacing.md))
 
-            if (visible.isEmpty()) {
+            if (state.loading) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Spacing.xl),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = colors.orangeMain)
+                }
+            } else if (state.error != null && state.faqs.isEmpty()) {
+                // The FAQ used to fall back to a client-authored list whose
+                // mailing address was the OLD Fort Lauderdale warehouse. An
+                // empty FAQ is honest; a wrong address ships a package to the
+                // wrong state.
+                LegalLoadFailed(
+                    message = state.error ?: "We couldn't load the FAQs.",
+                    onRetry = viewModel::load,
+                )
+            } else if (visible.isEmpty()) {
                 FaqEmptyState(query = state.searchQuery)
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {

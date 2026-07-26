@@ -100,17 +100,41 @@ class DeliveryMethodViewModel(
         loadPreference()
     }
 
-    /** GET /delivery/settings; on failure fall back to the 4 Swift hard-coded warehouses. */
+    /**
+     * GET /delivery/settings.
+     *
+     * ⚠️ This used to fall back to four hard-coded warehouses whenever the
+     * call failed OR returned an empty list, with no error shown. That is not
+     * a cosmetic fallback — the customer is choosing where to collect a parcel,
+     * and the invented list disagreed with the real one in three ways:
+     *
+     *   * it listed a branch the server does not — "Yallas";
+     *   * its IDs were wrong. The fallback had Kingston = 1; the server has
+     *     Kingston = 2 and Montego Bay = 1. The selection is persisted BY ID
+     *     (`selectedWarehouseId = warehouse.id`), so a customer who picked
+     *     "Kingston" off the fallback had **Montego Bay** saved against their
+     *     order — the other end of the island;
+     *   * its coordinates were off by ~2km for Montego Bay.
+     *
+     * No fallback now. An empty list surfaces as an error the customer can
+     * retry, because "we couldn't load the pickup locations" is recoverable
+     * and collecting a parcel from the wrong parish is not.
+     */
     fun loadSettings() {
         settingsJob?.cancel()
         settingsJob = viewModelScope.launch {
-            val warehouses = repo.deliverySettings()
-                .map { it.settings?.warehouses.orEmpty() }
-                .getOrElse { fallbackWarehouses() }
-                // Fall back on an empty-but-successful response too, not only
-                // on failure — a 200 that yields no warehouses (parse-shape
-                // drift) must never leave "Select Pickup Location" blank.
-                .ifEmpty { fallbackWarehouses() }
+            val result = repo.deliverySettings()
+            val warehouses = result.map { it.settings?.warehouses.orEmpty() }.getOrElse { emptyList() }
+            if (warehouses.isEmpty()) {
+                _state.update {
+                    it.copy(
+                        warehouses = emptyList(),
+                        warehousesError = "We couldn't load the pickup locations. Please try again.",
+                    )
+                }
+                return@launch
+            }
+            _state.update { it.copy(warehousesError = null) }
             _state.update {
                 it.copy(
                     warehouses = warehouses,
@@ -709,6 +733,8 @@ data class DeliveryUiState(
     val mode: DeliveryMode = DeliveryMode.Pickup,
     val warehouses: List<DeliveryWarehouse> = emptyList(),
     val selectedWarehouseId: Int? = null,
+    /** Non-null when the pickup locations could not be loaded. */
+    val warehousesError: String? = null,
     val pickupLabel: String? = null,
     val searchQuery: String = "",
     val searchResults: List<PlaceResult> = emptyList(),
@@ -739,45 +765,10 @@ internal const val SEARCH_MIN_CHARS = 2
 /** Swift default MKCoordinateRegion center. */
 internal val JAMAICA_CENTER: Pair<Double, Double> = 18.1096 to -77.2975
 
-/**
- * Last-ditch fallback for when `/api/v1/delivery/settings` is unreachable —
- * EXACT port of Swift fallbackWarehouses() (the four warehouses in the Figma
- * frame).
- */
-internal fun fallbackWarehouses(): List<DeliveryWarehouse> = listOf(
-    DeliveryWarehouse(
-        id = 1,
-        name = "Kingston",
-        address = "Unit 19 Pristine Plaza, 15 Eastwood Park Rd, Kingston, Jamaica",
-        latitude = 18.012,
-        longitude = -76.793,
-        isPrimary = true,
-    ),
-    DeliveryWarehouse(
-        id = 2,
-        name = "Montego Bay",
-        address = "Unit 14, The Annex Fairview Shopping Center, Montego Bay, Jamaica",
-        latitude = 18.470,
-        longitude = -77.918,
-        isPrimary = false,
-    ),
-    DeliveryWarehouse(
-        id = 3,
-        name = "Savanna-La-Mar",
-        address = "33 Beckford St, Savanna la Mar, Jamaica",
-        latitude = 18.219,
-        longitude = -78.135,
-        isPrimary = false,
-    ),
-    DeliveryWarehouse(
-        id = 4,
-        name = "Yallas",
-        address = "VCJ5+XMH, Poor Mans Corner, Jamaica",
-        latitude = 17.881,
-        longitude = -76.564,
-        isPrimary = false,
-    ),
-)
+// fallbackWarehouses() was deleted on 2026-07-26. See loadSettings above: the
+// invented list named a branch the server does not have, and its IDs were
+// offset from the real ones, so a customer picking "Kingston" had Montego Bay
+// persisted against their order.
 
 /**
  * Swift renderPickupList auto-selection: default to the `isPrimary` (or

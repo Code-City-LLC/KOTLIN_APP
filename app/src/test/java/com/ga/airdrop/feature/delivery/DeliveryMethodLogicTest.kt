@@ -34,7 +34,7 @@ class DeliveryMethodLogicTest {
         val decision = decideContinue(
             mode = DeliveryMode.Pickup,
             selectedWarehouseId = null,
-            warehouses = fallbackWarehouses(),
+            warehouses = serverWarehouses(),
             pickupLabel = null,
             markerCoord = null,
             validatedAddress = null,
@@ -46,19 +46,29 @@ class DeliveryMethodLogicTest {
         assertEquals("Please select a pickup warehouse to continue.", decision.message)
     }
 
+    /**
+     * ⚠️ THE ID OFFSET, IN ONE ASSERTION.
+     *
+     * This test previously ran against the hardcoded fallback list and asserted
+     * that **id 2 is Montego Bay**. Against the live server list, **id 2 is
+     * Kingston** — Montego Bay is id 1. Selection persists by id, so every
+     * customer who chose a pickup branch while the fallback was on screen had a
+     * different branch saved against their order. The fallback is gone; this
+     * now pins the real mapping.
+     */
     @Test
     fun `pickup with selected warehouse saves its name as the label`() {
         val decision = decideContinue(
             mode = DeliveryMode.Pickup,
             selectedWarehouseId = 2,
-            warehouses = fallbackWarehouses(),
+            warehouses = serverWarehouses(),
             pickupLabel = "Kingston",
             markerCoord = null,
             validatedAddress = null,
             searchQuery = "",
         )
         assertTrue(decision is ContinueDecision.SavePickup)
-        assertEquals("Montego Bay", (decision as ContinueDecision.SavePickup).label)
+        assertEquals("Kingston", (decision as ContinueDecision.SavePickup).label)
     }
 
     @Test
@@ -66,7 +76,7 @@ class DeliveryMethodLogicTest {
         val decision = decideContinue(
             mode = DeliveryMode.Pickup,
             selectedWarehouseId = 99,
-            warehouses = fallbackWarehouses(),
+            warehouses = serverWarehouses(),
             pickupLabel = "Somewhere Saved",
             markerCoord = null,
             validatedAddress = null,
@@ -144,47 +154,35 @@ class DeliveryMethodLogicTest {
         )
     }
 
-    /* ─── Fallback warehouses (exact Swift fallbackWarehouses()) ───────── */
+    /* ─── Pickup locations come from the server ─────────────────────── */
 
+    /**
+     * ⚠️ THIS REPLACED A TEST THAT ASSERTED THE BUG.
+     *
+     * `fallback warehouses match the four Swift entries exactly` pinned a
+     * hardcoded list of four branches that the client rendered whenever
+     * /delivery/settings failed or came back empty. Checked against the live
+     * response, that list named a branch the server does not have ("Yallas")
+     * and its IDs were offset: the fallback had Kingston = 1, the server has
+     * Kingston = 2 and Montego Bay = 1. Selection persists BY ID, so a customer
+     * picking "Kingston" had Montego Bay saved against their order.
+     *
+     * There is no fallback now, so what is worth pinning is that the screen
+     * stays honest when the list cannot be loaded.
+     */
     @Test
-    fun `fallback warehouses match the four Swift entries exactly`() {
-        val list = fallbackWarehouses()
-        assertEquals(4, list.size)
-
-        assertEquals(1, list[0].id)
-        assertEquals("Kingston", list[0].name)
+    fun `no pickup location is offered when the server list is empty`() {
         assertEquals(
-            "Unit 19 Pristine Plaza, 15 Eastwood Park Rd, Kingston, Jamaica",
-            list[0].address,
+            "nothing may be selected from an empty list",
+            null,
+            resolveSelectedWarehouseId(
+                warehouses = emptyList(),
+                currentSelectedId = null,
+                pickupLabel = null,
+            ),
         )
-        assertEquals(18.012, list[0].latitude!!, 1e-9)
-        assertEquals(-76.793, list[0].longitude!!, 1e-9)
-        assertEquals(true, list[0].isPrimary)
-
-        assertEquals(2, list[1].id)
-        assertEquals("Montego Bay", list[1].name)
-        assertEquals(
-            "Unit 14, The Annex Fairview Shopping Center, Montego Bay, Jamaica",
-            list[1].address,
-        )
-        assertEquals(18.470, list[1].latitude!!, 1e-9)
-        assertEquals(-77.918, list[1].longitude!!, 1e-9)
-        assertEquals(false, list[1].isPrimary)
-
-        assertEquals(3, list[2].id)
-        assertEquals("Savanna-La-Mar", list[2].name)
-        assertEquals("33 Beckford St, Savanna la Mar, Jamaica", list[2].address)
-        assertEquals(18.219, list[2].latitude!!, 1e-9)
-        assertEquals(-78.135, list[2].longitude!!, 1e-9)
-        assertEquals(false, list[2].isPrimary)
-
-        assertEquals(4, list[3].id)
-        assertEquals("Yallas", list[3].name)
-        assertEquals("VCJ5+XMH, Poor Mans Corner, Jamaica", list[3].address)
-        assertEquals(17.881, list[3].latitude!!, 1e-9)
-        assertEquals(-76.564, list[3].longitude!!, 1e-9)
-        assertEquals(false, list[3].isPrimary)
     }
+
 
     /* ─── Stale-search guard (Swift latestSearchQuery + field-text) ────── */
 
@@ -262,4 +260,23 @@ class DeliveryMethodLogicTest {
         val line = ShipmentPackage(id = 3, weight = "10LBS").toCartLine()
         assertNull(line.weightKg)
     }
+
+    /** The live pre-staging response, verbatim: three branches, server IDs. */
+    private fun serverWarehouses() = listOf(
+        DeliveryWarehouse(
+            id = 1, name = "Montego Bay",
+            address = "Unit 14, The Annex Fairview Shopping Center, Montego Bay, Jamaica",
+            latitude = 18.45323945, longitude = -77.92337403, isPrimary = false,
+        ),
+        DeliveryWarehouse(
+            id = 2, name = "Kingston",
+            address = "Unit 19 Pristine Plaza, 15 Eastwood Park Rd, Kingston, Jamaica",
+            latitude = 18.0129377, longitude = -76.79937405, isPrimary = false,
+        ),
+        DeliveryWarehouse(
+            id = 4, name = "Savanna-La-Mar",
+            address = "33 Beckford St, Savanna la Mar, Jamaica",
+            latitude = 18.22456944, longitude = -78.13282102, isPrimary = false,
+        ),
+    )
 }
