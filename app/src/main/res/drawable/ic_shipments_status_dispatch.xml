@@ -1,38 +1,68 @@
 <!--
-  "Preparing for Dispatch" — Figma Revamping-AirDrop-App node 787:33962
-  ("Share": an outbound arrow leaving a box). Kemar chose this node directly
-  (Laravel handoff #79774).
+  "Preparing for Dispatch" — Figma Revamping-AirDrop-App node 40000692:4167
+  ("Paper Note": a note with a clip at the top and two ruled lines).
 
-  Why not a conveyor: that is status 6 "Processing at our Warehouse" — Kemar:
-  "Processing at our Warehouse and Preparing for Dispatch should be two
-  different icons. We shouldn't be using the same icon."
+  ⚠️ THIS SUPERSEDES node 787:33962 ("Share", an outbound arrow leaving a box).
+  Kemar chose that node earlier via Laravel handoff #79774 and REASSIGNED this
+  one on 2026-07-26 in the closed owner icon map, which supersedes every earlier
+  assignment. The old node is not wrong, it is superseded — do not "restore" it.
 
-  Why not a truck: the canonical set holds exactly ONE truck (`in_transit`,
-  truck + clock) and "Out for Delivery" owns it — the only semantically exact
-  use of a truck on this rail.
+  Geometry is transcribed from the node, not eyeballed. Figma gives each child
+  as a percentage inset of the 24x24 frame plus a stroke-overflow inset; each
+  translate below is (frame inset) - (stroke overflow), and every one reconciles
+  against that child's own exported SVG width/height to within 0.001:
 
-  Geometry is verbatim from the node: a 24dp viewport, the box inset
-  12.5%/18.87%/12.5%/18.93% and the arrow inset 12.5%/12.5%/52.6%/44.84%,
-  translated into the 24x24 viewport below.
+    clip   inset 12.5/34.67/73.81/34.67 %, overflow -22.83/-10.19 %
+           box  7.3584 x  3.2856  vs svg  8.85929 x  4.78561 -> 7.571, 2.250
+    body   inset 19.14/19.02/12.50/19.03 %, overflow  -4.57/ -5.04 %
+           box 14.8680 x 16.4064  vs svg 16.36840 x 17.90670 -> 3.818, 3.844
+    rule 1 inset 45.83/35.54/54.17/35.53 %, overflow -0.75px/-10.8 %
+           zero-height rule       vs svg  8.44336 x  1.50000 -> 7.777, 10.249
+    rule 2 inset 65.92/35.54/34.08/35.53 %, same asset as rule 1
+                                                             -> 7.777, 15.071
+
+  The body path is deliberately OPEN at the top — that gap is where the clip
+  sits. Closing it would draw a line straight through the clip.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Box with the open corner (node 787:33959). -->
-    <group android:translateX="3" android:translateY="3">
+    <!-- Clip at the top of the note (node 40000692:4162). -->
+    <group android:translateX="7.571" android:translateY="2.25">
         <path
-            android:pathData="M6.16438 0.75H5.12569C2.43641 0.75 0.75 2.65263 0.75 5.3452V12.6119C0.75 15.3045 2.42817 17.2071 5.12569 17.2071H12.8431C15.5415 17.2071 17.2206 15.3045 17.2206 12.6119V10.0201"
+            android:pathData="M6.75299 4.03561H2.10628C1.35711 4.03561 0.75 3.42849 0.75 2.67933V2.10627C0.75 1.35711 1.35711 0.75 2.10628 0.75H6.75299C7.50219 0.75 8.10929 1.35711 8.10929 2.10627V2.67933C8.10929 3.42849 7.50219 4.03561 6.75299 4.03561Z"
             android:strokeColor="@color/icon_duotone"
             android:strokeWidth="1.5"
             android:strokeLineCap="round"
             android:strokeLineJoin="round" />
     </group>
-    <!-- Outbound arrow leaving the box (node 787:33960). -->
-    <group android:translateX="10.7639" android:translateY="3">
+    <!-- Note body, open at the top under the clip (node 40000692:4163). -->
+    <group android:translateX="3.818" android:translateY="3.844">
         <path
-            android:pathData="M6.02924 6.0576C3.65214 6.0576 1.81174 6.88002 0.793942 9.12763C0.793942 9.12763 -0.0859781 2.95888 6.02924 2.95888C6.02924 2.95888 6.02974 2.04971 6.03034 1.26728C6.03094 0.828466 6.54524 0.590756 6.88034 0.874656L10.8043 4.19871C11.042 4.40037 11.0505 4.7637 10.8184 4.97325C9.95654 5.75286 8.01824 7.50472 6.88934 8.52483C6.55764 8.82453 6.02924 8.58743 6.02924 8.14013V6.0576Z"
-            android:fillColor="@color/icon_duotone" />
+            android:pathData="M11.8639 0.75C13.9372 0.75 15.6184 2.43123 15.6184 4.50456V13.4021C15.6184 15.4753 13.9372 17.1567 11.8639 17.1567H4.50456C2.43123 17.1567 0.75 15.4753 0.75 13.4021V4.50456C0.75 2.43123 2.43123 0.75 4.50456 0.75"
+            android:strokeColor="@color/icon_duotone"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+    <!-- Upper ruled line (node 40000692:4164). -->
+    <group android:translateX="7.777" android:translateY="10.249">
+        <path
+            android:pathData="M3.70636 0.75H7.69336M0.75 0.75H1.03118"
+            android:strokeColor="@color/icon_duotone"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+    <!-- Lower ruled line — the same asset as the upper one (node 40000692:4165). -->
+    <group android:translateX="7.777" android:translateY="15.071">
+        <path
+            android:pathData="M3.70636 0.75H7.69336M0.75 0.75H1.03118"
+            android:strokeColor="@color/icon_duotone"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
     </group>
 </vector>
