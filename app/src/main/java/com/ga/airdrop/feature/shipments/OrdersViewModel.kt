@@ -76,6 +76,16 @@ class OrdersViewModel(
                     // A failed reset load must not leave a stale end-of-list
                     // gate (FuchsiaTower Pass-3b C1; matches PackagesViewModel).
                     hasMorePages = if (reset) true else it.hasMorePages,
+                    // ⚠️ AND A STALE ERROR IS JUST AS BAD, IN THE OTHER
+                    // DIRECTION. Without this, a customer who fails once and
+                    // then retries successfully WITH ZERO ORDERS keeps the
+                    // error forever: items stays empty, error stays set, and
+                    // the screen shows "Couldn't load your orders" for a load
+                    // that actually succeeded. That is the inverse of the bug
+                    // this branch fixes — empty rendered as failed.
+                    // PackagesViewModel has always done this; the Orders write
+                    // was deleted and I restored it without the reset.
+                    error = null,
                 )
             }
             val search = _state.value.searchText.trim().takeIf { it.length >= SEARCH_MIN_CHARS }

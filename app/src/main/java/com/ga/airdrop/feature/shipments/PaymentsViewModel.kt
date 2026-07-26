@@ -124,6 +124,12 @@ class PaymentsViewModel(
         loadJob = viewModelScope.launch {
             _state.update {
                 it.copy(
+                    // ⚠️ Clear the LIST error on every load. A stale one makes a
+                    // successful empty result render as a permanent failure —
+                    // the inverse of the bug this branch fixes. `error` (the
+                    // invoice-download alert) is deliberately NOT touched here;
+                    // it is consumed by its own dialog.
+                    loadError = null,
                     loading = reset,
                     loadingMore = !reset,
                     // Failed reset must not leave a stale end-of-list gate
