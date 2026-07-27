@@ -462,13 +462,19 @@ private fun CartTotalsFooter(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = "Order Total", style = AirdropType.title2, color = colors.textDarkTitle)
-                // Both currencies side by side (Kemar).
+                // Both currencies (Kemar). Tagged because every money string on
+                // this screen now contains " / USD ", so text matching can no
+                // longer single out the total — the old " · USD " separator was
+                // unique here only by accident.
                 Text(
                     text = formatDualMoney(totalUsd, exchangeUsdToJmd),
                     style = AirdropType.title2,
                     color = colors.textDarkTitle,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp)
+                        .testTag("cart-order-total"),
                 )
             }
             Spacer(Modifier.height(6.dp))

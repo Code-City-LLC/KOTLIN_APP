@@ -296,7 +296,10 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithContentDescription("Product image unavailable").assertDoesNotExist()
         compose.onNodeWithText("ARD0000000042").assertDoesNotExist()
         compose.onNodeWithTag("order-summary-sale-title-42").assertTextEquals("Sale watch")
-        compose.onNodeWithTag("order-summary-sale-price-42").assertTextEquals("20.00 USD")
+        // JMD / USD (Kemar 2026-07-26). Was the suffix form "20.00 USD"; the
+        // whole app now uses one dual formatter at rate 161.0 (this test's rate).
+        compose.onNodeWithTag("order-summary-sale-price-42")
+            .assertTextEquals("JMD 3,220.00 / USD 20.00")
         val saleCardBounds = compose.onNodeWithTag("order-summary-sale-42").getUnclippedBoundsInRoot()
         val saleImageBounds = compose.onNodeWithTag("order-summary-sale-image-42").getUnclippedBoundsInRoot()
         val saleTrashBounds = compose.onNodeWithTag("order-summary-remove-auction-42").getUnclippedBoundsInRoot()
