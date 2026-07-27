@@ -126,8 +126,8 @@ fun ProductPaymentDetailsScreen(
                                 "Product Name",
                                 order?.productName ?: order?.title ?: "-",
                             )
-                            ShipmentsListRow("Regular Price", ShipmentsFormat.price(order?.regularPriceUsd))
-                            ShipmentsListRow("Sale Price", ShipmentsFormat.price(order?.salePriceUsd))
+                            ShipmentsListRow("Regular Price", ShipmentsFormat.dual(order?.regularPriceUsd, rate))
+                            ShipmentsListRow("Sale Price", ShipmentsFormat.dual(order?.salePriceUsd, rate))
                             ShipmentsListRow(
                                 "Purchased At",
                                 ShipmentsFormat.date(order?.purchasedAt ?: order?.createdAt),

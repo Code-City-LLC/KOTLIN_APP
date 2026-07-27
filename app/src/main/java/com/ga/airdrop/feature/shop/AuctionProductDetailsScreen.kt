@@ -423,21 +423,47 @@ private fun DetailsContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // ⚠️ weight(1f) IS LOAD-BEARING. In a SpaceBetween Row with no
+            // weights, this Column measures first and takes whatever it wants —
+            // and once the price became "JMD 2,891.25 / USD 18.00" it ate the
+            // row, squashing the quantity stepper from Swift's 132dp to 63.6dp.
+            // Caught by AuctionProductDetailsFullVisualParityTest's geometry
+            // lock, which is exactly what that test is for.
+            //
+            // With a weight here the stepper (unweighted) is measured FIRST at
+            // its intrinsic width, and the price wraps into what remains.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 val regular = product.regularPriceUsd
                 if (regular != null && regular > product.priceUsd && regular > 0) {
                     Text(
                         // Swift :477-481 — strikethrough body2 "$%.2f".
-                        text = String.format(Locale.US, "$%.2f", regular),
+                        text = formatDualMoney(regular, com.ga.airdrop.core.prefs.ExchangeRateStore.current),
                         style = AirdropType.body2.copy(textDecoration = TextDecoration.LineThrough),
                         color = colors.textDescription,
                     )
                 }
                 Text(
-                    // Swift :487-494 — h5 orangeMain "$%.2f".
-                    text = String.format(Locale.US, "$%.2f", product.priceUsd),
-                    style = AirdropType.h5,
+                    // Swift :487-494 was h5 orangeMain "$%.2f" — a SHORT string.
+                    // "JMD 2,008.13 / USD 12.50" is ~2.5x longer, and at h5 (24sp)
+                    // it wrapped to two lines, growing the price block and pushing
+                    // Stock Quantity / Description below the fold on a locked
+                    // Swift-parity layout. Each of those was a real regression,
+                    // not a stale assertion.
+                    //
+                    // title1 (18sp, still Bold + orange) keeps the dual price on
+                    // ONE line, so the approved vertical rhythm is preserved and
+                    // both currencies are shown. maxLines pins that: if the string
+                    // ever grows again, the geometry test fails loudly instead of
+                    // silently re-breaking the page.
+                    text = formatDualMoney(product.priceUsd, com.ga.airdrop.core.prefs.ExchangeRateStore.current),
+                    style = AirdropType.title1,
                     color = BrandPalette.OrangeMain,
+                    maxLines = 1,
                 )
             }
             QuantityStepper(quantity = quantity, onChange = onChangeQuantity)

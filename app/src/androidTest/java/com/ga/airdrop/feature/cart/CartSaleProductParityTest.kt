@@ -114,7 +114,13 @@ class CartSaleProductParityTest {
         compose.onNodeWithText("USD 1 = JMD 161.00").assertIsDisplayed()
         // Order Total shows BOTH currencies side by side (Kemar) — the "· USD"
         // separator appears only in the dual total, not the exchange-rate row.
-        compose.onNodeWithText(" · USD ", substring = true).assertIsDisplayed()
+        // The dual Order Total. Asserted by TAG, not by text: every money
+        // string on the cart now contains " / USD ", so the old text match
+        // found 3 nodes. The previous " · USD " separator singled out the
+        // total only by accident.
+        compose.onNodeWithTag("cart-order-total")
+            .assertIsDisplayed()
+            .assertTextEquals("JMD 3,220.00 / USD 20.00")
         compose.onNodeWithText("Continue").assertIsDisplayed()
 
         val hero = compose.onNodeWithTag("cart-apple-hero").getUnclippedBoundsInRoot()
@@ -207,7 +213,7 @@ class CartSaleProductParityTest {
             .assertTextEquals("Swift Sale Product")
             .assertIsDisplayed()
         compose.onNodeWithTag("cart-sale-price-812", useUnmergedTree = true)
-            .assertTextEquals("USD 30.00")
+            .assertTextEquals("JMD 4,830.00 / USD 30.00")
             .assertIsDisplayed()
         compose.onNodeWithText("Auction item", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("Sale item", useUnmergedTree = true).assertDoesNotExist()
@@ -303,7 +309,7 @@ class CartSaleProductParityTest {
             .assertTextEquals("Sale Hero Product")
             .assertIsDisplayed()
         compose.onNodeWithTag("cart-sale-price-813", useUnmergedTree = true)
-            .assertTextEquals("USD 24.50")
+            .assertTextEquals("JMD 3,944.50 / USD 24.50")
             .assertIsDisplayed()
         compose.onNodeWithContentDescription(
             "Auction image unavailable",

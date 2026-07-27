@@ -335,7 +335,9 @@ internal fun TotalPill(label: String, amount: Double) {
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = "USD " + formatDecimal(amount),
+            // The headline totals ("Total Airdrop Charges", "Total with Duty").
+            // JMD / USD, never one currency — Kemar 2026-07-26.
+            text = formatPrice(amount),
             style = AirdropType.title2,
             color = BrandPalette.OrangeMain,
         )

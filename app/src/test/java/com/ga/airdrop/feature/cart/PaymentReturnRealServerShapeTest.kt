@@ -58,7 +58,17 @@ class PaymentReturnRealServerShapeTest {
                 "Got: $result",
             result is PaymentReturnResult.Success,
         )
-        assertEquals("USD 125.50", (result as PaymentReturnResult.Success).formattedAmount)
+        // JMD / USD (Kemar 2026-07-26) — this asserted the single-code
+        // "USD 125.50" when it was written for the session_id fix hours earlier.
+        // What it is really guarding is unchanged: amount_total is MAJOR units,
+        // so 125.5 renders 125.50 and never 1.26.
+        val expectedJmd = com.ga.airdrop.feature.shipments.ShipmentsFormat.money(
+            125.5 * com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+        )
+        assertEquals(
+            "JMD $expectedJmd / USD 125.50",
+            (result as PaymentReturnResult.Success).formattedAmount,
+        )
     }
 
     /** The paid-commit path must carry the package ids through untouched. */

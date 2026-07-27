@@ -296,8 +296,13 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 val ref = auctionViewModel.ncbUi.value.invoiceId?.let { "Invoice #$it" }
                 // Auction "Buy Now" is always pickup (no delivery step).
                 val st = auctionViewModel.state.value
+                // ⚠️ WAS JMD-ONLY. The auction Buy-Now payment-success screen
+                // showed "JMD 64,841.58" and no USD at all — the same defect as
+                // the cart's NCB success amount, on the other checkout path.
+                // Kemar 2026-07-26: "we need to see both values."
+                // priceUsd is already USD here, so no divide-back is needed.
                 val amt = st.product?.let {
-                    "JMD " + String.format(java.util.Locale.US, "%,.2f", it.priceUsd * st.exchangeUsdToJmd)
+                    formatDualMoney(it.priceUsd, st.exchangeUsdToJmd)
                 }
                 navController.navigate(
                     Routes.paymentSuccess(ref = ref, amount = amt, fulfillment = "pickup"),

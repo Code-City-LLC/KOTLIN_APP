@@ -109,11 +109,19 @@ class ShippingRatesParityTest {
 
         assertEquals("Shipping Rates should make one backend request on entry", 1, api.shippingRatesCalls.get())
         compose.onNodeWithText("0.5").assertIsDisplayed()
-        compose.onNodeWithText("\$4.50").assertIsDisplayed()
-        compose.onNodeWithText("\$3.25 each additional lbs.").assertIsDisplayed()
+        // JMD / USD (Kemar 2026-07-26) — published rates were bare "$4.50",
+        // which on a JM storefront did not say which dollar. Expectations come
+        // from the screen's own formatter.
+        val dual = { usd: Double ->
+            com.ga.airdrop.feature.shop.formatDualMoney(
+                usd, com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+            )
+        }
+        compose.onNodeWithText(dual(4.50)).assertIsDisplayed()
+        compose.onNodeWithText("${dual(3.25)} each additional lbs.").assertIsDisplayed()
         compose.onNodeWithTag("shipping-rates-scroll")
             .performScrollToNode(hasTestTag("shipping-rates-estimate-card"))
-        compose.onNodeWithText("fuel surcharge of \$2.00", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("fuel surcharge of ${dual(2.00)}", substring = true).assertIsDisplayed()
 
         compose.onNodeWithTag("shipping-rates-scroll")
             .performScrollToNode(hasTestTag("shipping-rates-customs-card"))

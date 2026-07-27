@@ -624,7 +624,7 @@ private fun RecentCalculationItem(entry: CalculatorHistory.Entry, onClick: () ->
         Column(Modifier.weight(1f)) {
             Text(text = method, style = AirdropType.subtitle1, color = colors.textDarkTitle)
             Text(
-                text = "${formatCalcNumber(entry.weightLbs)} lbs • \$${formatCalcMoney(entry.invoiceUsd)} invoice",
+                text = "${formatCalcNumber(entry.weightLbs)} lbs • ${formatPrice(entry.invoiceUsd)} invoice",
                 style = AirdropType.body3,
                 color = colors.textDescription,
             )
@@ -638,7 +638,7 @@ private fun RecentCalculationItem(entry: CalculatorHistory.Entry, onClick: () ->
         }
         entry.totalUsd?.let { total ->
             Text(
-                text = "\$${formatCalcMoney(total)}",
+                text = formatPrice(total),
                 style = AirdropType.title2,
                 color = BrandPalette.OrangeMain,
             )

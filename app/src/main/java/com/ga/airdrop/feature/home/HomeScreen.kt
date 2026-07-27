@@ -694,8 +694,13 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = NumberFormat.getCurrencyInstance(Locale.US)
-                    .format(product.displayPriceUsd),
+                // JMD / USD, never one currency (Kemar 2026-07-26). The Java
+                // currency formatter emits a bare "$", which on a JM storefront
+                // does not say which dollar.
+                text = com.ga.airdrop.feature.shop.formatDualMoney(
+                    product.displayPriceUsd,
+                    com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+                ),
                 style = AirdropType.title2,
                 color = if (product.isAvailable) colors.buttonStatic else colors.textDescription,
             )

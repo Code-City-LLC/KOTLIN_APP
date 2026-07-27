@@ -43,7 +43,16 @@ class PaymentReturnVerifyTest {
         }
         assertTrue(result is PaymentReturnResult.Success)
         result as PaymentReturnResult.Success
-        assertEquals("USD 125.50", result.formattedAmount) // major units, no /100
+        // JMD / USD, never one currency (Kemar 2026-07-26) — this used to assert
+        // the single-code "USD 125.50". The major-units rule it was really
+        // guarding still holds: 125.5 renders as 125.50, NOT 1.26 (no /100).
+        val expectedJmd = com.ga.airdrop.feature.shipments.ShipmentsFormat.money(
+            125.5 * com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+        )
+        assertEquals(
+            "JMD $expectedJmd / USD 125.50",
+            result.formattedAmount,
+        )
         assertEquals("cs_1", result.orderReference)
         assertEquals(1, calls)
     }

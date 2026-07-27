@@ -295,26 +295,55 @@ object ShipmentsFormat {
     /** "1.3" — 0–2 fraction digits (weights). */
     fun compact(value: Double): String = decimal(0, 2).format(value)
 
-    /** "$1,550.00" */
+    /**
+     * ⚠️ THE MONEY FORMAT FOR THE WHOLE APP. Use this for every customer-visible
+     * monetary value. Kemar, 2026-07-26, twice and verbatim:
+     *
+     *   "We should show the JMD and the US dollar price for each item, not just
+     *    the JMD... once a monetary value is there, we need to see both values.
+     *    Our primary currency is US dollar. So if we're not showing US dollar,
+     *    it is a problem. rectify this all across the app."
+     *   "We need to have JMD slash USD. We need to show both of them."
+     *
+     * A single amount with one currency code is NOT acceptable anywhere a
+     * customer can see it. Reach for [dual]; do not hand-roll a String.format,
+     * which is how the app drifted into five different money formats.
+     *
+     * ORDER IS ONE LINE. Kemar said "JMD slash USD", so JMD leads here. If he
+     * wants USD to lead, change this function and every screen follows — that
+     * is the entire reason the call sites do not format money themselves.
+     *
+     * ⚠️ [usd] IS ALWAYS THE USD-DENOMINATED AMOUNT. Wire amounts are USD;
+     * Laravel's own reporting proves it (FinancialReportController:119 —
+     * `SUM(payment_total_ammount) as usd, SUM(... * package_exchange_rate) as jmd`).
+     * Never pass an already-converted JMD figure in here or it is multiplied twice.
+     */
+    fun dual(usd: Double?, exchangeRate: Double): String =
+        usd?.let { "JMD ${money(it * exchangeRate)} / USD ${money(it)}" } ?: "-"
+
+    /** [dual], but blank rather than "-" for a missing or zero amount. */
+    fun dualPositive(usd: Double?, exchangeRate: Double): String =
+        usd?.takeIf { it > 0.0 }?.let { dual(it, exchangeRate) } ?: "-"
+
+    /**
+     * ⚠️ SINGLE-CURRENCY. NOT for customer-visible money — see [dual].
+     * Retained only for non-money uses (e.g. a bare declared value echoed back
+     * in a form). Every customer-facing call site was migrated on 2026-07-26.
+     */
     fun price(value: Double?): String = value?.let { "$" + money(it) } ?: "-"
 
     /**
-     * "JMD 64,841.58" / "USD 400.00" — prefixed with the SERVER'S currency code.
+     * ⚠️ SINGLE-CURRENCY. Superseded for customer-visible money by [dual].
      *
-     * ⚠️ USE THIS FOR ANYTHING THE SERVER SENDS A CURRENCY FOR. [price] hard-codes
-     * a dollar sign, so an NCB payment of JA$64,841.58 rendered as "$64,841.58"
-     * — a customer reading their payment history saw what looked like a US
-     * charge, off by a factor of ~162.
+     * "USD 400.00" — the amount prefixed with the SERVER'S currency code, which
+     * was a real fix: [price] hard-codes a dollar sign, so an NCB payment
+     * rendered as "$64,841.58" and looked like a US charge. iOS fixed the same
+     * defect on 2026-05-23 (`FigmaPaymentsViewController.formatPrice`).
      *
-     * iOS fixed this exact defect on 2026-05-23 and left the reason in
-     * `FigmaPaymentsViewController.formatPrice`: "this used to be hardcoded '$'
-     * via en_US currency format, so a JMD payment rendered as '$1234.56'. Use
-     * the payment's actual currency code as the prefix." Android kept the bug
-     * for two months because nothing compared the two.
-     *
-     * Shape matches Swift exactly, including USD: code, space, amount. The
-     * absent/blank case falls back to USD, which is what Swift does — but note
-     * that is a *default*, not knowledge, and it is the only guess here.
+     * But Kemar went further the same day — "once a monetary value is there, we
+     * need to see both values" — so a correct single code is still not enough
+     * for anything a customer reads. Kept for non-customer/diagnostic use and
+     * because it is the only place that knows how to read the server's code.
      */
     fun priceIn(value: Double?, currency: String?): String {
         val amount = value ?: return "-"
@@ -322,10 +351,10 @@ object ShipmentsFormat {
         return "$code ${money(amount)}"
     }
 
-    /** "USD 403.35" */
+    /** ⚠️ SINGLE-CURRENCY. NOT for customer-visible money — see [dual]. */
     fun usd(value: Double?): String = value?.let { "USD " + money(it) } ?: "-"
 
-    /** "USD 403.35 / JMD 64,841.58" */
+    /** "USD 403.35 / JMD 64,841.58" — legacy order; prefer [dual]. */
     fun usdJmd(usd: Double?, exchangeRate: Double): String =
         usd?.let { "USD ${money(it)} / JMD ${money(it * exchangeRate)}" } ?: "-"
 
@@ -916,10 +945,16 @@ fun PaymentCard(
             Column {
                 Text(text = "Amount", style = AirdropType.subtitle2, color = colors.textDescription)
                 Text(
-                    // Currency-aware: an NCB payment is JMD and must not wear a
-                    // dollar sign. Swift FigmaPaymentsViewController:355 does
-                    // the same via formatPrice(_:currency:).
-                    text = ShipmentsFormat.priceIn(payment.totalAmount, payment.currency),
+                    // JMD / USD, never one currency (Kemar 2026-07-26). This
+                    // supersedes the priceIn() single-code form landed hours
+                    // earlier in #189 — that fixed the hard-coded "$", this
+                    // fixes showing only one currency at all. The payment
+                    // carries its OWN server rate; fall back to the app-wide
+                    // store only when it does not.
+                    text = ShipmentsFormat.dual(
+                        payment.totalAmount,
+                        payment.exchangeRate ?: com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+                    ),
                     style = AirdropType.title2,
                     color = BrandPalette.OrangeMain,
                 )
@@ -1013,8 +1048,12 @@ fun OrderCard(
             CardFieldColumn(
                 label = "Package Value",
                 // Swift makeKeyValue (FigmaOrdersViewController.swift:349) renders
-                // this in text.dark_title, NOT orange; formatUSD already gives "USD".
-                value = ShipmentsFormat.usd(order.invoiceAmountUsd),
+                // this in text.dark_title, NOT orange.
+                // JMD / USD, never one currency (Kemar 2026-07-26).
+                value = ShipmentsFormat.dual(
+                    order.invoiceAmountUsd,
+                    com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+                ),
                 valueMaxLines = 1,
             )
             CardFieldColumn(

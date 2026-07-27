@@ -45,7 +45,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
 import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import com.ga.airdrop.feature.shop.ShopInnerHeader
-import com.ga.airdrop.feature.shop.formatUsdPlain
+import com.ga.airdrop.feature.shop.formatDualMoney
 import java.util.Locale
 
 /** Immutable render model supplied by the owned checkout ViewModel. */
@@ -108,6 +108,7 @@ fun OrderSummaryScreen(
                 OrderSummaryGroup(
                     title = "Packages",
                     lines = packageLines,
+                    exchangeUsdToJmd = model.exchangeUsdToJmd,
                     showInfo = true,
                     removingKeys = model.removingKeys,
                     removalLocked = model.removalLocked,
@@ -118,6 +119,7 @@ fun OrderSummaryScreen(
                 OrderSummaryGroup(
                     title = "Sales",
                     lines = saleLines,
+                    exchangeUsdToJmd = model.exchangeUsdToJmd,
                     showInfo = false,
                     removingKeys = model.removingKeys,
                     removalLocked = model.removalLocked,
@@ -199,6 +201,7 @@ fun OrderSummaryScreen(
 private fun OrderSummaryGroup(
     title: String,
     lines: List<CartStore.CartLine>,
+    exchangeUsdToJmd: Double,
     showInfo: Boolean,
     removingKeys: Set<CartStore.CartLineKey>,
     removalLocked: Boolean,
@@ -224,6 +227,7 @@ private fun OrderSummaryGroup(
             if (line.resolvedKind == CartStore.CartLineKind.AUCTION) {
                 OrderSummarySaleCard(
                     line = line,
+                    exchangeUsdToJmd = exchangeUsdToJmd,
                     removing = line.key in removingKeys,
                     removalLocked = removalLocked,
                     onRemove = { onRemoveItem(line) },
@@ -231,6 +235,7 @@ private fun OrderSummaryGroup(
             } else {
                 OrderSummaryPackageCard(
                     line = line,
+                    exchangeUsdToJmd = exchangeUsdToJmd,
                     removing = line.key in removingKeys,
                     removalLocked = removalLocked,
                     onRemove = { onRemoveItem(line) },
@@ -243,6 +248,7 @@ private fun OrderSummaryGroup(
 @Composable
 private fun OrderSummaryPackageCard(
     line: CartStore.CartLine,
+    exchangeUsdToJmd: Double,
     removing: Boolean,
     removalLocked: Boolean,
     onRemove: () -> Unit,
@@ -261,7 +267,7 @@ private fun OrderSummaryPackageCard(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             OrderSummaryValue("Drop Number", String.format(Locale.US, "ARD%010d", line.id))
             OrderSummaryValue("Description", line.title)
-            OrderSummaryValue("Price", formatUsdPlain(line.priceUsd * line.qty), price = true)
+            OrderSummaryValue("Price", formatDualMoney(line.priceUsd * line.qty, exchangeUsdToJmd), price = true)
         }
         OrderSummaryRemoveButton(
             line = line,
@@ -274,6 +280,7 @@ private fun OrderSummaryPackageCard(
 @Composable
 private fun OrderSummarySaleCard(
     line: CartStore.CartLine,
+    exchangeUsdToJmd: Double,
     removing: Boolean,
     removalLocked: Boolean,
     onRemove: () -> Unit,
@@ -337,7 +344,7 @@ private fun OrderSummarySaleCard(
                 modifier = Modifier.testTag("order-summary-sale-title-${line.id}"),
             )
             Text(
-                String.format(Locale.US, "%.2f USD", line.priceUsd * line.qty),
+                formatDualMoney(line.priceUsd * line.qty, exchangeUsdToJmd),
                 style = AirdropType.subtitle2,
                 color = BrandPalette.OrangeMain,
                 modifier = Modifier.testTag("order-summary-sale-price-${line.id}"),
@@ -448,7 +455,7 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
                 SummaryChargeRow("Payment Currency", model.currency)
                 // Tax only if applicable (Swift parity — no fake placeholder).
                 if (model.taxUsd > 0.0) {
-                    SummaryChargeRow("Tax", String.format(Locale.US, "USD %.2f", model.taxUsd))
+                    SummaryChargeRow("Tax", formatDualMoney(model.taxUsd, model.exchangeUsdToJmd))
                 }
                 SummaryChargeRow(
                     "Exchange Rate (USD)",
@@ -480,7 +487,7 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
                     model.totalCharges
                 }
                 Text(
-                    text = String.format(Locale.US, "JMD %,.2f · USD %,.2f", jmdTotal, usdTotal),
+                    text = formatDualMoney(usdTotal, model.exchangeUsdToJmd),
                     style = AirdropType.subtitle1,
                     color = BrandPalette.OrangeMain,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,

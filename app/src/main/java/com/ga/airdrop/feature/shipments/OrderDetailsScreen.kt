@@ -110,7 +110,7 @@ fun OrderDetailsScreen(
                                 "Weight (lbs.)",
                                 order.weightLbs?.let { ShipmentsFormat.money(it) } ?: "-",
                             )
-                            ShipmentsListRow("Package Value", ShipmentsFormat.usd(order.invoiceAmountUsd))
+                            ShipmentsListRow("Package Value", ShipmentsFormat.dual(order.invoiceAmountUsd, state.effectiveRate))
                             ShipmentsListRow("Date", ShipmentsFormat.date(order.createdAt))
                             ShipmentsListRow(
                                 "Status",

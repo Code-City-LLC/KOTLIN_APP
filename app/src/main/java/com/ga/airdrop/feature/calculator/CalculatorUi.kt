@@ -55,7 +55,20 @@ import java.util.Locale
  */
 
 /** RN formatPrice — en-US currency, 2 decimals. */
-internal fun formatPrice(value: Double): String = String.format(Locale.US, "$%,.2f", value)
+/**
+ * ⚠️ JMD / USD, never one currency. Kemar 2026-07-26: "once a monetary value is
+ * there, we need to see both values... if we're not showing US dollar, it is a
+ * problem." This used to render a bare "$1,234.56".
+ *
+ * The calculator's own rate comes from the same ExchangeRateStore the repository
+ * uses for its USD->JMD fallback (CalculatorRepository:230), so the figures here
+ * and the ones it computes cannot disagree.
+ */
+internal fun formatPrice(value: Double): String =
+    com.ga.airdrop.feature.shop.formatDualMoney(
+        value,
+        com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+    )
 
 /** Currency amount without the `$` symbol — the "USD 403.35" pill format. */
 internal fun formatDecimal(value: Double): String = String.format(Locale.US, "%,.2f", value)
