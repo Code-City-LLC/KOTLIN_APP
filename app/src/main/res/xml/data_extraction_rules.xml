@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ rules (android:dataExtractionRules). Two SEPARATE sections, and
+  both matter:
+
+    <cloud-backup>   Google Drive Auto Backup
+    <device-transfer> direct device-to-device transfer during setup
+
+  ⚠️ THE AUTH STORE MUST BE EXCLUDED FROM BOTH. It is an
+  EncryptedSharedPreferences file whose Tink keyset is wrapped by a DEVICE-BOUND
+  AndroidKeyStore key that is never transferred. Restoring the keyset without
+  its master key yields a store that cannot be opened, and AuthTokenStore then
+  refuses to persist the bearer at all (#182/#184 guard) — signing the customer
+  out on every cold start, permanently, with no in-app recovery.
+
+  device-transfer is the easy one to forget: it is the DEFAULT path when someone
+  sets up a new phone next to their old one, so omitting it here would leave the
+  most common migration broken while the cloud path looked fixed.
+
+  See backup_rules.xml for the same list and the full reasoning.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="airdrop_auth.xml" />
+        <exclude domain="sharedpref" path="airdrop_security.xml" />
+        <exclude domain="sharedpref" path="airdrop_live_chat.xml" />
+        <exclude domain="sharedpref" path="airdrop_cart.xml" />
+        <exclude domain="sharedpref" path="airdrop_cart_notes.xml" />
+        <exclude domain="sharedpref" path="airdrop_saved_for_later.xml" />
+        <exclude domain="sharedpref" path="airdrop_checkout_flow.xml" />
+        <exclude domain="sharedpref" path="airdrop_delivery.xml" />
+        <exclude domain="sharedpref" path="calculator_history.xml" />
+        <exclude domain="sharedpref" path="shop_recent_searches.xml" />
+        <exclude domain="sharedpref" path="dropalert_preset.xml" />
+        <exclude domain="sharedpref" path="push_registrar.xml" />
+        <exclude domain="sharedpref" path="push_deeplink.xml" />
+        <exclude domain="sharedpref" path="exchange_rate.xml" />
+        <exclude domain="database" path="." />
+    </cloud-backup>
+
+    <device-transfer>
+        <exclude domain="sharedpref" path="airdrop_auth.xml" />
+        <exclude domain="sharedpref" path="airdrop_security.xml" />
+        <exclude domain="sharedpref" path="push_registrar.xml" />
+        <exclude domain="sharedpref" path="push_deeplink.xml" />
+        <exclude domain="sharedpref" path="exchange_rate.xml" />
+        <exclude domain="database" path="." />
+    </device-transfer>
+</data-extraction-rules>

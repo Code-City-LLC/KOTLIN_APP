@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pre-Android-12 Auto Backup rules (android:fullBackupContent).
+
+  ⚠️ THE AUTH STORE MUST NEVER BE BACKED UP. `airdrop_auth` is an
+  EncryptedSharedPreferences file whose Tink keyset is wrapped by an
+  AndroidKeyStore master key. Keystore keys are DEVICE-BOUND and are never
+  included in a backup — so restoring the keyset alone produces a file that
+  cannot be decrypted on the new device, and that state is unrecoverable:
+
+    EncryptedSharedPreferences.create() throws
+      -> AuthTokenStore.openEncrypted() swallows it (runCatching -> null)
+      -> init() binds PLAINTEXT prefs, usedEncryptedStore = false
+      -> at login, ensureEncryptedForWrite() re-opens the SAME poisoned file
+         and fails again, so the bearer is never persisted (#182/#184 guard)
+      -> the customer is signed out on EVERY cold start, forever, with no
+         in-app remedy short of Clear Data.
+
+  The guard is right; the backup was wrong. A device-bound encrypted store is
+  meaningless on another device, so it is excluded here rather than weakening
+  the guard (falling back to plaintext would be a security regression).
+
+  Also excluded: stores holding customer data that has no business sitting in a
+  Google Drive backup, and transient/device-scoped state that would be stale or
+  misleading after a restore.
+
+  Deliberately still backed up — genuine, non-sensitive preferences that a
+  customer would want to survive a new phone: theme, text size, background,
+  onboarding-seen, notification settings, quiet hours, sort order.
+-->
+<full-backup-content>
+    <!-- Device-bound encrypted credentials. Never. -->
+    <exclude domain="sharedpref" path="airdrop_auth.xml" />
+    <!-- Local biometric/app-lock state is device-scoped. -->
+    <exclude domain="sharedpref" path="airdrop_security.xml" />
+
+    <!-- Customer data / PII. -->
+    <exclude domain="sharedpref" path="airdrop_live_chat.xml" />
+    <exclude domain="sharedpref" path="airdrop_cart.xml" />
+    <exclude domain="sharedpref" path="airdrop_cart_notes.xml" />
+    <exclude domain="sharedpref" path="airdrop_saved_for_later.xml" />
+    <exclude domain="sharedpref" path="airdrop_checkout_flow.xml" />
+    <exclude domain="sharedpref" path="airdrop_delivery.xml" />
+    <exclude domain="sharedpref" path="calculator_history.xml" />
+    <exclude domain="sharedpref" path="shop_recent_searches.xml" />
+    <exclude domain="sharedpref" path="dropalert_preset.xml" />
+
+    <!-- Device/session scoped: stale or wrong after a restore. -->
+    <exclude domain="sharedpref" path="push_registrar.xml" />
+    <exclude domain="sharedpref" path="push_deeplink.xml" />
+    <exclude domain="sharedpref" path="exchange_rate.xml" />
+
+    <!-- Caches never belong in a backup. -->
+    <exclude domain="database" path="." />
+</full-backup-content>
