@@ -428,14 +428,14 @@ private fun DetailsContent(
                 if (regular != null && regular > product.priceUsd && regular > 0) {
                     Text(
                         // Swift :477-481 — strikethrough body2 "$%.2f".
-                        text = String.format(Locale.US, "$%.2f", regular),
+                        text = formatDualMoney(regular, com.ga.airdrop.core.prefs.ExchangeRateStore.current),
                         style = AirdropType.body2.copy(textDecoration = TextDecoration.LineThrough),
                         color = colors.textDescription,
                     )
                 }
                 Text(
                     // Swift :487-494 — h5 orangeMain "$%.2f".
-                    text = String.format(Locale.US, "$%.2f", product.priceUsd),
+                    text = formatDualMoney(product.priceUsd, com.ga.airdrop.core.prefs.ExchangeRateStore.current),
                     style = AirdropType.h5,
                     color = BrandPalette.OrangeMain,
                 )

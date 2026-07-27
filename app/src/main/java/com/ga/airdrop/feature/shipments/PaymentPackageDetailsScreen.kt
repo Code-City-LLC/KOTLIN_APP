@@ -157,8 +157,8 @@ internal fun PaymentPackageDetailsContent(
                 // Swift FigmaPaymentPackageDetailsViewController.swift:794.
                 "Invoice Amount (Declared Value/Cost)",
                 when {
-                    (detail?.amount ?: 0.0) > 0.0 -> ShipmentsFormat.price(detail?.amount)
-                    (detail?.originalPrice ?: 0.0) > 0.0 -> ShipmentsFormat.price(detail?.originalPrice)
+                    (detail?.amount ?: 0.0) > 0.0 -> ShipmentsFormat.dual(detail?.amount, rate)
+                    (detail?.originalPrice ?: 0.0) > 0.0 -> ShipmentsFormat.dual(detail?.originalPrice, rate)
                     else -> "-"
                 },
             )

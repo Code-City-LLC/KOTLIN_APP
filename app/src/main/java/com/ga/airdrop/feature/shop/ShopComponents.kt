@@ -68,6 +68,28 @@ fun formatUsdPlain(value: Double): String = String.format(Locale.US, "USD %.2f",
 
 fun formatJmd(value: Double): String = "JA$" + String.format(Locale.US, "%,.2f", value)
 
+/**
+ * ⚠️ THE money format for anything a customer can see. Kemar, 2026-07-26:
+ *
+ *   "once a monetary value is there, we need to see both values. Our primary
+ *    currency is US dollar. So if we're not showing US dollar, it is a problem."
+ *   "We need to have JMD slash USD. We need to show both of them."
+ *
+ * [formatUsd], [formatUsdPlain] and [formatJmd] each show ONE currency and are
+ * therefore not acceptable on their own for a customer-visible amount. They are
+ * kept only as the building blocks of this one.
+ *
+ * ⚠️ [usd] must be the USD-denominated amount — wire amounts are USD (Laravel's
+ * FinancialReportController computes JMD as `amount * rate`). Passing an already
+ * converted JMD figure converts it twice.
+ *
+ * Order is JMD-then-USD per Kemar's "JMD slash USD"; changing it here changes
+ * every screen, which is why call sites must not format money themselves.
+ */
+fun formatDualMoney(usd: Double, exchangeUsdToJmd: Double): String =
+    "JMD " + String.format(Locale.US, "%,.2f", usd * exchangeUsdToJmd) +
+        " / USD " + String.format(Locale.US, "%,.2f", usd)
+
 /* ─── Stripe hosted checkout / external links (androidx.browser) ───────── */
 
 /**
@@ -325,9 +347,19 @@ fun ShopProductCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = formatUsd(product.priceUsd),
+                // JMD / USD on every product tile too — Kemar 2026-07-26:
+                // "once a monetary value is there, we need to see both values".
+                // This card has no rate in scope and is rendered in grids all
+                // over the shop, so it reads the app-wide store directly rather
+                // than threading a parameter through every grid.
+                text = formatDualMoney(
+                    product.priceUsd,
+                    com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+                ),
                 style = AirdropType.title2,
                 color = colors.buttonStatic,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         if (onToggleCart != null) {

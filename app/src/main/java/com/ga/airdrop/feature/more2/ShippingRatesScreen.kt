@@ -38,7 +38,17 @@ import com.ga.airdrop.data.model.InOutFee
 // Grouped like every other money string in the app (ShopComponents.formatUsd,
 // CalculatorUi.formatPrice, ShipmentsFormat.price) — was ungrouped "%.2f",
 // rendering $1500.00 here vs $1,500.00 everywhere else.
-private fun currency(value: Double): String = "$" + String.format(java.util.Locale.US, "%,.2f", value)
+/**
+ * ⚠️ JMD / USD, never one currency — Kemar 2026-07-26: "once a monetary value is
+ * there, we need to see both values." These are published shipping rates, which
+ * a customer reads to work out what they will pay, so a bare "$" left them
+ * guessing which dollar it meant.
+ */
+private fun currency(value: Double): String =
+    com.ga.airdrop.feature.shop.formatDualMoney(
+        value,
+        com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+    )
 
 /**
  * Shipping Rates — Figma node 40001567:54206, behavior from

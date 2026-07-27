@@ -163,7 +163,7 @@ fun AuctionCheckoutScreen(
                     )
                     Text(
                         text = product?.priceUsd
-                            ?.let { usd -> String.format(Locale.US, "$%.2f USD", usd) }
+                            ?.let { usd -> formatDualMoney(usd, com.ga.airdrop.core.prefs.ExchangeRateStore.current) }
                             ?: "—",
                         style = AirdropType.title2,
                         color = BrandPalette.OrangeMain,

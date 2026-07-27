@@ -206,8 +206,18 @@ class AuctionCheckoutViewModel(
     fun totalLabel(): String {
         val s = _state.value
         val usd = s.product?.priceUsd ?: 0.0
-        // Swift renderTotal: USD "$X.XX", JMD " JA$X.XX".
-        return if (s.currency == "USD") formatUsd(usd) else " " + formatJmd(usd * s.exchangeUsdToJmd)
+        // ⚠️ THIS LINE SHOWED ONE CURRENCY AND WAS THE REGRESSION KEMAR REPORTED.
+        // It used to branch on the chosen currency —
+        //     if (s.currency == "USD") formatUsd(usd) else " " + formatJmd(...)
+        // — so a customer paying in JMD saw "JA$64,841.58" with NO USD figure
+        // anywhere on the Buy-Now screen. Kemar, 2026-07-26: "How are we just
+        // showing JMD alone? ... Our primary currency is US dollar. So if we're
+        // not showing US dollar, it is a problem."
+        //
+        // The total is the SAME money whichever currency is charged, so it must
+        // read the same both ways. The chosen currency is already stated by the
+        // currency selector; it is not this label's job to encode it.
+        return formatDualMoney(usd, s.exchangeUsdToJmd)
     }
 
     fun pay() {

@@ -77,7 +77,7 @@ import com.ga.airdrop.feature.shop.ShopChevronRight
 import com.ga.airdrop.feature.shop.ShopInnerHeader
 import com.ga.airdrop.feature.shop.ShopProduct
 import com.ga.airdrop.feature.shop.amazonAssociatesUrlOrNull
-import com.ga.airdrop.feature.shop.formatUsdPlain
+import com.ga.airdrop.feature.shop.formatDualMoney
 import java.net.URI
 import java.util.Locale
 
@@ -116,6 +116,7 @@ fun CartScreen(
     if (showingSavedForLater) {
         SavedForLaterScreen(
             savedItems = savedItems,
+            exchangeUsdToJmd = state.exchangeUsdToJmd,
             onBack = { showingSavedForLater = false },
             onMoveToCart = viewModel::moveSavedToCart,
             onRemove = viewModel::removeSaved,
@@ -179,7 +180,11 @@ fun CartScreen(
                 // exported one instead of showing a gap.
                 val heroProduct = state.appleHero
                 if (heroProduct != null) {
-                    CartAppleHero(product = heroProduct, onOpenAmazon = onOpenAmazon)
+                    CartAppleHero(
+                        product = heroProduct,
+                        onOpenAmazon = onOpenAmazon,
+                        exchangeUsdToJmd = state.exchangeUsdToJmd,
+                    )
                 } else {
                     CartMacBookHero()
                 }
@@ -194,6 +199,7 @@ fun CartScreen(
                     items.forEach { line ->
                         CartItemCard(
                             line = line,
+                            exchangeUsdToJmd = state.exchangeUsdToJmd,
                             onRemove = { viewModel.removeItem(line) },
                             onOpenActions = { actionLine = line },
                             // Package lines open Package Details; an auction
@@ -279,6 +285,7 @@ internal val CartHeaderTitleStyle = AirdropType.subtitle1
 private fun CartAppleHero(
     product: ShopProduct,
     onOpenAmazon: (String) -> Unit,
+    exchangeUsdToJmd: Double,
 ) {
     val colors = AirdropTheme.colors
     val amazonUrl = remember(product.amazonUrl) { product.amazonAssociatesUrlOrNull() }
@@ -339,7 +346,7 @@ private fun CartAppleHero(
                     modifier = Modifier.testTag("cart-apple-hero-title"),
                 )
                 Text(
-                    text = formatUsdPlain(product.priceUsd),
+                    text = formatDualMoney(product.priceUsd, exchangeUsdToJmd),
                     style = AirdropType.title2,
                     color = colors.orangeMain,
                     maxLines = 1,
@@ -457,7 +464,7 @@ private fun CartTotalsFooter(
                 Text(text = "Order Total", style = AirdropType.title2, color = colors.textDarkTitle)
                 // Both currencies side by side (Kemar).
                 Text(
-                    text = String.format(Locale.US, "JMD %,.2f · USD %,.2f", totalJmd, totalUsd),
+                    text = formatDualMoney(totalUsd, exchangeUsdToJmd),
                     style = AirdropType.title2,
                     color = colors.textDarkTitle,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
@@ -728,10 +735,12 @@ private fun CartItemCard(
     onRemove: () -> Unit,
     onOpenActions: () -> Unit,
     onOpenPackage: () -> Unit = {},
+    exchangeUsdToJmd: Double,
 ) {
     if (line.resolvedKind == CartStore.CartLineKind.AUCTION) {
         CartSaleItemCard(
             line = line,
+            exchangeUsdToJmd = exchangeUsdToJmd,
             onRemove = onRemove,
             onOpenActions = onOpenActions,
         )
@@ -789,7 +798,7 @@ private fun CartItemCard(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "Price", style = AirdropType.subtitle3, color = colors.textDescription)
                     Text(
-                        text = formatUsdPlain(line.priceUsd),
+                        text = formatDualMoney(line.priceUsd, exchangeUsdToJmd),
                         style = AirdropType.subtitle1,
                         color = BrandPalette.OrangeMain,
                     )
@@ -819,6 +828,7 @@ private fun CartSaleItemCard(
     line: CartStore.CartLine,
     onRemove: () -> Unit,
     onOpenActions: () -> Unit,
+    exchangeUsdToJmd: Double,
 ) {
     val colors = AirdropTheme.colors
     val cardShape = RoundedCornerShape(Radius.s)
@@ -893,7 +903,7 @@ private fun CartSaleItemCard(
                 modifier = Modifier.testTag("cart-sale-title-${line.id}"),
             )
             Text(
-                text = formatUsdPlain(line.priceUsd * line.qty),
+                text = formatDualMoney(line.priceUsd * line.qty, exchangeUsdToJmd),
                 style = AirdropType.subtitle2.copy(
                     fontWeight = FontWeight.Bold,
                     lineHeight = 20.sp,
@@ -950,6 +960,7 @@ private fun BottomBarRow(label: String, value: String) {
 @Composable
 private fun SavedForLaterScreen(
     savedItems: List<CartStore.CartLine>,
+    exchangeUsdToJmd: Double,
     onBack: () -> Unit,
     onMoveToCart: (CartStore.CartLine) -> Unit,
     onRemove: (CartStore.CartLine) -> Unit,
@@ -976,6 +987,7 @@ private fun SavedForLaterScreen(
                 savedItems.forEach { line ->
                     SavedForLaterRow(
                         line = line,
+                        exchangeUsdToJmd = exchangeUsdToJmd,
                         onMoveToCart = { onMoveToCart(line) },
                         onRemove = { onRemove(line) },
                     )
@@ -1024,6 +1036,7 @@ private fun SavedForLaterRow(
     line: CartStore.CartLine,
     onMoveToCart: () -> Unit,
     onRemove: () -> Unit,
+    exchangeUsdToJmd: Double,
 ) {
     val colors = AirdropTheme.colors
     Column(
@@ -1040,7 +1053,7 @@ private fun SavedForLaterRow(
             maxLines = 2,
         )
         Text(
-            text = formatUsdPlain(line.priceUsd),
+            text = formatDualMoney(line.priceUsd, exchangeUsdToJmd),
             style = AirdropType.body3,
             color = colors.textDescription,
             modifier = Modifier.padding(top = 6.dp),
