@@ -66,6 +66,9 @@ fun AppRoot(
     navigationUnlocked: Boolean = true,
 ) {
     val navController = rememberNavController()
+    // Needed by the pending-push effect below, which may have to leave the app
+    // for the Play Store rather than navigate.
+    val appRootContext = LocalContext.current
     val token by AuthTokenStore.tokenFlow.collectAsState()
     // Splash decides: token → Home, first run → Onboarding, else → Landing
     // (mirrors RN LaunchAppView + Swift SceneDelegate).
@@ -99,7 +102,17 @@ fun AppRoot(
             canConsumePendingPush(navigationUnlocked, token, currentRoute)
         ) {
             consumePendingPushIfUnlocked(navigationUnlocked, AuthTokenStore.snapshot())
-                ?.let { navController.navigate(it) }
+                ?.let { pending ->
+                    // An "App update available" push leaves the app for the Play
+                    // Store. It is NOT a NavHost destination — navigating to it
+                    // would throw — so it is acted on here instead. Every other
+                    // pending route behaves exactly as before.
+                    if (Routes.isExternalNotificationRoute(pending)) {
+                        com.ga.airdrop.core.push.openPlayStoreListing(appRootContext)
+                    } else {
+                        navController.navigate(pending)
+                    }
+                }
         }
     }
 
