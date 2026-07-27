@@ -73,23 +73,55 @@ object AuthTokenStore {
     internal var usedEncryptedStore: Boolean = true
         private set
 
+    /** Retained so a failed encrypted open can be retried before a later write. */
+    private var appContext: Context? = null
+
+    private fun openEncrypted(context: Context): SharedPreferences? = runCatching {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            PREFS,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }.getOrNull()
+
+    /**
+     * Re-attempt the encrypted store before persisting a bearer. Issue #182.
+     *
+     * ⚠️ The read-path fallback binds PLAIN prefs for the whole process, so
+     * once the keystore failed at launch, every later save wrote the bearer in
+     * CLEARTEXT — silently, no log, no behavioural difference, on a device
+     * whose keystore had already shown a problem. The old comment said the
+     * token is "re-issued at next login anyway", which answers LOSING it and
+     * not storing the next one in the open.
+     *
+     * Kemar's call: retry the keystore on each save. The plain fallback stays
+     * for READS so the app still launches — that preserves the standing rule
+     * that customers stay signed in — but a bearer never reaches cleartext if
+     * encryption can be obtained at write time. A keystore unavailable at cold
+     * start is frequently available minutes later.
+     *
+     * Returns true when the write may proceed to an ENCRYPTED store.
+     */
+    private fun ensureEncryptedForWrite(): Boolean {
+        if (usedEncryptedStore) return true
+        val reopened = appContext?.let(::openEncrypted) ?: return false
+        prefs = reopened
+        usedEncryptedStore = true
+        return true
+    }
+
     fun init(context: Context) {
         synchronized(transitionLock) {
             usedEncryptedStore = true
             val restoredSessionId = synchronized(stateLock) {
                 invalidateActiveRequestsLocked()
-                prefs = runCatching {
-                    val masterKey = MasterKey.Builder(context)
-                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                        .build()
-                    EncryptedSharedPreferences.create(
-                        context,
-                        PREFS,
-                        masterKey,
-                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-                    )
-                }.getOrElse {
+                appContext = context.applicationContext
+                prefs = openEncrypted(context) ?: run {
                     // Keystore corruption fallback: plain prefs beat a hard crash at
                     // launch; the token is re-issued at next login anyway.
                     //
@@ -155,7 +187,41 @@ object AuthTokenStore {
                     .onAuthenticatedSessionChanged(
                         com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary.capture(),
                     )
-                if (::prefs.isInitialized) {
+                // #182: a bearer must never land in an unencrypted store.
+                //
+                // ⚠️ WHEN THIS GUARD IS FALSE THE BEARER IS NOT PERSISTED AT
+                // ALL, AND THE CUSTOMER IS SIGNED OUT ON THE NEXT COLD START.
+                //
+                // That is the deliberate consequence of Kemar's ruling — plain
+                // prefs are a READ fallback only, never a write target — and on
+                // a permanently broken keystore there is nowhere safe to put a
+                // bearer. Security over convenience, chosen knowingly.
+                //
+                // The commit that introduced this claimed it was "chosen over
+                // holding the token in memory only because both of those log
+                // the customer out". THAT CLAIM IS FALSE: when the retry fails
+                // this IS memory-only, and it does log them out. Correcting it
+                // here rather than leaving a justification that contradicts the
+                // code it justifies. Raised by an adversarial audit.
+                //
+                // What is NOT acceptable is doing it silently, so the skip is
+                // now logged. A customer stuck in a re-login loop is otherwise
+                // undiagnosable from a support ticket: the app looks healthy,
+                // login succeeds every time, and nothing anywhere says the
+                // write was dropped.
+                // Called ONCE — ensureEncryptedForWrite() reassigns `prefs` as a
+                // side effect, so invoking it twice per save would re-open the
+                // store on the recovery path for no reason.
+                val mayWriteEncrypted = ::prefs.isInitialized && ensureEncryptedForWrite()
+                if (::prefs.isInitialized && !mayWriteEncrypted) {
+                    android.util.Log.w(
+                        "AuthTokenStore",
+                        "Encrypted store unavailable at write time — bearer NOT persisted. " +
+                            "This session will not survive a cold start (#182 ruling: " +
+                            "plain prefs are read-only).",
+                    )
+                }
+                if (mayWriteEncrypted) {
                     prefs.edit()
                         .putString(KEY_TOKEN, token)
                         .putString(KEY_SESSION_ID, sessionId)
@@ -178,7 +244,8 @@ object AuthTokenStore {
             invalidateActiveRequestsLocked()
             _token.value = newToken
             revision += 1
-            if (::prefs.isInitialized) {
+            // #182: a rotated bearer must never land in an unencrypted store.
+            if (::prefs.isInitialized && ensureEncryptedForWrite()) {
                 prefs.edit()
                     .putString(KEY_TOKEN, newToken)
                     .putString(KEY_SESSION_ID, sessionId)
