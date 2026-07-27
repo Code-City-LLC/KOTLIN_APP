@@ -853,7 +853,18 @@ class CartViewModel(
         val feeJmd = (flow.deliveryFee ?: 0.0).let { fee ->
             if (flow.deliveryFeeCurrency?.uppercase(java.util.Locale.US) == "JMD") fee else fee * rate
         }
-        val paidAmount = "JMD " + String.format(java.util.Locale.US, "%,.2f", subtotalJmd + feeJmd)
+        // ⚠️ WAS "JMD 64,841.58" AND NOTHING ELSE — the payment-success screen,
+        // the very last thing a customer sees after paying, showed one currency.
+        // Kemar 2026-07-26: "How are we just showing JMD alone? ... Our primary
+        // currency is US dollar." Both figures are already in hand here (the JMD
+        // ones are USD * rate two lines up), so this never needed to be a choice.
+        val paidJmd = subtotalJmd + feeJmd
+        val paidAmount = com.ga.airdrop.feature.shop.formatDualMoney(
+            // formatDualMoney takes the USD amount and derives JMD, so divide
+            // back out rather than converting an already-converted figure twice.
+            if (rate > 0) paidJmd / rate else 0.0,
+            rate,
+        )
         _state.update {
             it.copy(
                 ncbBusy = true,

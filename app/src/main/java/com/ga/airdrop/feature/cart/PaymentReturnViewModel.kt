@@ -173,15 +173,16 @@ internal suspend fun verifySession(
                     s.status?.lowercase() == "paid"
                 return if (paid) {
                     // amount_total is MAJOR units — no /100 (Swift parity).
-                    val amount = if (s.amountTotal != null && s.currency != null) {
-                        String.format(
-                            Locale.US,
-                            "%s %.2f",
-                            s.currency!!.uppercase(Locale.US),
-                            s.amountTotal,
+                    // JMD / USD, never one currency (Kemar 2026-07-26). This is
+                    // the amount on the payment-success screen; it used to print
+                    // the server's single code. The rate is not in this VM's
+                    // scope, so it comes from the app-wide store — the same one
+                    // the cart seeded its own rate from.
+                    val amount = s.amountTotal?.let { total ->
+                        com.ga.airdrop.feature.shop.formatDualMoney(
+                            total,
+                            com.ga.airdrop.core.prefs.ExchangeRateStore.current,
                         )
-                    } else {
-                        null
                     }
                     PaymentReturnResult.Success(sessionId, amount, s.packageIds)
                 } else {
