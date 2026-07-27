@@ -87,6 +87,15 @@ data class ShipmentPayment(
     val invoiceId: String? = null,       // invoice_id
     val paymentType: String? = null,     // "package" | "product"
     val method: String? = null,
+    /**
+     * The payment's own currency code, e.g. "JMD" for an NCB card charge.
+     *
+     * ⚠️ The API has always sent this and the mapper always dropped it, so the
+     * card fell back to a hard-coded "$" and an NCB payment of JA$64,841.58
+     * rendered as "$64,841.58" — off by ~162x to anyone reading their history.
+     * Decoded, then discarded one layer before the screen that needed it.
+     */
+    val currency: String? = null,
     val totalAmount: Double? = null,     // total_amount
     val trackingCode: String? = null,    // tracking_code — "Drop Number"
     val paymentDate: String? = null,     // payment_date ISO string
