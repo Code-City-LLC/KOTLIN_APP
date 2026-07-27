@@ -143,6 +143,17 @@ object ShipmentStatusCatalog {
         PackageStatusInfo(17, "Sale", "#345c0b", 15),
         PackageStatusInfo(18, "Paid and Ready for Pick Up", "#19d144", 16),
         PackageStatusInfo(19, "Returned to Merchant", "#ff6b6b", 17),
+        // Status 20 — what a package becomes right after checkout. It was
+        // missing from this list entirely, so a status-20 package could not be
+        // filtered for at all, and if /package-statuses failed the fallback
+        // list silently omitted it.
+        //
+        // Kemar chose to reuse the "Paid and Ready for Pick Up" styling rather
+        // than have me invent a colour. #19d144 is therefore INHERITED from
+        // status 18, not designed for this row — if a distinct colour is ever
+        // wanted, this is the line to change and the decision is recorded here
+        // so nobody assumes the duplicate is accidental.
+        PackageStatusInfo(20, "Paid and Ready for Delivery", "#19d144", 18),
     )
 
     /** Per-status Figma glyph (FigmaPackagesFilterViewController.statusIcon). */
@@ -157,7 +168,12 @@ object ShipmentStatusCatalog {
         8 -> if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
         9 -> if (dark) R.drawable.ic_shipments_status_processing_customs_dark else R.drawable.ic_shipments_status_processing_customs
         10 -> if (dark) R.drawable.ic_shipments_status_detained_customs_dark else R.drawable.ic_shipments_status_detained_customs
-        12 -> if (dark) R.drawable.ic_shipments_status_in_transit_counter_dark else R.drawable.ic_shipments_status_in_transit_counter
+        // ⚠️ Authorised duplicate — status 12 deliberately shares Out for
+        // Delivery's glyph (Figma 40000692-4169). Kemar 2026-07-26: the status
+        // is hardly ever used and will get its own icon when it is. See the
+        // fuller note in TrackJourney.iconRes. Only the artwork is shared; the
+        // status itself stays distinct from the driver leg.
+        12 -> if (dark) R.drawable.ic_shipments_status_out_for_delivery_dark else R.drawable.ic_shipments_status_out_for_delivery
         14 -> if (dark) R.drawable.ic_shipments_status_delivered_dark else R.drawable.ic_shipments_status_delivered
         // Uncollected must NOT reuse the Detained glyph — BronzeMountain #79803.
         15 -> if (dark) R.drawable.ic_shipments_status_uncollected_dark else R.drawable.ic_shipments_status_uncollected
@@ -165,6 +181,10 @@ object ShipmentStatusCatalog {
         17 -> if (dark) R.drawable.ic_shipments_status_auction_dark else R.drawable.ic_shipments_status_auction
         18 -> if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup
         19 -> if (dark) R.drawable.ic_shipments_status_returned_merchant_dark else R.drawable.ic_shipments_status_returned_merchant
+        // Transcribed from Laravel's StatusIcons::MAP (20 => paid_ready_pickup),
+        // which is the server contract — not a glyph chosen here. Without this
+        // a status-20 package fell to the neutral box below.
+        20 -> if (dark) R.drawable.ic_shipments_status_paid_ready_pickup_dark else R.drawable.ic_shipments_status_paid_ready_pickup
         else -> R.drawable.ic_packages
     }
 
