@@ -2,7 +2,19 @@ name: Kotlin gate
 
 on:
   pull_request:
-    branches: [main]
+    # ⚠️ DELIBERATELY UNFILTERED. `branches:` here filters the **base** branch,
+    # not the head — so `branches: [main]` silently gave ZERO coverage to any
+    # PR stacked on another feature branch. Worse than zero: GitHub still
+    # reported `mergeStateStatus: CLEAN`, because "clean" only means nothing is
+    # FAILING, and nothing can fail if nothing ever ran. #184 — a bearer-token
+    # persistence security fix — sat mergeable with no runs at all, twice, and
+    # was nearly merged in a batch on the strength of that green-looking state.
+    #
+    # Kemar 2026-07-26, choosing this over narrower options: "Widen it so all
+    # branches run tests."
+    #
+    # Do NOT re-add a base filter to buy back CI minutes. The failure it
+    # produces is invisible at exactly the moment it matters.
   push:
     branches: [main]
 
