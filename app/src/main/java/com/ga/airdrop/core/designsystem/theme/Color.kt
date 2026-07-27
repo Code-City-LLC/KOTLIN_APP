@@ -88,7 +88,21 @@ object AlertPalette {
 
 /** Shared Delivery Center timeline accents (kept in sync with Swift). */
 object DeliveryStagePalette {
-    val Passed = Color(0xFF2E9E5B)
+    /**
+     * ⚠️ MUST EQUAL [AlertPalette.Completed] (#39A634). This used to be its own
+     * #2E9E5B, so the Track rail drew a DIFFERENT green from every other
+     * "completed" signal in the app and from web.
+     *
+     * BronzeMountain handed this over on 2026-07-25 ("[WEB->MOBILE] Tracking
+     * parity: green-on-passed #39A634, canonical Figma icon set") and it sat
+     * unacked for 28h. Laravel is the reference:
+     * `resources/css/customer-delivery.css:37` — `--cdl-done: #39a634`, which
+     * its own comment maps to `Alert.completed #39A634`.
+     *
+     * The token already existed here and simply was not used. Referencing it
+     * rather than restating the hex means the two can never drift apart again.
+     */
+    val Passed = AlertPalette.Completed
     val Current = Color(0xFFE06B3E)
 }
 
