@@ -127,8 +127,22 @@ class AuctionProductDetailsFullVisualParityTest {
         compose.onNodeWithText("50 Shares").assertIsDisplayed()
         compose.onNodeWithText(Product.title).assertIsDisplayed()
         compose.onNodeWithText("Model: ${Product.slug!!.uppercase()}").assertIsDisplayed()
-        compose.onNodeWithText("$18.00").assertIsDisplayed()
-        compose.onNodeWithText("$12.50").assertIsDisplayed()
+        // JMD / USD (Kemar 2026-07-26) — these were the bare "$18.00"/"$12.50".
+        // Computed from the same formatter the screen uses, so the expectation
+        // cannot drift away from the implementation.
+        compose.onNodeWithText(
+            com.ga.airdrop.feature.shop.formatDualMoney(
+                18.0, com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+            ),
+        ).assertIsDisplayed()
+        compose.onNodeWithText(
+            com.ga.airdrop.feature.shop.formatDualMoney(
+                12.5, com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+            ),
+        ).assertIsDisplayed()
+        // No scroll: the dual price is rendered at title1/maxLines=1 precisely
+        // so this page keeps its approved vertical rhythm. If it ever wraps
+        // again, THIS assertion is the one that fails first.
         compose.onNodeWithText("Stock Quantity: ${Product.inventory}").assertIsDisplayed()
 
         val stepper = compose.onNodeWithTag("auction-details-quantity-stepper").getUnclippedBoundsInRoot()

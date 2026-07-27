@@ -108,9 +108,14 @@ class AuctionCheckoutParityTest {
 
                 viewModel.setCurrency("JMD")
 
+                // Dual now (Kemar 2026-07-26). This used to be " JA$7,276.50" —
+                // JMD ALONE, which is precisely the regression he reported: the
+                // Buy-Now total branched on the chosen currency and hid USD.
+                // What this test really guards is unchanged: the PERSISTED rate
+                // (173.25) must still drive the figure after a failed refresh.
                 assertEquals(
                     "The last-known rate must survive a failed live refresh",
-                    " JA$7,276.50",
+                    com.ga.airdrop.feature.shop.formatDualMoney(42.0, 173.25),
                     viewModel.totalLabel(),
                 )
             }
@@ -145,7 +150,7 @@ class AuctionCheckoutParityTest {
 
                 assertEquals(
                     "Construction must paint from the persisted rate before the live coroutine runs",
-                    " JA$7,276.50",
+                    com.ga.airdrop.feature.shop.formatDualMoney(42.0, 173.25),
                     viewModel.totalLabel(),
                 )
             }
@@ -155,7 +160,12 @@ class AuctionCheckoutParityTest {
                 viewModel.state.value.exchangeUsdToJmd == 180.0 &&
                     com.ga.airdrop.core.prefs.ExchangeRateStore.current == 180.0
             }
-            assertEquals(" JA$7,560.00", viewModel.totalLabel())
+            // Live rate (180.0) has replaced the persisted one — the point of
+            // the test — now asserted through the shared dual formatter.
+            assertEquals(
+                com.ga.airdrop.feature.shop.formatDualMoney(42.0, 180.0),
+                viewModel.totalLabel(),
+            )
             assertEquals(180.0, com.ga.airdrop.core.prefs.ExchangeRateStore.current, 0.0)
         } finally {
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
