@@ -118,20 +118,39 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            // Native debug symbols, so Play can DEOBFUSCATE native crashes.
+            // Native debug symbols, for if this project ever compiles native
+            // code of its own.
             //
-            // Play flagged this on the first Kotlin upload: "This App Bundle
-            // contains native code, and you've not uploaded debug symbols."
-            // Without them a native crash arrives as raw addresses instead of
-            // function names — effectively undiagnosable.
+            // ⚠️ THIS DOES NOT SILENCE PLAY'S DEBUG-SYMBOLS WARNING, and the
+            // earlier comment here claimed it would. Measured on the v23 bundle
+            // (versionCode 23), which was built WITH this setting:
             //
-            // The native code is not ours; it comes from dependencies (Stripe,
-            // Firebase and friends). That is exactly why symbols matter: we
-            // cannot read those frames from source when one of them fails.
+            //   - Play still warns "contains native code, and you've not
+            //     uploaded debug symbols" for version code 23.
+            //   - The bundle carries 16 .so files, every one of them from a
+            //     dependency (androidx.graphics.path, datastore_shared_counter,
+            //     image_processing_util_jni, surface_util_jni) — NOT from us.
+            //   - `file` on one reports "stripped": the publisher stripped it
+            //     before it ever reached us.
+            //   - `find app/build/outputs -iname '*symbol*'` returns nothing;
+            //     AGP emitted no symbol file at all.
             //
-            // FULL rather than SYMBOL_TABLE: the extra size rides in the
-            // bundle's symbol file, which Play strips before serving, so
-            // customers download nothing extra.
+            // debugSymbolLevel only symbolizes libraries built by THIS project's
+            // NDK/CMake build, and there is none (no CMakeLists.txt, no .cpp, no
+            // Android.mk anywhere under app/src). AGP cannot recover symbols
+            // that were stripped upstream, so the warning is not fixable from
+            // the build script. Clearing it would mean obtaining unstripped .so
+            // files from those AndroidX artifacts and uploading a symbol zip by
+            // hand — they are not published that way.
+            //
+            // Impact is low and worth stating plainly: those libraries are
+            // graphics/camera/datastore plumbing, and R8 mapping IS uploaded
+            // (BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map
+            // is present), so Kotlin crashes — which is nearly all of them —
+            // deobfuscate correctly.
+            //
+            // Kept rather than deleted: it is correct and free the moment we do
+            // add native code. It is simply inert today.
             ndk { debugSymbolLevel = "FULL" }
             // Staging release remains debug-signed for local sideload testing.
             // androidComponents overrides only prodRelease with playUpload;
