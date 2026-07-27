@@ -76,7 +76,7 @@ object AuthTokenStore {
     /** Retained so a failed encrypted open can be retried before a later write. */
     private var appContext: Context? = null
 
-    private fun openEncrypted(context: Context): SharedPreferences? = runCatching {
+    private fun openEncryptedOnce(context: Context): SharedPreferences? = runCatching {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
@@ -88,6 +88,58 @@ object AuthTokenStore {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
     }.getOrNull()
+
+    /**
+     * Opens the encrypted store, and — if it cannot be opened — DISCARDS the
+     * unreadable file once and tries again.
+     *
+     * ⚠️ THIS RECOVERS A PERMANENT SIGN-OUT LOOP. A device restore used to copy
+     * this file across (see res/xml/backup_rules.xml, now excluded) while the
+     * AndroidKeyStore key that wraps its Tink keyset stayed behind, because
+     * keystore keys are device-bound. The result was a keyset that can never be
+     * decrypted on the new phone:
+     *
+     *   create() throws -> plain-prefs read fallback -> at login
+     *   ensureEncryptedForWrite() reopens THE SAME dead file -> still fails ->
+     *   the #182/#184 guard correctly refuses to write the bearer in cleartext
+     *   -> signed out on every cold start, FOREVER, with no in-app remedy.
+     *
+     * The guard is right and stays. What was missing is that nothing ever
+     * cleared the dead keyset, so the failure could not heal.
+     *
+     * Deleting is safe precisely BECAUSE the open failed: the contents are
+     * undecryptable, so there is nothing to lose — only an unusable file that
+     * blocks a working store from ever being created. A transient keystore
+     * fault still succeeds on the first attempt and never reaches the delete.
+     *
+     * The backup exclusion prevents new occurrences; this repairs devices that
+     * were already poisoned by a restore before that shipped.
+     */
+    private fun openEncrypted(context: Context): SharedPreferences? {
+        openEncryptedOnce(context)?.let { return it }
+
+        val existing = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (existing.all.isEmpty()) {
+            // Nothing on disk to blame — a genuinely unavailable keystore.
+            // Leave it alone; the write-time retry (#182) is the right answer.
+            return null
+        }
+
+        android.util.Log.w(
+            "AuthTokenStore",
+            "Encrypted auth store could not be opened but is non-empty — " +
+                "discarding an undecryptable keyset (device restore) so a new " +
+                "store can be created. The customer signs in once more.",
+        )
+        val cleared = runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                context.deleteSharedPreferences(PREFS)
+            } else {
+                existing.edit().clear().commit()
+            }
+        }.isSuccess
+        return if (cleared) openEncryptedOnce(context) else null
+    }
 
     /**
      * Re-attempt the encrypted store before persisting a bearer. Issue #182.
