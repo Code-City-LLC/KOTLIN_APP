@@ -1,7 +1,6 @@
 package com.ga.airdrop.feature.delivery
 
 import android.annotation.SuppressLint
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.ViewGroup
@@ -38,15 +37,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
-import org.json.JSONObject
+import java.net.URI
 import java.util.Locale
+import org.json.JSONObject
 
 /**
  * Map card for the Delivery Method screen — Swift buildMapCard parity slot
  * (335×201, rounded 5, no border; Figma 40008740:28298).
  *
  * Renders the SAME Google Maps picker the Laravel web app and the Swift app
- * use: `GET {WEB_BASE}/api/v1/delivery/picker?embed=ios` inside a WebView. The
+ * use: `GET {API_BASE}/delivery/picker?embed=ios` inside a WebView. The
  * server injects the Google Maps JS with its own key — the JS Maps API works
  * from an airdropja.com origin (which a WebView loading that URL has), even
  * though Static Maps / Android-SDK Maps are disabled on the GCP project.
@@ -87,7 +87,7 @@ fun DeliveryMapView(
     var crashKey by remember { mutableIntStateOf(0) }
     var loadFailed by remember { mutableStateOf(false) }
     val expectedHost = remember {
-        runCatching { Uri.parse(BuildConfig.WEB_BASE_URL).host }.getOrNull()
+        deliveryPickerAllowedHost(BuildConfig.API_BASE_URL)
     }
 
     val webView = remember(crashKey) {
@@ -185,9 +185,8 @@ fun DeliveryMapView(
     // Load once per WebView instance. Initial centre comes from the current
     // marker (zoom 15); with none the page falls back to a Jamaica-wide view.
     DisposableEffect(webView) {
-        val base = "${BuildConfig.WEB_BASE_URL}/api/v1/delivery/picker?embed=ios"
         val m = latestMarker[0]
-        val url = m?.let { (lat, lng) -> "$base&lat=${fmt(lat)}&lng=${fmt(lng)}" } ?: base
+        val url = deliveryPickerUrl(BuildConfig.API_BASE_URL, m)
         m?.let { lastPushed[0] = it.first; lastPushed[1] = it.second }
         // Load AFTER layout so Maps doesn't initialise into a 0-height card.
         webView.post { webView.loadUrl(url) }
@@ -245,6 +244,20 @@ fun DeliveryMapView(
             }
         }
     }
+}
+
+internal fun deliveryPickerBaseUrl(apiBaseUrl: String): String =
+    "${apiBaseUrl.trimEnd('/')}/delivery/picker?embed=ios"
+
+internal fun deliveryPickerAllowedHost(apiBaseUrl: String): String? =
+    runCatching { URI(apiBaseUrl).host }.getOrNull()
+
+internal fun deliveryPickerUrl(
+    apiBaseUrl: String,
+    marker: Pair<Double, Double>? = null,
+): String {
+    val base = deliveryPickerBaseUrl(apiBaseUrl)
+    return marker?.let { (lat, lng) -> "$base&lat=${fmt(lat)}&lng=${fmt(lng)}" } ?: base
 }
 
 private fun fmt(v: Double): String = String.format(Locale.US, "%.6f", v)
