@@ -27,3 +27,4 @@ captures/
 # Play Developer API service-account keys — credentials, never commit
 tools/*.json
 play-service-account*.json
+__pycache__/
