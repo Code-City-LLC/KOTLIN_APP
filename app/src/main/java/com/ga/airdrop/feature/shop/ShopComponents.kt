@@ -358,7 +358,13 @@ fun ShopProductCard(
                 ),
                 style = AirdropType.title2,
                 color = colors.buttonStatic,
-                maxLines = 1,
+                // ⚠️ TWO LINES, NOT ONE. Caught on a device: at title2 on a
+                // half-width grid tile the dual string overflows and a
+                // single-line ellipsis eats the tail — "JMD 1,490.40 / USD 9…".
+                // The truncated half is USD, the primary currency, so a
+                // one-line cap turns the fix into the very bug it fixes.
+                // Every unit test still passed; only the render showed it.
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
