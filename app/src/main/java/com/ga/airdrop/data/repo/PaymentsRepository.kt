@@ -63,7 +63,6 @@ class PaymentsRepository(private val service: AirdropApiService) {
         }
     }
 
-    @Suppress("UNUSED_PARAMETER")
     suspend fun createCheckout(
         packageIds: List<Int>,
         currency: String,
@@ -87,6 +86,10 @@ class PaymentsRepository(private val service: AirdropApiService) {
                 currency = normalizedCurrency,
                 isAuction = isAuction,
                 returnUrl = MOBILE_CHECKOUT_RETURN_URL,
+                // Blank-to-null, matching iOS AirdropAPI.swift:6039 — a
+                // whitespace-only note must be absent from the body, not sent
+                // as an empty string that would persist as a blank user_note.
+                userNote = userNote?.trim()?.takeIf { it.isNotEmpty() },
             ),
         )
         val data = envelope.data

@@ -67,6 +67,27 @@ data class CreateCheckoutRequest(
     val currency: String,
     @SerialName("is_auction") val isAuction: Boolean,
     @SerialName("return_url") val returnUrl: String? = null,
+    /**
+     * The customer's "Your Note" from the cart, which Android used to throw
+     * away: the repository ACCEPTED a `userNote` argument and never put it in
+     * the body, so the note was stored, trimmed, threaded through three layers
+     * and silently discarded at the last one. A `@Suppress("UNUSED_PARAMETER")`
+     * on the repository sat on the one warning that would have said so.
+     *
+     * The field is real on both other platforms:
+     *   Laravel  Payments.php:23 has `user_note` fillable; PaymentController
+     *            :336 notes it rides Stripe metadata.
+     *   iOS      AirdropAPI.swift:6031/6039 sends `user_note`, nil when blank.
+     *
+     * ⚠️ The `= null` default is LOAD-BEARING and matches iOS. `AirdropJson`
+     * runs with encodeDefaults off, so a null note is omitted from the wire
+     * entirely rather than sent as `"user_note": null` — which is exactly
+     * iOS's `(trimmedNote?.isEmpty == false) ? trimmedNote : nil`. A non-null
+     * note differs from the default and IS encoded; PaymentsWireFormatTest
+     * pins both halves, because that gotcha has silently dropped required
+     * request fields in this codebase before.
+     */
+    @SerialName("user_note") val userNote: String? = null,
 )
 
 /** Non-null signal that makes Laravel issue the mobile Stripe deep links. */
