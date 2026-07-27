@@ -250,7 +250,23 @@ fun PackageDetailsScreen(
             // Figma CIF sheet (40001761:29633) — never a one-line alert.
             CifValueSheet(
                 rows = state.cifRows,
-                exchangeRate = state.exchangeRate,
+                // effectiveRate, NOT exchangeRate — the rule this file already
+                // states at the StorageFeeCard below, which this call was the
+                // single violation of. `exchangeRate` is the app-wide rate and
+                // falls back to the HARDCODED ExchangeRateStore.DEFAULT_USD_TO_JMD
+                // (160.625) whenever /exchange-rates has not answered — and that
+                // fetch is onSuccess-only (PackageDetailsViewModel:176-179), so a
+                // failure leaves the constant in place with nothing surfaced.
+                // Meanwhile the package payload always carries a live server rate.
+                //
+                // The visible symptom: Breakdown, Exchange Rate and Total convert
+                // at the package's real rate while the CIF sheet converted at the
+                // constant — one screen, two different JMD figures for the same
+                // money, one of them not from the server at all.
+                //
+                // The sibling screen already had it right
+                // (PaymentPackageDetailsScreen.kt:111).
+                exchangeRate = state.effectiveRate,
                 onDismiss = { viewModel.showCifInfo(false) },
             )
         }
