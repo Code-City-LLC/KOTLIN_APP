@@ -118,6 +118,21 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Native debug symbols, so Play can DEOBFUSCATE native crashes.
+            //
+            // Play flagged this on the first Kotlin upload: "This App Bundle
+            // contains native code, and you've not uploaded debug symbols."
+            // Without them a native crash arrives as raw addresses instead of
+            // function names — effectively undiagnosable.
+            //
+            // The native code is not ours; it comes from dependencies (Stripe,
+            // Firebase and friends). That is exactly why symbols matter: we
+            // cannot read those frames from source when one of them fails.
+            //
+            // FULL rather than SYMBOL_TABLE: the extra size rides in the
+            // bundle's symbol file, which Play strips before serving, so
+            // customers download nothing extra.
+            ndk { debugSymbolLevel = "FULL" }
             // Staging release remains debug-signed for local sideload testing.
             // androidComponents overrides only prodRelease with playUpload;
             // an absent/incomplete authorized key fails signing validation.
