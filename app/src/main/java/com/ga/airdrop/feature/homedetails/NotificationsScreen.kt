@@ -58,7 +58,9 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import androidx.compose.ui.platform.LocalContext
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.core.push.openPlayStoreListing
 import com.ga.airdrop.data.model.AirdropNotification
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 import java.text.SimpleDateFormat
@@ -78,6 +80,7 @@ fun NotificationsScreen(
     viewModel: NotificationsViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
 
     NotificationsScreenContent(
         state = state,
@@ -86,7 +89,16 @@ fun NotificationsScreen(
         onRefresh = viewModel::refresh,
         onLoadMore = viewModel::loadMore,
         onNotificationTap = { notification ->
-            viewModel.onNotificationTapped(notification)?.let(onNavigate)
+            viewModel.onNotificationTapped(notification)?.let { route ->
+                // An "App update available" tap leaves the app for the Play
+                // Store; it is not a NavHost destination and navigating to it
+                // would throw. Every other route behaves exactly as before.
+                if (Routes.isExternalNotificationRoute(route)) {
+                    openPlayStoreListing(context)
+                } else {
+                    onNavigate(route)
+                }
+            }
         },
     )
 }

@@ -87,6 +87,25 @@ object Routes {
     const val RESTRICTED_ITEMS = "restrictedItems"
     const val ABOUT = "about"
 
+    /**
+     * ⚠️ NOT A NAVHOST DESTINATION — a sentinel. Nothing is registered for it
+     * and `navigate()` on it would throw.
+     *
+     * The "App update available" notification has to leave the app for the Play
+     * Store, but the whole notification pipeline is typed as "route string in,
+     * navigate out". Rather than change that shape everywhere, the resolver
+     * returns this and the two tap handlers intercept it — see
+     * [isExternalNotificationRoute].
+     *
+     * The `external:` prefix is deliberate: any future non-navigating action can
+     * reuse the same guard instead of adding a second special case.
+     */
+    const val EXTERNAL_APP_UPDATE = "external:app-update"
+
+    /** True when [route] must be acted on rather than navigated to. */
+    fun isExternalNotificationRoute(route: String?): Boolean =
+        route != null && route.startsWith("external:")
+
     // Tools
     const val CALCULATOR = "calculator"
     const val CALCULATOR_RESULTS = "calculatorResults"

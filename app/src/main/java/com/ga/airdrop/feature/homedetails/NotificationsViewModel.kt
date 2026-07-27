@@ -331,6 +331,16 @@ private fun resolveNotificationRoute(
         "TermsConditionsView" -> Routes.TERMS
         "PrivacyPolicyView" -> Routes.PRIVACY
         "ProfileView", "EditProfileView" -> Routes.PROFILE
+        // "App update available" — Laravel broadcasts this
+        // (AppUpdateBroadcastCommand:118 `'route' => 'AppUpdateView'`,
+        // NotificationType::APP_UPDATE_AVAILABLE) and iOS acts on it
+        // (FigmaNotificationsListViewController:839 → AppDelegate:1736 opens the
+        // App Store). Android mapped it NOWHERE, so the notification arrived,
+        // rendered, and did nothing at all when tapped — the one broadcast whose
+        // entire purpose is to get the customer to update.
+        //
+        // Not a NavHost destination: this leaves the app for the Play Store.
+        "AppUpdateView", "AppUpdateScreen" -> Routes.EXTERNAL_APP_UPDATE
         else -> null
     }
 }
@@ -405,6 +415,11 @@ private val SCREEN_ROUTE_ALIASES = mapOf(
 )
 
 private val NOTIFICATION_TYPE_ROUTES = mapOf(
+    // Laravel's NotificationType::APP_UPDATE_AVAILABLE. Payloads carry the
+    // route directly, but some carry only `type` — both must resolve.
+    "app_update_available" to "AppUpdateView",
+    "app_update" to "AppUpdateView",
+    "force_update" to "AppUpdateView",
     "package_status_update" to "PackageDetailsView",
     "package_received" to "PackageDetailsView",
     "shipment_received" to "PackageDetailsView",
