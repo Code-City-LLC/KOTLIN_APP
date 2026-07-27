@@ -142,7 +142,29 @@ internal suspend fun verifySession(
     repeat(3) { attempt ->
         fetch(sessionId)
             .onSuccess { s ->
-                if (s.sessionId.isNullOrBlank() || s.sessionId != sessionId) {
+                // ⚠️ THE SERVER DOES NOT ECHO `session_id`. Requiring it here
+                // rejected EVERY real card payment: the customer was charged by
+                // Stripe, the app said the response "did not match", and the
+                // cart was never cleared — so they could pay a second time.
+                //
+                // Verified on both sides rather than assumed:
+                //   StripePaymentService::getSessionStatus() (:1206-1216) returns
+                //     exactly status, invoice_id, payment_status, owner_user_id
+                //   PaymentController::getStatus() (:668-692) strips
+                //     owner_user_id and adds package_ids
+                // There is no `session_id` key in either, so `s.sessionId` was
+                // ALWAYS null and `isNullOrBlank()` always short-circuited true.
+                //
+                // iOS never had this bug because it never made the comparison —
+                // AirdropAPI.swift:6376 decodes the field and no code reads it.
+                // Android alone added a check against data that is never sent.
+                //
+                // A MISSING id is not evidence of a mismatch. A PRESENT id that
+                // disagrees still is, so that guard is kept: this is strictly
+                // stronger than iOS, and it starts working for free the day the
+                // server does echo the field.
+                val echoedSessionId = s.sessionId
+                if (!echoedSessionId.isNullOrBlank() && echoedSessionId != sessionId) {
                     return PaymentReturnResult.Unconfirmed(
                         "The payment response did not match this checkout session.",
                     )
