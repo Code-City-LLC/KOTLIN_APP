@@ -47,6 +47,7 @@ class PackageDetailsParityTest {
     val compose = createComposeRule()
 
     private lateinit var packagesRepo: FakePackagesRepository
+    private lateinit var timelineGateway: FakeTimelineGateway
     private lateinit var packageDetailsViewModel: PackageDetailsViewModel
     private val navigatedRoutes = mutableListOf<String>()
 
@@ -259,7 +260,10 @@ class PackageDetailsParityTest {
         compose.onNodeWithTag("package-details-section-timeline")
             .performScrollTo()
             .assertIsDisplayed()
-        compose.onNodeWithText("Ready for Pickup")
+        // By TAG, not by text: the status name now also appears in the Summary
+        // "Status" row (Swift parity), so matching on the bare string is
+        // ambiguous and no longer says which surface is being asserted.
+        compose.onNodeWithTag("package-details-timeline-row-7")
             .performScrollTo()
             .assertIsDisplayed()
 
@@ -403,9 +407,201 @@ class PackageDetailsParityTest {
         )
     }
 
+    /**
+     * ⚠️ THIS CARD USED TO RENDER ITS TITLE OVER NOTHING.
+     *
+     * Any package whose `package_change_history` is empty produced a
+     * "Shipment Timeline" heading with zero rows under it — a blank box. Not
+     * hypothetical: every package on the QA fixture set has zero history rows,
+     * and pre-staging 153897 is a live status-20 package with none.
+     *
+     * The fix must not become the bug it replaces. Exactly ONE row, stating
+     * where the package is NOW — undated, not completed, no connector. It is a
+     * present-state marker, never a claim that a transition was recorded. That
+     * is the same line `/packages/journeys` crossed when it answered this
+     * situation with three `done` stages carrying null timestamps.
+     *
+     * Swift parity: FigmaPackageDetailsViewController:1359-1367.
+     */
+    @Test
+    fun zeroHistoryRendersOneUndatedCurrentStatusRowNotABlankCard() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(
+                status = "20",
+                statusName = "Paid and Ready for Delivery",
+                history = emptyList(),
+            ),
+        )
+
+        compose.onNodeWithTag("package-details-timeline-current-only")
+            .performScrollTo()
+            .assertIsDisplayed()
+        // Appears twice by design now — Summary "Status" and the current row.
+        assertEquals(
+            "the server-authored status name must reach both Summary and the rail",
+            2,
+            compose.onAllNodesWithText("Paid and Ready for Delivery").fetchSemanticsNodes().size,
+        )
+
+        // Nothing may be presented as recorded history.
+        assertEquals(
+            "no completed history rows may be drawn for a package with none",
+            0,
+            compose.onAllNodesWithTag("package-details-timeline-row-20").fetchSemanticsNodes().size,
+        )
+    }
+
+    /**
+     * Kemar's rule survives the empty-history path: a package sitting in a
+     * status that has gone wrong still carries its way out. Ten of the QA
+     * fixtures are status 19, Returned to Merchant, with zero history — so
+     * without this the Contact-us action would be unreachable for exactly the
+     * customers who need it.
+     */
+    @Test
+    fun aZeroHistoryPackageInABadStatusStillOffersContactUs() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(
+                status = "19",
+                statusName = "Returned to Merchant",
+                history = emptyList(),
+            ),
+        )
+
+        compose.onNodeWithTag("package-details-timeline-current-only")
+            .performScrollTo()
+            .assertIsDisplayed()
+        assertTrue(
+            "the bad status must be named, not hidden",
+            compose.onAllNodesWithText("Returned to Merchant").fetchSemanticsNodes().isNotEmpty(),
+        )
+        assertTrue(
+            "a returned package with no history must still offer Contact us",
+            compose.onAllNodesWithText("Contact us about this").fetchSemanticsNodes().isNotEmpty(),
+        )
+    }
+
+    /**
+     * Swift orders Status immediately after Shipping Method
+     * (FigmaPackageDetailsViewController:1332-1333). Kotlin omitted it, so on a
+     * package with no history the screen said nothing at all about where the
+     * package actually was.
+     */
+    @Test
+    fun summaryCarriesServerAuthoredStatusAfterShippingMethod() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "7", statusName = "Ready for Pickup"),
+        )
+
+        compose.onNodeWithText("Status").performScrollTo().assertIsDisplayed()
+        assertTrue(
+            "Summary must carry the server-authored status name",
+            compose.onAllNodesWithText("Ready for Pickup").fetchSemanticsNodes().isNotEmpty(),
+        )
+    }
+
+    /**
+     * ⚠️ THE BUG #178 SHIPPED WITH, CAUGHT IN REVIEW BEFORE IT MERGED.
+     *
+     * `loadDetails()` maps every timeline failure — network, 401, 5xx, decode —
+     * onto the same `emptyList()` that a genuinely event-less package produces.
+     * The first cut of the zero-history fallback branched on emptiness alone,
+     * so a package with a FULL recorded history would silently collapse to a
+     * single current-status row the moment one request dropped, and a failed
+     * read would be presented to the customer as "nothing has happened yet".
+     *
+     * Two different facts. This pins that they render differently.
+     * BrightHarbor #80368.
+     */
+    @Test
+    fun aFailedTimelineReadIsNotRenderedAsConfirmedZeroHistory() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "20", statusName = "Paid and Ready for Delivery"),
+            timelineFails = true,
+        )
+
+        compose.onNodeWithTag("package-details-section-timeline").performScrollTo()
+
+        // The honest state: we could not read it.
+        compose.onNodeWithTag("package-details-timeline-unavailable").assertExists()
+
+        // And emphatically NOT the confirmed-empty presentation.
+        assertEquals(
+            "a failed read must never be shown as a confirmed present-state row",
+            0,
+            compose.onAllNodesWithTag("package-details-timeline-current-only")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    /**
+     * ⚠️ A SUCCESSFUL RESPONSE WE CANNOT READ IS NOT AN EMPTY JOURNEY EITHER.
+     *
+     * `TrackJourney.rows()` drops any entry with a blank label, so a nonempty
+     * but malformed payload maps to zero rows. Branching on `rows.isEmpty()`
+     * alone therefore still presented a garbled response as CONFIRMED zero
+     * history — the same conflation as the failure case, one level deeper.
+     * The gate is now on the RAW payload. BrightHarbor #80372.
+     */
+    @Test
+    fun aSuccessfulButUnreadablePayloadIsNotConfirmedZeroHistory() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "20", statusName = "Paid and Ready for Delivery"),
+            // Nonempty, successful, and entirely unusable: no labels.
+            timelineEntries = listOf(
+                com.ga.airdrop.data.model.PackageTimelineEntry(key = "a", label = "  "),
+                com.ga.airdrop.data.model.PackageTimelineEntry(key = "b", label = null),
+            ),
+        )
+
+        compose.onNodeWithTag("package-details-section-timeline").performScrollTo()
+        compose.onNodeWithTag("package-details-timeline-unavailable").assertExists()
+        assertEquals(
+            "an unreadable payload must not be presented as a confirmed present state",
+            0,
+            compose.onAllNodesWithTag("package-details-timeline-current-only")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    /**
+     * The recovery affordance must DO something. The first version of this
+     * error state told customers to "pull to refresh" on a screen that is a
+     * plain verticalScroll with no PullToRefresh and no onRefresh — an
+     * instruction to perform a gesture that does nothing. BrightHarbor #80372.
+     */
+    @Test
+    fun theTimelineErrorOffersARetryThatActuallyRefetches() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "20", statusName = "Paid and Ready for Delivery"),
+            timelineFails = true,
+        )
+
+        compose.onNodeWithTag("package-details-section-timeline").performScrollTo()
+        val before = timelineGateway.timelineRequests
+
+        compose.onNodeWithTag("package-details-timeline-retry").performScrollTo().performClick()
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            timelineGateway.timelineRequests > before
+        }
+        assertTrue(
+            "tapping retry must re-request the canonical timeline, not just redraw",
+            timelineGateway.timelineRequests > before,
+        )
+    }
+
     private fun setPackageDetailsContent(
         mode: ThemeController.Mode,
         detail: ShipmentPackageDetail = sampleDetail(),
+        timelineFails: Boolean = false,
+        timelineEntries: List<com.ga.airdrop.data.model.PackageTimelineEntry>? = null,
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -413,6 +609,10 @@ class PackageDetailsParityTest {
             CartStore.clear()
         }
         navigatedRoutes.clear()
+        timelineGateway = FakeTimelineGateway(
+            timelineEntries ?: FakeTimelineGateway.fromHistory(detail),
+            fails = timelineFails,
+        )
         packagesRepo = FakePackagesRepository(detail)
         packageDetailsViewModel = PackageDetailsViewModel(
             packageId = "7",
@@ -425,7 +625,7 @@ class PackageDetailsParityTest {
             sessionBoundary = FakeAuthenticatedSessionBoundary(),
             // The rail is Laravel's now; without this the VM reaches for the
             // real endpoint and the Shipment Timeline card renders empty.
-            tracking = FakeTimelineGateway(detail),
+            tracking = timelineGateway,
         )
         compose.setContent {
             AirdropThemeProvider {

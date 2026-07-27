@@ -18,6 +18,16 @@ import com.ga.airdrop.data.repo.DeliveryTrackingResult
  */
 class FakeTimelineGateway(
     private val entries: List<PackageTimelineEntry>,
+    /**
+     * Make `packageTimeline` FAIL rather than return an empty list.
+     *
+     * These are different facts and the screen must say so: a successful
+     * zero-entry response means the package has no recorded history; a failure
+     * means we could not read it. Before #178's review they rendered
+     * identically, so a package with a full journey collapsed to a single
+     * current-status row whenever one request dropped.
+     */
+    private val fails: Boolean = false,
 ) : DeliveryTrackingGateway {
 
     constructor(detail: ShipmentPackageDetail?) : this(fromHistory(detail))
@@ -28,8 +38,19 @@ class FakeTimelineGateway(
     override suspend fun deliveryTracking(packageId: Int): Result<DeliveryTrackingResult> =
         Result.failure(UnsupportedOperationException("not used by package screens"))
 
-    override suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>> =
-        Result.success(entries)
+    /** Counts real requests so a retry control can be proven to re-fetch. */
+    @Volatile
+    var timelineRequests: Int = 0
+        private set
+
+    override suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>> {
+        timelineRequests++
+        return if (fails) {
+            Result.failure(java.io.IOException("timeline unavailable"))
+        } else {
+            Result.success(entries)
+        }
+    }
 
     companion object {
         fun fromHistory(detail: ShipmentPackageDetail?): List<PackageTimelineEntry> {
