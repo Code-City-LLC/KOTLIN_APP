@@ -151,8 +151,23 @@ class PaymentReturnVerifyTest {
         assertEquals(1, calls)
     }
 
+    /**
+     * ⚠️ THIS TEST USED TO ASSERT THE OPPOSITE, AND THE ASSERTION WAS THE BUG.
+     *
+     * It pinned "missing session id -> Unconfirmed" on the belief that the
+     * server echoes `session_id` back. It does not, and never did:
+     * `StripePaymentService::getSessionStatus()` returns only status,
+     * invoice_id, payment_status and owner_user_id, and the controller adds
+     * package_ids. So this condition was not an edge case — it was EVERY real
+     * card payment. Customers were charged, told the response "did not match",
+     * and left with an uncleared cart they could pay from again.
+     *
+     * The expectation is inverted deliberately. A missing id is not evidence of
+     * a mismatch; `mismatched response session is unconfirmed without retry`
+     * above still guards the case that genuinely is one.
+     */
     @Test
-    fun `missing response session is unconfirmed`() = runBlocking {
+    fun `missing response session still confirms a paid checkout`() = runBlocking {
         val result = verifySession("cs_expected", { 0L }) {
             Result.success(
                 CheckoutSessionStatus(
@@ -165,6 +180,10 @@ class PaymentReturnVerifyTest {
                 ),
             )
         }
-        assertTrue(result is PaymentReturnResult.Unconfirmed)
+        assertTrue(
+            "the server never sends session_id, so requiring it rejected every " +
+                "real payment. Got: $result",
+            result is PaymentReturnResult.Success,
+        )
     }
 }
