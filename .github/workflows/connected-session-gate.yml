@@ -2,7 +2,13 @@ name: Connected session gate
 
 on:
   pull_request:
-    branches: [main]
+    # ⚠️ INTENTIONALLY NOT branch-filtered either. `branches:` filters the
+    # **base**, so `branches: [main]` gave a PR stacked on another feature
+    # branch zero runtime coverage while GitHub still reported it CLEAN —
+    # "clean" means nothing is failing, and nothing fails if nothing runs.
+    # Same class of hole as the path filter below, one level up.
+    # Kemar 2026-07-26: "Widen it so all branches run tests."
+    #
     # ⚠️ INTENTIONALLY NOT path-filtered. This gate is REQUIRED by branch
     # protection, and a required + path-filtered workflow fails in two ways at
     # once: a PR touching only unlisted paths can never start it (so it can
