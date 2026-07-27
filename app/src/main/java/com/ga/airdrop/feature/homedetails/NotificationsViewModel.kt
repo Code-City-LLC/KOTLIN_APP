@@ -144,7 +144,19 @@ class NotificationsViewModel internal constructor(
                     page = requestedPage
                     _state.update {
                         it.copy(
-                            items = it.items + batch.map(AirdropNotification::customerFacingCopy),
+                            // ⚠️ DEDUPE ON APPEND — a duplicate id CRASHES the
+                            // screen. NotificationsScreen:205 keys the LazyColumn
+                            // on notification id, and Compose throws
+                            // IllegalArgumentException ("Key was already used")
+                            // the moment two rows share one.
+                            //
+                            // This is not exotic: the server pages by offset, so
+                            // any notification that arrives BETWEEN page 1 and
+                            // page 2 shifts everything down and re-delivers a row
+                            // already held. Notifications arrive constantly, so
+                            // scrolling the inbox is exactly when it happens.
+                            items = (it.items + batch.map(AirdropNotification::customerFacingCopy))
+                                .distinctBy { row -> row.id },
                             loadingMore = false,
                             endReached = batch.size < perPage,
                         )

@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -618,7 +619,21 @@ private fun ContactsSheet(
                     .navigationBarsPadding()
                     .testTag("invite-friend-contacts-list"),
             ) {
-                items(contacts, key = { "${it.displayName}|${it.email}|${it.phone}" }) { contact ->
+                // ⚠️ THE INDEX IS PART OF THE KEY, DELIBERATELY. The old key was
+                // displayName|email|phone, which is NOT unique: a phone syncing
+                // contacts from several accounts (Google + SIM + WhatsApp)
+                // routinely holds the same person twice, and a contact with no
+                // email and no phone collapses to "Name||". Two such rows made
+                // Compose throw IllegalArgumentException ("Key was already
+                // used") and the sheet crashed on open.
+                //
+                // Deduping instead would be wrong: two different people can
+                // genuinely share a name with no email or phone stored, and
+                // silently hiding one of them is worse than showing both.
+                itemsIndexed(
+                    contacts,
+                    key = { index, c -> "$index|${c.displayName}|${c.email}|${c.phone}" },
+                ) { _, contact ->
                     ContactSheetRow(contact, onPrefill, onInvite)
                 }
             }
