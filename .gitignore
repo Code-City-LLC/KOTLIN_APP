@@ -23,3 +23,7 @@ captures/
 
 # Google services config is provisioned per-environment; never commit real one blindly
 # (tracked intentionally when Kemar provides it)
+
+# Play Developer API service-account keys — credentials, never commit
+tools/*.json
+play-service-account*.json
