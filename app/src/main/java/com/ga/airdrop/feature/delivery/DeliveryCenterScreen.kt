@@ -194,6 +194,7 @@ internal fun DeliveryCenterScreenContent(
                     packageId = requireNotNull(state.selectedPackageId),
                     delivery = requireNotNull(state.delivery),
                     timeline = state.timeline,
+                    timelineUnavailable = state.timelineUnavailable,
                     refreshing = state.refreshing,
                     onRefresh = onRefresh,
                     onContactUs = onContactUs,
@@ -706,6 +707,7 @@ private fun DeliveryDetail(
     packageId: Int,
     delivery: TrackedDelivery,
     timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry>,
+    timelineUnavailable: Boolean,
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onContactUs: () -> Unit,
@@ -761,6 +763,36 @@ private fun DeliveryDetail(
                     // Laravel's canonical journey, rendered as sent. No
                     // reordering, filtering, capping or relabelling here — see
                     // TrackJourney for why the client stopped deriving this.
+                    // ⚠️ MY FIRST VERSION OF THIS BANNER WAS WRONG, and wrong in
+                    // the exact way this branch exists to fix. It said "Earlier
+                    // tracking steps couldn't be loaded", which asserts a
+                    // PARTIAL loss. The loss is TOTAL.
+                    //
+                    // I had assumed the rail degrades to the last mile when the
+                    // timeline fails. It cannot: `dispatch`, `out_for_delivery`
+                    // and `delivered` are timeline ICON KEYS — the last mile is
+                    // composed by GET /packages/{id}/timeline, the very call
+                    // that failed (see TrackJourney's KDoc: the endpoint owns
+                    // "last-mile composition"). rows(emptyList()) is empty, and
+                    // TrackJourney.rows is the ONLY source of rail rows here —
+                    // the `delivery` parameter is a non-null gate, never
+                    // rendered as steps.
+                    //
+                    // So the customer sees NO rows at all. Telling them only the
+                    // "earlier" steps are missing invites them to read the empty
+                    // space as "nothing else has happened yet" — which is a
+                    // shorter journey than the real one, i.e. precisely the
+                    // defect this branch removes, reintroduced by copy.
+                    if (timelineUnavailable) {
+                        Text(
+                            text = "Tracking steps couldn't be loaded.",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            modifier = Modifier
+                                .padding(bottom = Spacing.sm)
+                                .testTag("track-timeline-partial"),
+                        )
+                    }
                     val rows = TrackJourney.rows(timeline)
                     rows.forEachIndexed { index, row ->
                         DeliveryTimelineStep(

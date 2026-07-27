@@ -17,6 +17,11 @@ data class ProductListUiState(
     val hasMore: Boolean = true,
     val sort: ShopSort = ShopSort.ALL,
     val showSortSheet: Boolean = false,
+    /**
+     * Set when the fetch FAILED, as opposed to succeeding with nothing.
+     * `result.getOrElse { emptyList() }` used to make those two identical.
+     */
+    val loadError: String? = null,
 )
 
 /**
@@ -108,7 +113,31 @@ open class ProductListViewModel(
             } else {
                 products.auctionProducts(page = page, perPage = PER_PAGE, search = searchQuery())
             }
-            val fetched = result.getOrElse { emptyList() }
+            // ⚠️ THIS WAS `result.getOrElse { emptyList() }`, AND IT DID THREE
+            // DIFFERENT KINDS OF DAMAGE, all from the same collapse of "failed"
+            // into "empty":
+            //   1. the customer was told "No Products Found" — the catalogue is
+            //      empty — when the request had simply failed
+            //   2. a failed REFRESH replaced the rows they were already reading
+            //      with nothing, because products = fetched on the !append path
+            //   3. hasMore = fetched.size >= PER_PAGE went false on an empty
+            //      failure, so infinite scroll stopped PERMANENTLY for that
+            //      session, even after the network came back
+            // Only (1) is visible; (2) and (3) are why a flaky connection left
+            // the Shop looking broken until the app was killed.
+            if (result.isFailure) {
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        refreshing = false,
+                        // Keep what we already have and keep pagination alive.
+                        loadError = result.exceptionOrNull()?.message
+                            ?: "Couldn't load products.",
+                    )
+                }
+                return@launch
+            }
+            val fetched = result.getOrNull().orEmpty()
             currentPage = page
             _state.update {
                 it.copy(
@@ -121,6 +150,7 @@ open class ProductListViewModel(
                     },
                     loading = false,
                     refreshing = false,
+                    loadError = null,
                     // Swift: no more pages when a fetch returns < perPage.
                     hasMore = fetched.size >= PER_PAGE,
                 )

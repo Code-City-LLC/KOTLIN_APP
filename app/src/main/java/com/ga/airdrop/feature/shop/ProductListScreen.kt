@@ -3,6 +3,8 @@ package com.ga.airdrop.feature.shop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -148,7 +150,30 @@ private fun ProductListScreen(
                 )
             },
         ) {
-            if (!state.loading && state.products.isEmpty()) {
+            if (!state.loading && state.products.isEmpty() && state.loadError != null) {
+                // "We could not load the catalogue" is not "the catalogue is
+                // empty". Telling a customer AirDrop has nothing for sale
+                // because their connection blipped is the strongest wrong
+                // thing this screen can say.
+                Box(Modifier.fillMaxSize().padding(Spacing.md), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Couldn't load products.",
+                            style = AirdropType.body1,
+                            color = colors.textDescription,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.testTag("products-load-error"),
+                        )
+                        Spacer(Modifier.height(Spacing.sm))
+                        Text(
+                            text = "Tap to retry",
+                            style = AirdropType.body1,
+                            color = colors.orangeMain,
+                            modifier = Modifier.clickable { viewModel.loadFirstPage() },
+                        )
+                    }
+                }
+            } else if (!state.loading && state.products.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(Spacing.md), contentAlignment = Alignment.Center) {
                     Text(
                         text = emptyText,

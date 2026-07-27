@@ -45,6 +45,29 @@ data class DeliveryCenterUiState(
      * owns it now.
      */
     val timeline: List<PackageTimelineEntry> = emptyList(),
+    /**
+     * True when the canonical journey could NOT be read, while the last-mile
+     * delivery data was fetched fine.
+     *
+     * ⚠️ I ORIGINALLY DOCUMENTED THIS AS "degrades to the last mile". THAT WAS
+     * WRONG and the comment is corrected rather than deleted, because the wrong
+     * model is the interesting part.
+     *
+     * The last mile does NOT survive a timeline failure: `dispatch`,
+     * `out_for_delivery` and `delivered` are timeline icon keys, and
+     * TrackJourney's KDoc states the endpoint owns "last-mile composition".
+     * One call supplies the whole rail, so when it fails the rail is EMPTY —
+     * not shortened. Keeping the screen (the Your Delivery card, tracking
+     * number, contact action) is still right and still the reason not to blank
+     * it; but there is no partial journey to show.
+     *
+     * The flag therefore means "we could not read ANY of this package's
+     * journey", and the UI must say exactly that. Claiming only the earlier
+     * steps are missing invites the customer to read the empty rail as
+     * "nothing else has happened", which is the same false-shorter-journey this
+     * branch exists to remove.
+     */
+    val timelineUnavailable: Boolean = false,
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val loadedOnce: Boolean = false,
@@ -251,8 +274,12 @@ class DeliveryCenterViewModel(
             onSuccess = { result ->
                 // The canonical journey. A failure here must NOT blank Track —
                 // we still have the last mile, so the rail degrades to what we
-                // do know rather than showing nothing.
-                val timeline = gateway.packageTimeline(packageId).getOrNull().orEmpty()
+                // do know rather than showing nothing. That part was always
+                // right; what was missing is TELLING the customer the earlier
+                // steps could not be read, instead of silently showing a
+                // shorter journey than the one that happened.
+                val timelineResult = gateway.packageTimeline(packageId)
+                val timeline = timelineResult.getOrNull().orEmpty()
                 publish(
                     owner,
                     epoch,
@@ -261,6 +288,7 @@ class DeliveryCenterViewModel(
                         selectedPackageId = packageId,
                         delivery = result.delivery,
                         timeline = timeline,
+                        timelineUnavailable = timelineResult.isFailure,
                         loading = false,
                         loadedOnce = true,
                     ),

@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -1100,6 +1101,50 @@ fun ShipmentsLoadingIndicator(modifier: Modifier = Modifier) {
 fun ShipmentsEmptyLabel(text: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().padding(vertical = Spacing.xl), contentAlignment = Alignment.Center) {
         Text(text = text, style = AirdropType.body1, color = AirdropTheme.colors.textDescription)
+    }
+}
+
+/**
+ * "We could not read this" — which is NOT the same fact as "there is nothing
+ * here", and must never be rendered as it.
+ *
+ * ⚠️ WHY THIS EXISTS. Every shipments list used to fall straight from "loading"
+ * to [ShipmentsEmptyLabel], so a failed request told the customer they had **no
+ * packages** — the strongest false statement this app can make about someone's
+ * shipments. The failure was not even unknown: `PackagesViewModel` already
+ * captured `error = e.message` and the screen simply never read it. The
+ * information existed and was discarded at the last step.
+ *
+ * Pair it with a retry. A dead end that blames the customer's own account for a
+ * dropped connection is worse than an error.
+ */
+@Composable
+fun ShipmentsErrorLabel(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    testTag: String? = null,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.xl)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = message,
+            style = AirdropType.body1,
+            color = AirdropTheme.colors.textDescription,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(Spacing.sm))
+        Text(
+            text = "Tap to retry",
+            style = AirdropType.body1,
+            color = AirdropTheme.colors.orangeMain,
+            modifier = Modifier.clickable(onClick = onRetry),
+        )
     }
 }
 
