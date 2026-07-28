@@ -246,9 +246,10 @@ internal class LiveAgentChatRepository(
         withContext(Dispatchers.IO) {
             val identity = identity()
             val customer = customer(identity, user)
-            // Refresh on every send so Nirvana never answers from a stale/cold
-            // shortlist after the user opens Shipments mid-chat (SwiftHawk 81610).
-            val accountContext = accountContext(refresh = true)
+            // Reuse the in-memory shortlist across turns (90s-ish session cache).
+            // Force-refreshing 4 APIs on every send added up to ~5s before AutoPilot
+            // even started generating — reopen chat / pull-to-refresh still refreshes.
+            val accountContext = accountContext(refresh = false)
             val payload = buildJsonObject {
                 put("body", body)
                 put("message", body)
