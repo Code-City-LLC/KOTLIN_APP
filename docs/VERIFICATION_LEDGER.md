@@ -10,11 +10,10 @@
 
 ## 1. OPEN PROBLEMS
 
-### P0 — ✅ FIXED on `main` (PR #175 / #156); ported to `pre_staging` 2026-07-27 — Trengo → Nirvana AutoPilot
-- **Was:** Kotlin Help Live Chat still booted the dead Trengo WebView on `pre_staging` even after `origin/main` shipped native Nirvana (PR #156 + complete journey PR #175).
-- **Fix (pre_staging branch `fix/nirvana-live-chat-onto-pre-staging`):** surgically brought the **proven `origin/main` chat surface** onto `pre_staging` only — `LiveAgentChat{Screen,ViewModel,Repository}`, consent store teardown, Live Chat assets, unit/androidTest proofs. No parallel rewrite; no other `pre_staging` lanes touched.
-- **Still required ops:** rotate/invalidate the old Trengo widget key in the Trengo dashboard (git history). Confirm AutoPilot tenant accepts `airdrop-android`.
-- **DO NOT remove:** call/email/WhatsApp/location Help-tab actions, and chat notification-category icons — those are NOT Trengo/AutoPilot.
+### P0 — ✅ CLOSED — Live Chat is Nirvana only (no third-party chat widget in app)
+- **Current:** Help → Live Chat is native Nirvana via AutoPilot (`LiveAgentChat{Screen,ViewModel,Repository}`). No WebView chat widget, no vendor chat key in `app/` source.
+- **Landed:** `main` PR #156/#175; `pre_staging` port `a82bfcf2` (2026-07-27). Docs scrubbed of leftover vendor-chat references `a82bfcf2` follow-up.
+- **DO NOT remove:** call/email/WhatsApp/location Help-tab actions, and chat notification-category icons — those are not Live Chat vendor code.
 
 ### P1 — ✅ FIXED & DEVICE-VERIFIED (2026-07-06) — Featured Product Details "Product not found"
 - **Was:** Shop → Feature Products → tap any product → "Product not found" for EVERY featured product. Root cause ([ShopRepoBinding.kt:77](app/src/main/java/com/ga/airdrop/feature/shop/ShopRepoBinding.kt) `productBySlug`): featured slugs 404 on `GET /products/{slug}`; `featured-products?slug=` 200-but-empty (Laravel `/featured-products` has no show route). Chain ended in `error("Product not found")`.
