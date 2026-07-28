@@ -99,10 +99,25 @@ internal data class AutoPilotAppChatSendResult(
     val message: AutoPilotAppChatMessage?,
 )
 
+/**
+ * `null` means WE COULD NOT LOAD IT. `emptyList()` means we loaded successfully
+ * and the customer genuinely has none.
+ *
+ * ⚠️ That distinction is the whole point of this type. It used to default every
+ * list to `emptyList()`, so a read that timed out was indistinguishable from a
+ * customer with no packages — and the context blob then told Nirvana, as fact,
+ * that the customer has nothing. Told there is nothing, the model cannot answer
+ * "how many packages do I have" and falls through to a greeting carrying the
+ * customer's name. That is the reported symptom.
+ *
+ * A failed read must therefore OMIT its section rather than assert absence:
+ * missing data makes the model ask a clarifying question, asserted-empty data
+ * makes it give up. Matches SwiftHawk's iOS fix in d7fee1d.
+ */
 internal data class LiveAgentChatAccountContext(
-    val packages: List<AirdropPackage> = emptyList(),
-    val orders: List<Order> = emptyList(),
-    val payments: List<Payment> = emptyList(),
+    val packages: List<AirdropPackage>? = null,
+    val orders: List<Order>? = null,
+    val payments: List<Payment>? = null,
     val airCoins: String? = null,
 )
 
@@ -122,20 +137,24 @@ private class DefaultLiveAgentChatAccountContextSource(
     private val miscRepository: MiscRepository = MiscRepository(ApiClient.service),
 ) : LiveAgentChatAccountContextSource {
 
+    // ⚠️ Each read yields null on failure/timeout, NOT emptyList(). `getOrNull()`
+    // rather than `getOrDefault(emptyList())` for the same reason: a failed call
+    // must stay indistinguishable from "unknown", never collapse into a claim
+    // that the customer owns nothing. See LiveAgentChatAccountContext.
     override suspend fun load(): LiveAgentChatAccountContext = supervisorScope {
         val packages = async {
-            bestEffort(emptyList()) {
-                packagesRepository.packagesShortlist().getOrDefault(emptyList())
+            bestEffort(null) {
+                packagesRepository.packagesShortlist().getOrNull()
             }
         }
         val orders = async {
-            bestEffort(emptyList()) {
-                ordersRepository.ordersShortlist().getOrDefault(emptyList())
+            bestEffort(null) {
+                ordersRepository.ordersShortlist().getOrNull()
             }
         }
         val payments = async {
-            bestEffort(emptyList()) {
-                paymentsRepository.paymentsShortlist().getOrDefault(emptyList())
+            bestEffort(null) {
+                paymentsRepository.paymentsShortlist().getOrNull()
             }
         }
         val cachedAirCoins = SessionStore.header.value.airCoins.clean()
@@ -578,16 +597,25 @@ internal object LiveAgentChatContextBuilder {
                 "listed, ask for the tracking number or order ID rather than guessing.",
             profileSection(user, accountContext.airCoins),
         )
-        sections += if (accountContext.packages.isEmpty()) {
-            "## Recent packages\n_No package data was available — ask the customer for a tracking number or package ID._"
-        } else {
-            packagesSection(accountContext.packages)
+        // Three states, and the middle one is the bug this fixes:
+        //   non-empty -> render the records
+        //   emptyList -> loaded fine, customer genuinely has none. Say so; it is
+        //                true, and it lets the model answer "how many packages".
+        //   null      -> the read FAILED. Omit entirely. Never assert absence we
+        //                did not observe — that is what made Nirvana give up and
+        //                fall through to a name-carrying greeting.
+        accountContext.packages?.let { packages ->
+            sections += if (packages.isEmpty()) {
+                "## Recent packages\n_This customer currently has no packages on the account._"
+            } else {
+                packagesSection(packages)
+            }
         }
-        if (accountContext.orders.isNotEmpty()) {
-            sections += ordersSection(accountContext.orders)
+        accountContext.orders?.takeIf { it.isNotEmpty() }?.let {
+            sections += ordersSection(it)
         }
-        if (accountContext.payments.isNotEmpty()) {
-            sections += paymentsSection(accountContext.payments)
+        accountContext.payments?.takeIf { it.isNotEmpty() }?.let {
+            sections += paymentsSection(it)
         }
         sections += """
             ## Guidance for Nirvana
