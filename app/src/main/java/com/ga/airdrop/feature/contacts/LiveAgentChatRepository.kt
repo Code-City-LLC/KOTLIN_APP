@@ -53,6 +53,7 @@ internal data class AutoPilotIdentityUserProfile(
     val email: String?,
     val phone: String?,
     val accountNumber: String?,
+    val profileImageUrl: String? = null,
 )
 
 internal data class AutoPilotAppChatCustomer(
@@ -61,6 +62,7 @@ internal data class AutoPilotAppChatCustomer(
     val name: String,
     val email: String?,
     val phone: String?,
+    val profileImageUrl: String? = null,
     val platform: String = "android",
     val appBundleId: String = BuildConfig.APPLICATION_ID,
 )
@@ -380,6 +382,8 @@ internal class LiveAgentChatRepository(
             name = resolvedName,
             email = identity.userProfile.email.clean() ?: user.email.clean(),
             phone = identity.userProfile.phone.clean() ?: user.phone.clean(),
+            profileImageUrl = identity.userProfile.profileImageUrl.clean()
+                ?: user.profileImageUrl.clean(),
         )
     }
 
@@ -439,6 +443,16 @@ internal class LiveAgentChatRepository(
             phone?.let { put("phone", it) }
             put("platform", platform)
             put("appBundleId", appBundleId)
+            val avatar = profileImageUrl.clean()
+            if (avatar != null) {
+                put(
+                    "properties",
+                    buildJsonObject {
+                        put("profile_image_url", avatar)
+                        put("avatar_url", avatar)
+                    },
+                )
+            }
         }
 
     companion object {
@@ -465,6 +479,12 @@ internal class LiveAgentChatRepository(
                     email = profile.flexString("email"),
                     phone = profile.flexString("phone"),
                     accountNumber = profile.flexString("account_number", "accountNumber"),
+                    profileImageUrl = profile.flexString(
+                        "profile_image_url",
+                        "profileImageUrl",
+                        "avatar_url",
+                        "avatarUrl",
+                    ),
                 ),
             )
         }

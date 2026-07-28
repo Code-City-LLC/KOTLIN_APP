@@ -45,7 +45,8 @@ class LiveAgentChatRepositoryTest {
                   "name": "Chase Camp",
                   "email": "chase@example.com",
                   "phone": "8765550000",
-                  "account_number": "GA-42"
+                  "account_number": "GA-42",
+                  "profile_image_url": "https://example.com/api/v1/user/profile/image?v=avatar.png"
                 }
               }
             }
@@ -58,6 +59,10 @@ class LiveAgentChatRepositoryTest {
         assertEquals("user_42", identity.userId)
         assertEquals("hash_42", identity.identityHash)
         assertEquals("GA-42", identity.userProfile.accountNumber)
+        assertEquals(
+            "https://example.com/api/v1/user/profile/image?v=avatar.png",
+            identity.userProfile.profileImageUrl,
+        )
     }
 
     @Test
