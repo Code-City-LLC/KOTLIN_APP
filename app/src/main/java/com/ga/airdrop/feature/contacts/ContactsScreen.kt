@@ -61,7 +61,7 @@ import kotlinx.coroutines.delay
  * Swift groups Contact/WhatsApp/Email in separate section cards (20pt gaps,
  * 15pt padding) and drops the Business Hours copy affordance, so Android
  * follows Swift for those. Swift's current build (makeLiveChatCard) leads with
- * a Live Chat card routing to the Trengo web chat (LiveAgentChatView), and its
+ * a Live Chat card routing to native Nirvana chat (LiveAgentChatView), and its
  * TikTok social row is app-first (tiktok://…) with a web fallback — both mirrored here.
  */
 @Composable
@@ -109,8 +109,8 @@ fun ContactsScreen(
                 // Swift contentStack.spacing = 20.
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                // Swift makeLiveChatCard — first card, taps into the Trengo
-                // live-agent web chat (LiveAgentChatView).
+                // Swift makeLiveChatCard — first card, taps into Nirvana
+                // Live Chat (AutoPilot app-channel → Hermes).
                 LiveChatCard(onOpen = { onNavigate(Routes.LIVE_CHAT) })
 
                 SectionCard(

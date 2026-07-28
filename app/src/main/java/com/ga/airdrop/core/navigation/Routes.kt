@@ -22,7 +22,7 @@ object Routes {
     const val CONTACTS = "contacts"
     const val MORE = "more"
 
-    // Help drill-down — Swift "LiveAgentChatView" (Trengo web chat)
+    // Help drill-down — Swift "LiveAgentChatView" (Nirvana via AutoPilot)
     const val LIVE_CHAT = "liveChat"
 
     // Home drill-downs

@@ -10,14 +10,11 @@
 
 ## 1. OPEN PROBLEMS
 
-### P0 — 🔐 SECURITY: hardcoded Trengo live-chat widget key in BOTH apps (KEMAR #14792 — remove Trengo → Autopilot/Hermes)
-- **Key:** `window.Trengo.key` = a Trengo **client-side widget** key (redacted `VEoe…`, len 15) — not a REST/server secret, but **hardcoded, shipped-in-binary, and in git history of both repos.** True invalidation = **rotate the widget key in the Trengo dashboard** (source scrub alone won't undo the exposure).
-- **Swift footprint** (all in `Airdrop/FigmaRouteViewController.swift`): key :1051 · `embed.js` :1057 · `loadHTMLString` baseURL airdropja.com :1068 · route case `"LiveAgentChatView"` :808 → VC class :942-1074. The route is **orphaned** in Swift (no in-app callers), but route strings arrive dynamically from push/server → **retarget** the :808 case to the replacement, don't just delete.
-- **Kotlin footprint:** [LiveAgentChatScreen.kt](app/src/main/java/com/ga/airdrop/feature/contacts/LiveAgentChatScreen.kt) (key :47 in `TRENGO_HTML` :40-63, `embed.js` :53, `Trengo.Api.Widget.open` :55, WebView baseURL airdropja.com ~:128, KDoc :34-37) · [Routes.kt](app/src/main/java/com/ga/airdrop/core/navigation/Routes.kt):25-26 · [AppRoot.kt](app/src/main/java/com/ga/airdrop/core/navigation/AppRoot.kt) composable · **branch-only** `RouteResolver.kt:19` + `PushDeepLinkParityTest.kt:39` (added by `c403099`) · docs `HANDOFF.md:40` (key verbatim).
-- **Reachability:** origin/main = **dead** (no resolver, no Contacts card); PR branch = push-deep-link reachable; the **uncommitted working-tree** rework of `ContactsScreen.kt` (:107-129) adds a **tappable Live Chat card** → whoever removes Trengo must reconcile that local rework.
-- **Replacement rail:** `hermes`/`autopilot` = **ZERO hits in both repos** — the Autopilot+Hermes routing does not exist yet. Per Kemar rule #5 **do not guess** the replacement API; get the spec first.
-- **DO NOT remove:** call/email/WhatsApp/location Help-tab actions, and `FigmaIcon_Chat`/`FigmaIcon.chat` notification-category icons — those are NOT Trengo.
-- **My role:** inventory-only (verifier). A senior agent owns key-rotation + the Hermes swap; I verify "no Trengo key remains + support/chat flow intact" once removal lands. (Full 33-ref map: ORC [TRENGO INVENTORY] post.)
+### P0 — ✅ FIXED on `main` (PR #175 / #156); ported to `pre_staging` 2026-07-27 — Trengo → Nirvana AutoPilot
+- **Was:** Kotlin Help Live Chat still booted the dead Trengo WebView on `pre_staging` even after `origin/main` shipped native Nirvana (PR #156 + complete journey PR #175).
+- **Fix (pre_staging branch `fix/nirvana-live-chat-onto-pre-staging`):** surgically brought the **proven `origin/main` chat surface** onto `pre_staging` only — `LiveAgentChat{Screen,ViewModel,Repository}`, consent store teardown, Live Chat assets, unit/androidTest proofs. No parallel rewrite; no other `pre_staging` lanes touched.
+- **Still required ops:** rotate/invalidate the old Trengo widget key in the Trengo dashboard (git history). Confirm AutoPilot tenant accepts `airdrop-android`.
+- **DO NOT remove:** call/email/WhatsApp/location Help-tab actions, and chat notification-category icons — those are NOT Trengo/AutoPilot.
 
 ### P1 — ✅ FIXED & DEVICE-VERIFIED (2026-07-06) — Featured Product Details "Product not found"
 - **Was:** Shop → Feature Products → tap any product → "Product not found" for EVERY featured product. Root cause ([ShopRepoBinding.kt:77](app/src/main/java/com/ga/airdrop/feature/shop/ShopRepoBinding.kt) `productBySlug`): featured slugs 404 on `GET /products/{slug}`; `featured-products?slug=` 200-but-empty (Laravel `/featured-products` has no show route). Chain ended in `error("Product not found")`.
