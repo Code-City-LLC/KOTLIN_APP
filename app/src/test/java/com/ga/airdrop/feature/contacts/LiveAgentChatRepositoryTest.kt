@@ -231,7 +231,8 @@ class LiveAgentChatRepositoryTest {
             )
 
             assertEquals("airdrop-user-42", session.conversationId)
-            assertEquals(1, contextLoads)
+            // Session start + every send refresh account context (no cold cache).
+            assertEquals(2, contextLoads)
             val identityRequest = identityServer.requests.single()
             assertEquals(
                 "https://pre-staging.example/api/v1/autopilot/identity",
@@ -261,10 +262,14 @@ class LiveAgentChatRepositoryTest {
             assertTrue(body.contains("ORD-22"))
             assertTrue(body.contains("Headphones"))
             assertTrue(body.contains("USD 24.00"))
-            assertTrue(body.contains(""""airdrop_context_version":"2""""))
+            assertTrue(body.contains(""""airdrop_context_version":"3""""))
+            assertTrue(body.contains("## Account summary"))
+            assertTrue(body.contains("Packages in this context"))
+            assertTrue(body.contains("Ready for pickup"))
             val messageBody = directServer.requests.last().bodyUtf8()
             assertTrue(messageBody.contains("DROP-12"))
-            assertTrue(messageBody.contains(""""airdrop_context_version":"2""""))
+            assertTrue(messageBody.contains(""""airdrop_context_version":"3""""))
+            assertTrue(messageBody.contains("## Account summary"))
         }
 
     @Test
@@ -277,8 +282,12 @@ class LiveAgentChatRepositoryTest {
 
         assertTrue(context.contains("# AirDrop Customer Context"))
         assertTrue(context.contains("## Profile"))
-        assertTrue(context.contains("No package data was available"))
+        assertTrue(context.contains("## Account summary"))
+        assertTrue(context.contains("Packages in this context**: 0"))
         assertTrue(context.contains("ask for the tracking number or order ID rather than guessing"))
+        // Cold/empty package shortlists must NOT assert "no packages" as fact.
+        assertFalse(context.contains("## Recent packages"))
+        assertFalse(context.contains("No package data was available"))
         assertFalse(context.contains("## Recent orders"))
         assertFalse(context.contains("## Recent payments"))
     }
