@@ -437,15 +437,23 @@ private fun LiveChatInputBar(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !loading && !sending,
                         maxLines = 4,
+                        // ⚠️ The placeholder and the field MUST share a Box.
+                        // They used to be unparented siblings in this lambda, so
+                        // the decoration laid out against the single-line
+                        // placeholder instead of the growing field — a message
+                        // long enough to wrap was clipped instead of moving to a
+                        // second line, even though maxLines = 4 was already set.
                         decorationBox = { inner ->
-                            if (input.isEmpty()) {
-                                Text(
-                                    "Type your question here...",
-                                    style = AirdropType.subtitle2,
-                                    color = colors.textPlaceholder,
-                                )
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (input.isEmpty()) {
+                                    Text(
+                                        "Type your question here...",
+                                        style = AirdropType.subtitle2,
+                                        color = colors.textPlaceholder,
+                                    )
+                                }
+                                inner()
                             }
-                            inner()
                         },
                     )
                 }

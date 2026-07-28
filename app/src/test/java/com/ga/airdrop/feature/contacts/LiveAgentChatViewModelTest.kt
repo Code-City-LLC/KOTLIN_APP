@@ -334,11 +334,67 @@ class LiveAgentChatViewModelTest {
             )
         }
 
+    /**
+     * ⚠️ `messages()` is now called ONE extra time, before any send: the view
+     * model loads the persisted thread when the chat opens, so leaving the app
+     * and returning no longer shows an empty conversation.
+     *
+     * These scenarios all model a BRAND NEW conversation, so that first call
+     * returns empty — which is what the server returns for one. Letting the
+     * shared `onMessages` lambda answer it instead would hand the view model an
+     * assistant reply to a message the test has not sent yet, which cannot
+     * happen in production and would make these tests assert fiction.
+     */
+    /**
+     * THE BUG Kemar reported: "if I get off the app, the chat disappears, and it
+     * disappears when I get back on the app."
+     *
+     * The conversation is persistent server-side — the same conversation id is
+     * returned every time — so the turns were never lost, they were simply never
+     * FETCHED. `repository.messages()` was only ever called from the poll loop,
+     * and polling only starts after you SEND. Reopening the chat therefore
+     * rendered whatever `startSession` happened to carry, which is nothing.
+     */
+    @Test
+    fun `reopening the chat restores the persisted conversation instead of showing it empty`() =
+        runTest(dispatcher) {
+            val source = FakeDataSource(
+                sessionConversationId = "conv-persistent",
+                onSend = { _, _, _ ->
+                    AutoPilotAppChatSendResult(conversationId = "conv-persistent", reply = null, message = null)
+                },
+                onMessages = { emptyList() },
+                // What the server holds from the customer's earlier visit.
+                onHistory = {
+                    listOf(
+                        assistantMessage(id = "past-1", body = "Your package is at the warehouse."),
+                    )
+                },
+            )
+            val viewModel = LiveAgentChatViewModel(
+                repository = source,
+                pollDelay = {},
+            )
+
+            viewModel.start()
+            advanceUntilIdle()
+
+            val bodies = viewModel.state.value.messages.map { it.body }
+            assertEquals(
+                "the earlier conversation must come back when the chat is reopened",
+                listOf("Your package is at the warehouse."),
+                bodies,
+            )
+        }
+
     private class FakeDataSource(
         private val sessionConversationId: String,
         private val onSend: suspend (String, String, AirdropUser) -> AutoPilotAppChatSendResult,
         private val onMessages: suspend (String) -> List<AutoPilotAppChatMessage>,
+        private val onHistory: suspend (String) -> List<AutoPilotAppChatMessage> = { emptyList() },
     ) : LiveAgentChatDataSource {
+
+        private var historyLoaded = false
 
         override suspend fun currentUser() = AirdropUser(
             id = 42,
@@ -362,8 +418,13 @@ class LiveAgentChatViewModelTest {
             user: AirdropUser,
         ) = onSend(conversationId, body, user)
 
-        override suspend fun messages(conversationId: String) =
-            onMessages(conversationId)
+        override suspend fun messages(conversationId: String): List<AutoPilotAppChatMessage> {
+            if (!historyLoaded) {
+                historyLoaded = true
+                return onHistory(conversationId)
+            }
+            return onMessages(conversationId)
+        }
     }
 
     companion object {
