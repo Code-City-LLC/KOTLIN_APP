@@ -71,6 +71,14 @@ internal class LiveAgentChatViewModel(
                 val user = resolveCurrentUser()
                 val session = repository.startSession(user)
                 applySession(user, session)
+                // The conversation is PERSISTENT server-side — the same
+                // conversation id comes back on every session call — so the
+                // customer's earlier turns still exist. They were simply never
+                // fetched: repository.messages() was only ever called from the
+                // poll loop, and polling only starts after you SEND. So leaving
+                // the app and coming back showed an empty thread even though the
+                // history was sitting on the server. Load it explicitly here.
+                loadHistory(session.conversationId)
             }.onFailure { err ->
                 _state.update {
                     it.copy(
@@ -214,6 +222,30 @@ internal class LiveAgentChatViewModel(
                 historyCount = session.messages.count { msg -> msg.body.isNotBlank() },
             )
         }
+    }
+
+    /**
+     * Pull the persisted thread for a conversation the customer already has.
+     *
+     * Best-effort on purpose: a history fetch that fails must NOT surface an
+     * error or wipe what [applySession] already rendered. Chat still opens; the
+     * customer just sees whatever the session returned, which is the behaviour
+     * before this existed.
+     */
+    private suspend fun loadHistory(conversationId: String) {
+        // Only fetch when the session gave us nothing. If startSession already
+        // returned the thread, re-fetching would be a wasted round trip AND
+        // would consume a reply the poll loop is about to look for.
+        if (_state.value.messages.isNotEmpty()) return
+        val remote = runCatching { repository.messages(conversationId) }.getOrNull() ?: return
+        val turns = remote.filter { it.body.isNotBlank() }
+            .map { it.toTurn(_state.value.agentDisplayName) }
+        if (turns.isEmpty()) return
+        remote.forEach(::markDisplayed)
+        // Nothing local can exist yet — this runs during start(), before any
+        // send — so a straight assignment is correct and cannot drop a pending
+        // turn.
+        _state.update { it.copy(messages = turns, historyCount = turns.size) }
     }
 
     private fun startPolling(
