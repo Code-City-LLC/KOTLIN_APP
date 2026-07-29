@@ -1,5 +1,6 @@
 package com.ga.airdrop.data.model
 
+import com.ga.airdrop.data.api.AirdropJson
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -52,7 +53,15 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
             ?: false
 
         val topRoute = obj.flexString("screen", "navigate_to", "route", "screen_name")
-        val dataPayload = obj["data"] as? JsonObject
+        // ⚠️ `data` arrives in TWO shapes and the cast only handled one.
+        //
+        // A plain `as? JsonObject` returns null when the server (or FCM, which
+        // stringifies every data value) sends `data` as a JSON *string* rather
+        // than an object. Null here silently discards the ENTIRE payload — the
+        // route, the package reference, everything — and the notification then
+        // renders with no deep link and no context, looking merely "generic"
+        // rather than broken. Nothing logs, nothing throws.
+        val dataPayload = obj.decodeEmbeddedObject("data")
         val payload = dataPayload?.stringPayload().orEmpty()
         val route = dataPayload?.flexString("screen", "navigate_to", "route") ?: topRoute
         val topReference = obj.flexString(
@@ -96,6 +105,28 @@ object AirdropNotificationSerializer : KSerializer<AirdropNotification> {
     }
 }
 
+/**
+ * Read a nested object that the producer may have sent EITHER as a real JSON
+ * object OR as a JSON string containing one.
+ *
+ * FCM is the reason: its data payload is `Map<String, String>`, so every value
+ * is stringified in transit. The same notification therefore arrives as an
+ * object over the REST inbox and as an escaped string over push. A plain
+ * `as? JsonObject` silently returns null for the second, discarding the route
+ * and every package reference with it — the notification still renders, just
+ * inert, which is why this never surfaced as an error.
+ *
+ * Returns null only when the value is genuinely absent or is neither shape.
+ */
+private fun JsonObject.decodeEmbeddedObject(key: String): JsonObject? {
+    (this[key] as? JsonObject)?.let { return it }
+    val raw = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+    if (raw.isBlank()) return null
+    // Malformed embedded JSON must degrade to "no payload", never crash the
+    // whole notification list.
+    return runCatching { AirdropJson.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+}
+
 private fun JsonObject.stringPayload(): Map<String, String> = buildMap {
     for ((key, value) in this@stringPayload) {
         val primitive = value as? JsonPrimitive ?: continue
@@ -117,10 +148,25 @@ data class MarkNotificationReadRequest(
     @SerialName("notification_id") val notificationId: String,
 )
 
+/**
+ * ⚠️ `appVersion` and `buildNumber` deliberately have NO default value.
+ *
+ * `AirdropJson` does not set `encodeDefaults`, so it defaults to FALSE and any
+ * property carrying a default is OMITTED from the serialized body. Giving these
+ * `= null` would compile, read correctly, and silently never reach the server —
+ * the exact failure this pair exists to prevent. Nullable-but-required forces
+ * every call site to pass something and keeps the key on the wire.
+ *
+ * Why the server needs them: without a version on the token row it cannot tell
+ * which devices are running a stale build, so it cannot target an
+ * "update available" push at the devices that actually need one.
+ */
 @Serializable
 data class RegisterDeviceTokenRequest(
     @SerialName("device_token") val deviceToken: String,
     @SerialName("device_type") val deviceType: String,
+    @SerialName("app_version") val appVersion: String?,
+    @SerialName("build_number") val buildNumber: Int?,
     @SerialName("device_info") val deviceInfo: String? = null,
 )
 

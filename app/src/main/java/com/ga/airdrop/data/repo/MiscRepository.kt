@@ -1,5 +1,6 @@
 package com.ga.airdrop.data.repo
 
+import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.api.AirdropJson
 import com.ga.airdrop.data.model.AirCoinTransaction
@@ -148,6 +149,12 @@ class MiscRepository(private val service: AirdropApiService) {
             body = RegisterDeviceTokenRequest(
                 deviceToken = deviceToken,
                 deviceType = deviceType,
+                // Read from BuildConfig at the call site rather than defaulted on
+                // the DTO: AirdropJson leaves encodeDefaults false, so a default
+                // would be dropped from the body and the server would keep
+                // guessing which devices are on a stale build.
+                appVersion = BuildConfig.VERSION_NAME,
+                buildNumber = BuildConfig.VERSION_CODE,
                 deviceInfo = deviceInfo,
             ),
         )
