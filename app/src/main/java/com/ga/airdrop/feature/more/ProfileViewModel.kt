@@ -153,7 +153,23 @@ class ProfileViewModel(
                         )
                     }
                 }
-            }
+            }.onFailure {
+                    // ⚠️ There was no failure branch at all. A failed
+                    // /user/profile left every field at its "" default with no
+                    // message and no retry, so the screen read as "AirDrop has
+                    // no record of me" rather than "we couldn't load it".
+                    // (Save itself is safe — the required-field guard above
+                    // blocks submitting an unloaded form — so this is a
+                    // silent-failure defect, not a data-loss one.)
+                    sessionBoundary.apply(owner) {
+                        _state.update { s ->
+                            s.copy(
+                                alert = "Couldn't load your profile" to
+                                    "Check your connection and open Profile again.",
+                            )
+                        }
+                    }
+                }
             if (sessionBoundary.isCurrent(owner)) refreshAvatar(owner)
         }
     }

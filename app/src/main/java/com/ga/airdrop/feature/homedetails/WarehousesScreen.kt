@@ -102,6 +102,23 @@ enum class WarehouseType(
         circleIconRes = R.drawable.ic_express_shipping,
     );
 
+    /**
+     * Theme-aware tint for the account/address rows.
+     *
+     * ⚠️ [tint] is a fixed Figma light-theme accent. The Standard purple
+     * (#6C46C5) against the dark surface is the worst case — and it is used for
+     * the "Address Line 2" value, i.e. the mailbox line ("Unit G36 - AIR -
+     * 14823") the customer has to read off this screen and type into a US
+     * merchant's checkout. Rendering it near-invisible in dark theme makes the
+     * screen's whole job impossible. Dark keeps each brand hue but lifts it to
+     * a legible tone; light is unchanged from Figma.
+     */
+    fun accentFor(isDark: Boolean): Color = if (!isDark) tint else when (this) {
+        Standard -> Color(0xFFB9A3F5)
+        SeaDrop -> Color(0xFF6FD0FF)
+        Express -> Color(0xFFFF9A6B)
+    }
+
     companion object {
         fun from(raw: String?): WarehouseType =
             entries.firstOrNull { it.key == raw?.lowercase() } ?: Standard
@@ -243,7 +260,7 @@ fun WarehousesScreen(
                     Text(
                         text = type.bigTitle,
                         style = AirdropType.h5,
-                        color = type.tint,
+                        color = type.accentFor(colors.isDark),
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -364,10 +381,10 @@ private fun TypeTabs(current: WarehouseType, onSelect: (WarehouseType) -> Unit) 
                     .height(40.dp)
                     .testTag("warehouse-tab-${type.key}")
                     .clip(RoundedCornerShape(Radius.xs))
-                    .background(if (active) type.tint.copy(alpha = ACTIVE_TYPE_TAB_FILL_ALPHA) else colors.gray100)
+                    .background(if (active) type.accentFor(colors.isDark).copy(alpha = ACTIVE_TYPE_TAB_FILL_ALPHA) else colors.gray100)
                     .border(
                         1.dp,
-                        if (active) type.tint else colors.iconShape,
+                        if (active) type.accentFor(colors.isDark) else colors.iconShape,
                         RoundedCornerShape(Radius.xs),
                     )
                     .clickable { onSelect(type) },
@@ -376,7 +393,7 @@ private fun TypeTabs(current: WarehouseType, onSelect: (WarehouseType) -> Unit) 
                 Text(
                     text = type.prettyName,
                     style = AirdropType.subtitle2,
-                    color = if (active) type.tint else colors.textDarkTitle,
+                    color = if (active) type.accentFor(colors.isDark) else colors.textDarkTitle,
                 )
             }
         }
@@ -419,7 +436,7 @@ private fun WarehouseHero(type: WarehouseType) {
             Image(
                 painter = painterResource(type.circleIconRes),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(type.tint),
+                colorFilter = ColorFilter.tint(type.accentFor(colors.isDark)),
                 modifier = Modifier
                     .size(28.dp)
                     .testTag("warehouse-hero-badge-icon"),
@@ -463,7 +480,7 @@ private fun InfoCard(
                     Text(
                         text = field.value,
                         style = if (accountRow) AirdropType.title1 else AirdropType.subtitle1,
-                        color = if (accountRow) type.tint else colors.textDarkTitle,
+                        color = if (accountRow) type.accentFor(colors.isDark) else colors.textDarkTitle,
                     )
                 }
                 Box(
