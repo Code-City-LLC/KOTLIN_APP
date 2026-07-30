@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -142,8 +143,11 @@ object CifCopy {
     )
 }
 
+// internal (not private) so CifValueSheetLookTest can render the table on its
+// own — a ModalBottomSheet is awkward to screenshot, and this table is where
+// the layout/theme defects live.
 @Composable
-private fun CifServicesTable(rows: List<CifRow>, exchangeRate: Double) {
+internal fun CifServicesTable(rows: List<CifRow>, exchangeRate: Double) {
     val colors = AirdropTheme.colors
     val shape = RoundedCornerShape(Radius.s)
     Column(
@@ -184,12 +188,28 @@ private fun CifServicesTable(rows: List<CifRow>, exchangeRate: Double) {
             // landed cost the customer's duty is assessed on, so a partial
             // breakdown shows an em-dash instead of a confidently wrong number.
             val total = if (rows.any { it.usd == null }) null else rows.sumOf { it.usd ?: 0.0 }
+            // ⚠️ The Figma Secondary/Blue pair is a LIGHT-theme pairing: a
+            // near-white fill (#E1F6FF) with dark blue text (#0872A1). Used
+            // unconditionally it painted a glaring white band across an
+            // otherwise dark table — Kemar: "the blue on the cif there is not
+            // correct as well on the dark theme." Dark keeps the same
+            // highlight ROLE with the palette's own darker blue as a tint and
+            // the light blue as text, so the Total still reads as the accent
+            // row instead of a light-mode row pasted onto a dark screen.
             CifTableRow(
                 left = "Total",
                 right = formatUsdJmd(total, exchangeRate),
                 height = 32.dp,
-                background = BrandPalette.BlueAccentTertiary4,
-                textColor = BrandPalette.BlueAccentTertiary1,
+                background = if (colors.isDark) {
+                    BrandPalette.BlueAccentTertiary1.copy(alpha = 0.28f)
+                } else {
+                    BrandPalette.BlueAccentTertiary4
+                },
+                textColor = if (colors.isDark) {
+                    BrandPalette.BlueAccentTertiary3
+                } else {
+                    BrandPalette.BlueAccentTertiary1
+                },
                 style = AirdropType.subtitle2,
                 testTag = CifSheetTags.TOTAL,
             )
@@ -220,9 +240,16 @@ private fun CifTableRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .height(height)
+            // ⚠️ Was a FIXED .height(height). Long labels ("Customs
+            // Administrative Fee") and wide totals ("952.41 / 152,985.62") wrap
+            // to a second line, but a fixed 32dp row cannot grow, so the wrapped
+            // line was CLIPPED — Kemar: "the CIF value is fallen off the page."
+            // It gets worse with the app's text-size setting (Largest = 1.18x).
+            // heightIn keeps the designed row rhythm as a MINIMUM and lets a row
+            // grow only when its content genuinely needs the space.
+            .heightIn(min = height)
             .background(background)
-            .padding(horizontal = Spacing.sm)
+            .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {

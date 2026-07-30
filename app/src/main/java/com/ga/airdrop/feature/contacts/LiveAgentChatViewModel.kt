@@ -84,6 +84,26 @@ internal class LiveAgentChatViewModel(
         }
     }
 
+    /**
+     * "End Chat & Start Fresh" (Kemar) — wipe the conversation on this device
+     * and open a new one.
+     *
+     * Everything that identifies the old conversation has to go together: the
+     * poll job (it would keep appending replies from the retired
+     * conversationId), the de-dupe ledger (stale ids would suppress the new
+     * conversation's turns), and the whole UI state including any half-typed
+     * input and sticky error/status banner. Clearing the state alone would
+     * leave a live poller writing into a "fresh" screen.
+     */
+    fun endChatAndStartFresh() {
+        pollJob?.cancel()
+        pollJob = null
+        sessionStarting = false
+        displayedRemoteMessageIds.clear()
+        _state.value = LiveAgentChatUiState()
+        start()
+    }
+
     fun onInputChange(value: String) {
         _state.update { it.copy(input = value) }
     }

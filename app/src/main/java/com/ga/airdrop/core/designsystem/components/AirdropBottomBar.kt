@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +64,26 @@ fun AirdropBottomBar(
             // truth in AirdropChrome; AirdropChromeTest asserts alpha<1 so an
             // opaque revert FAILS THE BUILD. Reverted 3x already — do not repeat.
             .background(AirdropChrome.bottomBarBackground(colors.gray200))
+            // ⚠️ The dock is an OVERLAY (AppRoot draws it in a Box on top of a
+            // full-size NavHost), and only the five tab columns used to accept
+            // touches. Every other pixel of the bar — the divider, the top
+            // padding strip, the 20dp side margins, the navigation-bar inset,
+            // and the dead space under each icon inside the 58dp row — let taps
+            // fall THROUGH to whatever screen content sat behind it, so tapping
+            // "empty" dock space activated a card underneath. Kemar: "the dock
+            // is porous and that's a bad thing."
+            //
+            // Children are hit-tested before this node on the Main pass, so the
+            // tabs keep working and this only swallows what nothing else
+            // claimed. Consuming every change (not just taps) also stops a drag
+            // that starts on the dock from scrolling the page behind it.
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent().changes.forEach { it.consume() }
+                    }
+                }
+            }
     ) {
         Box(
             Modifier
