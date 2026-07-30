@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.homedetails
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -66,6 +67,7 @@ fun AirCoinBalanceScreen(
         state = state,
         onBack = onBack,
         onOpenHistory = onOpenHistory,
+        onRetry = viewModel::load,
     )
 }
 
@@ -74,6 +76,7 @@ internal fun AirCoinBalanceContent(
     state: AirCoinBalanceUiState,
     onBack: () -> Unit,
     onOpenHistory: () -> Unit,
+    onRetry: () -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
 
@@ -120,11 +123,21 @@ internal fun AirCoinBalanceContent(
                 )
                 ConversionRow()
                 Spacer(Modifier.height(20.dp))
-                StatsCard(
-                    accumulated = state.accumulated,
-                    redeemed = state.redeemed,
-                    available = state.available,
-                )
+                // Only claim a balance when the server actually gave us one.
+                // Falling through to the 0.0 getters on a failed read told the
+                // customer they had nothing, which is a lie about their money.
+                if (state.error != null && !state.hasBalance) {
+                    AirCoinLoadFailure(
+                        message = state.error!!,
+                        onRetry = onRetry,
+                    )
+                } else {
+                    StatsCard(
+                        accumulated = state.accumulated,
+                        redeemed = state.redeemed,
+                        available = state.available,
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
                 TipCard()
                 Spacer(Modifier.height(Spacing.md))
@@ -203,6 +216,42 @@ private fun ConversionPill(text: String, testTag: String, modifier: Modifier = M
             text = text,
             style = AirdropType.title2,
             color = colors.textDarkTitle,
+        )
+    }
+}
+
+/**
+ * Shown instead of the stats card when the balance read failed, so the screen
+ * never renders a fabricated zero. Matches the error+retry idiom already used
+ * by Packages/Payments (`onRetry = viewModel::refresh`).
+ */
+@Composable
+private fun AirCoinLoadFailure(message: String, onRetry: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .testTag("aircoin-balance-error")
+            .clip(RoundedCornerShape(Radius.s))
+            .background(colors.gray100)
+            .border(1.dp, airCoinBorderColor(colors), RoundedCornerShape(Radius.s))
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = message,
+            style = AirdropType.body2,
+            color = colors.textDarkTitle,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = "Try Again",
+            style = AirdropType.subtitle2,
+            color = colors.orangeMain,
+            modifier = Modifier
+                .testTag("aircoin-balance-retry")
+                .clickable(onClick = onRetry),
         )
     }
 }

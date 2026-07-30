@@ -242,7 +242,7 @@ fun ProfileScreen(
         )
         "state" -> MoreOptionSheet(
             title = "State/Province/Department",
-            options = viewModel.stateOptions,
+            options = viewModel.stateOptionsFor(state.country),
             selected = state.state,
             onSelect = { v -> viewModel.set { it.copy(state = v) } },
             onDismiss = { pickerFor = null },

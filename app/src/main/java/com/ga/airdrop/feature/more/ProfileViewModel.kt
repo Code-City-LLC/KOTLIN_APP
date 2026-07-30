@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.ga.airdrop.feature.auth.signUpCountries
 
 data class ProfileUiState(
     val firstName: String = "",
@@ -47,6 +48,10 @@ data class ProfileUiState(
  * wired, this was a Swift gap), sparse PUT /user/profile on Save with the
  * snake_case field names the Laravel API expects.
  */
+private val LEGACY_US_STATE_FALLBACK = listOf(
+    "Alabama", "Alaska", "Arizona", "California", "Florida", "New York", "Texas",
+)
+
 class ProfileViewModel(
     private val repository: MoreProfileRepository = MoreRepository(),
     private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
@@ -56,7 +61,32 @@ class ProfileViewModel(
     val idTypeOptions = listOf("National ID", "Drivers License", "Passport")
     val languageOptions = listOf("English", "Español")
     val countryOptions = listOf("United States", "Jamaica", "Canada", "United Kingdom", "Mexico")
-    val stateOptions = listOf("Alabama", "Alaska", "Arizona", "California", "Florida", "New York", "Texas")
+
+    /**
+     * State/Province/Department options for the SELECTED country.
+     *
+     * ⚠️ This was a flat `listOf("Alabama", "Alaska", "Arizona", "California",
+     * "Florida", "New York", "Texas")` — seven US states, offered regardless of
+     * country. In the app's HOME market that meant a Jamaican customer opened
+     * the required State/Province row and could not pick their parish at all;
+     * there was no "Other" escape hatch on this screen either.
+     *
+     * Sign Up already solved this: [signUpCountries] is the canonical catalog
+     * and carries all 14 Jamaican parishes plus the full US/Canada/UK
+     * subdivisions. Profile now reads the same source instead of its own stale
+     * copy, so the two screens can no longer disagree. Laravel stores this as
+     * free text ('state' => nullable|string|max:100 — no `in:` constraint), so
+     * the wider list cannot 422.
+     *
+     * The legacy list survives only as a fallback for a country the catalog
+     * does not cover (Mexico is offered above but absent from the catalog), so
+     * no country can end up with an empty, dead picker.
+     */
+    fun stateOptionsFor(country: String): List<String> =
+        signUpCountries.firstOrNull { it.name.equals(country.trim(), ignoreCase = true) }
+            ?.states
+            ?.takeIf { it.isNotEmpty() }
+            ?: LEGACY_US_STATE_FALLBACK
 
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state

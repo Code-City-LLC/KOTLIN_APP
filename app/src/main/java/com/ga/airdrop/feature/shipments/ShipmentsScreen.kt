@@ -253,12 +253,22 @@ fun ShipmentsScreen(
             modifier = Modifier.align(Alignment.TopCenter),
         )
 
-        if (quickTrack.visible) {
+        // The scanner is a PLAIN composable while QuickTrackSheet is a
+        // ModalBottomSheet — a dialog in its own window, which therefore draws
+        // ON TOP of it. Leaving the sheet up meant tapping "Scan" composed a
+        // live camera preview completely hidden behind the sheet: the button
+        // read as dead. Close the sheet first so the scanner is actually
+        // visible; the scan result routes straight to package details, and a
+        // cancelled scan drops the user back to Shipments.
+        if (quickTrack.visible && !scannerVisible) {
             QuickTrackSheet(
                 state = quickTrack,
                 onCodeChange = viewModel::updateQuickTrackCode,
                 onDismiss = viewModel::dismissQuickTrack,
-                onScan = { scannerVisible = true },
+                onScan = {
+                    viewModel.dismissQuickTrack()
+                    scannerVisible = true
+                },
                 onTrack = {
                     viewModel.submitQuickTrack { packageId ->
                         onNavigate(Routes.packageDetails(packageId.toString()))
