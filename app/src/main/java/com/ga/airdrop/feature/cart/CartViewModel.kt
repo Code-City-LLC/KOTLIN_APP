@@ -957,9 +957,18 @@ class CartViewModel(
 
     // JM|US only, else null → the caller REJECTS (no silent coerce-to-US; Laravel
     // ruling 2026-07-21, so a non-JM/US billing country is never sent as "US").
+    //
+    // ⚠️ ABSENT ≠ WRONG. The form prefills `user.country.orEmpty()`, so a profile
+    // with no country arrives here BLANK — and rejecting blank locked those
+    // customers out of the JMD rail entirely. A blank country is not a
+    // mis-declared country: on a Jamaican JMD rail "JM" is the honest default,
+    // and it is what Swift/React do (Swift APIModels.swift:317 falls through
+    // `default: return "JM"`). A KNOWN different country (Canada, UK, …) is
+    // still rejected, which is what the 2026-07-21 ruling actually forbade.
     private fun ncbCountryCode(country: String): String? {
         val c = country.trim()
         return when {
+            c.isEmpty() -> "JM"
             c.equals("Jamaica", ignoreCase = true) || c.equals("JM", ignoreCase = true) -> "JM"
             c.equals("United States", ignoreCase = true) || c.equals("US", ignoreCase = true) -> "US"
             else -> null
@@ -1210,6 +1219,14 @@ internal fun validatedHostedCheckoutUrl(raw: String?): String? {
     val trimmed = raw?.trim()?.takeIf(String::isNotEmpty) ?: return null
     val uri = runCatching { URI(trimmed) }.getOrNull() ?: return null
     if (!uri.scheme.equals("https", ignoreCase = true) || uri.host.isNullOrBlank()) return null
-    if (uri.userInfo != null || uri.fragment != null) return null
+    // Reject only embedded credentials (userInfo) — the real security concern.
+    // Stripe Checkout Session URLs legitimately carry a #fragment
+    // (https://checkout.stripe.com/c/pay/cs_...#fid...), so rejecting fragments
+    // threw away EVERY real USD checkout URL and surfaced as "Stripe started
+    // checkout but did not return a secure URL". Worse, the pending-checkout
+    // latch was already persisted by then, so that one tap also deadlocked the
+    // NCB rail (see CheckoutFlowStore.expireStalePending). Restored from
+    // 5666f9c, which was device-reproduced on pre_staging and never reached main.
+    if (uri.userInfo != null) return null
     return uri.toASCIIString()
 }
