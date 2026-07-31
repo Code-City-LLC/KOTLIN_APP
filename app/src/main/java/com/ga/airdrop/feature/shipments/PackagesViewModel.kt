@@ -40,6 +40,17 @@ data class PackagesUiState(
     /** §B.4 user-selected sort, persisted via [PackagesSortStore]. */
     val sort: PackagesSort = PackagesSort.NEWEST_FIRST,
     val error: String? = null,
+    /**
+     * Cart-mutation failure, deliberately SEPARATE from [error].
+     *
+     * [error] means "we could not read your packages", and the screen only
+     * renders it when the list is empty — correct, so a failed next page never
+     * blanks rows the customer is already reading. Cart failures were being
+     * written into that same field, so "couldn't add to cart" was silently
+     * discarded in the one situation it can actually happen: a populated list.
+     * A different kind of failure needs a different channel, not a shared one.
+     */
+    val cartErrorMessage: String? = null,
 ) {
     /** Rows after client-side search + shipment-type filters, then the §B.4
      *  sort (Swift reapplySearchFilter → applySortedOrder). */
@@ -149,9 +160,15 @@ class PackagesViewModel(
         cartMutations.toggle(
             line = pkg.toCartLine(),
             scope = viewModelScope,
-            onFailure = { message -> _state.update { it.copy(error = message) } },
+            // NOT `error` — see PackagesUiState.cartErrorMessage. Writing here
+            // put the message in a field the screen only shows on an EMPTY
+            // list, so the tap silently did nothing and the customer went to
+            // checkout believing the package was in their cart.
+            onFailure = { message -> _state.update { it.copy(cartErrorMessage = message) } },
         )
     }
+
+    fun consumeCartError() = _state.update { it.copy(cartErrorMessage = null) }
 
     private fun load(reset: Boolean) {
         if (reset) {

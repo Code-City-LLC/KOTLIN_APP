@@ -175,6 +175,20 @@ fun PackagesScreen(
                 onDismiss = viewModel::closeSortSheet,
             )
         }
+
+        // Cart failures get their own surface, mirroring Package Details. The
+        // load-error branch above is gated on an EMPTY list, so routing cart
+        // failures through it meant the customer's tap did nothing, said
+        // nothing, and left them believing the package was in their cart.
+        state.cartErrorMessage?.let { message ->
+            ShipmentsAlertDialog(
+                title = "Cart update failed",
+                message = message,
+                confirmText = "OK",
+                onConfirm = viewModel::consumeCartError,
+                onDismiss = viewModel::consumeCartError,
+            )
+        }
     }
 }
 
