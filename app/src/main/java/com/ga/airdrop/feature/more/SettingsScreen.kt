@@ -78,6 +78,7 @@ fun SettingsScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showTextSizePicker by remember { mutableStateOf(false) }
+    var showModePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.loggedOut) {
         if (state.loggedOut) onLoggedOut()
@@ -164,17 +165,22 @@ fun SettingsScreen(
                     iconRes = R.drawable.ic_color_theme,
                     title = "Mode",
                     tint = null, // duotone icon — keep its orange+white accents (Figma)
-                    // Swift flips the theme when the whole row is tapped.
-                    onClick = {
-                        com.ga.airdrop.core.designsystem.theme.ThemeController.set(
-                            if (colors.isDark) {
-                                com.ga.airdrop.core.designsystem.theme.ThemeController.Mode.LIGHT
-                            } else {
-                                com.ga.airdrop.core.designsystem.theme.ThemeController.Mode.DARK
-                            }
+                    // ⚠️ Opens a THREE-option picker, it does not flip. Tapping
+                    // used to set LIGHT or DARK from colors.isDark, which pinned
+                    // the customer to an explicit mode with no way back to
+                    // SYSTEM — the default, and the only value that follows the
+                    // phone. Swift fixed the same bug the same way: a picker of
+                    // Light / Dark / System (FigmaSpecificPages.openModeMenu),
+                    // keeping its binary switch only as legacy.
+                    onClick = { showModePicker = true },
+                    trailing = {
+                        Text(
+                            text = com.ga.airdrop.core.designsystem.theme.ThemeController.mode.displayName,
+                            style = AirdropType.body2,
+                            color = colors.gray500,
+                            modifier = Modifier.testTag(SettingsTags.MODE_TOGGLE),
                         )
                     },
-                    trailing = { ThemeToggle(Modifier.testTag(SettingsTags.MODE_TOGGLE)) },
                     testTagPrefix = SettingsTags.MODE,
                 )
                 // Swift uses stack.spacing = 14 and setCustomSpacing(36)
@@ -232,6 +238,21 @@ fun SettingsScreen(
                 showTextSizePicker = false
             },
             onDismiss = { showTextSizePicker = false },
+        )
+    }
+
+    if (showModePicker) {
+        MoreOptionSheet(
+            // Swift titles this picker "Display".
+            title = "Display",
+            options = com.ga.airdrop.core.designsystem.theme.ThemeController.Mode.entries.map { it.displayName },
+            selected = com.ga.airdrop.core.designsystem.theme.ThemeController.mode.displayName,
+            onSelect = { picked ->
+                com.ga.airdrop.core.designsystem.theme.ThemeController.Mode.fromDisplayName(picked)
+                    ?.let(com.ga.airdrop.core.designsystem.theme.ThemeController::set)
+                showModePicker = false
+            },
+            onDismiss = { showModePicker = false },
         )
     }
 }

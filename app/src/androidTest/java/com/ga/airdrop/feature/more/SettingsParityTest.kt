@@ -98,11 +98,19 @@ class SettingsParityTest {
         compose.onNodeWithTag("${SettingsTags.ACCOUNT_DELETION}-row", useUnmergedTree = true).performClick()
         compose.runOnIdle { assertEquals(Routes.ACCOUNT_DELETION, navigatedRoutes.lastOrNull()) }
 
+        // ⚠️ This used to assert the binary flip: row tap → DARK, toggle tap →
+        // LIGHT. That behaviour is superseded, not broken. A two-state control
+        // over a three-value enum meant the customer could never get back to
+        // SYSTEM — the default, and the only value that follows the phone.
+        // Swift removed the same switch for the same reason ("gave the user no
+        // way to say 'match iOS settings'") and now shows a Light/Dark/System
+        // picker. The row opens that picker here too.
         compose.onNodeWithTag("${SettingsTags.MODE}-row", useUnmergedTree = true).performClick()
-        compose.runOnIdle { assertEquals(ThemeController.Mode.DARK, ThemeController.mode) }
+        compose.onNodeWithText("Display").assertIsDisplayed()
 
-        compose.onNodeWithTag(SettingsTags.MODE_TOGGLE, useUnmergedTree = true).performClick()
-        compose.runOnIdle { assertEquals(ThemeController.Mode.LIGHT, ThemeController.mode) }
+        // The state that was previously unreachable from the UI at all.
+        compose.onNodeWithText("System").performClick()
+        compose.runOnIdle { assertEquals(ThemeController.Mode.SYSTEM, ThemeController.mode) }
 
         compose.runOnIdle { assertEquals(0, loggedOut) }
     }
