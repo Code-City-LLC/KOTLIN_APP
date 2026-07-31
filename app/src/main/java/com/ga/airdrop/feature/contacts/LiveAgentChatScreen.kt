@@ -151,10 +151,13 @@ internal fun LiveAgentChatContent(
     // followed replies. Re-pin on every new turn AND when the keyboard opens,
     // because the IME shrinks the viewport out from under the last bubble.
     val listState = rememberLazyListState()
-    // Keyed on the raw IME inset (non-experimental) rather than isImeVisible so
-    // the re-pin also fires as the keyboard finishes animating in.
-    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
-    LaunchedEffect(state.messages.size, imeBottom) {
+    // Keyed on whether the keyboard is OPEN, not on the raw inset: the inset
+    // changes every frame of the show/hide animation, and keying on it would
+    // cancel and restart animateScrollToItem on each of those frames — janky,
+    // and it fights a manual scroll mid-animation. The boolean flips once per
+    // transition, so the re-pin runs exactly once.
+    val imeOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    LaunchedEffect(state.messages.size, imeOpen) {
         val lastIndex = state.messages.lastIndex
         if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
     }
@@ -171,6 +174,11 @@ internal fun LiveAgentChatContent(
             LiveChatEmptyState(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
+                    // The empty branch renders INSTEAD of the LazyColumn, so it
+                    // does not inherit that list's imePadding. Without this the
+                    // risen composer clips the greeting on a brand-new chat —
+                    // exactly when the customer is typing their first message.
+                    .imePadding()
                     .padding(top = 186.dp, start = 20.dp, end = 20.dp),
             )
         } else {

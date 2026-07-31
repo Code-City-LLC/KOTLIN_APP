@@ -60,6 +60,9 @@ internal class LiveAgentChatViewModel(
     private val displayedRemoteMessageIds = linkedSetOf<String>()
     private var sessionStarting = false
     private var pollJob: Job? = null
+    // Tracked so endChatAndStartFresh() can cancel an in-flight send; otherwise
+    // the retired conversationId is written back over the fresh conversation.
+    private var sendJob: Job? = null
 
     fun start() {
         val snapshot = _state.value
@@ -98,6 +101,11 @@ internal class LiveAgentChatViewModel(
     fun endChatAndStartFresh() {
         pollJob?.cancel()
         pollJob = null
+        // An in-flight send must die too: deliver() writes the canonical
+        // conversationId back into state when it returns, which would resurrect
+        // the conversation the customer just retired.
+        sendJob?.cancel()
+        sendJob = null
         sessionStarting = false
         displayedRemoteMessageIds.clear()
         _state.value = LiveAgentChatUiState()
@@ -137,7 +145,8 @@ internal class LiveAgentChatViewModel(
         pollJob?.cancel()
         pollJob = null
         _state.update { it.copy(sending = true, error = null, status = null) }
-        viewModelScope.launch {
+        sendJob?.cancel()
+        sendJob = viewModelScope.launch {
             var inlineAssistantMessageId: String? = null
             var inlineAssistantFingerprint: String? = null
             val canonicalConversationId = try {

@@ -204,12 +204,15 @@ internal class LiveAgentChatRepository(
     private val json: Json = ApiClient.json,
     private val apiBaseUrl: String = BuildConfig.API_BASE_URL,
     private val now: () -> String = { DateTimeFormatter.ISO_INSTANT.format(Instant.now()) },
+    private val clockMs: () -> Long = { System.currentTimeMillis() },
     private val accountContextSource: LiveAgentChatAccountContextSource =
         DefaultLiveAgentChatAccountContextSource(),
 ) : LiveAgentChatDataSource {
     private var cachedIdentity: AutoPilotIdentity? = null
     @Volatile
     private var cachedAccountContext: LiveAgentChatAccountContext? = null
+    @Volatile
+    private var cachedAccountContextAtMs: Long = 0L
 
     override suspend fun currentUser(): AirdropUser =
         userRepository.currentUser().getOrThrow()
@@ -404,16 +407,45 @@ internal class LiveAgentChatRepository(
         )
     }
 
+    /**
+     * Account shortlist behind Nirvana's answers, cached with a TTL.
+     *
+     * ⚠️ Two earlier passes fought over this line and the loser was the
+     * customer. SwiftHawk 81610 set `refresh = true` on every send so Nirvana
+     * could not answer from a stale shortlist after the user checked Shipments
+     * mid-chat. 09da9aa8 then made every send `refresh = false` because four
+     * cold API calls added ~5s before generation started — its message claimed
+     * a "90s-ish session cache", but no TTL was ever written: the shortlist was
+     * pinned for the whole repository lifetime, so a long conversation answered
+     * from data fetched at "hello" forever. That silently reverted 81610.
+     *
+     * The TTL is the fix both passes were actually reaching for: a rapid
+     * back-and-forth reuses the shortlist (SwiftHawk's latency complaint), and
+     * anything past [ACCOUNT_CONTEXT_TTL_MS] refetches (81610's staleness
+     * complaint). `refresh = true` at session start is unchanged.
+     */
     private suspend fun accountContext(refresh: Boolean): LiveAgentChatAccountContext {
-        if (!refresh) cachedAccountContext?.let { return it }
+        if (!refresh) {
+            cachedAccountContext?.let { cached ->
+                if (clockMs() - cachedAccountContextAtMs < ACCOUNT_CONTEXT_TTL_MS) return cached
+            }
+        }
         val loaded = try {
             accountContextSource.load()
         } catch (err: CancellationException) {
             throw err
         } catch (_: Throwable) {
-            LiveAgentChatAccountContext()
+            // ⚠️ Do NOT cache a failed load (FuchsiaTower AUDIT #144: "catch
+            // caches all-null"). The empty context is a placeholder for "we
+            // could not find out", not an answer — and caching it taught
+            // Nirvana to state, confidently and repeatedly, that the customer
+            // has no packages/orders/AirCoins. One slow open used to poison
+            // the whole conversation. Leaving the cache untouched means the
+            // next turn simply tries again.
+            return LiveAgentChatAccountContext()
         }
         cachedAccountContext = loaded
+        cachedAccountContextAtMs = clockMs()
         return loaded
     }
 
@@ -473,6 +505,15 @@ internal class LiveAgentChatRepository(
         }
 
     companion object {
+        /**
+         * How long a loaded account shortlist may back Nirvana's answers before
+         * it is refetched. 90s is the window 09da9aa8 described but never
+         * implemented: long enough that a normal back-and-forth costs one load,
+         * short enough that a customer who checks Shipments mid-chat and comes
+         * back is answered from current data (SwiftHawk 81610).
+         */
+        internal const val ACCOUNT_CONTEXT_TTL_MS: Long = 90_000L
+
         fun userFacingStatus(error: Throwable): String =
             when (error) {
                 is LiveAgentChatException -> error.userMessage

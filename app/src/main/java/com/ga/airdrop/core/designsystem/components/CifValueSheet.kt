@@ -192,21 +192,30 @@ internal fun CifServicesTable(rows: List<CifRow>, exchangeRate: Double) {
             // near-white fill (#E1F6FF) with dark blue text (#0872A1). Used
             // unconditionally it painted a glaring white band across an
             // otherwise dark table — Kemar: "the blue on the cif there is not
-            // correct as well on the dark theme." Dark keeps the same
-            // highlight ROLE with the palette's own darker blue as a tint and
-            // the light blue as text, so the Total still reads as the accent
-            // row instead of a light-mode row pasted onto a dark screen.
+            // correct as well on the dark theme."
+            //
+            // Swift settles what dark should be, and it is NOT a re-tinted
+            // blue. FigmaCIFValueBottomSheetViewController.makeRow(isTotal:)
+            // resolves both the fill and the text per userInterfaceStyle and
+            // drops the accent entirely on dark:
+            //     text: .dark ? textDarkTitle : #0A96D4
+            //     fill: .dark ? gray150       : #D8F8FF
+            // So on dark the Total is simply the table's own emphasis surface —
+            // the same gray150/textDarkTitle pairing the "Services" header row
+            // above already uses — and the blue is a light-mode-only treatment.
+            // An earlier pass here invented a 28%-alpha tint instead; it had no
+            // design source and is exactly the kind of value that drifts.
             CifTableRow(
                 left = "Total",
                 right = formatUsdJmd(total, exchangeRate),
                 height = 32.dp,
                 background = if (colors.isDark) {
-                    BrandPalette.BlueAccentTertiary1.copy(alpha = 0.28f)
+                    colors.gray150
                 } else {
                     BrandPalette.BlueAccentTertiary4
                 },
                 textColor = if (colors.isDark) {
-                    BrandPalette.BlueAccentTertiary3
+                    colors.textDarkTitle
                 } else {
                     BrandPalette.BlueAccentTertiary1
                 },
@@ -249,7 +258,12 @@ private fun CifTableRow(
             // grow only when its content genuinely needs the space.
             .heightIn(min = height)
             .background(background)
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+            // Horizontal padding only — deliberately NOT vertical. heightIn on
+            // its own already lets a wrapped row grow; adding vertical padding
+            // also pushed every NORMAL row taller (measured +19px across the
+            // table), which would have shifted the designed 32dp/44dp rhythm
+            // for no benefit. Fix the clipping, change nothing else.
+            .padding(horizontal = Spacing.sm)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {

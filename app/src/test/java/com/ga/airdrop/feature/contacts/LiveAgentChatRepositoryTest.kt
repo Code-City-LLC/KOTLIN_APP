@@ -217,11 +217,13 @@ class LiveAgentChatRepositoryTest {
                 .addInterceptor(AuthInterceptor())
                 .addInterceptor(identityServer)
                 .build()
+            var clock = 1_000_000L
             val repository = LiveAgentChatRepository(
                 airdropClient = airdropClient,
                 directClient = OkHttpClient.Builder().addInterceptor(directServer).build(),
                 apiBaseUrl = "https://pre-staging.example/api/v1/",
                 now = { "2026-07-26T12:00:00Z" },
+                clockMs = { clock },
                 accountContextSource = LiveAgentChatAccountContextSource {
                     contextLoads += 1
                     accountContext
@@ -236,8 +238,12 @@ class LiveAgentChatRepositoryTest {
             )
 
             assertEquals("airdrop-user-42", session.conversationId)
-            // Session start + every send refresh account context (no cold cache).
-            assertEquals(2, contextLoads)
+            // Session start loads the shortlist; a send in the same breath reuses
+            // it. This assertion used to demand 2 (a refetch per send, SwiftHawk
+            // 81610) and 09da9aa8 dropped to a never-expiring cache without
+            // updating it — the red test was the only trace of that revert. The
+            // TTL keeps both: reuse now, refetch once stale (asserted below).
+            assertEquals(1, contextLoads)
             val identityRequest = identityServer.requests.single()
             assertEquals(
                 "https://pre-staging.example/api/v1/autopilot/identity",
@@ -275,6 +281,144 @@ class LiveAgentChatRepositoryTest {
             assertTrue(messageBody.contains("DROP-12"))
             assertTrue(messageBody.contains(""""airdrop_context_version":"3""""))
             assertTrue(messageBody.contains("## Account summary"))
+        }
+
+    /**
+     * The other half of the shortlist TTL.
+     *
+     * Nirvana answering "you have no packages ready" from data fetched at the
+     * top of the conversation is the exact failure SwiftHawk 81610 fixed, and
+     * 09da9aa8 reintroduced by caching with no expiry. Reuse inside the window
+     * is the performance win; refetching past it is the correctness floor, so
+     * both are pinned here — a cache that never expires passes the first
+     * assertion and fails the second.
+     */
+    @Test
+    fun `account shortlist is reused inside the TTL and refetched once it lapses`() =
+        runBlocking {
+            AuthTokenStore.save("sanctum-test")
+            var contextLoads = 0
+            var clock = 1_000_000L
+
+            val identityServer = RecordingJsonInterceptor(
+                """
+                {
+                  "data": {
+                    "endpoint": "https://api.autopilotcrm.ai",
+                    "publishable_key": "pub_test",
+                    "user_id": "airdrop-user-42",
+                    "identity_hash": "hash_42",
+                    "user_profile": {"account_number": "GA-42"}
+                  }
+                }
+                """.trimIndent(),
+            )
+            val directServer = RecordingJsonInterceptor(
+                """{"conversation_id":"airdrop-user-42","assigned_agent_name":"Nirvana","messages":[]}""",
+                """{"conversation_id":"c1"}""",
+                """{"conversation_id":"c2"}""",
+            )
+            val repository = LiveAgentChatRepository(
+                airdropClient = OkHttpClient.Builder()
+                    .addInterceptor(AuthInterceptor())
+                    .addInterceptor(identityServer)
+                    .build(),
+                directClient = OkHttpClient.Builder().addInterceptor(directServer).build(),
+                apiBaseUrl = "https://pre-staging.example/api/v1/",
+                now = { "2026-07-26T12:00:00Z" },
+                clockMs = { clock },
+                accountContextSource = LiveAgentChatAccountContextSource {
+                    contextLoads += 1
+                    LiveAgentChatAccountContext(airCoins = "425")
+                },
+            )
+
+            val session = repository.startSession(testUser())
+            assertEquals(1, contextLoads)
+
+            // Still inside the window: the customer is mid back-and-forth and
+            // must not pay four cold API calls for it.
+            clock += LiveAgentChatRepository.ACCOUNT_CONTEXT_TTL_MS - 1
+            repository.sendMessage(
+                conversationId = session.conversationId,
+                body = "Where is DROP-12?",
+                user = testUser(),
+            )
+            assertEquals("reuse inside the TTL", 1, contextLoads)
+
+            // Past the window: they may well have opened Shipments since, so the
+            // next answer has to be built on freshly loaded data.
+            clock += 2
+            repository.sendMessage(
+                conversationId = session.conversationId,
+                body = "And DROP-13?",
+                user = testUser(),
+            )
+            assertEquals("refetch once the TTL lapses", 2, contextLoads)
+        }
+
+    /**
+     * A failed shortlist load must not be cached (FuchsiaTower AUDIT #144).
+     *
+     * The empty context means "we could not find out", not "the customer has
+     * nothing". Caching it made Nirvana assert, for the rest of the
+     * conversation, that there were no packages, orders or AirCoins — the
+     * lying-about-data class of bug. The retry has to happen even though the
+     * next send is well inside the TTL.
+     */
+    @Test
+    fun `a failed account context load is not cached and the next turn retries`() =
+        runBlocking {
+            AuthTokenStore.save("sanctum-test")
+            var contextLoads = 0
+            val clock = 1_000_000L
+
+            val identityServer = RecordingJsonInterceptor(
+                """
+                {
+                  "data": {
+                    "endpoint": "https://api.autopilotcrm.ai",
+                    "publishable_key": "pub_test",
+                    "user_id": "airdrop-user-42",
+                    "identity_hash": "hash_42",
+                    "user_profile": {"account_number": "GA-42"}
+                  }
+                }
+                """.trimIndent(),
+            )
+            val directServer = RecordingJsonInterceptor(
+                """{"conversation_id":"airdrop-user-42","assigned_agent_name":"Nirvana","messages":[]}""",
+                """{"conversation_id":"c1"}""",
+            )
+            val repository = LiveAgentChatRepository(
+                airdropClient = OkHttpClient.Builder()
+                    .addInterceptor(AuthInterceptor())
+                    .addInterceptor(identityServer)
+                    .build(),
+                directClient = OkHttpClient.Builder().addInterceptor(directServer).build(),
+                apiBaseUrl = "https://pre-staging.example/api/v1/",
+                now = { "2026-07-26T12:00:00Z" },
+                clockMs = { clock },
+                accountContextSource = LiveAgentChatAccountContextSource {
+                    contextLoads += 1
+                    // First load times out the way a cold open does; the retry works.
+                    if (contextLoads == 1) throw IllegalStateException("shortlist timeout")
+                    LiveAgentChatAccountContext(airCoins = "425")
+                },
+            )
+
+            val session = repository.startSession(testUser())
+            assertEquals(1, contextLoads)
+
+            // Same instant — comfortably inside the TTL — so only the dropped
+            // failure cache can cause a second load.
+            repository.sendMessage(
+                conversationId = session.conversationId,
+                body = "How many AirCoins do I have?",
+                user = testUser(),
+            )
+            assertEquals("failure must not be cached", 2, contextLoads)
+            assertTrue(directServer.requests.last().bodyUtf8().contains("425"))
         }
 
     @Test

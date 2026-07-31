@@ -265,10 +265,13 @@ fun ShipmentsScreen(
                 state = quickTrack,
                 onCodeChange = viewModel::updateQuickTrackCode,
                 onDismiss = viewModel::dismissQuickTrack,
-                onScan = {
-                    viewModel.dismissQuickTrack()
-                    scannerVisible = true
-                },
+                // Only HIDE the sheet (via the !scannerVisible guard above) —
+                // do NOT dismiss the quick-track state. Dismissing tore down
+                // the sheet for good, so closing the scanner dropped the user
+                // back to Shipments and lost the code they had typed; the
+                // intended flow is scanner → close → sheet again, which
+                // ShipmentsHubTapRailsParityTest pins.
+                onScan = { scannerVisible = true },
                 onTrack = {
                     viewModel.submitQuickTrack { packageId ->
                         onNavigate(Routes.packageDetails(packageId.toString()))

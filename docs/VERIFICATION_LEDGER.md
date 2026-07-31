@@ -1,6 +1,11 @@
 # KOTLIN_APP Verification Ledger — Problems, Cautions & Lessons
 
-**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-06 (rev 11 — §1c Swift→Kotlin feature-parity audit added (#15525, lead-dev-confirmed): 2 HIGH mainline-missing (Delivery Method, Payment Success) → Kemar checkout-HOLD queue; P1-P4/P6 all closed)
+**Maintainer:** BlueDeer (Swift/Figma/device verification lane, ORC fleet) · **Updated:** 2026-07-28 (rev 16 — FuchsiaTower [AUDIT #148]: git `origin/main` @ `38d60d30`. Area: Promotions. **NEW C1 / P51:** error UI has no Retry (`PromotionsScreen.kt:82-95`); `load()` init-only (`PromotionsViewModel.kt:39-43`). Swift now has Retry (`FigmaPromotionsViewController.swift:167-174,:212-214`) — prior #143 "SHARED no-retry" is stale; Kotlin lag. Low–Medium. Room via `orc_say.sh`.)
+**Prev (rev 15 — FuchsiaTower [AUDIT #147]: git `origin/main` @ `38d60d30`. Area: ShippingRates. **RESOLVED P34-C1/C2:** In&Out server-driven (`Shipping.kt:144-151`; screen `:235-265`); silent fallback → error+Retry (`ViewModel.kt:40-47`; screen `:79-85`). **NEW C1 / P50:** invents fuel `?: 1.5` + customs `?: 100.0` (`ShippingRatesScreen.kt:117,:138`) vs Swift `"Unavailable"` (`FigmaShippingRatesViewController.swift:246,:261-262`); title still `"Calculate your Shipping Estimate"` vs `"Rate Notes"`. Low–Medium. Room via `orc_say.sh`.)
+**Prev (rev 14 — FuchsiaTower [AUDIT #146]: git `origin/main` @ `38d60d30`. Area: Delivery Method / Payment Success checkout rail. **RESOLVED §1c HIGH presence:** Delivery Method + Payment Success screens/routes wired on main (Cart→`DELIVERY_METHOD`, Stripe/NCB→`PAYMENT_SUCCESS`). **NEW C1 / P49:** Stripe return reads `CheckoutFlowStore.currentFulfillment()` in `AppRoot` `onPaid` **after** `consumePaid` nulls `flow` (`PaymentReturnViewModel.kt:94-97,:116-124`; `CheckoutFlowStore.kt:287-292,:501-506`) → delivery buyers get pickup copy. `PendingHostedCheckout` lacks `deliveryMode`. NCB path OK (`ShopNav.kt:264`). Medium. Room via `orc_say.sh`.)
+**Prev (rev 13 — FuchsiaTower [AUDIT #145]: git `origin/main` @ `38d60d30`. Area: SessionCleaner / logout hygiene + AirCoin identity-guard branch. **0 NEW.** **RESOLVED — SessionCleaner cluster (#66-era):** canonical `LocalSessionTeardown.clearLocalUserSession` (`:46-73`) + `AfterCustomerLogout` (`:90-93`) wired from Settings/Biometric/AccountDeletion/AuthNav/ForcedSignOutSweep; includes `ExchangeRateStore.clear()` `:65` (makes `clear-exchange-rate-on-logout` branch purpose obsolete). BackgroundStore deletion-only wipe = SHARED Swift. **STATUS:** `codex/aircoin-identity-guard` obsolete — main has no Redeem CTA (`assertAbsent`). P48 still open. Room via `orc_say.sh`.)
+**Prev (rev 12 — FuchsiaTower [AUDIT #144]: git `origin/main` @ `38d60d30` (#207 nirvana). Area: LiveAgentChat sticky failed account-context residual. **NEW C1:** `sendMessage` uses `accountContext(refresh=false)` (`LiveAgentChatRepository.kt:266`); cache sticky `:403-404`; 5s timeout → null `:176-178,:186`; catch caches all-null `:409-412` — cold/slow open freezes omitted sections into every later `airdrop_context` (Medium; Swift warms+rebuilds per send). **RESOLVED P6:** Notifications list restored on main (`NotificationsScreen.kt:197-206` LazyColumn; empty only `:128-129`) — §1 P6 text below is stale. Room posted via `orc_say.sh` as FuchsiaTower.)
+**Prev (rev 11 — §1c Swift→Kotlin feature-parity audit added (#15525, lead-dev-confirmed): 2 HIGH mainline-missing (Delivery Method, Payment Success) → Kemar checkout-HOLD queue; P1-P4/P6 all closed)
 **State at writing:** `origin/main` src @ `f78e514`. Since rev 5: (1) **quick-track** flow (`030c6ee`) — Track Shipment tile opens a bottom-sheet (≡ Swift `onTapStatTile:1904 presentQuickTrack`), Swift-parity confirmed. (2) A shipped PackageCard **status-color regression** (all statuses forced green, `34e9620`) + an ungated **cart affordance** (fake plus-button on every status) were caught; fixes ACKed then stalled in a merge-gap (orphaned 2nd-verifier) — flagged as [RISK] #15230 → owner rebased+merged (`f78e514`). Color ≡ Swift `statusColor(for:):576`; cart-gate `packageCanAddToCart = status 7\|\|18` ≡ Swift `:563/:724` (device-verified #15266). (3) BUG_AUDIT/SignUp from rev 5 still stand. PR #1 branch `codex/refer-friend-parity` moves fast — always `git ls-remote` before citing its head.
 **Source-of-truth hierarchy (Kemar rulings #14540/#14553/#14578):** Swift app (`/Users/codecityceo/Documents/GitHub/SWIFT_APP`, `Figma*ViewController.swift`) = behavior + PRECEDENCE → Figma (fileKey `N4k6jzpeLZgeRS5O1xfyIv`) = visual reference → Laravel = API contract. Where Swift does not ship a screen, Figma is the authority. **Buttons must function; no fake/dead pages; no duplication; verify before closing (#14639).**
 
@@ -44,13 +49,42 @@
 - `148a509` Payments "View History" CTA color (`textDarkTitle`): code-verified, not device-seen.
 - All visible changes on the branch (Home hero `9ea44e6`, chrome rails `efef7f1`, header+AirCoins `99068c8`, Refer spacing `5ddc57a`/`c7944f0`/`a07abbe`, FAQ `25ea84b`, deep links `53c3ccb`) need L+D device passes after merge.
 
-### P6 — 🔴 REGRESSION (confirmed): Notifications inbox LIST deleted at `22657cf` — only empty-state renders
-- **Confirmed on current `origin/main`** (independent of TealSnow lead-dev work order R1, #15293): [NotificationsScreen.kt](app/src/main/java/com/ga/airdrop/feature/homedetails/NotificationsScreen.kt) now renders **only `EmptyState`** (`:76` call, `:86` def) — NO `LazyColumn`/`items`/`NotificationRow`. So the inbox shows the empty-state **even when notifications exist**. `NotificationsViewModel` (pagination / markRead / route-resolution) is referenced only in a comment (`:58`) → **orphaned, zero list-callers**.
-- **Cause:** commit **`22657cf`** "Fix Notifications Swift parity" (Codex, 2026-07-06 05:54) deleted **306 lines** of `NotificationsScreen.kt` on a STALE Swift reading. Current **Swift `origin/main` renders a populated list** (`FigmaNotificationsListViewController.swift:370` fetch, `:328` empty-state only when actually empty, `:617` markRead, `:625` deep-link).
-- **⚠️ LEDGER CORRECTION:** the §3 "Notifications empty-state" **3W verified-good** entry was INCOMPLETE — my device pass saw only the empty-state (standing test account had no notifications) and did not catch that the populated-list path was gone. Downgraded (see §3 note).
-- **Fix (owner = whoever claims R1; verifier = me):** restore the pre-`22657cf` list rendering (`git show 22657cf~1`), keep empty-state as the items-empty branch only, replace `NotificationsParityTest` `assertNoBackendInboxSurface` with populated-list assertions, honor **C5** per-type icons (#14729). I'll device-verify L+D on a notification-bearing account once the fix lands.
+### P6 — ✅ RESOLVED on `origin/main` (AUDIT #144, 2026-07-28) — was: Notifications inbox LIST deleted at `22657cf`
+- **Was (stale):** screen rendered only `EmptyState` with no `LazyColumn`/`NotificationRow` after `22657cf`.
+- **Now:** [NotificationsScreen.kt](app/src/main/java/com/ga/airdrop/feature/homedetails/NotificationsScreen.kt) wires ViewModel + list (`:197-206` `LazyColumn`/`NotificationRow`); empty only when `items.isEmpty() && loadedOnce` (`:128-129`). Device L+D on notif-bearing acct still pending (verified-good table). **CLOSED on main.**
+
+### P51 — 🟡 OPEN (AUDIT #148 NEW C1): Promotions error UI has no Retry (Swift now does)
+- **Issue:** Full-screen error with no Retry; `load()` is init-only. Transient failures strand until leave/re-enter.
+- **Location:** `PromotionsScreen.kt:82-95`; `PromotionsViewModel.kt:39-43`.
+- **Swift:** Retry button + `onRetry` → `loadPromotions()` (`FigmaPromotionsViewController.swift:167-174,:212-214`). Prior #143 "SHARED no-retry" is stale.
+- **Fix:** Retry CTA → `viewModel.load()`. Risk Low–Medium. Owner: More2/Promotions.
+
+### P50 — 🟡 OPEN (AUDIT #147 NEW C1): ShippingRates invents fuel $1.50 + customs $100 when API omits
+- **Issue:** Successful load still fabricates Rate Notes fuel (`?: 1.5`) and Customs threshold (`?: 100.0`); section title `"Calculate your Shipping Estimate"` vs Swift `"Rate Notes"`.
+- **Location:** `ShippingRatesScreen.kt:114,:117,:138`.
+- **Swift:** fuel/customs → `"Unavailable"` (`FigmaShippingRatesViewController.swift:246,:261-262`).
+- **Prior P34:** C1 In&Out + C2 silent-fallback **RESOLVED** on main (server-driven InOutFee; error+Retry). This is the remaining invent-money residue.
+- **Fix:** print Unavailable / omit clause when null; rename to Rate Notes. Risk Low–Medium. Owner: More2.
+
+### P49 — 🟡 OPEN (AUDIT #146 NEW C1): Stripe payment-success fulfillment wiped before navigate
+- **Issue:** Delivery buyers see pickup copy after Stripe return ("collect at our branch").
+- **Cause:** `verify` commits via `consumePaid` (nulls `CheckoutFlow.flow`) before `AppRoot` `onPaid` calls `currentFulfillment()` which reads that flow. `PendingHostedCheckout` has no `deliveryMode`.
+- **Location:** `PaymentReturnViewModel.kt:94-97,:116-124`; `CheckoutFlowStore.kt:287-292,:501-506`; `AppRoot.kt:370-374/:414-418`.
+- **Contrast:** NCB cart success passes `ncbDeliveryMode` (`ShopNav.kt:264`) — OK. Fix attempt in `382d797e` incomplete (read-after-consume).
+- **Fix:** persist fulfillment on pending hosted checkout (or on `PaymentReturnResult.Success`) before consume. Risk Medium; regression Low. Owner: checkout/cart.
+
+### P48 — 🟡 OPEN (AUDIT #144 NEW C1): LiveAgentChat sticky failed account context after #207
+- **Issue:** Timeout/failed shortlist at session start is cached for the whole chat; every later send reuses omitted package/order/payment sections → Nirvana name-greeting fallback persists.
+- **Location:** `LiveAgentChatRepository.kt` — `sendMessage` → `accountContext(refresh = false)` (:266); sticky cache (:403-404); 5s `withTimeoutOrNull` → null (:176-178,:186); catch caches `LiveAgentChatAccountContext()` (:409-412).
+- **Swift contrast:** `warmAutoPilotContextCaches()` retries nil/empty; per-send rebuild in `sendAutoPilotAppChatMessage`.
+- **Fix:** refresh on send when any list is null (min); do not permanently cache failed context. Risk Medium; regression Low. Owner: chat/Nirvana.
 
 ---
+
+
+### AUDIT APPEND — #144 (FuchsiaTower, 2026-07-28T13:23:01Z) — RESOLVED only
+- **RESOLVED (Kotlin app source):** P0 Trengo widget embedding removed from `app/` on `origin/main` `38d60d30`. Land: `75c3d65f` (#154) native Nirvana/AutoPilot Live Chat. Evidence: `git grep` 0 hits for trengo/VEoe under `app/`; `LiveAgentChatScreen.kt` Nirvana consent; identity via `GET /autopilot/identity` (`LiveAgentChatRepository.kt:290-299`). Residual: `HANDOFF.md:40` still quotes key (docs/history); dashboard key rotation still ops-owned. Swift `origin/main` also Trengo-free in `*.swift` (AutoPilot rail).
+- **RESOLVED (code):** P6 Notifications inbox list restored — `NotificationsScreen.kt` ViewModel + `LazyColumn`/`NotificationRow` (empty only when items empty); restore `3e0aaf9c`. Device L+D on notif-bearing acct still pending.
 
 ## 1b. MISSING-FUNCTIONS SWEEP — CLOSED 2026-07-06 (TealSnow; do not re-derive)
 

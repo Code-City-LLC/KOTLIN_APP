@@ -112,6 +112,16 @@ enum class WarehouseType(
      * merchant's checkout. Rendering it near-invisible in dark theme makes the
      * screen's whole job impossible. Dark keeps each brand hue but lifts it to
      * a legible tone; light is unchanged from Figma.
+     *
+     * ⚠️ DELIBERATE SWIFT DIVERGENCE — do not "restore parity" here.
+     * FigmaWarehousesViewController.WarehouseType.tintColor returns the same
+     * three flat hexes (#6C46C5 / #0A96D4 / #F15114) with NO trait-based dark
+     * variant, so iOS renders the mailbox line at ~1.85:1 against the dark
+     * card — under even the 3:1 large-text floor, let alone 4.5:1 for body
+     * text. That is a defect to fix, not a reference to copy. The dark hues
+     * below are the brand hues lifted until they clear 4.5:1 on gray100
+     * (#383838): purple 5.37:1, cyan 6.78:1, orange 5.63:1. Light is
+     * untouched, so Figma/Swift parity in light theme is exact.
      */
     fun accentFor(isDark: Boolean): Color = if (!isDark) tint else when (this) {
         Standard -> Color(0xFFB9A3F5)

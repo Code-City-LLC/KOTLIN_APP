@@ -73,14 +73,21 @@ fun AirdropBottomBar(
             // "empty" dock space activated a card underneath. Kemar: "the dock
             // is porous and that's a bad thing."
             //
-            // Children are hit-tested before this node on the Main pass, so the
-            // tabs keep working and this only swallows what nothing else
-            // claimed. Consuming every change (not just taps) also stops a drag
-            // that starts on the dock from scrolling the page behind it.
+            // ⚠️ DO NOT add .changes.forEach { it.consume() } here. Merely
+            // HAVING a pointer-input node on the bar is what seals it: the bar
+            // is a later sibling of the NavHost inside AppRoot's Box, and
+            // hit-testing walks z-sorted children topmost-first and stops at
+            // the first sibling hit (sharePointerInputWithSiblings is false by
+            // default), so content behind never enters the hit path.
+            // Consuming on the Main pass additionally swallowed MOVE events,
+            // which cancelled the child tabs' own tap detection — real finger
+            // taps almost always emit a MOVE from digitizer jitter, so all five
+            // tabs stopped navigating on a device while synthetic performClick()
+            // (no MOVE) kept the tests green. Seal, don't consume.
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
-                        awaitPointerEvent().changes.forEach { it.consume() }
+                        awaitPointerEvent()
                     }
                 }
             }
