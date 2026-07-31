@@ -6,6 +6,7 @@ import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
+import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
 import com.ga.airdrop.core.session.AuthenticatedOwnerChange
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.changeTo
@@ -91,13 +92,39 @@ class DeliveryMethodViewModel(
                     errorMessage = if (changed == null) "Log in before continuing checkout." else null,
                 )
                 if (changed != null) {
+                    seedModeFromLocalDefault()
                     loadSettings()
                     loadPreference()
                 }
             }
         }
+        seedModeFromLocalDefault()
         loadSettings()
         loadPreference()
+    }
+
+    /**
+     * The reader hook the About screen's "Default delivery method" was missing.
+     *
+     * That setting wrote [DeliveryDefaultsStore.preferredMethod] and NOTHING
+     * ever read it back — About displayed its own saved value and the Delivery
+     * Method screen ignored it, so the row was decoration. Swift has always had
+     * this hook (FigmaDeliveryMethodViewController viewDidLoad:333, "This is the
+     * reader hook its header promised").
+     *
+     * Mirrors Swift exactly: it pre-selects the MODE only. Address, fee, and
+     * persistence still flow exclusively through the delivery endpoints, and
+     * whatever the customer confirms still saves back through
+     * `/delivery/save-preference`.
+     */
+    private fun seedModeFromLocalDefault() {
+        val local = DeliveryDefaultsStore.preferredMethod ?: return
+        val mode = if (local == DeliveryDefaultsStore.Method.HOME) {
+            DeliveryMode.Delivery
+        } else {
+            DeliveryMode.Pickup
+        }
+        _state.update { it.copy(mode = mode) }
     }
 
     /**
@@ -166,7 +193,18 @@ class DeliveryMethodViewModel(
                     val address = loc?.formattedAddress ?: loc?.address
                     val coord = if (lat != null && lng != null) lat to lng else null
                     s.copy(
-                        mode = deliveryModeFromWire(pref.deliveryMode) ?: s.mode,
+                        // An explicit local default OUTRANKS the server preference
+                        // for the initial tile (Swift :1522). Laravel's
+                        // getPreference cannot distinguish "never chose" from
+                        // "pickup" — it defaults to pickup — so letting it win
+                        // would silently overwrite a customer who deliberately
+                        // picked Home delivery on the About screen. Everything
+                        // below stays server-driven.
+                        mode = if (DeliveryDefaultsStore.preferredMethod == null) {
+                            deliveryModeFromWire(pref.deliveryMode) ?: s.mode
+                        } else {
+                            s.mode
+                        },
                         pickupLabel = pickup,
                         selectedWarehouseId = resolveSelectedWarehouseId(
                             warehouses = s.warehouses,
