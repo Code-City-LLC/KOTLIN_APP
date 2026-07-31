@@ -13,7 +13,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -398,7 +402,14 @@ private fun QuickTrackSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
+                // Third instance of the same bug, found by auditing every sheet
+                // that holds a text input rather than only the one reported.
+                // enableEdgeToEdge() means adjustResize moves nothing, and M3's
+                // ModalBottomSheet does not consume the IME for its content — so
+                // the keyboard covered the tracking-number field this sheet
+                // exists to collect. union() keeps the closed-keyboard layout
+                // byte-identical to the old navigationBarsPadding().
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = Spacing.md)
                 .padding(top = 8.dp, bottom = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(12.dp),
