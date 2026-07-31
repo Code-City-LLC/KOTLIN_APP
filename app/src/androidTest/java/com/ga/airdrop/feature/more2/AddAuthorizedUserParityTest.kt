@@ -119,6 +119,69 @@ class AddAuthorizedUserParityTest {
         assertEquals(0, backClicks)
     }
 
+    /**
+     * Laravel `StoreAuthorizedUserRequest` requires `trn_no` to be `digits:9`.
+     * This form only checked `isEmpty()`, so a short TRN was posted and came
+     * back a bare 422 the customer could neither read nor act on.
+     */
+    @Test
+    fun shortTrnIsRejectedClientSideInsteadOfBecomingA422() {
+        val api = FakeMore2Api()
+        setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("add-authorized-user-first-name-input").performTextInput("Ada")
+        compose.onNodeWithTag("add-authorized-user-last-name-input").performTextInput("Lovelace")
+        compose.onNodeWithTag("add-authorized-user-id-number-input").performTextInput("ABC123")
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextInput("ada@example.com")
+        compose.onNodeWithTag("add-authorized-user-mobile-input").performTextInput("+1 876-5290736")
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("12345678")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+
+        compose.onNodeWithText("Tax Registration Number must be 9 digits").assertIsDisplayed()
+        assertEquals("no request may reach the server", 0, api.addCalls.get())
+        assertEquals(0, backClicks)
+    }
+
+    /**
+     * `digits:9` is numeric-only, so a punctuated TRN would 422 as typed. Digits
+     * are stripped before validating AND before sending — the same treatment the
+     * mobile field already gets — so this is accepted rather than rejected.
+     */
+    @Test
+    fun aPunctuatedTrnIsNormalisedToNineDigitsRatherThanRejected() {
+        val api = FakeMore2Api()
+        setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("add-authorized-user-first-name-input").performTextInput("Ada")
+        compose.onNodeWithTag("add-authorized-user-last-name-input").performTextInput("Lovelace")
+        compose.onNodeWithTag("add-authorized-user-id-number-input").performTextInput("ABC123")
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextInput("ada@example.com")
+        compose.onNodeWithTag("add-authorized-user-mobile-input").performTextInput("+1 876-5290736")
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123-456-789")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+
+        compose.waitUntil(timeoutMillis = 5_000) { api.addCalls.get() == 1 }
+        assertEquals("digits only on the wire", "123456789", api.lastAddRequest?.trnNo)
+    }
+
+    /** Laravel: `identification_id_number` => `max:14`. */
+    @Test
+    fun anOverlongIdNumberIsRejectedClientSide() {
+        val api = FakeMore2Api()
+        setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+
+        compose.onNodeWithTag("add-authorized-user-first-name-input").performTextInput("Ada")
+        compose.onNodeWithTag("add-authorized-user-last-name-input").performTextInput("Lovelace")
+        compose.onNodeWithTag("add-authorized-user-id-number-input").performTextInput("A".repeat(15))
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextInput("ada@example.com")
+        compose.onNodeWithTag("add-authorized-user-mobile-input").performTextInput("+1 876-5290736")
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123456789")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+
+        compose.onNodeWithText("Identification Number can be at most 14 characters").assertIsDisplayed()
+        assertEquals(0, api.addCalls.get())
+    }
+
     @Test
     fun editModePrefillsAndUpdatesLikeSwiftDark() {
         val api = FakeMore2Api()
@@ -147,7 +210,7 @@ class AddAuthorizedUserParityTest {
         assertEquals("Chase", payload?.userFirstName)
         assertEquals("Updated", payload?.userLastName)
         assertEquals("National ID", payload?.identificationType)
-        assertEquals("9849w749r8w04r0", payload?.identificationIdNumber)
+        assertEquals("9849w749r8w04r", payload?.identificationIdNumber)
         assertEquals("Chasec@devcity.com", payload?.userEmail)
         assertEquals("+1", payload?.userCountryCode)
         assertEquals("8768754850", payload?.userMobileNumber)
@@ -351,7 +414,10 @@ class AddAuthorizedUserParityTest {
             firstName = firstName,
             lastName = lastName,
             identificationType = "National ID",
-            identificationIdNumber = "9849w749r8w04r0",
+            // 14 chars, not 15: Laravel caps identification_id_number at max:14 on
+            // BOTH store and update, so the old fixture described a record the
+            // server would have 422'd when saved back.
+            identificationIdNumber = "9849w749r8w04r",
             email = email,
             countryCode = countryCode,
             mobileNumber = mobileNumber,
