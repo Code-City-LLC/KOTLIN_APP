@@ -2,6 +2,7 @@ package com.ga.airdrop.core.session
 
 import android.content.Context
 import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.prefs.AvatarStore
 import com.ga.airdrop.core.prefs.DeliveryDefaultsStore
 import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.core.push.PushRegistrar
@@ -63,6 +64,8 @@ fun clearLocalUserSession(context: Context) {
     clearShipmentsSessionCaches()
     clearShopSessionCaches()
     ExchangeRateStore.clear()
+    // A face is not an exchange rate: never let it survive into the next login.
+    AvatarStore.clear()
     CalculatorHistory.clear()
     DropAlertPreset.clear()
     ShopRecentSearches.clear()

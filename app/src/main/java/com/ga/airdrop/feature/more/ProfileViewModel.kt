@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionJobs
+import com.ga.airdrop.core.prefs.AvatarStore
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.captureOwnedSession
@@ -120,6 +121,17 @@ class ProfileViewModel(
                 if (changed != null) load()
             }
         }
+        // Adopt avatar changes made on the More tab, so this screen is not the
+        // stale one. Session-guarded for the same reason as the publisher.
+        viewModelScope.launch {
+            AvatarStore.avatar.collect { shared ->
+                val owner = sessionBoundary.capture() ?: return@collect
+                if (owner.sessionId != sessionOwner?.sessionId) return@collect
+                sessionBoundary.apply(owner) {
+                    _state.update { it.copy(avatar = shared) }
+                }
+            }
+        }
         load()
     }
 
@@ -188,18 +200,18 @@ class ProfileViewModel(
         if (url == null) {
             sessionBoundary.apply(owner) {
                 _state.update { it.copy(avatar = null, avatarLoading = false) }
+                AvatarStore.clear()
             }
             return
         }
         repository.fetchImage(url)
             .onSuccess { bytes ->
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 sessionBoundary.apply(owner) {
-                    _state.update {
-                        it.copy(
-                            avatar = BitmapFactory.decodeByteArray(bytes, 0, bytes.size),
-                            avatarLoading = false,
-                        )
-                    }
+                    _state.update { it.copy(avatar = bitmap, avatarLoading = false) }
+                    // The More tab reads the same store, so a photo changed here
+                    // no longer waits for that screen to reload.
+                    AvatarStore.publish(bitmap)
                 }
             }
             .onFailure {
@@ -249,6 +261,7 @@ class ProfileViewModel(
                 .onSuccess {
                     sessionBoundary.apply(requestOwner.session) {
                         _state.update { it.copy(avatar = null, avatarLoading = false) }
+                        AvatarStore.clear()
                     }
                 }
                 .onFailure { e ->

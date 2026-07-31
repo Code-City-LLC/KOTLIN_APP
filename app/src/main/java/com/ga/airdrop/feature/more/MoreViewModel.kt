@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionJobs
+import com.ga.airdrop.core.prefs.AvatarStore
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.SessionStore
@@ -65,6 +66,19 @@ class MoreViewModel(
                 if (changed != null) refresh()
             }
         }
+        // Adopt avatar changes made on OTHER screens. Without this the store
+        // would be write-only from here and Profile's upload still would not
+        // show up on this tab. Guarded on the session owner so a photo can
+        // never survive an account switch into the next user's UI.
+        viewModelScope.launch {
+            AvatarStore.avatar.collect { shared ->
+                val owner = sessionBoundary.capture() ?: return@collect
+                if (owner.sessionId != sessionOwner?.sessionId) return@collect
+                sessionBoundary.apply(owner) {
+                    _state.update { it.copy(avatar = shared) }
+                }
+            }
+        }
         refresh()
     }
 
@@ -114,6 +128,8 @@ class MoreViewModel(
         if (url == null) {
             sessionBoundary.apply(owner) {
                 _state.update { it.copy(avatar = null) }
+                // Authoritative "there is no photo", not a failed load.
+                AvatarStore.clear()
             }
             return
         }
@@ -122,6 +138,8 @@ class MoreViewModel(
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 sessionBoundary.apply(owner) {
                     _state.update { it.copy(avatar = bitmap) }
+                    // Every other screen showing the avatar updates from here.
+                    AvatarStore.publish(bitmap)
                 }
             }
             .onFailure {
@@ -174,6 +192,7 @@ class MoreViewModel(
                 .onSuccess {
                     sessionBoundary.apply(requestOwner.session) {
                         _state.update { it.copy(avatar = null, avatarLoading = false) }
+                        AvatarStore.clear()
                     }
                 }
                 .onFailure { e ->
