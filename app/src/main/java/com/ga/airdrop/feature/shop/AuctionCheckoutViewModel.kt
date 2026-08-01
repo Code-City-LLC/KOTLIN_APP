@@ -580,9 +580,15 @@ class AuctionCheckoutViewModel(
 
     // JM|US only, else null → createNcbSession REJECTS (no coerce-to-US; Laravel
     // ruling 2026-07-21). A non-JM/US billing country is never sent as "US".
+    // See CartViewModel.ncbCountryCode: a BLANK country means the profile simply
+    // has none (the form prefills user.country.orEmpty()), not a mis-declared
+    // one — so the JMD rail defaults it to "JM" (matching Swift
+    // APIModels.swift:317) instead of locking the customer out. A KNOWN
+    // different country still returns null and is rejected.
     private fun ncbCountryCode(country: String): String? {
         val c = country.trim()
         return when {
+            c.isEmpty() -> "JM"
             c.equals("Jamaica", ignoreCase = true) || c.equals("JM", ignoreCase = true) -> "JM"
             c.equals("United States", ignoreCase = true) || c.equals("US", ignoreCase = true) -> "US"
             else -> null
