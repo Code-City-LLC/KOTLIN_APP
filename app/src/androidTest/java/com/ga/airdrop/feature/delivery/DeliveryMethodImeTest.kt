@@ -23,6 +23,7 @@ import com.ga.airdrop.data.model.DeliveryValidationResponse
 import com.ga.airdrop.data.model.PlaceResult
 import com.ga.airdrop.data.model.ReverseGeocodeResult
 import com.ga.airdrop.data.repo.DeliveryGateway
+import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -64,6 +65,36 @@ class DeliveryMethodImeTest {
     private companion object {
         /** Roughly a real keyboard on this display; any large value works. */
         const val FAKE_IME_PX = 900
+    }
+
+    /**
+     * Restores the inset this test dispatches.
+     *
+     * Hygiene, not a bug fix: dispatching a WindowInsetsCompat is global mutable
+     * state on the activity's view tree, and anything that sets it should put it
+     * back. In practice the activity is torn down between classes, so this is
+     * belt-and-braces.
+     *
+     * ⚠️ It is explicitly NOT the fix for DropAlertConsigneeParityTest. I wrote
+     * that claim here first and it was wrong: those two failures reproduce
+     * IDENTICALLY on origin/main with the same package selection, so they are
+     * pre-existing and unrelated to this file. Recorded so nobody re-derives the
+     * dead end — DropAlert passes alone everywhere and fails only when the whole
+     * `feature` package runs, on main and on any branch.
+     */
+    @After
+    fun clearSyntheticIme() {
+        instrumentation.runOnMainSync {
+            runCatching {
+                val cleared = WindowInsetsCompat.Builder()
+                    .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
+                    .setVisible(WindowInsetsCompat.Type.ime(), false)
+                    .build()
+                compose.activity.window.decorView.dispatchApplyWindowInsets(
+                    cleared.toWindowInsets() ?: PlatformWindowInsets.CONSUMED,
+                )
+            }
+        }
     }
 
     @Test
