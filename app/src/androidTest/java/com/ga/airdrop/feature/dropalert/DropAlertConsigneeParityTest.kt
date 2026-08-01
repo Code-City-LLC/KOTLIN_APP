@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.TextSizeController
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
@@ -73,6 +74,18 @@ class DropAlertConsigneeParityTest {
         clearDropAlertPreset()
         lateinit var viewModel: DropAlertViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            // Pin the font scale: this test asserts absolute layout geometry and
+            // TextSizeController is a process-wide singleton other suites set to
+            // LARGEST, so a geometry assertion should own that input rather than
+            // inherit it.
+            //
+            // ⚠️ This is HYGIENE, NOT THE FIX. Pinning it does NOT stop the two
+            // full-suite failures — verified by re-running the same selection
+            // after adding it. Ruled out so far as the cause: font scale, theme,
+            // the synthetic IME inset from DeliveryMethodImeTest, and the auth /
+            // delivery / core packages individually. Still open.
+            TextSizeController.init(InstrumentationRegistry.getInstrumentation().targetContext)
+            TextSizeController.set(TextSizeController.Level.STANDARD)
             ThemeController.set(mode)
             viewModel = DropAlertViewModel(repository)
             viewModel.onShippingMethodSelected("Airdrop standard")
