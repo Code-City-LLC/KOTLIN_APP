@@ -1,5 +1,6 @@
 package com.ga.airdrop.core.push
 
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import com.ga.airdrop.core.prefs.NotificationAccountPreferences
 import com.ga.airdrop.core.prefs.NotificationPreferenceMatrix
 import java.util.Locale
@@ -82,6 +83,24 @@ object PushChannelGate {
         // and a push still arrives, the customer has asked for silence — honour
         // it rather than second-guessing the server.
         if (!prefs.master) return true
+
+        // ⚠️ MASTER ONLY while the per-category rows are hidden, and this early
+        // return is the whole safety property — not a performance shortcut.
+        //
+        // The sub-flags default to FALSE and `NotificationAccountPreferences.load()`
+        // COMMITS that all-false matrix to disk on first read. So for any customer
+        // who has never opened Notification Settings, `packagePush` is false on
+        // disk — indistinguishable from "I turned this off". Reading it below
+        // would suppress every package notification for the entire installed
+        // base, which is the exact opposite of the rule stated above.
+        //
+        // Flipping the flag on therefore requires BOTH the server columns and a
+        // way to tell "never answered" from "answered no". See AirdropFeatureFlags.
+        //
+        // Swift does the same thing at delivery — `wantsDevicePush { master }` —
+        // and treats the per-category matrix as inert drafts. This is that parity.
+        if (!AirdropFeatureFlags.notificationCategoryPreferences) return false
+
         return when (categorize(rawType)) {
             Category.PACKAGE -> !prefs.packageMaster || !prefs.packagePush
             Category.PROMO -> !prefs.promosMaster || !prefs.promosPush

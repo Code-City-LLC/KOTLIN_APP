@@ -1,9 +1,12 @@
 package com.ga.airdrop.core.push
 
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import com.ga.airdrop.core.prefs.NotificationPreferenceMatrix
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -22,6 +25,28 @@ class PushChannelGateTest {
         packageMaster = true, packageEmail = true, packageSms = true, packagePush = true,
         promosMaster = true, promosEmail = true, promosSms = true, promosPush = true,
     )
+
+    /**
+     * ⚠️ These tests describe what the gate does when per-category preferences are
+     * TURNED ON. That is not the shipped configuration — the flag is off, the rows
+     * are hidden, and the gate reads `master` only.
+     *
+     * They are still worth keeping: they pin the category logic for the day the
+     * flag flips. But they must opt in explicitly, or they would be asserting
+     * behaviour no customer can reach — and, worse, would have gone on passing
+     * while the shipped path did something entirely different. The flag-off
+     * behaviour is covered separately below and in
+     * [PushChannelGateDefaultMatrixProbe].
+     */
+    @Before
+    fun enableCategoryPreferences() {
+        AirdropFeatureFlags.notificationCategoryPreferences = true
+    }
+
+    @After
+    fun restoreShippedDefault() {
+        AirdropFeatureFlags.notificationCategoryPreferences = false
+    }
 
     // ── Classification ──────────────────────────────────────────────────────
 
