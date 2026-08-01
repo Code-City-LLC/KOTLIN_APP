@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.OutlineButton
-import com.ga.airdrop.core.designsystem.components.ThemeToggle
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
@@ -61,7 +60,9 @@ internal object SettingsTags {
 /**
  * Settings — Figma node 40007388:24260, behavior from
  * FigmaSettingsViewController: Notification Settings / Background Images
- * rows, Mode toggle (ThemeController via ThemeToggle), Account Deletion
+ * rows, the three-way Mode picker (ThemeController: System/Light/Dark —
+ * the row was a binary switch, so SYSTEM was unreachable once touched),
+ * Account Deletion
  * pinned low, Logout in the glass bottom bar with full local hygiene, and
  * the header clear-cache action with the "Cache Cleared Successfully!"
  * sheet (Figma 40001383:11343).

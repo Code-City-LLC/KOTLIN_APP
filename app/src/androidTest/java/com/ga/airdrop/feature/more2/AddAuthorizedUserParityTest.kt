@@ -86,7 +86,12 @@ class AddAuthorizedUserParityTest {
         compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123456789")
         compose.onNodeWithTag("add-authorized-user-primary").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        // 15s, not 5s: this waits on a POST round-trip AND a nav pop after
+        // typing eight fields. It passes locally and timed out on the CI
+        // emulator, which is a shared, throttled runner with a warm IME — the
+        // condition was still unmet at 5s, not wrong. A timeout budget is not an
+        // assertion; making it generous costs nothing when the test passes.
+        compose.waitUntil(timeoutMillis = 15_000) {
             api.addCalls.get() == 1 && backClicks == 1
         }
         val payload = api.lastAddRequest
