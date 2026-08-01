@@ -4,16 +4,29 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.ga.airdrop.core.auth.AuthTokenStore
 
+/**
+ * ⚠️ There is no `packagePush` / `promosPush` here, deliberately.
+ *
+ * Those two toggles were deleted rather than hidden (Kemar, 2026-08-01), because
+ * **the server has no push-preference column and never had one**: the users table
+ * carries exactly `user_email_notification`, `user_sms_notification` and
+ * `user_offers_notification`, `UserResource` exposes those three, and no migration
+ * adds a fourth. So a per-category push preference could never be made real, and a
+ * field the app can store but never act on is the thing that produced the original
+ * defect — a switch that persists, survives a restart, and changes nothing.
+ *
+ * iOS deleted its equivalents in the same pass (`49fee24`). The remaining six map
+ * onto the three server fields and stay, gated by
+ * [com.ga.airdrop.core.config.AirdropFeatureFlags.notificationCategoryPreferences].
+ */
 data class NotificationPreferenceMatrix(
     val master: Boolean = true,
     val packageMaster: Boolean = false,
     val packageEmail: Boolean = false,
     val packageSms: Boolean = false,
-    val packagePush: Boolean = false,
     val promosMaster: Boolean = false,
     val promosEmail: Boolean = false,
     val promosSms: Boolean = false,
-    val promosPush: Boolean = false,
 )
 
 /** Sole owner of the stable account-scoped notification matrix and master intent. */
@@ -31,6 +44,15 @@ object NotificationAccountPreferences {
     private const val KEY_PROMOS_PUSH = "promosPush"
     private const val LEGACY_CLAIMED_BY = "__legacy_claimed_by_account"
 
+    /**
+     * ⚠️ Still includes the two retired push keys, on purpose.
+     *
+     * They are no longer part of [NotificationPreferenceMatrix], but existing
+     * installs have them on disk. This list drives legacy detection AND the
+     * cleanup in `commitLocked`, so dropping them here would strand
+     * `packagePush` / `promosPush` in every upgraded install forever. Listed to
+     * be swept, not to be read — nothing writes them any more.
+     */
     private val matrixKeys = listOf(
         KEY_MASTER,
         KEY_PACKAGE_MASTER,
@@ -126,11 +148,9 @@ object NotificationAccountPreferences {
             packageMaster = stored.getBoolean(KEY_PACKAGE_MASTER, false),
             packageEmail = stored.getBoolean(KEY_PACKAGE_EMAIL, false),
             packageSms = stored.getBoolean(KEY_PACKAGE_SMS, false),
-            packagePush = stored.getBoolean(KEY_PACKAGE_PUSH, false),
             promosMaster = stored.getBoolean(KEY_PROMOS_MASTER, false),
             promosEmail = stored.getBoolean(KEY_PROMOS_EMAIL, false),
             promosSms = stored.getBoolean(KEY_PROMOS_SMS, false),
-            promosPush = stored.getBoolean(KEY_PROMOS_PUSH, false),
         )
     }
 
@@ -140,11 +160,9 @@ object NotificationAccountPreferences {
             packageMaster = stored.getBoolean(accountKey(accountId, KEY_PACKAGE_MASTER), false),
             packageEmail = stored.getBoolean(accountKey(accountId, KEY_PACKAGE_EMAIL), false),
             packageSms = stored.getBoolean(accountKey(accountId, KEY_PACKAGE_SMS), false),
-            packagePush = stored.getBoolean(accountKey(accountId, KEY_PACKAGE_PUSH), false),
             promosMaster = stored.getBoolean(accountKey(accountId, KEY_PROMOS_MASTER), false),
             promosEmail = stored.getBoolean(accountKey(accountId, KEY_PROMOS_EMAIL), false),
             promosSms = stored.getBoolean(accountKey(accountId, KEY_PROMOS_SMS), false),
-            promosPush = stored.getBoolean(accountKey(accountId, KEY_PROMOS_PUSH), false),
         )
 
     private fun commitLocked(
@@ -158,11 +176,9 @@ object NotificationAccountPreferences {
             .putBoolean(accountKey(accountId, KEY_PACKAGE_MASTER), matrix.packageMaster)
             .putBoolean(accountKey(accountId, KEY_PACKAGE_EMAIL), matrix.packageEmail)
             .putBoolean(accountKey(accountId, KEY_PACKAGE_SMS), matrix.packageSms)
-            .putBoolean(accountKey(accountId, KEY_PACKAGE_PUSH), matrix.packagePush)
             .putBoolean(accountKey(accountId, KEY_PROMOS_MASTER), matrix.promosMaster)
             .putBoolean(accountKey(accountId, KEY_PROMOS_EMAIL), matrix.promosEmail)
             .putBoolean(accountKey(accountId, KEY_PROMOS_SMS), matrix.promosSms)
-            .putBoolean(accountKey(accountId, KEY_PROMOS_PUSH), matrix.promosPush)
         val claimant = stored.getInt(LEGACY_CLAIMED_BY, 0).takeIf { it > 0 }
         if (claimant == null && matrixKeys.any(stored::contains)) {
             editor.putInt(LEGACY_CLAIMED_BY, accountId)

@@ -54,10 +54,10 @@ class SeededFalseSurvivesDefaultFlipProbe {
 
     @Test
     fun loadWritesFalseToDiskSoAnyNewDefaultIsIgnored() {
-        val pushKey = NotificationAccountPreferences.accountKey(accountId, "packagePush")
+        val smsKey = NotificationAccountPreferences.accountKey(accountId, "packageSMS")
         val masterKey = NotificationAccountPreferences.accountKey(accountId, "packageMaster")
 
-        assertFalse("precondition: nothing on disk yet", store().contains(pushKey))
+        assertFalse("precondition: nothing on disk yet", store().contains(smsKey))
 
         // A plain READ of the matrix.
         val matrix = NotificationAccountPreferences.load(accountId)
@@ -70,8 +70,8 @@ class SeededFalseSurvivesDefaultFlipProbe {
 
         // The read PERSISTED. This is the whole point.
         assertTrue(
-            "load() committed packagePush to disk — it is no longer an absent key",
-            store().contains(pushKey),
+            "load() committed packageSMS to disk — it is no longer an absent key",
+            store().contains(smsKey),
         )
         assertTrue(
             "load() committed packageMaster to disk too",
@@ -82,7 +82,7 @@ class SeededFalseSurvivesDefaultFlipProbe {
         assertFalse(
             "OPTION A DOES NOT HELP HERE: the key exists, so a `true` fallback is " +
                 "never consulted and the row still reads false",
-            store().getBoolean(pushKey, true),
+            store().getBoolean(smsKey, true),
         )
         assertFalse(
             "same for the section master",

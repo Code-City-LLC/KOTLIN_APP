@@ -22,8 +22,8 @@ class PushChannelGateTest {
 
     private val allOn = NotificationPreferenceMatrix(
         master = true,
-        packageMaster = true, packageEmail = true, packageSms = true, packagePush = true,
-        promosMaster = true, promosEmail = true, promosSms = true, promosPush = true,
+        packageMaster = true, packageEmail = true, packageSms = true,
+        promosMaster = true, promosEmail = true, promosSms = true,
     )
 
     /**
@@ -100,9 +100,20 @@ class PushChannelGateTest {
         assertFalse(PushChannelGate.shouldSuppress("promo_offer", allOn))
     }
 
+    // ⚠️ These two asserted the per-category Push sub-toggles, which are now
+    // DELETED — there is no server column to back them, so they could never be
+    // real. Rewritten onto the SECTION switches, which do map to fields Laravel
+    // stores. The property being pinned is unchanged and is the one that matters:
+    // silencing one section must not silence the other, or anything else.
+    //
+    // The old `the SECTION switch gates the whole section, not just its Push row`
+    // test is gone with them: it asserted a strict subset of the first test below
+    // (same matrix, same two types) and its name described a row that no longer
+    // exists. Keeping a weaker duplicate would just be noise.
+
     @Test
-    fun `turning Promotions Push OFF suppresses promos and NOTHING else`() {
-        val m = allOn.copy(promosPush = false)
+    fun `turning Promotions OFF suppresses promos and NOTHING else`() {
+        val m = allOn.copy(promosMaster = false)
         assertTrue("the promo must be dropped", PushChannelGate.shouldSuppress("promo_offer", m))
         // The bug this whole gate exists to prevent: silencing the wrong thing.
         assertFalse("a package update must STILL arrive", PushChannelGate.shouldSuppress("package_status_update", m))
@@ -110,17 +121,11 @@ class PushChannelGateTest {
     }
 
     @Test
-    fun `turning Package Push OFF suppresses package updates and NOTHING else`() {
-        val m = allOn.copy(packagePush = false)
+    fun `turning Package Order Status OFF suppresses package updates and NOTHING else`() {
+        val m = allOn.copy(packageMaster = false)
         assertTrue(PushChannelGate.shouldSuppress("shipment_ready_for_pickup", m))
         assertFalse("a promo must still arrive", PushChannelGate.shouldSuppress("promo_offer", m))
-    }
-
-    @Test
-    fun `the SECTION switch gates the whole section, not just its Push row`() {
-        val m = allOn.copy(promosMaster = false)
-        assertTrue(PushChannelGate.shouldSuppress("promo_offer", m))
-        assertFalse(PushChannelGate.shouldSuppress("package_status_update", m))
+        assertFalse("an unrelated push must still arrive", PushChannelGate.shouldSuppress("payment_reminder", m))
     }
 
     @Test
