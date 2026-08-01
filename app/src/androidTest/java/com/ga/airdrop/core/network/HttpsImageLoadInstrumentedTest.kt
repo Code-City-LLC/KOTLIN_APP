@@ -47,8 +47,17 @@ class HttpsImageLoadInstrumentedTest {
 
         // Laravel json_encode escapes forward slashes as \/ — unescape first.
         val unescaped = response.replace("\\/", "/")
+        // ⚠️ The host here MUST track API_BASE_URL, and a literal find-and-replace
+        // does NOT reach it: the dots are regex-escaped (app\.airdropja\.com), so
+        // a sweep for "app.airdropja.com" walks straight past this line.
+        //
+        // That is not a cosmetic miss. When the regex names a host the feed no
+        // longer serves, `match` is null, assumeTrue SKIPS, and the assertion
+        // below never executes — the test reports green while verifying nothing.
+        // Caught in review by BrightHarbor; worth the extra comment because the
+        // next host change will have exactly the same blind spot.
         val match = Regex(
-            "http://app\\.airdropja\\.com/storage/[A-Za-z0-9/_.-]+?\\.(?:png|jpg|jpeg|webp)",
+            "http://airdropja\\.com/storage/[A-Za-z0-9/_.-]+?\\.(?:png|jpg|jpeg|webp)",
         ).find(unescaped)?.value
 
         assumeTrue("prod feed served no cleartext http:// product image to test", match != null)

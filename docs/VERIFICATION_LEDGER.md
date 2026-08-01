@@ -140,7 +140,7 @@ Every notification/status keeps its **own specific icon** (invoice-required, pac
 ### C7 — Restricted boundaries (standing)
 - **Payment / checkout / account-deletion = HOLD, view-only.** Verify wiring by code; do NOT exercise checkout, submit forms, or trigger deletes/mutations (invoice-delete gating is verified read-only).
 - **Shipments payment-placeholder navigation** is on a Kemar hold (restricted-boundary decision pending); `eac8248`'s inert guard deliberately avoids payment-detail navigation.
-- Prod backend (`com.ga.airdrop.app` / app.airdropja.com) off-limits. Test credentials live in the ORC `test-credentials` topic — **never commit them**.
+- Prod backend (`com.ga.airdrop.app` / airdropja.com) off-limits. Test credentials live in the ORC `test-credentials` topic — **never commit them**.
 - KOTLIN_APP pushes go only to `origin main`; AIRDROP-LARAVEL merges only via GreenPuma to `pre_staging`.
 
 ### C8 — Shipments hub placeholder cards are intentional
