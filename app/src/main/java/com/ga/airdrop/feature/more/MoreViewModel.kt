@@ -122,13 +122,33 @@ class MoreViewModel(
     }
 
     private suspend fun loadAvatar(owner: AuthenticatedSessionOwner, fallbackUrl: String?) {
-        val asset = repository.profileImage().getOrNull()
+        // ⚠️ A FAILED READ IS NOT "NO PHOTO" — the same defect GreenForest fixed
+        // in ProfileViewModel.refreshAvatar (#211), which lived here too and was
+        // missed because only one of the twins was looked at.
+        //
+        // This was `repository.profileImage().getOrNull()`, which collapses a
+        // transient failure and a genuinely absent photo into the same null. The
+        // branch below then called AvatarStore.clear(), wiping the customer's
+        // photo from EVERY screen reading the store — and the comment sitting on
+        // that line claimed it was "authoritative 'there is no photo', not a
+        // failed load", which was the exact opposite of what the code did.
+        //
+        // AvatarStore.publish(null) is deliberately a no-op so a failed load
+        // cannot blank the photo everywhere. Calling clear() on a failure walked
+        // straight around that guard — a guard I wrote, then bypassed.
+        val loaded = repository.profileImage()
         if (!sessionBoundary.isCurrent(owner)) return
-        val url = asset?.resolvedUrl ?: fallbackUrl?.trim()?.takeIf { it.isNotEmpty() }
+        if (loaded.isFailure && fallbackUrl.isNullOrBlank()) {
+            // Unknown, not empty. Keep whatever is on screen and in the store.
+            return
+        }
+        val url = loaded.getOrNull()?.resolvedUrl
+            ?: fallbackUrl?.trim()?.takeIf { it.isNotEmpty() }
         if (url == null) {
+            // The read SUCCEEDED and there is genuinely no photo — the only case
+            // where clearing is the truth.
             sessionBoundary.apply(owner) {
                 _state.update { it.copy(avatar = null) }
-                // Authoritative "there is no photo", not a failed load.
                 AvatarStore.clear()
             }
             return
@@ -143,9 +163,9 @@ class MoreViewModel(
                 }
             }
             .onFailure {
-                sessionBoundary.apply(owner) {
-                    _state.update { it.copy(avatar = null) }
-                }
+                // Downloading the bytes failed. We know a photo EXISTS (we have
+                // its url) — so blanking the tile would state something false.
+                // Leave the last good image up.
             }
     }
 
