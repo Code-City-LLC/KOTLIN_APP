@@ -17,9 +17,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -243,7 +247,19 @@ fun DeliveryMethodScreen(
                 loading = state.ctaState != DeliveryCtaState.Idle,
                 modifier = Modifier
                     .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp)
-                    .navigationBarsPadding()
+                    // ime ∪ navigationBars, not navigationBars alone. MainActivity
+                    // calls enableEdgeToEdge(), which stops the window resizing for
+                    // the keyboard, so the manifest's adjustResize does nothing and
+                    // each screen owns its own IME inset. Without this the keyboard
+                    // covered the delivery-address field AND this CTA.
+                    //
+                    // Putting it here rather than on the root Column also fixes the
+                    // scrolling half: this bar is the Column sibling of the
+                    // weight(1f) body, so growing its inset shrinks the scroll
+                    // viewport and Compose brings the focused field into view.
+                    // union() takes the larger inset per side, so the closed-keyboard
+                    // case is still exactly navigationBarsPadding().
+                    .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                     .testTag("delivery-cta"),
             )
         }

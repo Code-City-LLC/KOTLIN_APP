@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionJobs
+import com.ga.airdrop.core.prefs.AvatarStore
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.SessionStore
@@ -65,6 +66,19 @@ class MoreViewModel(
                 if (changed != null) refresh()
             }
         }
+        // Adopt avatar changes made on OTHER screens. Without this the store
+        // would be write-only from here and Profile's upload still would not
+        // show up on this tab. Guarded on the session owner so a photo can
+        // never survive an account switch into the next user's UI.
+        viewModelScope.launch {
+            AvatarStore.avatar.collect { shared ->
+                val owner = sessionBoundary.capture() ?: return@collect
+                if (owner.sessionId != sessionOwner?.sessionId) return@collect
+                sessionBoundary.apply(owner) {
+                    _state.update { it.copy(avatar = shared) }
+                }
+            }
+        }
         refresh()
     }
 
@@ -108,12 +122,34 @@ class MoreViewModel(
     }
 
     private suspend fun loadAvatar(owner: AuthenticatedSessionOwner, fallbackUrl: String?) {
-        val asset = repository.profileImage().getOrNull()
+        // ⚠️ A FAILED READ IS NOT "NO PHOTO" — the same defect GreenForest fixed
+        // in ProfileViewModel.refreshAvatar (#211), which lived here too and was
+        // missed because only one of the twins was looked at.
+        //
+        // This was `repository.profileImage().getOrNull()`, which collapses a
+        // transient failure and a genuinely absent photo into the same null. The
+        // branch below then called AvatarStore.clear(), wiping the customer's
+        // photo from EVERY screen reading the store — and the comment sitting on
+        // that line claimed it was "authoritative 'there is no photo', not a
+        // failed load", which was the exact opposite of what the code did.
+        //
+        // AvatarStore.publish(null) is deliberately a no-op so a failed load
+        // cannot blank the photo everywhere. Calling clear() on a failure walked
+        // straight around that guard — a guard I wrote, then bypassed.
+        val loaded = repository.profileImage()
         if (!sessionBoundary.isCurrent(owner)) return
-        val url = asset?.resolvedUrl ?: fallbackUrl?.trim()?.takeIf { it.isNotEmpty() }
+        if (loaded.isFailure && fallbackUrl.isNullOrBlank()) {
+            // Unknown, not empty. Keep whatever is on screen and in the store.
+            return
+        }
+        val url = loaded.getOrNull()?.resolvedUrl
+            ?: fallbackUrl?.trim()?.takeIf { it.isNotEmpty() }
         if (url == null) {
+            // The read SUCCEEDED and there is genuinely no photo — the only case
+            // where clearing is the truth.
             sessionBoundary.apply(owner) {
                 _state.update { it.copy(avatar = null) }
+                AvatarStore.clear()
             }
             return
         }
@@ -122,12 +158,14 @@ class MoreViewModel(
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 sessionBoundary.apply(owner) {
                     _state.update { it.copy(avatar = bitmap) }
+                    // Every other screen showing the avatar updates from here.
+                    AvatarStore.publish(bitmap)
                 }
             }
             .onFailure {
-                sessionBoundary.apply(owner) {
-                    _state.update { it.copy(avatar = null) }
-                }
+                // Downloading the bytes failed. We know a photo EXISTS (we have
+                // its url) — so blanking the tile would state something false.
+                // Leave the last good image up.
             }
     }
 
@@ -174,6 +212,7 @@ class MoreViewModel(
                 .onSuccess {
                     sessionBoundary.apply(requestOwner.session) {
                         _state.update { it.copy(avatar = null, avatarLoading = false) }
+                        AvatarStore.clear()
                     }
                 }
                 .onFailure { e ->

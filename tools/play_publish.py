@@ -48,7 +48,9 @@ SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 
 # Play rejects a versionCode at or below one already live. Mirrors
 # `knownPlayProductionVersionCodeFloor` in app/build.gradle.kts — keep in step.
-VERSION_CODE_FLOOR = 21
+# ⚠️ These two DRIFTED: both sat at 21 while 25 was live, so 22-25 passed both
+# local guards and would have failed only at Google. Bump BOTH every release.
+VERSION_CODE_FLOOR = 25
 
 
 def die(msg: str) -> "None":

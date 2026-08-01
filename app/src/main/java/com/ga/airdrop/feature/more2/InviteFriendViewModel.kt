@@ -153,10 +153,33 @@ class InviteFriendViewModel(
         onSuccess: (() -> Unit)? = null,
     ) {
         if (_state.value.saving) return
-        val first = contact.firstName.ifBlank { "Friend" }
-        val last = contact.lastName.ifBlank { "Friend" }
+        val first = contact.firstName.trim().ifBlank { "Friend" }
+        val last = contact.lastName.trim().ifBlank { "Friend" }
         val email = contact.email.trim()
-        if (!isValidEmail(email)) {
+
+        // ⚠️ ifBlank covers an EMPTY name and nothing else. These names come
+        // straight out of the device address book, so they routinely break the
+        // server's other rules — a single-letter first name fails min:2, and any
+        // accented name ("José", "Renée") fails the letters-only regex. Both used
+        // to reach the customer as a bare 422 from a button that just stopped
+        // working. Now they land on validationError, which the screen shows, and
+        // the customer can fix it in the form.
+        val nameProblem = validateReferralName(first, "First name", REFERRAL_FIRST_NAME_MAX)
+            ?: validateReferralName(last, "Last name", REFERRAL_LAST_NAME_MAX)
+        if (nameProblem != null) {
+            _state.update {
+                it.copy(
+                    // Prefill so the fix is one edit away, not a re-pick.
+                    firstName = first,
+                    lastName = last,
+                    email = email,
+                    selectedContact = null,
+                    validationError = "$nameProblem Edit the name below and send again.",
+                )
+            }
+            return
+        }
+        if (!isValidEmail(email) || email.length > REFERRAL_EMAIL_MAX) {
             _state.update {
                 it.copy(
                     selectedContact = null,
@@ -222,7 +245,15 @@ class InviteFriendViewModel(
         fun fail(message: String) = _state.update { it.copy(validationError = message) }
         if (first.isEmpty()) return fail("First name is required.")
         if (last.isEmpty()) return fail("Last name is required.")
+        validateReferralName(first, "First name", REFERRAL_FIRST_NAME_MAX)?.let { return fail(it) }
+        validateReferralName(last, "Last name", REFERRAL_LAST_NAME_MAX)?.let { return fail(it) }
         if (!isValidEmail(email)) return fail("Please enter a valid email address.")
+        if (email.length > REFERRAL_EMAIL_MAX) {
+            return fail("Email address can be at most $REFERRAL_EMAIL_MAX characters.")
+        }
+        if (description.length > REFERRAL_DESCRIPTION_MAX) {
+            return fail("Message can be at most $REFERRAL_DESCRIPTION_MAX characters.")
+        }
 
         _state.update {
             it.copy(
@@ -271,4 +302,41 @@ class InviteFriendViewModel(
     private fun isValidEmail(email: String): Boolean =
         email.isNotEmpty() &&
             Regex("^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$").matches(email)
+
+    /**
+     * Laravel `ReferFriendRequest` in full, enforced client-side.
+     *
+     * Both invite paths previously checked only `isEmpty()` / `isBlank()`, so
+     * every other rule reached the customer as a bare 422 with no field named:
+     *
+     *   friend_first_name  min:2 max:60  regex ^[a-zA-Z\s\-']+$
+     *   friend_last_name   min:2 max:70  regex ^[a-zA-Z\s\-']+$
+     *   friend_email       max:100
+     *   description        max:500
+     *
+     * The regex is the one that actually bites, because the contacts path feeds
+     * names straight from the device address book: "José", "Renée", "Seán" and
+     * anything with a digit are all rejected by the server. Telling the customer
+     * which name to edit is the difference between a fixable form and a dead
+     * button.
+     *
+     * Names are NOT silently transliterated — rewriting someone's name to make
+     * a request pass is not a fix.
+     */
+    private fun validateReferralName(value: String, label: String, max: Int): String? = when {
+        value.length < REFERRAL_NAME_MIN -> "$label must be at least $REFERRAL_NAME_MIN characters."
+        value.length > max -> "$label can be at most $max characters."
+        !REFERRAL_NAME_REGEX.matches(value) ->
+            "$label can only contain letters, spaces, hyphens and apostrophes."
+        else -> null
+    }
+
+    private companion object {
+        const val REFERRAL_NAME_MIN = 2
+        const val REFERRAL_FIRST_NAME_MAX = 60
+        const val REFERRAL_LAST_NAME_MAX = 70
+        const val REFERRAL_EMAIL_MAX = 100
+        const val REFERRAL_DESCRIPTION_MAX = 500
+        val REFERRAL_NAME_REGEX = Regex("^[a-zA-Z\\s\\-']+$")
+    }
 }

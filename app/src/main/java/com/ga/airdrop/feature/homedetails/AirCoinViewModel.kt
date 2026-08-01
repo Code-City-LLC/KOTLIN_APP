@@ -18,7 +18,20 @@ internal const val AIRCOIN_HISTORY_PER_PAGE = 50
 data class AirCoinBalanceUiState(
     val status: AirCoinsStatus? = null,
     val loading: Boolean = false,
+    /**
+     * Set when the balance read failed.
+     *
+     * ⚠️ Without this the screen could not tell "we don't know" from "you have
+     * nothing": [status] stayed null, every getter below falls back to `?: 0.0`,
+     * and a customer holding 462.25 AirCoin was shown a confident
+     * Accumulated 0 / Redeemed 0 / Available 0 — a false statement about their
+     * money, rendered identically to a real zero, with no error and no retry.
+     */
+    val error: String? = null,
 ) {
+    /** True only when we actually have the server's numbers. */
+    val hasBalance: Boolean get() = status != null
+
     // Doubles: Laravel emits fractional balances (462.25) and the old Int
     // model truncated them, so a customer silently lost the fraction of a coin.
     val accumulated: Double get() = status?.accumulated ?: status?.balance ?: 0.0
@@ -34,12 +47,28 @@ class AirCoinBalanceViewModel(
     val state: StateFlow<AirCoinBalanceUiState> = _state
 
     init {
+        load()
+    }
+
+    /** Also the retry entry point — the screen previously had no way to reload. */
+    fun load() {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true) }
-            miscRepository.airCoinsStatus().onSuccess { status ->
-                _state.update { it.copy(status = status) }
-            }
-            _state.update { it.copy(loading = false) }
+            _state.update { it.copy(loading = true, error = null) }
+            miscRepository.airCoinsStatus()
+                .onSuccess { status ->
+                    _state.update { it.copy(status = status, error = null, loading = false) }
+                }
+                .onFailure {
+                    // Never fall through to the 0.0 getters on failure — say we
+                    // could not load it and offer a retry instead of inventing
+                    // a balance.
+                    _state.update {
+                        it.copy(
+                            error = "We couldn't load your AirCoin balance.",
+                            loading = false,
+                        )
+                    }
+                }
         }
     }
 }

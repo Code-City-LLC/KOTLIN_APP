@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +64,33 @@ fun AirdropBottomBar(
             // truth in AirdropChrome; AirdropChromeTest asserts alpha<1 so an
             // opaque revert FAILS THE BUILD. Reverted 3x already — do not repeat.
             .background(AirdropChrome.bottomBarBackground(colors.gray200))
+            // ⚠️ The dock is an OVERLAY (AppRoot draws it in a Box on top of a
+            // full-size NavHost), and only the five tab columns used to accept
+            // touches. Every other pixel of the bar — the divider, the top
+            // padding strip, the 20dp side margins, the navigation-bar inset,
+            // and the dead space under each icon inside the 58dp row — let taps
+            // fall THROUGH to whatever screen content sat behind it, so tapping
+            // "empty" dock space activated a card underneath. Kemar: "the dock
+            // is porous and that's a bad thing."
+            //
+            // ⚠️ DO NOT add .changes.forEach { it.consume() } here. Merely
+            // HAVING a pointer-input node on the bar is what seals it: the bar
+            // is a later sibling of the NavHost inside AppRoot's Box, and
+            // hit-testing walks z-sorted children topmost-first and stops at
+            // the first sibling hit (sharePointerInputWithSiblings is false by
+            // default), so content behind never enters the hit path.
+            // Consuming on the Main pass additionally swallowed MOVE events,
+            // which cancelled the child tabs' own tap detection — real finger
+            // taps almost always emit a MOVE from digitizer jitter, so all five
+            // tabs stopped navigating on a device while synthetic performClick()
+            // (no MOVE) kept the tests green. Seal, don't consume.
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent()
+                    }
+                }
+            }
     ) {
         Box(
             Modifier

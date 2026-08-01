@@ -185,8 +185,12 @@ fun AppRoot(
             ) {
                 return@LifecycleEventObserver
             }
+            // reconcilableSessionId, NOT pending(): this must not sweep. A
+            // customer who paid and then left the phone alone past the session
+            // TTL still deserves their payment reconciled, and pending()'s
+            // sweep would delete the id before we could verify it.
             val sessionId = com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary.capture()
-                ?.let { com.ga.airdrop.feature.cart.CheckoutFlowStore.pending(it)?.checkoutSessionId }
+                ?.let { com.ga.airdrop.feature.cart.CheckoutFlowStore.reconcilableSessionId(it) }
                 ?: return@LifecycleEventObserver
             // One verify at a time (overlapping resumes must not double-commit).
             if (!reconcileInFlight.compareAndSet(false, true)) return@LifecycleEventObserver

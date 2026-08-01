@@ -132,6 +132,11 @@ private fun ProductListScreen(
                 onValueChange = viewModel::onQueryChange,
                 placeholder = searchPlaceholder,
                 onFilterClick = { viewModel.setSortSheetVisible(true) },
+                // Without this the field still shows an ImeAction.Search key
+                // (set unconditionally in ShopSearchField) wired to a no-op
+                // default — worse than the plain Done key it replaced, which at
+                // least dismissed the keyboard.
+                onSearch = viewModel::onSearchSubmit,
             )
         }
 

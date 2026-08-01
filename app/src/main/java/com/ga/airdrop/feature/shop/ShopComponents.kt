@@ -226,6 +226,7 @@ fun ShopSearchField(
     placeholder: String,
     onFilterClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onSearch: () -> Unit = {},
 ) {
     val colors = AirdropTheme.colors
     Row(
@@ -263,6 +264,14 @@ fun ShopSearchField(
                     textStyle = AirdropType.body2.copy(color = colors.textDarkTitle),
                     cursorBrush = SolidColor(BrandPalette.OrangeMain),
                     singleLine = true,
+                    // Swift textFieldShouldReturn → saveRecentSearch: the IME
+                    // Search key commits the query into the recents ring.
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+                    ),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                        onSearch = { onSearch() },
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

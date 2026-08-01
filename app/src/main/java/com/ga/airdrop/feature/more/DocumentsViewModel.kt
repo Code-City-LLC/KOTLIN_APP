@@ -69,6 +69,12 @@ data class DocumentsUiState(
     val files: Map<String, MoreDocumentFile> = emptyMap(),
     /** Session user id for the legacy server-generated form downloads. */
     val legacyUserId: Int? = null,
+    /**
+     * The user-id fetch failed, as opposed to never having been attempted.
+     * Kept so a failed download can explain itself instead of claiming the
+     * document does not exist.
+     */
+    val legacyUserIdFailed: Boolean = false,
     val pendingUploads: Map<String, PendingDocumentUpload> = emptyMap(),
     val loading: Boolean = false,
     val refreshing: Boolean = false,
@@ -168,6 +174,12 @@ class DocumentsViewModel(
 
     fun refresh() {
         fetchDocuments(refreshing = true)
+        // ⚠️ Pull-to-refresh MUST retry this too. It used to run only from init,
+        // so a single failed currentUserId at screen open left legacyUserId null
+        // for the lifetime of the ViewModel — and the only escape was leaving the
+        // screen and coming back. Refreshing is exactly what a customer does when
+        // a download says it is unavailable.
+        loadLegacyUserId()
     }
 
     private fun loadLegacyUserId() {
@@ -184,8 +196,21 @@ class DocumentsViewModel(
                         _state.update { it.copy(legacyUserId = userId) }
                     }
                 }
+                // Silence here is what made the failure indistinguishable from
+                // "this document does not exist". We do not surface an alert on
+                // load — the customer has not asked for anything yet — but
+                // openDocument now tells the truth when the id is missing.
+                .onFailure { _state.update { it.copy(legacyUserIdFailed = true) } }
         }
     }
+
+    /**
+     * Only these three slots have a server-generated legacy form; ID Card and
+     * TRN legitimately have none. Used to tell "we could not prepare this"
+     * apart from "there is nothing to prepare".
+     */
+    private fun hasLegacyForm(docType: String): Boolean =
+        docType in setOf("airdrop_contract", "file_1583", "authorization_form")
 
     private fun fetchDocuments(refreshing: Boolean) {
         if (loadJob?.isActive == true) return
@@ -356,10 +381,22 @@ class DocumentsViewModel(
                     )
                 )?.replaceFirst("http://", "https://")
             if (url.isNullOrBlank()) {
+                // "Not available" is a claim about the DOCUMENT. When the slot
+                // does have a legacy form and we simply never got the user id
+                // needed to build its URL, that claim is false — and it sent
+                // the customer away believing a form they are entitled to does
+                // not exist. Say which of the two actually happened.
+                val couldNotPrepare = hasLegacyForm(slot.docType) && current.legacyUserId == null
                 _state.update {
                     it.copy(
-                        alert = "Not available" to
-                            "No download link is available for ${slot.title} yet.",
+                        alert = if (couldNotPrepare) {
+                            "Couldn't prepare download" to
+                                "We couldn't get your account details for ${slot.title}. " +
+                                "Pull down to refresh and try again."
+                        } else {
+                            "Not available" to
+                                "No download link is available for ${slot.title} yet."
+                        },
                     )
                 }
             } else {

@@ -14,7 +14,6 @@ import androidx.core.content.ContextCompat
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
@@ -31,7 +30,9 @@ import com.ga.airdrop.core.push.PushRegistrar
 import com.ga.airdrop.core.security.BiometricGate
 import com.ga.airdrop.data.model.EmptyRequest
 import com.ga.airdrop.feature.auth.OnboardingStore
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.feature.security.BiometricLockScreen
+import com.ga.airdrop.feature.security.BiometricLockState
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -108,12 +109,28 @@ class MainActivity : FragmentActivity() {
                         recreate()
                     }
                 }
-                var locked by rememberSaveable { mutableStateOf(lockedAtLaunch) }
+                // ⚠️ SECURITY. This was rememberSaveable, which persists into
+                // the saved-instance-state Bundle — so it survived PROCESS
+                // DEATH. Android reaps backgrounded processes routinely; on
+                // relaunch onCreate recomputed lockedAtLaunch = true, but the
+                // restored `false` overwrote it and the gate was skipped
+                // entirely. Nothing re-locks on resume either (this is a
+                // cold-launch gate, mirroring Swift's
+                // SceneDelegate.presentBiometricLockIfNeeded), so the app-lock
+                // simply stopped existing for that install.
+                //
+                // A ViewModel-scoped flag has exactly the semantics wanted: it
+                // survives configuration changes — including the deliberate
+                // recreate() above when the night bit flips, which is why plain
+                // remember is wrong — but dies with the process, so a genuine
+                // cold launch always re-prompts.
+                val lockState: BiometricLockState = viewModel()
+                val locked = lockState.locked(lockedAtLaunch)
                 AppRoot(navigationUnlocked = !locked)
                 if (locked) {
                     BiometricLockScreen(
                         activity = this@MainActivity,
-                        onUnlocked = { locked = false },
+                        onUnlocked = { lockState.unlock() },
                     )
                 }
             }

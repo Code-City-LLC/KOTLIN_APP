@@ -20,7 +20,11 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -745,7 +749,14 @@ private fun ReportDamageSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
+                // ime ∪ navigationBars, same reason as the Delivery Method CTA:
+                // enableEdgeToEdge() means adjustResize no longer moves anything,
+                // so this sheet has to lift itself. Without it the keyboard sat on
+                // top of the damage-description field the customer is asked to
+                // type into, and on the Submit button under it.
+                // union() takes the larger inset per side, so with the keyboard
+                // closed this is exactly the old navigationBarsPadding().
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = Spacing.md)
                 .padding(top = Spacing.sm, bottom = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),

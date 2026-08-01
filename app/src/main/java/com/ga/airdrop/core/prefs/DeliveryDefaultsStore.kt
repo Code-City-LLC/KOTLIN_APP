@@ -7,9 +7,14 @@ import android.content.SharedPreferences
  * Default delivery-method preference — Swift `DeliveryDefaultsStore`
  * (UserDefaults key "Airdrop.delivery.defaultMethod"). Device-local, no backend
  * call, cleared on logout via [clearAll] (mirrors Swift UserStateCache.clearAll
- * so a shared device doesn't carry the previous user's default). Forwards-
- * compatible: the checkout Delivery Method flow reads this once it lands — Swift
- * ships it as a stored preference with no consumer yet either.
+ * so a shared device doesn't carry the previous user's default).
+ *
+ * ⚠️ The previous note here — "Swift ships it as a stored preference with no
+ * consumer yet either" — was wrong, and it is why this setting sat dead on
+ * Android. Swift HAS read it since FigmaDeliveryMethodViewController
+ * viewDidLoad:333 ("This is the reader hook its header promised"), and again at
+ * :1522 where an explicit local default outranks the server preference.
+ * [DeliveryMethodViewModel.seedModeFromLocalDefault] is the Kotlin counterpart.
  *
  * Writes are guarded on init() having bound prefs (the C7/C8 lesson): a call
  * before Application.onCreate no-ops instead of throwing.

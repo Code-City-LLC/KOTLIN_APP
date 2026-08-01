@@ -35,7 +35,12 @@ val playUploadSigningConfigured =
     playUploadPropertiesFile.isFile &&
         playUploadPropertyNames.all { !playUploadProperties.getProperty(it).isNullOrBlank() } &&
         playUploadStoreFile?.isFile == true
-val knownPlayProductionVersionCodeFloor = 21
+// ⚠️ Keep this at the HIGHEST versionCode already on Play, not the one it was
+// when this line was written. It said 21 while 25 was live on production, so
+// -PplayVersionCode=22|23|24|25 passed this guard and would have been rejected
+// only by Google — the guard existing but not guarding. Bumped when v25
+// (3.1.3) shipped 2026-08-01. Raise it on every release.
+val knownPlayProductionVersionCodeFloor = 25
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
@@ -185,7 +190,25 @@ androidComponents {
         variant.signingConfig.setConfig(android.signingConfigs.getByName("playUpload"))
         variant.outputs.forEach { output ->
             output.versionCode.set(requireNotNull(requestedPlayVersionCode))
-            requestedPlayVersionName?.let { output.versionName.set(it) }
+            // ⚠️ requireNotNull, NOT `?.let`. These two fail in OPPOSITE
+            // directions and the asymmetry nearly shipped a wrong version name.
+            //
+            // versionCode failed CLOSED — omit -PplayVersionCode and the build
+            // stops. versionName failed OPEN — omit -PplayVersionName and it
+            // silently fell back to defaultConfig's scaffold value (8.0), so
+            // v25 was one dry run away from publishing "8.0" over a live
+            // "3.1.2". GreenForest caught it in that dry run; nothing in the
+            // build would have.
+            //
+            // A forgotten flag must stop a release, never quietly ship a
+            // different one. Both are mandatory for prodRelease now.
+            output.versionName.set(
+                requireNotNull(requestedPlayVersionName) {
+                    "prodRelease requires -PplayVersionName (e.g. -PplayVersionName=3.1.4). " +
+                        "Without it the build would silently ship defaultConfig's " +
+                        "versionName, which is a scaffold value, not the release."
+                },
+            )
         }
     }
 }

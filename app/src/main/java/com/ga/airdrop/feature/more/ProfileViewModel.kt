@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionJobs
+import com.ga.airdrop.core.prefs.AvatarStore
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.captureOwnedSession
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.ga.airdrop.feature.auth.signUpCountries
 
 data class ProfileUiState(
     val firstName: String = "",
@@ -47,6 +49,10 @@ data class ProfileUiState(
  * wired, this was a Swift gap), sparse PUT /user/profile on Save with the
  * snake_case field names the Laravel API expects.
  */
+private val LEGACY_US_STATE_FALLBACK = listOf(
+    "Alabama", "Alaska", "Arizona", "California", "Florida", "New York", "Texas",
+)
+
 class ProfileViewModel(
     private val repository: MoreProfileRepository = MoreRepository(),
     private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
@@ -56,7 +62,32 @@ class ProfileViewModel(
     val idTypeOptions = listOf("National ID", "Drivers License", "Passport")
     val languageOptions = listOf("English", "Español")
     val countryOptions = listOf("United States", "Jamaica", "Canada", "United Kingdom", "Mexico")
-    val stateOptions = listOf("Alabama", "Alaska", "Arizona", "California", "Florida", "New York", "Texas")
+
+    /**
+     * State/Province/Department options for the SELECTED country.
+     *
+     * ⚠️ This was a flat `listOf("Alabama", "Alaska", "Arizona", "California",
+     * "Florida", "New York", "Texas")` — seven US states, offered regardless of
+     * country. In the app's HOME market that meant a Jamaican customer opened
+     * the required State/Province row and could not pick their parish at all;
+     * there was no "Other" escape hatch on this screen either.
+     *
+     * Sign Up already solved this: [signUpCountries] is the canonical catalog
+     * and carries all 14 Jamaican parishes plus the full US/Canada/UK
+     * subdivisions. Profile now reads the same source instead of its own stale
+     * copy, so the two screens can no longer disagree. Laravel stores this as
+     * free text ('state' => nullable|string|max:100 — no `in:` constraint), so
+     * the wider list cannot 422.
+     *
+     * The legacy list survives only as a fallback for a country the catalog
+     * does not cover (Mexico is offered above but absent from the catalog), so
+     * no country can end up with an empty, dead picker.
+     */
+    fun stateOptionsFor(country: String): List<String> =
+        signUpCountries.firstOrNull { it.name.equals(country.trim(), ignoreCase = true) }
+            ?.states
+            ?.takeIf { it.isNotEmpty() }
+            ?: LEGACY_US_STATE_FALLBACK
 
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state
@@ -88,6 +119,17 @@ class ProfileViewModel(
                 sessionOwner = changed
                 resetOwnedState()
                 if (changed != null) load()
+            }
+        }
+        // Adopt avatar changes made on the More tab, so this screen is not the
+        // stale one. Session-guarded for the same reason as the publisher.
+        viewModelScope.launch {
+            AvatarStore.avatar.collect { shared ->
+                val owner = sessionBoundary.capture() ?: return@collect
+                if (owner.sessionId != sessionOwner?.sessionId) return@collect
+                sessionBoundary.apply(owner) {
+                    _state.update { it.copy(avatar = shared) }
+                }
             }
         }
         load()
@@ -123,7 +165,23 @@ class ProfileViewModel(
                         )
                     }
                 }
-            }
+            }.onFailure {
+                    // ⚠️ There was no failure branch at all. A failed
+                    // /user/profile left every field at its "" default with no
+                    // message and no retry, so the screen read as "AirDrop has
+                    // no record of me" rather than "we couldn't load it".
+                    // (Save itself is safe — the required-field guard above
+                    // blocks submitting an unloaded form — so this is a
+                    // silent-failure defect, not a data-loss one.)
+                    sessionBoundary.apply(owner) {
+                        _state.update { s ->
+                            s.copy(
+                                alert = "Couldn't load your profile" to
+                                    "Check your connection and open Profile again.",
+                            )
+                        }
+                    }
+                }
             if (sessionBoundary.isCurrent(owner)) refreshAvatar(owner)
         }
     }
@@ -137,23 +195,41 @@ class ProfileViewModel(
     // ─── Avatar ───
 
     private suspend fun refreshAvatar(owner: AuthenticatedSessionOwner) {
-        val url = repository.profileImage().getOrNull()?.resolvedUrl
+        // ⚠️ A FAILED READ IS NOT "NO PHOTO". `.getOrNull()?.resolvedUrl` is null
+        // for BOTH, and treating them alike called AvatarStore.clear() on a
+        // transient network failure — wiping the customer's photo from every
+        // screen that reads the store. AvatarStore.publish(null) deliberately
+        // no-ops for exactly this reason ("a screen that simply failed to load
+        // one cannot blank it everywhere else"); calling clear() directly walked
+        // straight around that guard.
+        val loaded = repository.profileImage()
         if (!sessionBoundary.isCurrent(owner)) return
+        if (loaded.isFailure) {
+            // Keep whatever is already on screen and in the store. Stop the
+            // spinner, change nothing else.
+            sessionBoundary.apply(owner) {
+                _state.update { it.copy(avatarLoading = false) }
+            }
+            return
+        }
+        val url = loaded.getOrNull()?.resolvedUrl
         if (url == null) {
+            // The read SUCCEEDED and the customer genuinely has no photo — this
+            // is the only case where clearing is the truth.
             sessionBoundary.apply(owner) {
                 _state.update { it.copy(avatar = null, avatarLoading = false) }
+                AvatarStore.clear()
             }
             return
         }
         repository.fetchImage(url)
             .onSuccess { bytes ->
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 sessionBoundary.apply(owner) {
-                    _state.update {
-                        it.copy(
-                            avatar = BitmapFactory.decodeByteArray(bytes, 0, bytes.size),
-                            avatarLoading = false,
-                        )
-                    }
+                    _state.update { it.copy(avatar = bitmap, avatarLoading = false) }
+                    // The More tab reads the same store, so a photo changed here
+                    // no longer waits for that screen to reload.
+                    AvatarStore.publish(bitmap)
                 }
             }
             .onFailure {
@@ -203,6 +279,7 @@ class ProfileViewModel(
                 .onSuccess {
                     sessionBoundary.apply(requestOwner.session) {
                         _state.update { it.copy(avatar = null, avatarLoading = false) }
+                        AvatarStore.clear()
                     }
                 }
                 .onFailure { e ->

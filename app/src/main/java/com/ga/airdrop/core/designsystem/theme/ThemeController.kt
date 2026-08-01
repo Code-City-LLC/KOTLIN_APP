@@ -14,7 +14,31 @@ import androidx.compose.runtime.setValue
  */
 object ThemeController {
 
-    enum class Mode { SYSTEM, LIGHT, DARK }
+    /**
+     * ⚠️ THREE values, and for a long time only two were reachable.
+     *
+     * The Settings row and [ThemeToggle] were a binary switch reading
+     * `colors.isDark` and setting LIGHT or DARK, so the moment a customer
+     * touched either one they were pinned to an explicit mode with NO way back
+     * to SYSTEM — the default, and the only value that follows the phone.
+     *
+     * Swift hit and fixed the identical bug: "the previous binary Light/Dark UI
+     * was a UISwitch — that gave the user no way to say 'match iOS settings'.
+     * `.system` adds that third option and is the new default for fresh
+     * installs" (FigmaAppTheme.Preference). Its Settings row now opens a
+     * picker of ["Light", "Dark", "System"] and keeps the switch only as
+     * legacy.
+     */
+    enum class Mode(val displayName: String) {
+        SYSTEM("System"),
+        LIGHT("Light"),
+        DARK("Dark"),
+        ;
+
+        companion object {
+            fun fromDisplayName(name: String): Mode? = entries.firstOrNull { it.displayName == name }
+        }
+    }
 
     private const val PREFS = "airdrop_theme"
     private const val KEY_MODE = "mode"

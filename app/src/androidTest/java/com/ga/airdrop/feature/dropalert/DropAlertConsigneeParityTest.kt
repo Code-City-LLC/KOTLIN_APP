@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.TextSizeController
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
@@ -73,6 +74,18 @@ class DropAlertConsigneeParityTest {
         clearDropAlertPreset()
         lateinit var viewModel: DropAlertViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            // Pin the font scale: this test asserts absolute layout geometry and
+            // TextSizeController is a process-wide singleton other suites set to
+            // LARGEST, so a geometry assertion should own that input rather than
+            // inherit it.
+            //
+            // ⚠️ This is HYGIENE, NOT THE FIX. Pinning it does NOT stop the two
+            // full-suite failures — verified by re-running the same selection
+            // after adding it. Ruled out so far as the cause: font scale, theme,
+            // the synthetic IME inset from DeliveryMethodImeTest, and the auth /
+            // delivery / core packages individually. Still open.
+            TextSizeController.init(InstrumentationRegistry.getInstrumentation().targetContext)
+            TextSizeController.set(TextSizeController.Level.STANDARD)
             ThemeController.set(mode)
             viewModel = DropAlertViewModel(repository)
             viewModel.onShippingMethodSelected("Airdrop standard")
@@ -120,6 +133,21 @@ class DropAlertConsigneeParityTest {
     }
 
     private fun assertPackageValueFieldIsFullyVisible() {
+        // ⚠️ CLOSE THE KEYBOARD FIRST, and this is the actual bug in this test.
+        //
+        // `drop-alert-root` carries `.imePadding()`, so the root legitimately
+        // SHRINKS while a keyboard is up — and this helper runs straight after
+        // fillRequiredFields() has typed into three fields. Measured: the field
+        // sits at 484.57dp in every run, but the root is 520.0dp with no
+        // keyboard and 475.81dp with one. The app was never wrong; the
+        // assertion was reading a mid-typing state.
+        //
+        // Why it looked like flake: in an isolated run the IME never actually
+        // materialises (nothing has warmed it), so root stays 520 and the test
+        // passes. Run the whole `feature` package first and the IME is warm and
+        // really shows — root drops by the 44.19dp inset and the same assertion
+        // fails. Deterministic, and it reproduces identically on origin/main.
+        dismissKeyboardAndSettle()
         val packageValue = compose.onNodeWithTag("drop-alert-package-value-field", useUnmergedTree = true)
             .getUnclippedBoundsInRoot()
         val root = compose.onNodeWithTag("drop-alert-root", useUnmergedTree = true)
@@ -203,4 +231,29 @@ class DropAlertConsigneeParityTest {
 
         override suspend fun consigneeName(): String? = profileName
     }
+
+    /** Drop focus and wait for the ime inset to reach zero before measuring. */
+    private fun dismissKeyboardAndSettle() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            runCatching {
+                val activity = androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+                    .getInstance()
+                    .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)
+                    .firstOrNull()
+                activity?.window?.decorView?.windowInsetsController
+                    ?.hide(android.view.WindowInsets.Type.ime())
+            }
+        }
+        compose.waitForIdle()
+        // The hide is animated; give the inset time to land before measuring.
+        runCatching {
+            compose.waitUntil(timeoutMillis = 3_000) {
+                compose.onNodeWithTag("drop-alert-root", useUnmergedTree = true)
+                    .getUnclippedBoundsInRoot().bottom.value >= 500f
+            }
+        }
+        compose.waitForIdle()
+    }
+
 }

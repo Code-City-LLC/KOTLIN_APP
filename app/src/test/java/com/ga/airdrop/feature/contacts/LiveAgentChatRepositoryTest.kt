@@ -45,7 +45,8 @@ class LiveAgentChatRepositoryTest {
                   "name": "Chase Camp",
                   "email": "chase@example.com",
                   "phone": "8765550000",
-                  "account_number": "GA-42"
+                  "account_number": "GA-42",
+                  "profile_image_url": "https://example.com/api/v1/user/profile/image?v=avatar.png"
                 }
               }
             }
@@ -58,6 +59,10 @@ class LiveAgentChatRepositoryTest {
         assertEquals("user_42", identity.userId)
         assertEquals("hash_42", identity.identityHash)
         assertEquals("GA-42", identity.userProfile.accountNumber)
+        assertEquals(
+            "https://example.com/api/v1/user/profile/image?v=avatar.png",
+            identity.userProfile.profileImageUrl,
+        )
     }
 
     @Test
@@ -212,11 +217,13 @@ class LiveAgentChatRepositoryTest {
                 .addInterceptor(AuthInterceptor())
                 .addInterceptor(identityServer)
                 .build()
+            var clock = 1_000_000L
             val repository = LiveAgentChatRepository(
                 airdropClient = airdropClient,
                 directClient = OkHttpClient.Builder().addInterceptor(directServer).build(),
                 apiBaseUrl = "https://pre-staging.example/api/v1/",
                 now = { "2026-07-26T12:00:00Z" },
+                clockMs = { clock },
                 accountContextSource = LiveAgentChatAccountContextSource {
                     contextLoads += 1
                     accountContext
@@ -231,6 +238,11 @@ class LiveAgentChatRepositoryTest {
             )
 
             assertEquals("airdrop-user-42", session.conversationId)
+            // Session start loads the shortlist; a send in the same breath reuses
+            // it. This assertion used to demand 2 (a refetch per send, SwiftHawk
+            // 81610) and 09da9aa8 dropped to a never-expiring cache without
+            // updating it — the red test was the only trace of that revert. The
+            // TTL keeps both: reuse now, refetch once stale (asserted below).
             assertEquals(1, contextLoads)
             val identityRequest = identityServer.requests.single()
             assertEquals(
@@ -261,10 +273,152 @@ class LiveAgentChatRepositoryTest {
             assertTrue(body.contains("ORD-22"))
             assertTrue(body.contains("Headphones"))
             assertTrue(body.contains("USD 24.00"))
-            assertTrue(body.contains(""""airdrop_context_version":"2""""))
+            assertTrue(body.contains(""""airdrop_context_version":"3""""))
+            assertTrue(body.contains("## Account summary"))
+            assertTrue(body.contains("Packages in this context"))
+            assertTrue(body.contains("Ready for pickup"))
             val messageBody = directServer.requests.last().bodyUtf8()
             assertTrue(messageBody.contains("DROP-12"))
-            assertTrue(messageBody.contains(""""airdrop_context_version":"2""""))
+            assertTrue(messageBody.contains(""""airdrop_context_version":"3""""))
+            assertTrue(messageBody.contains("## Account summary"))
+        }
+
+    /**
+     * The other half of the shortlist TTL.
+     *
+     * Nirvana answering "you have no packages ready" from data fetched at the
+     * top of the conversation is the exact failure SwiftHawk 81610 fixed, and
+     * 09da9aa8 reintroduced by caching with no expiry. Reuse inside the window
+     * is the performance win; refetching past it is the correctness floor, so
+     * both are pinned here — a cache that never expires passes the first
+     * assertion and fails the second.
+     */
+    @Test
+    fun `account shortlist is reused inside the TTL and refetched once it lapses`() =
+        runBlocking {
+            AuthTokenStore.save("sanctum-test")
+            var contextLoads = 0
+            var clock = 1_000_000L
+
+            val identityServer = RecordingJsonInterceptor(
+                """
+                {
+                  "data": {
+                    "endpoint": "https://api.autopilotcrm.ai",
+                    "publishable_key": "pub_test",
+                    "user_id": "airdrop-user-42",
+                    "identity_hash": "hash_42",
+                    "user_profile": {"account_number": "GA-42"}
+                  }
+                }
+                """.trimIndent(),
+            )
+            val directServer = RecordingJsonInterceptor(
+                """{"conversation_id":"airdrop-user-42","assigned_agent_name":"Nirvana","messages":[]}""",
+                """{"conversation_id":"c1"}""",
+                """{"conversation_id":"c2"}""",
+            )
+            val repository = LiveAgentChatRepository(
+                airdropClient = OkHttpClient.Builder()
+                    .addInterceptor(AuthInterceptor())
+                    .addInterceptor(identityServer)
+                    .build(),
+                directClient = OkHttpClient.Builder().addInterceptor(directServer).build(),
+                apiBaseUrl = "https://pre-staging.example/api/v1/",
+                now = { "2026-07-26T12:00:00Z" },
+                clockMs = { clock },
+                accountContextSource = LiveAgentChatAccountContextSource {
+                    contextLoads += 1
+                    LiveAgentChatAccountContext(airCoins = "425")
+                },
+            )
+
+            val session = repository.startSession(testUser())
+            assertEquals(1, contextLoads)
+
+            // Still inside the window: the customer is mid back-and-forth and
+            // must not pay four cold API calls for it.
+            clock += LiveAgentChatRepository.ACCOUNT_CONTEXT_TTL_MS - 1
+            repository.sendMessage(
+                conversationId = session.conversationId,
+                body = "Where is DROP-12?",
+                user = testUser(),
+            )
+            assertEquals("reuse inside the TTL", 1, contextLoads)
+
+            // Past the window: they may well have opened Shipments since, so the
+            // next answer has to be built on freshly loaded data.
+            clock += 2
+            repository.sendMessage(
+                conversationId = session.conversationId,
+                body = "And DROP-13?",
+                user = testUser(),
+            )
+            assertEquals("refetch once the TTL lapses", 2, contextLoads)
+        }
+
+    /**
+     * A failed shortlist load must not be cached (FuchsiaTower AUDIT #144).
+     *
+     * The empty context means "we could not find out", not "the customer has
+     * nothing". Caching it made Nirvana assert, for the rest of the
+     * conversation, that there were no packages, orders or AirCoins — the
+     * lying-about-data class of bug. The retry has to happen even though the
+     * next send is well inside the TTL.
+     */
+    @Test
+    fun `a failed account context load is not cached and the next turn retries`() =
+        runBlocking {
+            AuthTokenStore.save("sanctum-test")
+            var contextLoads = 0
+            val clock = 1_000_000L
+
+            val identityServer = RecordingJsonInterceptor(
+                """
+                {
+                  "data": {
+                    "endpoint": "https://api.autopilotcrm.ai",
+                    "publishable_key": "pub_test",
+                    "user_id": "airdrop-user-42",
+                    "identity_hash": "hash_42",
+                    "user_profile": {"account_number": "GA-42"}
+                  }
+                }
+                """.trimIndent(),
+            )
+            val directServer = RecordingJsonInterceptor(
+                """{"conversation_id":"airdrop-user-42","assigned_agent_name":"Nirvana","messages":[]}""",
+                """{"conversation_id":"c1"}""",
+            )
+            val repository = LiveAgentChatRepository(
+                airdropClient = OkHttpClient.Builder()
+                    .addInterceptor(AuthInterceptor())
+                    .addInterceptor(identityServer)
+                    .build(),
+                directClient = OkHttpClient.Builder().addInterceptor(directServer).build(),
+                apiBaseUrl = "https://pre-staging.example/api/v1/",
+                now = { "2026-07-26T12:00:00Z" },
+                clockMs = { clock },
+                accountContextSource = LiveAgentChatAccountContextSource {
+                    contextLoads += 1
+                    // First load times out the way a cold open does; the retry works.
+                    if (contextLoads == 1) throw IllegalStateException("shortlist timeout")
+                    LiveAgentChatAccountContext(airCoins = "425")
+                },
+            )
+
+            val session = repository.startSession(testUser())
+            assertEquals(1, contextLoads)
+
+            // Same instant — comfortably inside the TTL — so only the dropped
+            // failure cache can cause a second load.
+            repository.sendMessage(
+                conversationId = session.conversationId,
+                body = "How many AirCoins do I have?",
+                user = testUser(),
+            )
+            assertEquals("failure must not be cached", 2, contextLoads)
+            assertTrue(directServer.requests.last().bodyUtf8().contains("425"))
         }
 
     /**
@@ -289,13 +443,67 @@ class LiveAgentChatRepositoryTest {
 
         assertTrue(context.contains("# AirDrop Customer Context"))
         assertTrue(context.contains("## Profile"))
+
+        // ⚠️ Assert the COUNT is absent, not the substring "no packages".
+        //
+        // This used to read `assertFalse(context.contains("no packages"))`, and
+        // it passed only while the defect was present. The CORRECT unavailable
+        // wording is "This does NOT mean the customer has no packages." — which
+        // contains that substring. So the assertion went green precisely when
+        // the summary was wrong, and would have gone red the moment it was
+        // fixed. A guard that inverts under the fix is worse than no guard.
         assertFalse(
-            "a failed read must not claim the customer has no packages",
-            context.contains("no packages"),
+            "a failed read must never state a package COUNT",
+            context.contains("**Packages in this context**: 0"),
+        )
+        assertTrue(
+            "a failed read must say the list is unavailable",
+            context.contains("UNAVAILABLE"),
+        )
+        assertTrue(
+            "a failed read must forbid inferring zero",
+            context.contains("Never state or imply that they have zero packages"),
+        )
+        assertFalse(
+            "'currently has no packages' is the SUCCESSFUL-empty wording",
+            context.contains("currently has no packages"),
         )
         assertFalse(context.contains("## Recent packages"))
         assertFalse(context.contains("## Recent orders"))
         assertFalse(context.contains("## Recent payments"))
+    }
+
+    /**
+     * The invariant that actually broke: [LiveAgentChatAccountContext] carried
+     * `packages` and a SEPARATE `packagesKnown` flag that defaulted to `true`,
+     * so the zero-arg instance meant "we could not load it" AND "we know it" at
+     * once. The documented total-failure path returned exactly that instance and
+     * the summary printed "Packages in this context: 0" as fact.
+     *
+     * `packagesKnown` is now DERIVED from `packages != null`, so the two cannot
+     * disagree. This pins that: nothing in the tree exercised the unavailable
+     * branch before — `packagesKnown` appeared in no test at all.
+     */
+    @Test
+    fun `packagesKnown is derived from packages and cannot contradict it`() {
+        assertFalse(
+            "a null package list must never report itself as known",
+            LiveAgentChatAccountContext().packagesKnown,
+        )
+        assertFalse(LiveAgentChatAccountContext(packages = null).packagesKnown)
+        assertTrue(LiveAgentChatAccountContext(packages = emptyList()).packagesKnown)
+
+        // And the rendered consequence, which is what the customer is told.
+        val failed = LiveAgentChatContextBuilder.build(
+            user = testUser(),
+            accountContext = LiveAgentChatAccountContext(airCoins = "425"),
+            generatedAt = "2026-07-26T12:00:00Z",
+        )
+        assertFalse(
+            "a partially-loaded context with a failed package read must not claim 0",
+            failed.contains("**Packages in this context**: 0"),
+        )
+        assertTrue(failed.contains("UNAVAILABLE"))
     }
 
     /**

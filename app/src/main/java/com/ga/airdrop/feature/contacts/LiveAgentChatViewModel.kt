@@ -60,6 +60,9 @@ internal class LiveAgentChatViewModel(
     private val displayedRemoteMessageIds = linkedSetOf<String>()
     private var sessionStarting = false
     private var pollJob: Job? = null
+    // Tracked so endChatAndStartFresh() can cancel an in-flight send; otherwise
+    // the retired conversationId is written back over the fresh conversation.
+    private var sendJob: Job? = null
 
     fun start() {
         val snapshot = _state.value
@@ -90,6 +93,31 @@ internal class LiveAgentChatViewModel(
             }
             sessionStarting = false
         }
+    }
+
+    /**
+     * "End Chat & Start Fresh" (Kemar) — wipe the conversation on this device
+     * and open a new one.
+     *
+     * Everything that identifies the old conversation has to go together: the
+     * poll job (it would keep appending replies from the retired
+     * conversationId), the de-dupe ledger (stale ids would suppress the new
+     * conversation's turns), and the whole UI state including any half-typed
+     * input and sticky error/status banner. Clearing the state alone would
+     * leave a live poller writing into a "fresh" screen.
+     */
+    fun endChatAndStartFresh() {
+        pollJob?.cancel()
+        pollJob = null
+        // An in-flight send must die too: deliver() writes the canonical
+        // conversationId back into state when it returns, which would resurrect
+        // the conversation the customer just retired.
+        sendJob?.cancel()
+        sendJob = null
+        sessionStarting = false
+        displayedRemoteMessageIds.clear()
+        _state.value = LiveAgentChatUiState()
+        start()
     }
 
     fun onInputChange(value: String) {
@@ -125,7 +153,8 @@ internal class LiveAgentChatViewModel(
         pollJob?.cancel()
         pollJob = null
         _state.update { it.copy(sending = true, error = null, status = null) }
-        viewModelScope.launch {
+        sendJob?.cancel()
+        sendJob = viewModelScope.launch {
             var inlineAssistantMessageId: String? = null
             var inlineAssistantFingerprint: String? = null
             val canonicalConversationId = try {

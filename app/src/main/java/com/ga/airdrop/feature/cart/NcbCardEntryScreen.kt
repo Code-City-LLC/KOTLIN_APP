@@ -258,13 +258,32 @@ private fun formatExpiry(raw: String): String {
     return if (d.length <= 2) d else d.substring(0, 2) + "/" + d.substring(2)
 }
 
+/**
+ * ⚠️ The month LENGTH check is load-bearing, not belt-and-braces.
+ *
+ * Laravel validates `card_month` as `size:2` and `card_year` as `size:4`
+ * (Api\V1\PaymentController::createNcbCheckout — note that is the API
+ * controller the app calls, NOT the sibling Customer\NcbCheckoutController).
+ * The submit path sends `expiry.substringBefore("/")` verbatim, so a one-digit
+ * month ("5/29") reaches Laravel as "5" and 422s at the last step of a JMD
+ * checkout, after the customer has entered their card.
+ *
+ * That could not happen only because [formatExpiry] always emits
+ * `substring(0, 2) + "/"`, i.e. correctness rested on a display formatter
+ * rather than on this validator — one refactor away from a payment bug. The
+ * year length was already checked here; the month was not. Now both are.
+ */
 internal fun validateNcbCard(name: String, number: String, expiry: String, cvv: String): String? {
     if (name.isBlank()) return "Enter the cardholder name."
     val digits = number.filter(Char::isDigit)
     if (digits.length < 13 || digits.length > 19) return "Enter a valid card number."
     val parts = expiry.split("/")
     val mm = parts.getOrNull(0)?.toIntOrNull()
-    if (parts.size != 2 || parts[1].length != 2 || mm == null || mm !in 1..12) return "Enter the expiry as MM/YY."
+    if (parts.size != 2 || parts[0].length != 2 || parts[1].length != 2 ||
+        mm == null || mm !in 1..12
+    ) {
+        return "Enter the expiry as MM/YY."
+    }
     if (cvv.length < 3 || cvv.length > 4) return "Enter a valid CVV."
     return null
 }

@@ -383,7 +383,12 @@ class PackageDetailsParityTest {
         compose.onNodeWithTag("package-details-report-damage-submit")
             .performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.damageReports.size == 1 }
+        // 15s, not 5s: submitting the damage-report sheet is a round-trip behind
+        // a bottom sheet, and it timed out on the CI emulator while passing
+        // locally. NOTE: this test is not touched by PR #206 at all — it went
+        // red purely on CI timing, which is the tell that the budget was the
+        // problem rather than the behaviour.
+        compose.waitUntil(timeoutMillis = 15_000) { packagesRepo.damageReports.size == 1 }
         assertEquals(
             DamageReportCall(packageId = "7", description = "Cracked corner", photoCount = 0),
             packagesRepo.damageReports.single(),

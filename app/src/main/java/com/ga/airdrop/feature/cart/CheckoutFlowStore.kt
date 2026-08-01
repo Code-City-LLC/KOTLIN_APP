@@ -551,6 +551,25 @@ object CheckoutFlowStore {
         return pendingHosted?.takeIf { bindPendingOwner(owner) }
     }
 
+    /**
+     * PURE read of the pending session id, for the on-resume reconciler only.
+     *
+     * ⚠️ This exists so [pending] can keep sweeping. A pass once removed the
+     * sweep from [pending] to protect exactly one caller — AppRoot's ON_RESUME
+     * reconciler, which must not have a PAID-but-unverified session deleted
+     * before it can verify it. That broke the auction rail: its pay() checks
+     * [pending]/[creating] and RETURNS on a hit, before [start] (the sweeping
+     * acquire path) is ever reached, so a lapsed latch bricked auction
+     * checkout permanently with "A checkout is already pending."
+     *
+     * Both needs are real and they are not in conflict — they just needed
+     * different doors. Blocking guards call [pending] and get the sweep;
+     * the reconciler calls this and never mutates.
+     */
+    @Synchronized
+    fun reconcilableSessionId(owner: AuthenticatedSessionOwner): String? =
+        pendingHosted?.takeIf { bindPendingOwner(owner) }?.checkoutSessionId
+
     /** Returns the exact initiating rows and consumes the verified checkout. */
     @Synchronized
     fun consumePaid(sessionId: String, owner: AuthenticatedSessionOwner): Set<CartStore.CartLineKey>? {

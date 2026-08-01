@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.cart
 
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -68,7 +69,10 @@ class CheckoutPendingExpiryTest {
         startFlowToOrderSummary { now }
 
         now += 30L * 60 * 1000 + 1
-        assertNull("expired creation is purged", CheckoutFlowStore.creating(owner))
+        // creating() must report the lapsed latch as gone BEFORE anything calls
+        // start(): the auction rail's pay() checks creating() and returns on a
+        // hit, so a non-sweeping read here bricks that rail permanently.
+        assertNull("expired creation must not be reported to blocking guards", CheckoutFlowStore.creating(owner))
         assertNotNull(
             "checkout must start again after expiry",
             CheckoutFlowStore.start(owner, listOf(line(1))),
@@ -86,11 +90,38 @@ class CheckoutPendingExpiryTest {
         assertNull("fresh hosted pending blocks", CheckoutFlowStore.start(owner, listOf(line(1))))
 
         now += 24L * 60 * 60 * 1000 + 1
-        assertNull("expired hosted pending is purged", CheckoutFlowStore.pending(owner))
+        // Same as above: the blocking guards read pending() directly and bail
+        // out before start() is reached, so this read has to come back clean.
+        assertNull("expired hosted pending must not be reported to blocking guards", CheckoutFlowStore.pending(owner))
         assertNotNull(
             "checkout must start again after the Stripe session lifetime",
             CheckoutFlowStore.start(owner, listOf(line(1))),
         )
+    }
+
+    /**
+     * The reconciler's door stays open after the guards' door has closed.
+     *
+     * A customer can pay and then leave the phone alone past the session TTL.
+     * [CheckoutFlowStore.pending] sweeps — that is what keeps the auction rail
+     * from bricking — so the on-resume reconciler deliberately reads through
+     * [CheckoutFlowStore.reconcilableSessionId], which must NOT sweep, or the
+     * payment it was about to verify disappears first.
+     */
+    @Test
+    fun `a lapsed session is hidden from guards but still reconcilable`() {
+        var now = 1_000_000L
+        val creation = startFlowToOrderSummary { now }
+        checkNotNull(CheckoutFlowStore.recordHostedCheckout(owner, creation.id, "cs_live_paid"))
+
+        now += 24L * 60 * 60 * 1000 + 1
+
+        assertEquals(
+            "the reconciler must still see the session it has to verify",
+            "cs_live_paid",
+            CheckoutFlowStore.reconcilableSessionId(owner),
+        )
+        assertNull("...while the blocking guards see it as gone", CheckoutFlowStore.pending(owner))
     }
 
     /**

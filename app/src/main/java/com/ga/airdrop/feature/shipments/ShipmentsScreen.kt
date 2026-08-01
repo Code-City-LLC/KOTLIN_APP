@@ -13,7 +13,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -253,11 +257,24 @@ fun ShipmentsScreen(
             modifier = Modifier.align(Alignment.TopCenter),
         )
 
-        if (quickTrack.visible) {
+        // The scanner is a PLAIN composable while QuickTrackSheet is a
+        // ModalBottomSheet — a dialog in its own window, which therefore draws
+        // ON TOP of it. Leaving the sheet up meant tapping "Scan" composed a
+        // live camera preview completely hidden behind the sheet: the button
+        // read as dead. Close the sheet first so the scanner is actually
+        // visible; the scan result routes straight to package details, and a
+        // cancelled scan drops the user back to Shipments.
+        if (quickTrack.visible && !scannerVisible) {
             QuickTrackSheet(
                 state = quickTrack,
                 onCodeChange = viewModel::updateQuickTrackCode,
                 onDismiss = viewModel::dismissQuickTrack,
+                // Only HIDE the sheet (via the !scannerVisible guard above) —
+                // do NOT dismiss the quick-track state. Dismissing tore down
+                // the sheet for good, so closing the scanner dropped the user
+                // back to Shipments and lost the code they had typed; the
+                // intended flow is scanner → close → sheet again, which
+                // ShipmentsHubTapRailsParityTest pins.
                 onScan = { scannerVisible = true },
                 onTrack = {
                     viewModel.submitQuickTrack { packageId ->
@@ -385,7 +402,14 @@ private fun QuickTrackSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
+                // Third instance of the same bug, found by auditing every sheet
+                // that holds a text input rather than only the one reported.
+                // enableEdgeToEdge() means adjustResize moves nothing, and M3's
+                // ModalBottomSheet does not consume the IME for its content — so
+                // the keyboard covered the tracking-number field this sheet
+                // exists to collect. union() keeps the closed-keyboard layout
+                // byte-identical to the old navigationBarsPadding().
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = Spacing.md)
                 .padding(top = 8.dp, bottom = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(12.dp),

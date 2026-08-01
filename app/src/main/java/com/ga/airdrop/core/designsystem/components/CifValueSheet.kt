@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -142,8 +143,11 @@ object CifCopy {
     )
 }
 
+// internal (not private) so CifValueSheetLookTest can render the table on its
+// own — a ModalBottomSheet is awkward to screenshot, and this table is where
+// the layout/theme defects live.
 @Composable
-private fun CifServicesTable(rows: List<CifRow>, exchangeRate: Double) {
+internal fun CifServicesTable(rows: List<CifRow>, exchangeRate: Double) {
     val colors = AirdropTheme.colors
     val shape = RoundedCornerShape(Radius.s)
     Column(
@@ -184,12 +188,37 @@ private fun CifServicesTable(rows: List<CifRow>, exchangeRate: Double) {
             // landed cost the customer's duty is assessed on, so a partial
             // breakdown shows an em-dash instead of a confidently wrong number.
             val total = if (rows.any { it.usd == null }) null else rows.sumOf { it.usd ?: 0.0 }
+            // ⚠️ The Figma Secondary/Blue pair is a LIGHT-theme pairing: a
+            // near-white fill (#E1F6FF) with dark blue text (#0872A1). Used
+            // unconditionally it painted a glaring white band across an
+            // otherwise dark table — Kemar: "the blue on the cif there is not
+            // correct as well on the dark theme."
+            //
+            // Swift settles what dark should be, and it is NOT a re-tinted
+            // blue. FigmaCIFValueBottomSheetViewController.makeRow(isTotal:)
+            // resolves both the fill and the text per userInterfaceStyle and
+            // drops the accent entirely on dark:
+            //     text: .dark ? textDarkTitle : #0A96D4
+            //     fill: .dark ? gray150       : #D8F8FF
+            // So on dark the Total is simply the table's own emphasis surface —
+            // the same gray150/textDarkTitle pairing the "Services" header row
+            // above already uses — and the blue is a light-mode-only treatment.
+            // An earlier pass here invented a 28%-alpha tint instead; it had no
+            // design source and is exactly the kind of value that drifts.
             CifTableRow(
                 left = "Total",
                 right = formatUsdJmd(total, exchangeRate),
                 height = 32.dp,
-                background = BrandPalette.BlueAccentTertiary4,
-                textColor = BrandPalette.BlueAccentTertiary1,
+                background = if (colors.isDark) {
+                    colors.gray150
+                } else {
+                    BrandPalette.BlueAccentTertiary4
+                },
+                textColor = if (colors.isDark) {
+                    colors.textDarkTitle
+                } else {
+                    BrandPalette.BlueAccentTertiary1
+                },
                 style = AirdropType.subtitle2,
                 testTag = CifSheetTags.TOTAL,
             )
@@ -220,8 +249,20 @@ private fun CifTableRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .height(height)
+            // ⚠️ Was a FIXED .height(height). Long labels ("Customs
+            // Administrative Fee") and wide totals ("952.41 / 152,985.62") wrap
+            // to a second line, but a fixed 32dp row cannot grow, so the wrapped
+            // line was CLIPPED — Kemar: "the CIF value is fallen off the page."
+            // It gets worse with the app's text-size setting (Largest = 1.18x).
+            // heightIn keeps the designed row rhythm as a MINIMUM and lets a row
+            // grow only when its content genuinely needs the space.
+            .heightIn(min = height)
             .background(background)
+            // Horizontal padding only — deliberately NOT vertical. heightIn on
+            // its own already lets a wrapped row grow; adding vertical padding
+            // also pushed every NORMAL row taller (measured +19px across the
+            // table), which would have shifted the designed 32dp/44dp rhythm
+            // for no benefit. Fix the clipping, change nothing else.
             .padding(horizontal = Spacing.sm)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
         verticalAlignment = Alignment.CenterVertically,

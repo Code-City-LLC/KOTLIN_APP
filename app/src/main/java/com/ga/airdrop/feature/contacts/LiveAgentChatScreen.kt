@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -21,8 +23,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -47,6 +51,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -91,6 +96,7 @@ internal fun LiveAgentChatRoute(
         onInputChange = viewModel::onInputChange,
         onSend = viewModel::send,
         onResend = viewModel::resend,
+        onEndChat = viewModel::endChatAndStartFresh,
     )
 
     if (!consentAccepted) {
@@ -130,12 +136,31 @@ internal fun LiveAgentChatContent(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onResend: (String) -> Unit = {},
+    onEndChat: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
     var menuExpanded by remember { mutableStateOf(false) }
     var aboutOpen by remember { mutableStateOf(false) }
     var historyOpen by remember { mutableStateOf(false) }
+    var endChatOpen by remember { mutableStateOf(false) }
+
+    // A chat must open on the NEWEST message, not the top of the history.
+    // There was no list state at all, so with the 300dp leading contentPadding
+    // the screen opened staring at empty space above the oldest turn and never
+    // followed replies. Re-pin on every new turn AND when the keyboard opens,
+    // because the IME shrinks the viewport out from under the last bubble.
+    val listState = rememberLazyListState()
+    // Keyed on whether the keyboard is OPEN, not on the raw inset: the inset
+    // changes every frame of the show/hide animation, and keying on it would
+    // cancel and restart animateScrollToItem on each of those frames — janky,
+    // and it fights a manual scroll mid-animation. The boolean flips once per
+    // transition, so the re-pin runs exactly once.
+    val imeOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    LaunchedEffect(state.messages.size, imeOpen) {
+        val lastIndex = state.messages.lastIndex
+        if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
+    }
 
     Box(
         modifier
@@ -149,12 +174,22 @@ internal fun LiveAgentChatContent(
             LiveChatEmptyState(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
+                    // The empty branch renders INSTEAD of the LazyColumn, so it
+                    // does not inherit that list's imePadding. Without this the
+                    // risen composer clips the greeting on a brand-new chat —
+                    // exactly when the customer is typing their first message.
+                    .imePadding()
                     .padding(top = 186.dp, start = 20.dp, end = 20.dp),
             )
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
+                    // MainActivity calls enableEdgeToEdge(), which stops the
+                    // window resizing for the keyboard — so the list has to
+                    // shrink itself or its newest messages hide behind the IME.
+                    .imePadding()
                     .padding(top = 106.dp, bottom = 141.dp),
                 contentPadding = PaddingValues(top = 300.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -176,6 +211,7 @@ internal fun LiveAgentChatContent(
             onMenuExpandedChange = { menuExpanded = it },
             onAbout = { aboutOpen = true },
             onHistory = { historyOpen = true },
+            onEndChat = { endChatOpen = true },
             modifier = Modifier.align(Alignment.TopCenter),
         )
 
@@ -188,6 +224,31 @@ internal fun LiveAgentChatContent(
             onInputChange = onInputChange,
             onSend = onSend,
             modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+
+    if (endChatOpen) {
+        AlertDialog(
+            onDismissRequest = { endChatOpen = false },
+            title = { Text("End this chat?", style = AirdropType.title1) },
+            text = {
+                Text(
+                    "This clears the conversation on this device and starts a fresh one with Nirvana. " +
+                        "It cannot be undone.",
+                    style = AirdropType.body2,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    endChatOpen = false
+                    onEndChat()
+                }) {
+                    Text("End & Start Fresh")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { endChatOpen = false }) { Text("Cancel") }
+            },
         )
     }
 
@@ -265,6 +326,7 @@ private fun LiveChatHeader(
     onMenuExpandedChange: (Boolean) -> Unit,
     onAbout: () -> Unit,
     onHistory: () -> Unit,
+    onEndChat: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = AirdropTheme.colors
@@ -327,6 +389,13 @@ private fun LiveChatHeader(
                         onClick = {
                             onMenuExpandedChange(false)
                             onAbout()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("End Chat & Start Fresh", style = AirdropType.body2) },
+                        onClick = {
+                            onMenuExpandedChange(false)
+                            onEndChat()
                         },
                     )
                     DropdownMenuItem(
@@ -393,7 +462,15 @@ private fun LiveChatInputBar(
         modifier
             .fillMaxWidth()
             .background(colors.glassOverlay70)
-            .windowInsetsPadding(WindowInsets.navigationBars),
+            // ⚠️ Was navigationBars ONLY. MainActivity calls enableEdgeToEdge(),
+            // so the window does NOT resize for the keyboard (the manifest's
+            // adjustResize is neutralised by edge-to-edge) — this bar stayed
+            // pinned to the bottom of the FULL-height window and the IME sat on
+            // top of it. Kemar could not see or reach the field he was typing
+            // into and had to back out of the screen. union() takes the larger
+            // of the two, so the bar rides above the keyboard when it is open
+            // and above the nav bar when it is not.
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
     ) {
         // Figma: input bar carries a top-only 1dp divider (Shaps/Icon/Divider).
         Box(
