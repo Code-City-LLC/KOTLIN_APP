@@ -102,6 +102,20 @@ object Routes {
      */
     const val EXTERNAL_APP_UPDATE = "external:app-update"
 
+    /**
+     * The in-app "Update Available" screen.
+     *
+     * ⚠️ This is a REAL NavHost destination, unlike [EXTERNAL_APP_UPDATE].
+     * App-update pushes used to resolve straight to the external route and jump
+     * the customer out to the Play listing with no context — no version, no
+     * "What's New", no way to decline. They now land here, and
+     * [EXTERNAL_APP_UPDATE] is what this screen's "Update Now" button triggers.
+     *
+     * Keeping BOTH matters: the external route is still the correct target for
+     * any caller that genuinely wants to leave the app immediately.
+     */
+    const val APP_UPDATE = "appUpdate"
+
     /** True when [route] must be acted on rather than navigated to. */
     fun isExternalNotificationRoute(route: String?): Boolean =
         route != null && route.startsWith("external:")

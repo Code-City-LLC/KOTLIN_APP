@@ -207,6 +207,11 @@ dependencies {
     implementation(libs.androidx.biometric)
     // Keyless — powers Delivery Method "Use Current Location" (spec §6).
     implementation(libs.play.services.location)
+    // Play In-App Update: the ONLY supported way for an Android app to ask
+    // Google whether a newer build exists. There is no public Play version
+    // endpoint (unlike iOS's itunes lookup), and scraping the store page
+    // breaks whenever Google changes its markup.
+    implementation(libs.play.app.update)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)

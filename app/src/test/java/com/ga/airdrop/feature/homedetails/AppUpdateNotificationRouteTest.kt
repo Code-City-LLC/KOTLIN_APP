@@ -33,13 +33,23 @@ class AppUpdateNotificationRouteTest {
                 "the notification did nothing when tapped",
             route,
         )
-        assertEquals(Routes.EXTERNAL_APP_UPDATE, route)
+        // ⚠️ Target CHANGED on purpose (2026-08-01, Kemar: "build the
+        // AppUpdateView screen the existing routes already point at").
+        // It used to be EXTERNAL_APP_UPDATE, which jumped the customer straight
+        // out to the Play listing with no version, no "What's New" and no way
+        // to decline. It now lands on the in-app screen; that screen's
+        // "Update Now" button is what fires EXTERNAL_APP_UPDATE.
+        assertEquals(Routes.APP_UPDATE, route)
+        assertFalse(
+            "the app-update route must now NAVIGATE, not be intercepted as external",
+            Routes.isExternalNotificationRoute(route),
+        )
     }
 
     /** iOS accepts both spellings (AppDelegate.swift:979-980), so we must too. */
     @Test
     fun `the AppUpdateScreen spelling resolves identically`() {
-        assertEquals(Routes.EXTERNAL_APP_UPDATE, resolveNotificationRoute("AppUpdateScreen", null))
+        assertEquals(Routes.APP_UPDATE, resolveNotificationRoute("AppUpdateScreen", null))
     }
 
     /**
