@@ -212,4 +212,41 @@ class NcbWireContractTest {
         )
         assertEquals("spi_x", decoded.spiToken)
     }
+
+    // ── The blank-3DS-page defect (SwiftHawk #88312) ────────────────────────
+
+    /**
+     * A decoded response is NOT a usable one.
+     *
+     * iOS shipped this and fixed it at e1a1496: a malformed create-ncb-session
+     * response decoded without throwing, nothing checked the values, and the
+     * customer landed on a 3DS screen with nothing to load — card submitted,
+     * blank page, no way to tell whether they had been charged. SwiftHawk
+     * flagged it before Kotlin shipped the same thing.
+     *
+     * These pin the DECODE half — that a null/blank payload really does survive
+     * decoding, which is what makes the call-site guard necessary. The guard
+     * itself lives in CartViewModel.createNcbSession and
+     * AuctionCheckoutViewModel.createNcbSession.
+     */
+    @Test
+    fun `a response with NO usable fields still decodes — which is exactly the trap`() {
+        val decoded = AirdropJson.decodeFromString(NcbSessionResponse.serializer(), "{}")
+        assertNull(decoded.spiToken)
+        assertNull(decoded.redirectData)
+        // It did not throw. onSuccess fires. Navigating here is the defect.
+    }
+
+    @Test
+    fun `blank-string fields decode as blank rather than failing`() {
+        val decoded = AirdropJson.decodeFromString(
+            NcbSessionResponse.serializer(),
+            """{"spi_token":"","redirect_data":"   "}""",
+        )
+        assertTrue(
+            "empty and whitespace must be treated as UNUSABLE by the call site; " +
+                "the serializer will happily hand them over",
+            decoded.spiToken.orEmpty().isBlank() && decoded.redirectData.orEmpty().isBlank(),
+        )
+    }
 }

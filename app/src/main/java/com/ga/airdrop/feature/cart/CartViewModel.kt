@@ -877,12 +877,46 @@ class CartViewModel(
         sessionJobs.launch {
             checkout.createNcbSession(request, requestOwner.provenance)
                 .onSuccess { resp ->
+                    // ⚠️ A DECODED RESPONSE IS NOT A USABLE ONE.
+                    //
+                    // NcbSessionResponse declares spi_token and redirect_data as
+                    // nullable with defaults, so a malformed or partial response
+                    // decodes WITHOUT throwing and lands here as onSuccess with
+                    // both fields null. Navigating on that put the customer on the
+                    // 3DS screen with nothing to load — "Preparing secure
+                    // verification…" forever, card already submitted, no error and
+                    // no way to tell whether they had been charged.
+                    //
+                    // The serializer cannot catch this: the serializer is exactly
+                    // what lets it through. The check has to live here.
+                    //
+                    // iOS shipped and then fixed the identical defect (blank white
+                    // WebView, e1a1496); SwiftHawk flagged it before Kotlin shipped
+                    // it too. The wording below is deliberate — the ONE thing a
+                    // customer needs to know at this moment is whether their money
+                    // moved.
+                    val spi = resp.spiToken?.trim().orEmpty()
+                    val redirect = resp.redirectData?.trim().orEmpty()
+                    if (spi.isEmpty() || redirect.isEmpty()) {
+                        sessionBoundary.apply(owner) {
+                            _state.update {
+                                it.copy(
+                                    ncbBusy = false,
+                                    errorTitle = "Payment could not start",
+                                    errorMessage = "Your card has NOT been charged. " +
+                                        "We couldn't reach the bank's verification step. " +
+                                        "Please try again.",
+                                )
+                            }
+                        }
+                        return@onSuccess
+                    }
                     sessionBoundary.apply(owner) {
                         _state.update {
                             it.copy(
                                 ncbBusy = false,
-                                ncbRedirectData = resp.redirectData,
-                                ncbSpiToken = resp.spiToken,
+                                ncbRedirectData = redirect,
+                                ncbSpiToken = spi,
                                 navToNcb3DS = true,
                             )
                         }

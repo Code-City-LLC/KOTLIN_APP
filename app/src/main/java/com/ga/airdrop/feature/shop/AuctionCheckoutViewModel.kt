@@ -520,10 +520,35 @@ class AuctionCheckoutViewModel(
         viewModelScope.launch {
             checkout.createNcbSession(request, requestOwner.provenance)
                 .onSuccess { resp ->
+                    // ⚠️ Same guard as CartViewModel.createNcbSession, and it must
+                    // stay duplicated here rather than assumed: the auction
+                    // Buy-Now rail reaches PowerTranz through its OWN view model,
+                    // so a fix applied only to the cart leaves this path shipping
+                    // the defect. See that comment for the full reasoning.
+                    //
+                    // Short version: NcbSessionResponse decodes with nulls rather
+                    // than throwing, so onSuccess does not mean usable. Navigating
+                    // on an empty redirect strands the customer on a 3DS screen
+                    // that can never load, with their card already submitted.
+                    val spi = resp.spiToken?.trim().orEmpty()
+                    val redirect = resp.redirectData?.trim().orEmpty()
+                    if (spi.isEmpty() || redirect.isEmpty()) {
+                        applyCurrentOwner(owner) {
+                            _ncb.update {
+                                it.copy(
+                                    busy = false,
+                                    errorMessage = "Your card has NOT been charged. " +
+                                        "We couldn't reach the bank's verification step. " +
+                                        "Please try again.",
+                                )
+                            }
+                        }
+                        return@onSuccess
+                    }
                     applyCurrentOwner(owner) {
-                        ncbSpiToken = resp.spiToken
+                        ncbSpiToken = spi
                         _ncb.update {
-                            it.copy(busy = false, redirectData = resp.redirectData, navTo3DS = true)
+                            it.copy(busy = false, redirectData = redirect, navTo3DS = true)
                         }
                     }
                 }
