@@ -17,6 +17,14 @@ object NotificationIconCatalog {
     fun iconRes(notification: AirdropNotification, dark: Boolean): Int {
         val text = normalizedText(notification)
         return when {
+            // FIRST, deliberately: this matches on the notification TYPE
+            // ("AppUpdateView" / "AppUpdateScreen" / "app_update"), which is
+            // unambiguous. Placed below the shipment rules it would lose to any
+            // of them that happened to appear in the title or body.
+            //
+            // Without this an app-update row fell through to `else` and drew the
+            // PACKAGE BOX — telling the customer a new app version is a parcel.
+            isAppUpdate(text) -> R.drawable.ic_notifications
             "invoice" in text ->
                 if (dark) R.drawable.ic_notification_mail_dark else R.drawable.ic_notification_mail
             "paid" in text && ("pickup" in text || "ready_for_pickup" in text) ->
@@ -57,6 +65,10 @@ object NotificationIconCatalog {
     fun actionTitle(notification: AirdropNotification): String {
         val text = normalizedText(notification)
         return when {
+            // The CTA on this row LEAVES THE APP for the Play Store — see
+            // Routes.EXTERNAL_APP_UPDATE. Labelling that "View Details" is not a
+            // cosmetic slip, it misdescribes where the tap goes.
+            isAppUpdate(text) -> "Update App"
             "invoice" in text -> "Check Mail"
             "payment" in text || "storage_fee" in text -> "View Payment"
             "document" in text -> "View Document"
@@ -64,6 +76,17 @@ object NotificationIconCatalog {
             else -> "View Details"
         }
     }
+
+    /**
+     * The server has sent this type as `AppUpdateView`, `AppUpdateScreen` and
+     * `app_update`. `normalizedText` lowercases and maps "-"→"_", so the first
+     * two arrive as `appupdateview` / `appupdatescreen` and the third keeps its
+     * underscore — hence both spellings. Matches the routing predicate in
+     * NotificationsViewModel, which sends exactly these to
+     * Routes.EXTERNAL_APP_UPDATE.
+     */
+    private fun isAppUpdate(text: String): Boolean =
+        "appupdate" in text || "app_update" in text
 
     /** Swift normalizedNotificationText: join fields + payload, "-"→"_", "/"→" ", lowercase. */
     internal fun normalizedText(n: AirdropNotification): String =

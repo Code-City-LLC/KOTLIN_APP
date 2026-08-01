@@ -421,24 +421,72 @@ class LiveAgentChatRepositoryTest {
             assertTrue(directServer.requests.last().bodyUtf8().contains("425"))
         }
 
+    /**
+     * ⚠️ This test previously asserted the OPPOSITE — that a failed read emits
+     * "No package data was available". That assertion was pinning the defect.
+     *
+     * Telling Nirvana as fact that the customer has no packages is why it could
+     * not answer "how many packages do I have" and fell through to a greeting
+     * carrying the customer's name — Kemar's reported symptom. A read we did not
+     * complete must produce NO claim at all, so the model asks a clarifying
+     * question instead of giving up. Same fix SwiftHawk shipped for iOS in
+     * d7fee1d.
+     */
     @Test
-    fun `context builder falls back without inventing unavailable account records`() {
+    fun `a FAILED account read omits the section instead of asserting the customer has nothing`() {
         val context = LiveAgentChatContextBuilder.build(
             user = testUser(),
+            // null everywhere = every read failed.
             accountContext = LiveAgentChatAccountContext(),
             generatedAt = "2026-07-26T12:00:00Z",
         )
 
         assertTrue(context.contains("# AirDrop Customer Context"))
         assertTrue(context.contains("## Profile"))
-        assertTrue(context.contains("## Account summary"))
-        assertTrue(context.contains("Packages in this context**: 0"))
-        assertTrue(context.contains("ask for the tracking number or order ID rather than guessing"))
-        // Cold/empty package shortlists must NOT assert "no packages" as fact.
+        assertFalse(
+            "a failed read must not claim the customer has no packages",
+            context.contains("no packages"),
+        )
         assertFalse(context.contains("## Recent packages"))
-        assertFalse(context.contains("No package data was available"))
         assertFalse(context.contains("## Recent orders"))
         assertFalse(context.contains("## Recent payments"))
+    }
+
+    /**
+     * The other half of the distinction: a read that SUCCEEDED and returned zero
+     * packages is a real fact about the account, and Nirvana needs it to answer
+     * "how many packages do I have" with "none" rather than a greeting.
+     */
+    @Test
+    fun `a SUCCESSFUL empty read states the customer genuinely has none`() {
+        val context = LiveAgentChatContextBuilder.build(
+            user = testUser(),
+            accountContext = LiveAgentChatAccountContext(packages = emptyList()),
+            generatedAt = "2026-07-26T12:00:00Z",
+        )
+
+        assertTrue(context.contains("## Recent packages"))
+        assertTrue(context.contains("currently has no packages"))
+    }
+
+    /** Empty and failed must not produce the same context — that was the bug. */
+    @Test
+    fun `failed and empty reads produce DIFFERENT context`() {
+        val failed = LiveAgentChatContextBuilder.build(
+            user = testUser(),
+            accountContext = LiveAgentChatAccountContext(packages = null),
+            generatedAt = "2026-07-26T12:00:00Z",
+        )
+        val empty = LiveAgentChatContextBuilder.build(
+            user = testUser(),
+            accountContext = LiveAgentChatAccountContext(packages = emptyList()),
+            generatedAt = "2026-07-26T12:00:00Z",
+        )
+
+        assertFalse(
+            "collapsing 'could not load' into 'has none' is exactly the defect",
+            failed == empty,
+        )
     }
 
     @Test
