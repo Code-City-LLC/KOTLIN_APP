@@ -35,7 +35,12 @@ val playUploadSigningConfigured =
     playUploadPropertiesFile.isFile &&
         playUploadPropertyNames.all { !playUploadProperties.getProperty(it).isNullOrBlank() } &&
         playUploadStoreFile?.isFile == true
-val knownPlayProductionVersionCodeFloor = 21
+// ⚠️ Keep this at the HIGHEST versionCode already on Play, not the one it was
+// when this line was written. It said 21 while 25 was live on production, so
+// -PplayVersionCode=22|23|24|25 passed this guard and would have been rejected
+// only by Google — the guard existing but not guarding. Bumped when v25
+// (3.1.3) shipped 2026-08-01. Raise it on every release.
+val knownPlayProductionVersionCodeFloor = 25
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
