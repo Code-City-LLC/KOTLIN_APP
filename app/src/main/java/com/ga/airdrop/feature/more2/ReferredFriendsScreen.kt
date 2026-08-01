@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.more2
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,6 +69,39 @@ fun ReferredFriendsScreen(
                             .size(42.dp)
                             .testTag("referred-friends-loading"),
                     )
+                }
+                // ⚠️ This arm must come BEFORE the empty check. A failed fetch
+                // also leaves the list empty, so ordering it after would put us
+                // straight back to telling the customer they referred nobody.
+                state.loadFailed && state.referrals.isEmpty() -> {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 80.dp, start = 32.dp, end = 32.dp)
+                            .testTag("referred-friends-load-failed"),
+                    ) {
+                        Text(
+                            // Swift's copy verbatim (FigmaReferredFriendsViewController
+                            // :199) so both platforms say the same thing. "Tap
+                            // Retry" rather than "Pull down" because this screen
+                            // has a button, not a refresh control.
+                            text = "Couldn't load your referrals. Tap Retry to try again.",
+                            style = AirdropType.body1,
+                            color = colors.textDescription,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(Spacing.md))
+                        Text(
+                            text = "Retry",
+                            style = AirdropType.subtitle2,
+                            color = BrandPalette.OrangeMain,
+                            modifier = Modifier
+                                .clickable { viewModel.loadFriends() }
+                                .padding(Spacing.sm)
+                                .testTag("referred-friends-retry"),
+                        )
+                    }
                 }
                 state.referrals.isEmpty() -> {
                     Text(
