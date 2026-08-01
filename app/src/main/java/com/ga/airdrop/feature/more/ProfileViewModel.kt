@@ -195,9 +195,27 @@ class ProfileViewModel(
     // ─── Avatar ───
 
     private suspend fun refreshAvatar(owner: AuthenticatedSessionOwner) {
-        val url = repository.profileImage().getOrNull()?.resolvedUrl
+        // ⚠️ A FAILED READ IS NOT "NO PHOTO". `.getOrNull()?.resolvedUrl` is null
+        // for BOTH, and treating them alike called AvatarStore.clear() on a
+        // transient network failure — wiping the customer's photo from every
+        // screen that reads the store. AvatarStore.publish(null) deliberately
+        // no-ops for exactly this reason ("a screen that simply failed to load
+        // one cannot blank it everywhere else"); calling clear() directly walked
+        // straight around that guard.
+        val loaded = repository.profileImage()
         if (!sessionBoundary.isCurrent(owner)) return
+        if (loaded.isFailure) {
+            // Keep whatever is already on screen and in the store. Stop the
+            // spinner, change nothing else.
+            sessionBoundary.apply(owner) {
+                _state.update { it.copy(avatarLoading = false) }
+            }
+            return
+        }
+        val url = loaded.getOrNull()?.resolvedUrl
         if (url == null) {
+            // The read SUCCEEDED and the customer genuinely has no photo — this
+            // is the only case where clearing is the truth.
             sessionBoundary.apply(owner) {
                 _state.update { it.copy(avatar = null, avatarLoading = false) }
                 AvatarStore.clear()

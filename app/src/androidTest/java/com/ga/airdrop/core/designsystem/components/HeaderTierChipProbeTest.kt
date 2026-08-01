@@ -2,6 +2,7 @@ package com.ga.airdrop.core.designsystem.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -47,13 +48,17 @@ class HeaderTierChipProbeTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /** Drives the tier through state so one rule can measure several names. */
+    private val tierName = mutableStateOf("Gold")
+
     private fun setHeader(tier: String, widthDp: Int) {
+        tierName.value = tier
         compose.setContent {
             AirdropTheme {
                 Box(Modifier.width(widthDp.dp)) {
                     AirdropHeader(
                         greeting = "Good morning, Tamzid",
-                        tierName = tier,
+                        tierName = tierName.value,
                         cartCount = 2,
                         unreadNotifications = 3,
                         airCoins = "425",
@@ -67,15 +72,32 @@ class HeaderTierChipProbeTest {
     private fun rootHeight(): Float =
         compose.onRoot().getUnclippedBoundsInRoot().let { (it.bottom - it.top).value }
 
+    /**
+     * ⚠️ RELATIVE, never an absolute baseline.
+     *
+     * This asserted `107.43f`, a height captured on one developer's emulator.
+     * CI measured `110.47619` and the gate failed twice — while the layout was
+     * perfectly correct. `widthDp` pins the WIDTH; the HEIGHT still depends on
+     * density, fontScale and the system font, none of which two machines share.
+     *
+     * An absolute baseline tests the hardware. The only claim worth making here
+     * is the one in the test's name: a longer tier name must not change the
+     * header's height. Comparing long against short says exactly that, and says
+     * it identically on every device.
+     */
     @Test
     fun theLongestTierNameDoesNotGrowTheHeader() {
-        setHeader("Platinum Priority", widthDp = 320)
+        setHeader("Gold", widthDp = 320)
+        val withShortTier = rootHeight()
+
+        tierName.value = "Platinum Priority"
+        compose.waitForIdle()
         val withLongTier = rootHeight()
 
-        // Measured baseline on a 320dp-wide phone, the narrowest we support.
         assertEquals(
-            "a long tier name must not reflow the header over the Home hero",
-            107.43f,
+            "a long tier name must not reflow the header over the Home hero " +
+                "(short=$withShortTier, long=$withLongTier)",
+            withShortTier,
             withLongTier,
             0.5f,
         )

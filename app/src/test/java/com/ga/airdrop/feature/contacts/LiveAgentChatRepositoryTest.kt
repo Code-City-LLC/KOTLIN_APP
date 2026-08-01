@@ -443,13 +443,67 @@ class LiveAgentChatRepositoryTest {
 
         assertTrue(context.contains("# AirDrop Customer Context"))
         assertTrue(context.contains("## Profile"))
+
+        // ⚠️ Assert the COUNT is absent, not the substring "no packages".
+        //
+        // This used to read `assertFalse(context.contains("no packages"))`, and
+        // it passed only while the defect was present. The CORRECT unavailable
+        // wording is "This does NOT mean the customer has no packages." — which
+        // contains that substring. So the assertion went green precisely when
+        // the summary was wrong, and would have gone red the moment it was
+        // fixed. A guard that inverts under the fix is worse than no guard.
         assertFalse(
-            "a failed read must not claim the customer has no packages",
-            context.contains("no packages"),
+            "a failed read must never state a package COUNT",
+            context.contains("**Packages in this context**: 0"),
+        )
+        assertTrue(
+            "a failed read must say the list is unavailable",
+            context.contains("UNAVAILABLE"),
+        )
+        assertTrue(
+            "a failed read must forbid inferring zero",
+            context.contains("Never state or imply that they have zero packages"),
+        )
+        assertFalse(
+            "'currently has no packages' is the SUCCESSFUL-empty wording",
+            context.contains("currently has no packages"),
         )
         assertFalse(context.contains("## Recent packages"))
         assertFalse(context.contains("## Recent orders"))
         assertFalse(context.contains("## Recent payments"))
+    }
+
+    /**
+     * The invariant that actually broke: [LiveAgentChatAccountContext] carried
+     * `packages` and a SEPARATE `packagesKnown` flag that defaulted to `true`,
+     * so the zero-arg instance meant "we could not load it" AND "we know it" at
+     * once. The documented total-failure path returned exactly that instance and
+     * the summary printed "Packages in this context: 0" as fact.
+     *
+     * `packagesKnown` is now DERIVED from `packages != null`, so the two cannot
+     * disagree. This pins that: nothing in the tree exercised the unavailable
+     * branch before — `packagesKnown` appeared in no test at all.
+     */
+    @Test
+    fun `packagesKnown is derived from packages and cannot contradict it`() {
+        assertFalse(
+            "a null package list must never report itself as known",
+            LiveAgentChatAccountContext().packagesKnown,
+        )
+        assertFalse(LiveAgentChatAccountContext(packages = null).packagesKnown)
+        assertTrue(LiveAgentChatAccountContext(packages = emptyList()).packagesKnown)
+
+        // And the rendered consequence, which is what the customer is told.
+        val failed = LiveAgentChatContextBuilder.build(
+            user = testUser(),
+            accountContext = LiveAgentChatAccountContext(airCoins = "425"),
+            generatedAt = "2026-07-26T12:00:00Z",
+        )
+        assertFalse(
+            "a partially-loaded context with a failed package read must not claim 0",
+            failed.contains("**Packages in this context**: 0"),
+        )
+        assertTrue(failed.contains("UNAVAILABLE"))
     }
 
     /**
