@@ -133,6 +133,21 @@ class DropAlertConsigneeParityTest {
     }
 
     private fun assertPackageValueFieldIsFullyVisible() {
+        // ⚠️ CLOSE THE KEYBOARD FIRST, and this is the actual bug in this test.
+        //
+        // `drop-alert-root` carries `.imePadding()`, so the root legitimately
+        // SHRINKS while a keyboard is up — and this helper runs straight after
+        // fillRequiredFields() has typed into three fields. Measured: the field
+        // sits at 484.57dp in every run, but the root is 520.0dp with no
+        // keyboard and 475.81dp with one. The app was never wrong; the
+        // assertion was reading a mid-typing state.
+        //
+        // Why it looked like flake: in an isolated run the IME never actually
+        // materialises (nothing has warmed it), so root stays 520 and the test
+        // passes. Run the whole `feature` package first and the IME is warm and
+        // really shows — root drops by the 44.19dp inset and the same assertion
+        // fails. Deterministic, and it reproduces identically on origin/main.
+        dismissKeyboardAndSettle()
         val packageValue = compose.onNodeWithTag("drop-alert-package-value-field", useUnmergedTree = true)
             .getUnclippedBoundsInRoot()
         val root = compose.onNodeWithTag("drop-alert-root", useUnmergedTree = true)
@@ -216,4 +231,29 @@ class DropAlertConsigneeParityTest {
 
         override suspend fun consigneeName(): String? = profileName
     }
+
+    /** Drop focus and wait for the ime inset to reach zero before measuring. */
+    private fun dismissKeyboardAndSettle() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            runCatching {
+                val activity = androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+                    .getInstance()
+                    .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)
+                    .firstOrNull()
+                activity?.window?.decorView?.windowInsetsController
+                    ?.hide(android.view.WindowInsets.Type.ime())
+            }
+        }
+        compose.waitForIdle()
+        // The hide is animated; give the inset time to land before measuring.
+        runCatching {
+            compose.waitUntil(timeoutMillis = 3_000) {
+                compose.onNodeWithTag("drop-alert-root", useUnmergedTree = true)
+                    .getUnclippedBoundsInRoot().bottom.value >= 500f
+            }
+        }
+        compose.waitForIdle()
+    }
+
 }
