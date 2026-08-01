@@ -70,6 +70,19 @@ class AirdropMessagingService : FirebaseMessagingService() {
         // the user opted into are exempt (no Kotlin producer yet — future-proof
         // guard). FCM is inert today, so this path is dormant until Firebase.
         val exemptLocal = message.data["local"] == LOCAL_NOTIFY_WHEN_IN_STOCK
+
+        // The Push switches in Notification Settings are enforced HERE, and
+        // until now they were enforced nowhere. Eight of the nine controls on
+        // that screen were written to prefs, read back to paint the UI, and then
+        // never consulted again — `pushWanted()` is literally `master`, so
+        // turning "Push" off under Promotions left the token registered and the
+        // promos arriving. Persisting across restarts made it look MORE
+        // trustworthy than a switch that plainly did nothing.
+        //
+        // Locally-scheduled alerts the customer explicitly opted into are exempt
+        // for the same reason Quiet Hours exempts them.
+        if (!exemptLocal && PushChannelGate.shouldSuppress(notificationType)) return
+
         val silent = QuietHoursStore.isInQuietWindow(applicationContext) && !exemptLocal
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

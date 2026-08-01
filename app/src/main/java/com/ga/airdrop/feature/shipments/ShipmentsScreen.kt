@@ -368,6 +368,7 @@ private fun SummarySection(
                         SummaryTileCard(
                             tile = tile,
                             count = count,
+                            countUnknown = state.summaryFailed,
                             onClick = {
                                 if (tile.route == null) onTrackShipment() else onNavigate(tile.route)
                             },
@@ -586,6 +587,8 @@ private fun QuickTrackRecentRow(
 private fun SummaryTileCard(
     tile: SummaryTile,
     count: Int?,
+    /** True when the summary request FAILED, so the count is unknown — not zero. */
+    countUnknown: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -618,7 +621,16 @@ private fun SummaryTileCard(
             )
         }
         Text(
-            text = count?.toString() ?: "0",
+            // ⚠️ "0" is a CLAIM. A failed /shipments/summary leaves every count
+            // null, and rendering that as "0" told the customer their account
+            // was empty — on the hub they open to check their packages. An
+            // em-dash says "we don't know", which is the truth, and the section
+            // rows below still carry their own per-request error labels.
+            text = when {
+                count != null -> count.toString()
+                countUnknown -> "—"
+                else -> "0"
+            },
             style = AirdropType.h5,
             color = colors.textDarkTitle,
             modifier = Modifier

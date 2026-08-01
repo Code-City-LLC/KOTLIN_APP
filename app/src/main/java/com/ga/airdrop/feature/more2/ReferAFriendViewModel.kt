@@ -19,6 +19,24 @@ data class ReferredFriendsUiState(
     val referrals: List<ReferredFriend> = emptyList(),
     val loading: Boolean = true,
     val error: String? = null,
+
+    /**
+     * "The fetch failed", as distinct from "you have referred nobody".
+     *
+     * Without this the screen has only two arms — loading, then
+     * `referrals.isEmpty()` — so every failure of GET /refer-friend/history
+     * landed on "You haven't referred any friends yet." and stated it as fact,
+     * about referral credit the customer may be owed. `error` was written but
+     * `ReferredFriendsScreen` never read it.
+     *
+     * Swift closed this same defect on 2026-08-01 with `lastFetchFailed`
+     * (FigmaReferredFriendsViewController.swift:49,199,427,444) and its own
+     * comment says why: *"Without this, a network/API error rendered the same
+     * 'You haven't referred any friends yet.' copy as a real empty account,
+     * silently lying to the user."* This is that fix, and the replacement copy
+     * below is theirs verbatim so the platforms say the same thing.
+     */
+    val loadFailed: Boolean = false,
 )
 
 interface ReferAFriendRepository {
@@ -61,14 +79,19 @@ class ReferredFriendsViewModel(
         viewModelScope.launch {
             repository.referredFriends(limit = 200)
                 .onSuccess { friends ->
-                    _state.update { it.copy(loading = false, referrals = friends, error = null) }
+                    _state.update {
+                        it.copy(loading = false, referrals = friends, error = null, loadFailed = false)
+                    }
                 }
                 .onFailure { error ->
+                    // Do NOT wipe `referrals`. On a retry that would blank a list
+                    // the customer is already reading, and on first load there is
+                    // nothing to clear anyway — so clearing only ever destroys.
                     _state.update {
                         it.copy(
                             loading = false,
-                            referrals = emptyList(),
                             error = error.message,
+                            loadFailed = true,
                         )
                     }
                 }

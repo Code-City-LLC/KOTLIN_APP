@@ -51,6 +51,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ga.airdrop.R
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
@@ -90,6 +91,9 @@ fun NotificationSettingsScreen(
 
     val packageSubEnabled = state.master && state.packageMaster
     val promosSubEnabled = state.master && state.promosMaster
+    // Read ONCE and reuse, so the rows and the status card can never disagree
+    // about whether the categories exist.
+    val categoryRowsVisible = AirdropFeatureFlags.notificationCategoryPreferences
 
     // Swift FigmaNotificationSettingsViewController.swift:60 — page bg gray200 (BG token).
     Box(Modifier.fillMaxSize().background(colors.gray200)) {
@@ -128,112 +132,96 @@ fun NotificationSettingsScreen(
                             viewModel.retry(context)
                         }
                     },
+                    categoryRowsVisible = categoryRowsVisible,
                 )
-                Spacer(Modifier.height(SectionGap))
-                ToggleRow(
-                    title = "Package Order Status",
-                    titleStyle = AirdropType.subtitle2,
-                    rowStyle = ToggleRowStyle.Section,
-                    checked = state.packageMaster,
-                    enabled = state.master,
-                    onChange = { viewModel.setPackageMaster(context, it) },
-                    testTagPrefix = "notification-package-section",
-                )
-                Spacer(Modifier.height(RowGap))
-                ToggleRow(
-                    title = "Email",
-                    titleStyle = AirdropType.body1,
-                    rowStyle = ToggleRowStyle.Sub,
-                    iconRes = R.drawable.ic_notification_mail,
-                    darkIconRes = R.drawable.ic_notification_mail_dark,
-                    checked = state.packageEmail,
-                    enabled = packageSubEnabled,
-                    onChange = { on ->
-                        viewModel.setChannel(context, { s, v -> s.copy(packageEmail = v) }, on)
-                    },
-                    testTagPrefix = "notification-package-email",
-                )
-                Spacer(Modifier.height(RowGap))
-                ToggleRow(
-                    title = "SMS",
-                    titleStyle = AirdropType.body1,
-                    rowStyle = ToggleRowStyle.Sub,
-                    iconRes = R.drawable.ic_contacts_chat_light,
-                    darkIconRes = R.drawable.ic_contacts_chat_dark,
-                    checked = state.packageSms,
-                    enabled = packageSubEnabled,
-                    onChange = { on ->
-                        viewModel.setChannel(context, { s, v -> s.copy(packageSms = v) }, on)
-                    },
-                    testTagPrefix = "notification-package-sms",
-                )
-                Spacer(Modifier.height(RowGap))
-                ToggleRow(
-                    title = "Push",
-                    titleStyle = AirdropType.body1,
-                    rowStyle = ToggleRowStyle.Sub,
-                    iconRes = R.drawable.ic_notifications,
-                    iconTint = BrandPalette.OrangeMain,
-                    checked = state.packagePush,
-                    enabled = packageSubEnabled,
-                    onChange = { on ->
-                        viewModel.setChannel(context, { s, v -> s.copy(packagePush = v) }, on)
-                    },
-                    testTagPrefix = "notification-package-push",
-                )
-                Spacer(Modifier.height(SectionGap))
-                ToggleRow(
-                    title = "Promotions",
-                    titleStyle = AirdropType.subtitle2,
-                    rowStyle = ToggleRowStyle.Section,
-                    checked = state.promosMaster,
-                    enabled = state.master,
-                    onChange = { viewModel.setPromosMaster(context, it) },
-                    testTagPrefix = "notification-promos-section",
-                )
-                Spacer(Modifier.height(RowGap))
-                ToggleRow(
-                    title = "Email",
-                    titleStyle = AirdropType.body1,
-                    rowStyle = ToggleRowStyle.Sub,
-                    iconRes = R.drawable.ic_notification_mail,
-                    darkIconRes = R.drawable.ic_notification_mail_dark,
-                    checked = state.promosEmail,
-                    enabled = promosSubEnabled,
-                    onChange = { on ->
-                        viewModel.setChannel(context, { s, v -> s.copy(promosEmail = v) }, on)
-                    },
-                    testTagPrefix = "notification-promos-email",
-                )
-                Spacer(Modifier.height(RowGap))
-                ToggleRow(
-                    title = "SMS",
-                    titleStyle = AirdropType.body1,
-                    rowStyle = ToggleRowStyle.Sub,
-                    iconRes = R.drawable.ic_contacts_chat_light,
-                    darkIconRes = R.drawable.ic_contacts_chat_dark,
-                    checked = state.promosSms,
-                    enabled = promosSubEnabled,
-                    onChange = { on ->
-                        viewModel.setChannel(context, { s, v -> s.copy(promosSms = v) }, on)
-                    },
-                    testTagPrefix = "notification-promos-sms",
-                )
-                Spacer(Modifier.height(RowGap))
-                ToggleRow(
-                    title = "Push",
-                    titleStyle = AirdropType.body1,
-                    rowStyle = ToggleRowStyle.Sub,
-                    iconRes = R.drawable.ic_notifications,
-                    iconTint = BrandPalette.OrangeMain,
-                    checked = state.promosPush,
-                    enabled = promosSubEnabled,
-                    onChange = { on ->
-                        viewModel.setChannel(context, { s, v -> s.copy(promosPush = v) }, on)
-                    },
-                    testTagPrefix = "notification-promos-push",
-                )
-
+                // The eight per-category rows are hidden until the server can
+                // actually honour them. One flag governs their VISIBILITY here,
+                // their ENFORCEMENT in PushChannelGate, and what
+                // NotificationStatusCard CLAIMS below — showing rows nothing
+                // sends, or enforcing rows nobody can see, would each be a bug.
+                // Swift hides the same eight for the same reason.
+                if (categoryRowsVisible) {
+                    Spacer(Modifier.height(SectionGap))
+                    ToggleRow(
+                        title = "Package Order Status",
+                        titleStyle = AirdropType.subtitle2,
+                        rowStyle = ToggleRowStyle.Section,
+                        checked = state.packageMaster,
+                        enabled = state.master,
+                        onChange = { viewModel.setPackageMaster(context, it) },
+                        testTagPrefix = "notification-package-section",
+                    )
+                    Spacer(Modifier.height(RowGap))
+                    ToggleRow(
+                        title = "Email",
+                        titleStyle = AirdropType.body1,
+                        rowStyle = ToggleRowStyle.Sub,
+                        iconRes = R.drawable.ic_notification_mail,
+                        darkIconRes = R.drawable.ic_notification_mail_dark,
+                        checked = state.packageEmail,
+                        enabled = packageSubEnabled,
+                        onChange = { on ->
+                            viewModel.setChannel(context, { s, v -> s.copy(packageEmail = v) }, on)
+                        },
+                        testTagPrefix = "notification-package-email",
+                    )
+                    Spacer(Modifier.height(RowGap))
+                    ToggleRow(
+                        title = "SMS",
+                        titleStyle = AirdropType.body1,
+                        rowStyle = ToggleRowStyle.Sub,
+                        iconRes = R.drawable.ic_contacts_chat_light,
+                        darkIconRes = R.drawable.ic_contacts_chat_dark,
+                        checked = state.packageSms,
+                        enabled = packageSubEnabled,
+                        onChange = { on ->
+                            viewModel.setChannel(context, { s, v -> s.copy(packageSms = v) }, on)
+                        },
+                        testTagPrefix = "notification-package-sms",
+                    )
+                    // The "Push" sub-row was DELETED here, not hidden. There is no
+                    // push-preference column on the server, so it could never be
+                    // made real. Email and SMS remain because Laravel stores those.
+                    Spacer(Modifier.height(SectionGap))
+                    ToggleRow(
+                        title = "Promotions",
+                        titleStyle = AirdropType.subtitle2,
+                        rowStyle = ToggleRowStyle.Section,
+                        checked = state.promosMaster,
+                        enabled = state.master,
+                        onChange = { viewModel.setPromosMaster(context, it) },
+                        testTagPrefix = "notification-promos-section",
+                    )
+                    Spacer(Modifier.height(RowGap))
+                    ToggleRow(
+                        title = "Email",
+                        titleStyle = AirdropType.body1,
+                        rowStyle = ToggleRowStyle.Sub,
+                        iconRes = R.drawable.ic_notification_mail,
+                        darkIconRes = R.drawable.ic_notification_mail_dark,
+                        checked = state.promosEmail,
+                        enabled = promosSubEnabled,
+                        onChange = { on ->
+                            viewModel.setChannel(context, { s, v -> s.copy(promosEmail = v) }, on)
+                        },
+                        testTagPrefix = "notification-promos-email",
+                    )
+                    Spacer(Modifier.height(RowGap))
+                    ToggleRow(
+                        title = "SMS",
+                        titleStyle = AirdropType.body1,
+                        rowStyle = ToggleRowStyle.Sub,
+                        iconRes = R.drawable.ic_contacts_chat_light,
+                        darkIconRes = R.drawable.ic_contacts_chat_dark,
+                        checked = state.promosSms,
+                        enabled = promosSubEnabled,
+                        onChange = { on ->
+                            viewModel.setChannel(context, { s, v -> s.copy(promosSms = v) }, on)
+                        },
+                        testTagPrefix = "notification-promos-sms",
+                    )
+                    // "Push" deleted here too — same reason as the Package section.
+                }
             }
         }
     }
@@ -261,26 +249,40 @@ fun NotificationSettingsScreen(
 private fun NotificationStatusCard(
     status: NotificationDeviceStatus,
     onRetry: () -> Unit,
+    // Same flag that shows the rows. The card must not describe controls the
+    // customer cannot see, and must not claim "saved only" once the gate is
+    // live and genuinely enforcing them.
+    categoryRowsVisible: Boolean,
 ) {
     val colors = AirdropTheme.colors
     val isError = status is NotificationDeviceStatus.Failed ||
         status == NotificationDeviceStatus.MissingAccount ||
         status == NotificationDeviceStatus.PermissionDenied ||
         status == NotificationDeviceStatus.PreferenceSaveFailed
+    // ⚠️ This caveat describes the eight per-category rows. It is only TRUE while
+    // they are visible and unenforced. With the rows hidden it names controls the
+    // customer cannot see; once the gate enforces them it is simply false. So it
+    // rides the same flag the rows do rather than being hardcoded.
+    val savedOnlyCaveat =
+        if (categoryRowsVisible) {
+            " Package, Promotions, Email, and SMS choices are saved only; the current backend does not enforce or sync them."
+        } else {
+            ""
+        }
     val message = when (status) {
         NotificationDeviceStatus.Applying -> "Applying this device's push preference..."
         NotificationDeviceStatus.On ->
-            "Notification is ON for this device. Package, Promotions, Email, and SMS choices are saved only; the current backend does not enforce or sync them."
+            "Notification is ON for this device.$savedOnlyCaveat"
         NotificationDeviceStatus.Off ->
-            "Notification is OFF for this device. Package, Promotions, Email, and SMS choices are saved only; the current backend does not enforce or sync them."
+            "Notification is OFF for this device.$savedOnlyCaveat"
         NotificationDeviceStatus.MissingAccount ->
             "No signed-in account is available. Sign in again, then retry."
         NotificationDeviceStatus.PermissionDenied ->
-            "Notification is ON here but disabled in device Settings. Tap Retry after enabling permission. Package, Promotions, Email, and SMS choices are saved only."
+            "Notification is ON here but disabled in device Settings. Tap Retry after enabling permission.$savedOnlyCaveat"
         NotificationDeviceStatus.PreferenceSaveFailed ->
             "Your notification preference was not saved. Change the setting again to retry."
         is NotificationDeviceStatus.Failed ->
-            "Your requested setting remains saved, but device registration couldn't be applied. ${status.detail} Package, Promotions, Email, and SMS choices are saved only. Tap Retry."
+            "Your requested setting remains saved, but device registration couldn't be applied. ${status.detail}$savedOnlyCaveat Tap Retry."
     }
     val showRetry = status is NotificationDeviceStatus.Failed ||
         status == NotificationDeviceStatus.MissingAccount ||
