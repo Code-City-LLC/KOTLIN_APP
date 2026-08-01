@@ -89,21 +89,25 @@ object PushChannelGate {
         //
         // The sub-flags default to FALSE and `NotificationAccountPreferences.load()`
         // COMMITS that all-false matrix to disk on first read. So for any customer
-        // who has never opened Notification Settings, `packagePush` is false on
+        // who has never opened Notification Settings, `packageMaster` is false on
         // disk — indistinguishable from "I turned this off". Reading it below
         // would suppress every package notification for the entire installed
         // base, which is the exact opposite of the rule stated above.
         //
-        // Flipping the flag on therefore requires BOTH the server columns and a
+        // Flipping the flag on therefore requires BOTH the server fields and a
         // way to tell "never answered" from "answered no". See AirdropFeatureFlags.
         //
         // Swift does the same thing at delivery — `wantsDevicePush { master }` —
         // and treats the per-category matrix as inert drafts. This is that parity.
         if (!AirdropFeatureFlags.notificationCategoryPreferences) return false
 
+        // The SECTION switch only. The per-category Push sub-toggles are gone —
+        // deleted rather than hidden, because the server has no push-preference
+        // column to back them (Kemar 2026-08-01; iOS did the same at 49fee24).
+        // What remains maps onto fields Laravel actually stores.
         return when (categorize(rawType)) {
-            Category.PACKAGE -> !prefs.packageMaster || !prefs.packagePush
-            Category.PROMO -> !prefs.promosMaster || !prefs.promosPush
+            Category.PACKAGE -> !prefs.packageMaster
+            Category.PROMO -> !prefs.promosMaster
             Category.OTHER -> false
         }
     }

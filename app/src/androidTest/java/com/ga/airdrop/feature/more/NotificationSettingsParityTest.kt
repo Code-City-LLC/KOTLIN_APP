@@ -75,7 +75,6 @@ class NotificationSettingsParityTest {
         assertIconContainsColor("notification-package-email-icon", ORANGE, "email body is orange in light mode")
         assertIconContainsColor("notification-package-sms-icon", DARK_ICON, "SMS bubble is iconSelected in light mode")
         assertIconContainsColor("notification-package-sms-icon", ORANGE, "SMS dots are orange in light mode")
-        assertIconContainsColor("notification-package-push-icon", ORANGE, "Push bell is orange in light mode")
         compose.onNodeWithTag("quiet-hours-enable-row").assertDoesNotExist()
         compose.onNodeWithTag("quiet-hours-from-row").assertDoesNotExist()
         compose.onNodeWithTag("quiet-hours-until-row").assertDoesNotExist()
@@ -93,7 +92,6 @@ class NotificationSettingsParityTest {
         assertIconContainsColor("notification-package-email-icon", ORANGE, "email body is orange in dark mode")
         assertIconContainsColor("notification-package-sms-icon", WHITE_ICON, "SMS bubble is iconSelected in dark mode")
         assertIconContainsColor("notification-package-sms-icon", ORANGE, "SMS dots are orange in dark mode")
-        assertIconContainsColor("notification-package-push-icon", ORANGE, "Push bell is orange in dark mode")
         saveRootScreenshot("notification_settings_swift_dark.png")
     }
 
@@ -147,25 +145,25 @@ class NotificationSettingsParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.start(context)
             viewModel.setPackageMaster(context, true)
-            viewModel.setChannel(context, { state, on -> state.copy(packagePush = on) }, true)
+            viewModel.setChannel(context, { state, on -> state.copy(packageSms = on) }, true)
         }
         val accountACommands = deviceCommands.get()
 
         boundary.replaceCurrent("account-b", accountId = 202)
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            viewModel.setChannel(context, { state, on -> state.copy(promosPush = on) }, true)
+            viewModel.setChannel(context, { state, on -> state.copy(promosSms = on) }, true)
         }
 
         assertEquals(accountACommands, deviceCommands.get())
         val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
-        assertEquals(true, prefs.getBoolean(accountKey(101, "packagePush"), false))
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packageSMS"), false))
         boundary.emitCurrent()
         waitUntil {
-            prefs.contains(accountKey(202, "packagePush")) &&
-                !viewModel.state.value.packagePush
+            prefs.contains(accountKey(202, "packageSMS")) &&
+                !viewModel.state.value.packageSms
         }
-        assertEquals(true, prefs.getBoolean(accountKey(101, "packagePush"), false))
-        assertEquals(false, prefs.getBoolean(accountKey(202, "packagePush"), true))
+        assertEquals(true, prefs.getBoolean(accountKey(101, "packageSMS"), false))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packageSMS"), true))
     }
 
     @Test
@@ -185,21 +183,21 @@ class NotificationSettingsParityTest {
             context = context,
             transform = { state, on ->
                 boundary.replaceCurrent("account-b", accountId = 202)
-                state.copy(packagePush = on)
+                state.copy(packageSms = on)
             },
             on = true,
         )
 
         val prefs = context.getSharedPreferences(NotificationAccountPreferences.PREFS, Context.MODE_PRIVATE)
-        assertEquals(false, prefs.getBoolean(accountKey(101, "packagePush"), true))
+        assertEquals(false, prefs.getBoolean(accountKey(101, "packageSMS"), true))
         assertEquals(0, commands.get())
 
         boundary.emitCurrent()
         waitUntil {
-            prefs.contains(accountKey(202, "packagePush")) &&
-                !viewModel.state.value.packagePush
+            prefs.contains(accountKey(202, "packageSMS")) &&
+                !viewModel.state.value.packageSms
         }
-        assertEquals(false, prefs.getBoolean(accountKey(202, "packagePush"), true))
+        assertEquals(false, prefs.getBoolean(accountKey(202, "packageSMS"), true))
     }
 
     @Test
@@ -284,7 +282,7 @@ class NotificationSettingsParityTest {
 
         viewModel.setMaster(context, false)
         viewModel.setPackageMaster(context, true)
-        viewModel.setChannel(context, { state, on -> state.copy(packagePush = on) }, true)
+        viewModel.setChannel(context, { state, on -> state.copy(packageSms = on) }, true)
 
         assertEquals(listOf(false), commands)
         assertEquals(false, viewModel.state.value.pushWanted())
@@ -338,7 +336,7 @@ class NotificationSettingsParityTest {
         viewModel.start(context)
         viewModel.setPackageMaster(context, true)
         viewModel.setChannel(context, { state, on -> state.copy(packageEmail = on) }, true)
-        viewModel.setChannel(context, { state, on -> state.copy(packagePush = on) }, true)
+        viewModel.setChannel(context, { state, on -> state.copy(packageSms = on) }, true)
         viewModel.setPromosMaster(context, true)
         viewModel.setChannel(context, { state, on -> state.copy(promosSms = on) }, true)
 
@@ -549,22 +547,21 @@ class NotificationSettingsParityTest {
         val packageSection = bounds("notification-package-section-row")
         val packageEmail = bounds("notification-package-email-row")
         val packageSms = bounds("notification-package-sms-row")
-        val packagePush = bounds("notification-package-push-row")
         val promosSection = bounds("notification-promos-section-row")
 
         assertClose(60f, boundsHeight(master), "Master row height")
         assertClose(60f, boundsHeight(packageSection), "Package section row height")
         assertClose(56f, boundsHeight(packageEmail), "Package Email row height")
         assertClose(56f, boundsHeight(packageSms), "Package SMS row height")
-        assertClose(56f, boundsHeight(packagePush), "Package Push row height")
         assertClose(60f, boundsHeight(promosSection), "Promotions section row height")
 
         assertClose(12f, verticalGap(master, status), "Master-to-status gap")
         assertClose(20f, verticalGap(status, packageSection), "Status-to-package gap")
         assertClose(12f, verticalGap(packageSection, packageEmail), "Package section-to-email gap")
         assertClose(12f, verticalGap(packageEmail, packageSms), "Package email-to-sms gap")
-        assertClose(12f, verticalGap(packageSms, packagePush), "Package sms-to-push gap")
-        assertClose(20f, verticalGap(packagePush, promosSection), "Package-to-promotions gap")
+        // The Push row used to sit between these two. With it deleted the SMS row
+        // is the last in the section, so one gap replaces the two that bracketed it.
+        assertClose(20f, verticalGap(packageSms, promosSection), "Package-to-promotions gap")
 
         assertClose(20f, iconStart("notification-master"), "Master icon leading inset")
         assertClose(28f, iconStart("notification-package-email"), "Sub-row icon leading inset")

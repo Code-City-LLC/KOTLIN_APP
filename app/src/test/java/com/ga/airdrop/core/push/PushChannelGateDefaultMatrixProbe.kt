@@ -77,8 +77,8 @@ class PushChannelGateDefaultMatrixProbe {
     fun `hidden category rows cannot suppress anything, however they got set`() {
         val everySubFlagOff = NotificationPreferenceMatrix(
             master = true,
-            packageMaster = false, packageEmail = false, packageSms = false, packagePush = false,
-            promosMaster = false, promosEmail = false, promosSms = false, promosPush = false,
+            packageMaster = false, packageEmail = false, packageSms = false,
+            promosMaster = false, promosEmail = false, promosSms = false,
         )
         listOf("package_status_update", "promo_offer", "payment_reminder", null).forEach {
             assertFalse(

@@ -179,20 +179,9 @@ fun NotificationSettingsScreen(
                         },
                         testTagPrefix = "notification-package-sms",
                     )
-                    Spacer(Modifier.height(RowGap))
-                    ToggleRow(
-                        title = "Push",
-                        titleStyle = AirdropType.body1,
-                        rowStyle = ToggleRowStyle.Sub,
-                        iconRes = R.drawable.ic_notifications,
-                        iconTint = BrandPalette.OrangeMain,
-                        checked = state.packagePush,
-                        enabled = packageSubEnabled,
-                        onChange = { on ->
-                            viewModel.setChannel(context, { s, v -> s.copy(packagePush = v) }, on)
-                        },
-                        testTagPrefix = "notification-package-push",
-                    )
+                    // The "Push" sub-row was DELETED here, not hidden. There is no
+                    // push-preference column on the server, so it could never be
+                    // made real. Email and SMS remain because Laravel stores those.
                     Spacer(Modifier.height(SectionGap))
                     ToggleRow(
                         title = "Promotions",
@@ -231,20 +220,7 @@ fun NotificationSettingsScreen(
                         },
                         testTagPrefix = "notification-promos-sms",
                     )
-                    Spacer(Modifier.height(RowGap))
-                    ToggleRow(
-                        title = "Push",
-                        titleStyle = AirdropType.body1,
-                        rowStyle = ToggleRowStyle.Sub,
-                        iconRes = R.drawable.ic_notifications,
-                        iconTint = BrandPalette.OrangeMain,
-                        checked = state.promosPush,
-                        enabled = promosSubEnabled,
-                        onChange = { on ->
-                            viewModel.setChannel(context, { s, v -> s.copy(promosPush = v) }, on)
-                        },
-                        testTagPrefix = "notification-promos-push",
-                    )
+                    // "Push" deleted here too — same reason as the Package section.
                 }
             }
         }

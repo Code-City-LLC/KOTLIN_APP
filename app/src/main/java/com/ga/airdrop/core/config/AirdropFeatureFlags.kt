@@ -27,35 +27,36 @@ object AirdropFeatureFlags {
      * (~:687): *"visibility and enforcement cannot drift apart — showing the rows
      * without sending, or sending without showing, would each be a bug."*
      *
+     * ## What this now covers — SIX rows, not eight
+     *
+     * The two per-category **Push** sub-toggles are gone: deleted, not hidden
+     * (Kemar 2026-08-01; iOS did the same at `49fee24`). There is **no
+     * push-preference column anywhere on the server** — not in the users table
+     * (`2024_01_01_000001_create_legacy_core_tables:53-55`), not in `UserResource`
+     * (`:70-72`), not in any later migration — so they could never be made real,
+     * and a flag guarding them would have guarded a permanent no-op.
+     *
+     * What remains are the two section masters and the four Email/SMS rows, which
+     * DO map onto fields Laravel stores: `user_email_notification`,
+     * `user_sms_notification`, `user_offers_notification`.
+     *
      * ## ⚠️ What has to be TRUE before this goes on
      *
-     * It is **not** "once Laravel accepts the three notification fields". That was
-     * written down on both platforms and is wrong. Those three fields are
-     * `user_email_notification`, `user_sms_notification`, `user_offers_notification`
-     * — email, SMS and offers. They are server-delivered channels; the client is
-     * not in that path at all.
-     *
-     * There is **no push-preference column anywhere on the server** — not in the
-     * users table (`2024_01_01_000001_create_legacy_core_tables:53-55`), not in
-     * `UserResource` (`:70-72`), not in any later migration. So the two flags this
-     * gate actually reads — `packagePush` and `promosPush` — are backed by nothing,
-     * and landing the three fields would not change that.
-     *
-     * Required before flipping, all of it:
-     *  - `package_push` / `promos_push` columns + resource fields + validation
-     *    server-side. **Not scoped by anyone as of 2026-08-01.**
+     *  - `UpdateUserRequest::rules()` must accept those three fields. Today it
+     *    omits them and Laravel's `validated()` drops unknown keys silently, so
+     *    sending them is a no-op rather than an error. BronzeMountain owns this.
+     *  - The category mapping must be confirmed: **three server fields against six
+     *    client rows** is not 1:1, and guessing it would write preferences the
+     *    customer never expressed.
      *  - The gate must stop suppressing on an unanswered flag. Today a
      *    default-constructed [com.ga.airdrop.core.prefs.NotificationPreferenceMatrix]
      *    is all-false, and `load()` COMMITS that to disk on first read — so a
      *    stored `false` cannot be told apart from a customer who chose "off".
      *    Flipping this flag without fixing that silently drops package
      *    notifications for the whole installed base.
-     *  - Email/SMS/offers should be hydrated from the user response, where the
-     *    server already distinguishes `null` (never answered) from `'yes'`/`'no'`.
-     *    Kotlin already parses all three at `User.kt:163-165` and discards them.
-     *
-     * If the answer is that push columns are not wanted, these two toggles should
-     * be **deleted** rather than hidden — they can never be made real.
+     *  - Preferences should be hydrated from the user response, where the server
+     *    already distinguishes `null` (never answered) from `'yes'`/`'no'`. Kotlin
+     *    parses all three at `User.kt:163-165` and currently discards them.
      */
     @Volatile
     var notificationCategoryPreferences: Boolean = false
