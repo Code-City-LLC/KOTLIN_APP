@@ -37,11 +37,9 @@ data class NotificationSettingsUiState(
     val packageMaster: Boolean = false,
     val packageEmail: Boolean = false,
     val packageSms: Boolean = false,
-    val packagePush: Boolean = false,
     val promosMaster: Boolean = false,
     val promosEmail: Boolean = false,
     val promosSms: Boolean = false,
-    val promosPush: Boolean = false,
     val deviceStatus: NotificationDeviceStatus = NotificationDeviceStatus.MissingAccount,
     val permissionDialogVisible: Boolean = false,
 )
@@ -149,14 +147,14 @@ class NotificationSettingsViewModel(
     fun setPackageMaster(context: Context, on: Boolean) {
         mutate(context) {
             if (on) it.copy(packageMaster = true)
-            else it.copy(packageMaster = false, packageEmail = false, packageSms = false, packagePush = false)
+            else it.copy(packageMaster = false, packageEmail = false, packageSms = false)
         }
     }
 
     fun setPromosMaster(context: Context, on: Boolean) {
         mutate(context) {
             if (on) it.copy(promosMaster = true)
-            else it.copy(promosMaster = false, promosEmail = false, promosSms = false, promosPush = false)
+            else it.copy(promosMaster = false, promosEmail = false, promosSms = false)
         }
     }
 
@@ -297,11 +295,9 @@ private fun NotificationPreferenceMatrix.toUiState(
     packageMaster = packageMaster,
     packageEmail = packageEmail,
     packageSms = packageSms,
-    packagePush = packagePush,
     promosMaster = promosMaster,
     promosEmail = promosEmail,
     promosSms = promosSms,
-    promosPush = promosPush,
     deviceStatus = deviceStatus,
 )
 
@@ -311,9 +307,7 @@ private fun NotificationSettingsUiState.toPreferenceMatrix(): NotificationPrefer
         packageMaster = packageMaster,
         packageEmail = packageEmail,
         packageSms = packageSms,
-        packagePush = packagePush,
         promosMaster = promosMaster,
         promosEmail = promosEmail,
         promosSms = promosSms,
-        promosPush = promosPush,
     )

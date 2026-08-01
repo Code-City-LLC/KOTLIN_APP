@@ -39,6 +39,24 @@ data class ShipmentsUiState(
     val packagesFailed: Boolean = false,
     val paymentsFailed: Boolean = false,
     val ordersFailed: Boolean = false,
+
+    /**
+     * The FOURTH request, and it was left out of the fix above.
+     *
+     * `summary()` did have an onFailure branch — but it wrote to [error], and
+     * nothing renders that. `ShipmentsUiState` appears exactly once outside this
+     * file, as a parameter at `ShipmentsScreen.kt:318`, and that composable
+     * never reads `.error`. (The `state.error` reads elsewhere in that file
+     * belong to `QuickTrackUiState`, a different type — which is why a grep
+     * makes this look handled when it is not.)
+     *
+     * So a failed GET /shipments/summary left all four counts at their `null`
+     * default, and the tile renders `count?.toString() ?: "0"`. The hub told
+     * the customer "Track Shipment 0 / Packages 0 / Payments 0 / Orders 0" —
+     * four false statements from one dropped request, which is the exact
+     * sentence written above about the other three.
+     */
+    val summaryFailed: Boolean = false,
 )
 
 data class QuickTrackRecent(
@@ -85,15 +103,27 @@ class ShipmentsViewModel(
     fun refresh() {
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, packagesFailed = false, paymentsFailed = false, ordersFailed = false) }
+            _state.update {
+                it.copy(
+                    loading = true,
+                    error = null,
+                    packagesFailed = false,
+                    paymentsFailed = false,
+                    ordersFailed = false,
+                    summaryFailed = false,
+                )
+            }
             repo.exchangeRate().onSuccess { rate ->
                 com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
                 _state.update { it.copy(exchangeRate = rate) }
             }
             repo.summary().onSuccess { summary ->
-                _state.update { it.copy(summary = summary) }
+                _state.update { it.copy(summary = summary, summaryFailed = false) }
             }.onFailure { e ->
-                _state.update { it.copy(error = e.message) }
+                // Keep writing `error` — but it is not what the customer sees,
+                // so the visible half is `summaryFailed`. Without it the tiles
+                // render "0" and state as fact that the account is empty.
+                _state.update { it.copy(error = e.message, summaryFailed = true) }
             }
             repo.packagesShortlist().onSuccess { packages ->
                 _state.update { it.copy(packages = packages.take(10), packagesFailed = false) }
