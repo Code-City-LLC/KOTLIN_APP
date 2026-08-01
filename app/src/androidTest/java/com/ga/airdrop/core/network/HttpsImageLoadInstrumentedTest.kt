@@ -19,7 +19,7 @@ import org.junit.runner.RunWith
 /**
  * On-device proof for the P1 "Shop auction/featured images blank on prod" fix.
  *
- * The prod backend (APP_URL=http://app.airdropja.com) hands the app cleartext
+ * The prod backend (APP_URL=http://airdropja.com) hands the app cleartext
  * http:// storage URLs. Android blocks cleartext HTTP by default (targetSdk 35,
  * no override in the manifest) so Coil silently drops those loads and the cards
  * render blank. [HttpsImageInterceptor] on the app-wide ImageLoader upgrades the
@@ -27,7 +27,7 @@ import org.junit.runner.RunWith
  *
  * Auth-free: /products is public and /storage assets need no session, so this
  * reproduces the exact failing load without a prod account. Requires the
- * emulator to reach app.airdropja.com; if the live feed ever returns only https
+ * emulator to reach airdropja.com; if the live feed ever returns only https
  * URLs the tests self-skip (nothing cleartext left to prove).
  */
 @RunWith(AndroidJUnit4::class)
@@ -40,7 +40,7 @@ class HttpsImageLoadInstrumentedTest {
     fun fetchLiveCleartextProdImageUrl() {
         val response = OkHttpClient().newCall(
             Request.Builder()
-                .url("https://app.airdropja.com/api/v1/products?per_page=12")
+                .url("https://airdropja.com/api/v1/products?per_page=12")
                 .header("Accept", "application/json")
                 .build(),
         ).execute().use { it.body?.string().orEmpty() }
@@ -53,7 +53,7 @@ class HttpsImageLoadInstrumentedTest {
 
         assumeTrue("prod feed served no cleartext http:// product image to test", match != null)
         cleartextProdImageUrl = match!!
-        assertTrue(cleartextProdImageUrl.startsWith("http://app.airdropja.com/storage/"))
+        assertTrue(cleartextProdImageUrl.startsWith("http://airdropja.com/storage/"))
     }
 
     @Test

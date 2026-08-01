@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * [secureImageUrl] parity: prod (APP_URL=http://app.airdropja.com) hands the
+ * [secureImageUrl] parity: prod (APP_URL=http://airdropja.com) hands the
  * app cleartext image URLs that Android's default cleartext block drops, so
  * Shop/Home/banner/order images go blank. The upgrade forces https on our own
  * host only, and never on look-alike or third-party hosts.
@@ -15,8 +15,8 @@ class ImageUrlTest {
     @Test
     fun `upgrades cleartext prod storage url to https`() {
         assertEquals(
-            "https://app.airdropja.com/storage/products/QWV7Is2.png",
-            secureImageUrl("http://app.airdropja.com/storage/products/QWV7Is2.png"),
+            "https://airdropja.com/storage/products/QWV7Is2.png",
+            secureImageUrl("http://airdropja.com/storage/products/QWV7Is2.png"),
         )
     }
 
@@ -31,14 +31,14 @@ class ImageUrlTest {
     @Test
     fun `upgrades cleartext host with explicit port`() {
         assertEquals(
-            "https://app.airdropja.com:80/storage/a.jpg",
-            secureImageUrl("http://app.airdropja.com:80/storage/a.jpg"),
+            "https://airdropja.com:80/storage/a.jpg",
+            secureImageUrl("http://airdropja.com:80/storage/a.jpg"),
         )
     }
 
     @Test
     fun `leaves already-secure https url untouched`() {
-        val secure = "https://app.airdropja.com/storage/products/x.png"
+        val secure = "https://airdropja.com/storage/products/x.png"
         assertEquals(secure, secureImageUrl(secure))
     }
 
