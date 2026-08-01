@@ -29,6 +29,8 @@ mandatory_class_counts=(10 9 14 4)
 # A second copy would let the thing being tested drift from the test.
 allowed_skips=(
   "com.ga.airdrop.core.push.PushDeepLinkSessionBindingTest.processRestoreUsesFreshSecondaryProcessWithStableSessionId=#183 -- asserts cross-process EncryptedSharedPreferences coherence, which is not a documented guarantee. The real force-stop restart is verified on device; see the issue."
+  "com.ga.airdrop.core.network.HttpsImageLoadInstrumentedTest.appImageLoader_upgradesAndLoadsCleartextProdImage=#216 -- the SUBJECT no longer exists: production serves 0 cleartext http:// storage URLs and 58 https:// ones (measured 2026-08-01 against /api/v1/products). This test proves the loader UPGRADES an insecure image URL; with nothing insecure left to upgrade, its assumeTrue guard correctly finds no fixture. Quarantined rather than deleted so it still catches a backend regression to cleartext. Delete this entry to end the quarantine."
+  "com.ga.airdrop.core.network.HttpsImageLoadInstrumentedTest.vanillaLoaderWithoutUpgrade_isBlockedOnCleartextProdImage=#216 -- same fixture, same reason as the sibling above: no cleartext image is served in production any more, so there is nothing for the un-upgraded loader to be blocked on."
 )
 
 requested_classes=()
