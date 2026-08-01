@@ -7,39 +7,33 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The gateway test-card matrix, driven through the REAL return function.
+ * Stripe checkout STATUS-MAPPING through the real return function.
  *
- * Kemar asked for the checkout tested "in full" against Stripe's and NCB's
- * published test cards, including the return path. This covers the half that
- * can be proven without a live merchant session: **for each card, does the
- * client reach the correct terminal state?**
+ * ⚠️ THIS FILE TESTS NO CARDS AND NO GATEWAY. Read that before citing it.
  *
- * ## ⚠️ WHAT THIS DOES NOT DO — read before trusting it
+ * It was originally written as a "gateway test-card matrix" and claimed NCB
+ * coverage. That claim was FALSE and BrightHarbor caught it: every case here
+ * calls [verifySession], which is **Stripe-only** — `PaymentReturnViewModel`
+ * routes it to `payments.checkoutSessionStatus` and requires a Stripe session
+ * id. The real NCB path is `createNcbSession` / `completeNcbPayment(spiToken)`
+ * with an entirely different DTO (`spi_token` + `redirect_data` -> `invoice_id`,
+ * not status/payment_status). The NCB-labelled cases therefore executed **zero
+ * NCB production code** and have been deleted rather than renamed.
  *
- * It does **not** place a live authorisation. No card is sent to Stripe or to
- * PowerTranz here. What it pins is the client's handling of the OUTCOME each
- * card produces, using the real server payload shape
- * (see [PaymentReturnRealServerShapeTest] for why the shape matters — the old
- * fixture invented a field Laravel never sends, so the suite stayed green while
- * every real payment failed to confirm).
+ * The card-number loops are gone too. Card numbers never reach client code —
+ * Stripe's hosted page owns entry — so iterating them while sending the same
+ * hand-chosen status pair was duplicate proof wearing a card-testing label.
  *
- * A live sandbox charge remains unverified and is the one thing a human still
- * has to do. Saying so here so nobody reads a green suite as "cards tested".
+ * What remains is real and worth having: the mapping from Stripe's
+ * (status, payment_status) pair to a terminal client decision. Payloads use the
+ * shape Laravel actually sends — `session_id` ABSENT — the same discipline as
+ * [PaymentReturnRealServerShapeTest], whose header records that an idealised
+ * fixture kept the suite green while every real payment failed to confirm.
  *
- * ## Why outcome-mapping is the right unit
- *
- * `verifySession` is what decides, after the customer returns from the gateway,
- * whether their money moved. Card *numbers* never reach this code — Stripe's
- * hosted page and PowerTranz's 3DS page own that. What reaches it is a status
- * pair, and each published test card is a machine for producing one specific
- * pair. So the card matrix IS a status matrix, and this is where it belongs.
- *
- * Card numbers and expected outcomes transcribed 2026-08-01 from
- * docs.stripe.com/testing. PowerTranz's card list is behind a login wall, so
- * the NCB cases below are built from the ISO-8583 codes the rail actually
- * returns rather than from card numbers we cannot cite.
+ * Scenario names below reference the Stripe test card that PRODUCES each status
+ * pair, as documentation of provenance only. **No card is exercised.**
  */
-class GatewayTestCardMatrixTest {
+class StripeStatusMappingTest {
 
     /** The real payload: `session_id` absent, exactly as Laravel sends it. */
     private fun payload(
@@ -91,22 +85,19 @@ class GatewayTestCardMatrixTest {
      */
     @Test
     fun `stripe decline cards leave the session open and must NOT be treated as terminal`() {
-        // generic_decline · insufficient_funds · lost_card · expired_card · incorrect_cvc
-        listOf(
-            "4000000000000002" to "generic_decline",
-            "4000000000009995" to "insufficient_funds",
-            "4000000000009987" to "lost_card",
-            "4000000000000069" to "expired_card",
-            "4000000000000127" to "incorrect_cvc",
-        ).forEach { (card, reason) ->
-            val r = verify(status = "open", paymentStatus = "unpaid")
-            assertTrue(
-                "card $card ($reason) leaves the Stripe session OPEN — the customer " +
-                    "can still retry on the same session, so this must NOT be " +
-                    "terminal. Got: $r",
-                r is PaymentReturnResult.NotPaid && !r.terminal,
-            )
-        }
+        // Produced by every Stripe decline card (generic_decline,
+        // insufficient_funds, lost_card, expired_card, incorrect_cvc). They all
+        // yield the SAME pair, so one assertion covers them — iterating the card
+        // numbers proved nothing extra and implied testing that never happened.
+        val r = verify(status = "open", paymentStatus = "unpaid")
+        assertTrue(
+            "a declined card leaves the Stripe session OPEN — the customer can " +
+                "still retry on it, so this must NOT be terminal. Releasing the " +
+                "latch here would let a SECOND checkout start against a session " +
+                "that is still payable, which is how a double-charge happens. " +
+                "Got: $r",
+            r is PaymentReturnResult.NotPaid && !r.terminal,
+        )
     }
 
     /**
@@ -134,19 +125,14 @@ class GatewayTestCardMatrixTest {
      */
     @Test
     fun `stripe 3DS cards stay pending DURING the challenge, then confirm after it`() {
-        listOf(
-            "4000000000003220",
-            "4000008400000027",
-            "4000002500003155",
-            "4000002760003184",
-        ).forEach { card ->
-            val during = verify(status = "open", paymentStatus = "unpaid")
-            assertTrue(
-                "card $card is mid-3DS — the customer is still authenticating, " +
-                    "this is NOT a terminal decline. Got: $during",
-                during is PaymentReturnResult.NotPaid && !during.terminal,
-            )
-        }
+        // The pair Stripe reports while a 3DS challenge is in flight.
+        val during = verify(status = "open", paymentStatus = "unpaid")
+        assertTrue(
+            "mid-3DS the customer is still authenticating; this is NOT a terminal " +
+                "decline, and treating it as one abandons a payment that is about " +
+                "to succeed. Got: $during",
+            during is PaymentReturnResult.NotPaid && !during.terminal,
+        )
         val after = verify(status = "complete", paymentStatus = "paid")
         assertTrue(
             "a completed 3DS challenge must confirm like any other paid session. Got: $after",
@@ -169,47 +155,6 @@ class GatewayTestCardMatrixTest {
             "complete+unpaid means authentication failed. Confirming here would " +
                 "clear the cart for an unpaid order. Got: $r",
             r is PaymentReturnResult.NotPaid && r.terminal,
-        )
-    }
-
-    // ── NCB / PowerTranz ────────────────────────────────────────────────────
-
-    /**
-     * The JMD rail returns ISO-8583 codes, and Laravel normalises them into the
-     * same status pair before the client ever sees them. PowerTranz's card list
-     * is behind a login wall, so these are keyed on the ISO outcomes rather than
-     * on card numbers I cannot cite — inventing plausible-looking PowerTranz
-     * numbers would be worse than omitting them.
-     */
-    @Test
-    fun `NCB approval - ISO 00 - confirms`() {
-        val r = verify(status = "complete", paymentStatus = "paid")
-        assertTrue("ISO 00 is Approved and must confirm. Got: $r", r is PaymentReturnResult.Success)
-    }
-
-    @Test
-    fun `NCB declines - ISO 05 51 54 - are terminal and must NOT hold the latch`() {
-        // 05 Do Not Honour · 51 Insufficient Funds · 54 Expired Card.
-        // Unlike Stripe, a PowerTranz decline ends that authorisation outright —
-        // there is no reusable open session — so holding the latch would brick
-        // the rail exactly as the no-TTL bug did in #209.
-        listOf("05", "51", "54").forEach { iso ->
-            val r = verify(status = "failed", paymentStatus = "unpaid")
-            assertTrue(
-                "ISO $iso is a hard decline; the latch must release or the customer " +
-                    "cannot retry at all. Got: $r",
-                r is PaymentReturnResult.NotPaid && r.terminal,
-            )
-        }
-    }
-
-    @Test
-    fun `NCB 3DS challenge in flight stays pending`() {
-        val r = verify(status = "pending", paymentStatus = "unpaid")
-        assertTrue(
-            "the customer is on the PowerTranz 3DS page; neither confirm nor " +
-                "release until it resolves. Got: $r",
-            r is PaymentReturnResult.NotPaid && !r.terminal,
         )
     }
 
