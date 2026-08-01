@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
@@ -23,9 +24,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicInteger
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,6 +38,32 @@ class NotificationSettingsParityTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /**
+     * ⚠️ This class measures the eight per-category rows, which
+     * [AirdropFeatureFlags.notificationCategoryPreferences] hides in the shipped
+     * build. Without this hook the rows are never composed and every geometry
+     * assertion dies with "Failed to retrieve bounds of the node" — which is
+     * precisely how the connected gate caught the flag landing.
+     *
+     * Enabling the flag is the right fix rather than deleting the assertions:
+     * the rows still exist in code, and their Swift-parity geometry is exactly
+     * what has to be intact on the day the flag flips on. What would be wrong is
+     * leaving it implicit — a parity test that silently measures nothing is the
+     * same vacuous-test trap that let the original P0 through.
+     *
+     * The SHIPPED state (rows absent, gate inert) is covered by
+     * PushChannelGateDefaultMatrixProbe, which deliberately has no such hook.
+     */
+    @Before
+    fun showCategoryRows() {
+        AirdropFeatureFlags.notificationCategoryPreferences = true
+    }
+
+    @After
+    fun restoreShippedDefault() {
+        AirdropFeatureFlags.notificationCategoryPreferences = false
+    }
 
     @Test
     fun rowsUseSwiftGeometryAndIconColorsLight() {

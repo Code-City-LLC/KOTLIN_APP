@@ -69,6 +69,18 @@ object NotificationAccountPreferences {
 
     fun currentMasterEnabled(): Boolean = currentMatrix()?.master == true
 
+    /**
+     * The signed-in account's matrix, or null when there is no session or it
+     * cannot be read.
+     *
+     * Exposed for [com.ga.airdrop.core.push.PushChannelGate], which runs inside
+     * `AirdropMessagingService` — a Service with no ViewModel and no session
+     * boundary of its own. **Null must be treated as "do not suppress"**: a
+     * preference we failed to read is not permission to withhold the customer's
+     * notification.
+     */
+    fun currentMatrixOrNull(): NotificationPreferenceMatrix? = currentMatrix()
+
     fun masterEnabledFor(expected: AuthTokenStore.RequestProvenance): Boolean {
         val accountId = expected.accountId ?: return false
         var enabled = false
