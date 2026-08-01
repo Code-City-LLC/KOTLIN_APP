@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -76,6 +77,22 @@ fun AppRoot(
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    // PULL half of app-update detection: ask Play directly, once per launch.
+    // Gated on a token because an update prompt on top of the login screen is
+    // noise to someone who is not even signed in yet — and because the checker
+    // marks itself "prompted this session", firing it pre-auth would burn the
+    // one prompt we get.
+    //
+    // Every failure inside returns None, so this cannot show a false prompt.
+    LaunchedEffect(token != null) {
+        if (token == null) return@LaunchedEffect
+        val status = com.ga.airdrop.core.update.AppUpdateChecker.checkOnLaunch(appRootContext)
+        if (status is com.ga.airdrop.core.update.AppUpdateChecker.UpdateStatus.Available) {
+            com.ga.airdrop.core.update.AppUpdateChecker.promptedThisSession = true
+            navController.navigate(Routes.APP_UPDATE)
+        }
+    }
     val currentTab = when (currentRoute) {
         Routes.HOME -> AirdropTab.Home
         Routes.SHIPMENTS -> AirdropTab.Shipments
@@ -403,6 +420,31 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     // Stripe cancel_url is bare, so recover the sole persisted exact session
     // and verify it server-side. Only authoritative terminal non-paid releases
     // retry; unknown/network/mismatch remains pending to prevent double-pay.
+    // "Update Available". Reached two ways, exactly like iOS:
+    //   PULL — AppUpdateChecker found a newer build on Play at launch.
+    //   PUSH — the backend app-update broadcast; that path is the force-update
+    //          lever and bypasses the checker's 24h/skip brakes by design.
+    composable(Routes.APP_UPDATE) {
+        val ctx = LocalContext.current
+        com.ga.airdrop.feature.appupdate.AppUpdateScreen(
+            availableVersionCode = com.ga.airdrop.core.update.AppUpdateChecker
+                .lastKnownAvailableVersionCode(ctx),
+            installedVersionName = com.ga.airdrop.BuildConfig.VERSION_NAME,
+            // Play does not expose release notes to the client; only a backend
+            // push can carry them. Null omits the whole "What's New" block
+            // rather than rendering an empty card.
+            releaseNotes = null,
+            onUpdate = { com.ga.airdrop.core.push.openPlayStoreListing(ctx) },
+            onLater = {
+                com.ga.airdrop.core.update.AppUpdateChecker
+                    .lastKnownAvailableVersionCode(ctx)
+                    ?.let { code -> com.ga.airdrop.core.update.AppUpdateChecker.skipVersion(ctx, code) }
+                navController.popBackStack()
+            },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
     composable(Routes.PAYMENT_CANCELLED) {
         com.ga.airdrop.feature.cart.PaymentCancelledHost(
             onPaid = { ref, amount, packageIds ->

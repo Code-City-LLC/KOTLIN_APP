@@ -352,7 +352,10 @@ private fun resolveNotificationRoute(
         // entire purpose is to get the customer to update.
         //
         // Not a NavHost destination: this leaves the app for the Play Store.
-        "AppUpdateView", "AppUpdateScreen" -> Routes.EXTERNAL_APP_UPDATE
+        // Lands on the in-app screen now, not straight out to Play: the
+        // customer sees what is changing and can decline. "Update Now"
+        // there still fires Routes.EXTERNAL_APP_UPDATE.
+        "AppUpdateView", "AppUpdateScreen" -> Routes.APP_UPDATE
         else -> null
     }
 }
