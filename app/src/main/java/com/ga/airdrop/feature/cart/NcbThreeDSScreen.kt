@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.cart
 
+import java.net.URI
 import android.graphics.Bitmap
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -210,10 +211,58 @@ fun NcbThreeDSScreen(
     }
 }
 
-internal fun isNcbCallback(url: String): Boolean {
-    val lower = url.lowercase()
-    return lower.contains("ncb-3ds-callback") ||
-        lower.contains("ncb_3ds_callback") ||
-        Regex("[?&]spi[_-]?token=").containsMatchIn(lower) ||
-        lower.contains("spitoken")
+/** Laravel route `user.checkout.ncb-3ds-callback`, exact case (ORC 88696). */
+internal const val NCB_CALLBACK_PATH = "/user/checkout/ncb-3ds-callback"
+
+/**
+ * Is this WebView navigation OUR 3DS callback?
+ *
+ * ## What this replaced, and why it was a hole
+ *
+ * Three bare `contains` checks plus a query-parameter regex, with **no host,
+ * scheme or path check at all**. During 3DS the WebView sits on **the bank's
+ * domain**, which we do not control, and every URL it walked through was
+ * measured against substrings. All of these returned TRUE before this change:
+ *
+ * ```
+ * https://bank.example/step?next=%2Fuser%2Fcheckout%2Fncb-3ds-callback  (query VALUE)
+ * https://spitoken.example.com/anything                                  (in the HOST)
+ * https://anything.example/x#spitoken                                    (FRAGMENT)
+ * http://<ourhost>/user/checkout/ncb-3ds-callback                        (cleartext)
+ * https://evil.example/?spi_token=whatever                               (any host)
+ * ```
+ *
+ * I audited this in ORC 88258 and reported *"host-agnostic, so the apex move
+ * cannot break it — no change needed."* That was wrong, and it is the worst
+ * call I made on this codebase. Host-agnosticism is not a feature; it is a
+ * missing origin check on a payment callback.
+ *
+ * ## What it does now — exact origin + path, nothing else
+ *
+ *  - **https only.** A cleartext callback is never ours.
+ *  - **Exact host equality** against the ACTIVE BUILD's [BuildConfig.WEB_BASE_URL].
+ *    Not `endsWith`, not `contains` — a suffix test is how `airdropja.com.evil.com`
+ *    gets in. This also makes a prod build reject a staging callback, and the reverse.
+ *  - **Exact path** [NCB_CALLBACK_PATH]; a trailing slash is tolerated.
+ *  - **Query and fragment are NOT triggers.** The `spi_token` arm is gone: a
+ *    token in a query string says nothing about origin.
+ *
+ * ## Arrival is NOT success
+ *
+ * ORC 88696: the route is POST-only, a live GET returns 405, and an invalid
+ * empty POST returns **HTTP 200 with `success=false`**. Reaching this URL proves
+ * the bank redirected us and nothing more. This function answers "is this our
+ * callback", never "did the payment succeed" — only the Laravel completion
+ * response decides that.
+ */
+internal fun isNcbCallback(
+    url: String,
+    allowedHost: String? = runCatching { URI(BuildConfig.WEB_BASE_URL).host }.getOrNull(),
+): Boolean {
+    if (allowedHost.isNullOrBlank()) return false
+    val uri = runCatching { URI(url) }.getOrNull() ?: return false
+    if (!"https".equals(uri.scheme, ignoreCase = true)) return false
+    if (!allowedHost.equals(uri.host, ignoreCase = true)) return false
+    return uri.path?.lowercase()?.trimEnd('/').orEmpty() == NCB_CALLBACK_PATH
 }
+
