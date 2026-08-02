@@ -48,15 +48,23 @@ class JmdCheckoutGateTest {
     // ── Shipping state: OFF ─────────────────────────────────────────────────
 
     @Test
-    fun `the flag ships OFF — this is the assertion that actually protects customers`() {
-        // If someone flips the default without reading the KDoc, this fails and
-        // names the reason. Deliberately reads the SOURCE default, not the
-        // captured value.
+    fun `the shipped default is pinned — changing it must be deliberate`() {
+        // ⚠️ This asserted `false` when the rail was entirely unverified. It now
+        // asserts `true`, matching iOS (ORC 89022) after Kemar's "connect the
+        // working NCB… focus on connecting to the live".
+        //
+        // The point of this test is unchanged: the shipped default is a DECISION,
+        // and flipping it without touching this line is not possible. Whoever
+        // changes it has to come here and say why.
+        //
+        // Turning it back OFF is one boolean plus this assertion, and every
+        // boundary gate below still works in both directions — proven by the
+        // gate-OFF cases in this class, which are NOT deleted.
         restore()
         assertEquals(
-            "AirdropFeatureFlags.jmdNcbCheckout must ship false until Laravel's " +
-                "NCB completion is durable — see ORC 88519/88520/88588",
-            false,
+            "AirdropFeatureFlags.jmdNcbCheckout default changed. iOS and Android " +
+                "must not diverge on a payment rail — check ORC before changing it.",
+            true,
             original,
         )
     }
