@@ -69,13 +69,30 @@ class HttpsImageLoadInstrumentedTest {
         // app-wide and host-agnostic across the domain, so a real asset from
         // either is a valid proof.
         //
-        // ⚠️ THE FALLBACK IS LOAD-BEARING TODAY, AND IT IS COVERING A BACKEND
-        // DEFECT, NOT A TEST WEAKNESS. The pre-staging API currently serves
-        // every product image on the RETIRED `app.` subdomain (54 of them,
-        // checked 2026-08-02) while prod correctly serves the apex. Those
-        // staging image links are dead. Reported to Laravel — see ORC. When
-        // that is fixed the flavor branch will match directly and this fallback
-        // stops firing on its own; it is not a permanent crutch.
+        // ⚠️ REMOVE THIS FALLBACK WHEN **LARAVEL #425** IS VERIFIED. ⚠️
+        //
+        // It is load-bearing today, and it is covering a BACKEND defect rather
+        // than a test weakness. The pre-staging API serves every product image
+        // on the RETIRED `app.` subdomain (54 of them) while prod correctly
+        // serves the apex. Independently reproduced by BrightHarbor, who traced
+        // it to live pre-staging MEDIA_URL and opened Laravel #425:
+        //
+        //     retired host -> DNS failure
+        //     pre-staging  -> 403
+        //     apex         -> 200
+        //
+        // So those staging image links are genuinely dead, not merely
+        // mislabelled. Checked 2026-08-02.
+        //
+        // This is TEST CONTAINMENT ONLY and is confined to this file. A RUNTIME
+        // cross-environment catalog fallback must NEVER be added (ORC 88577):
+        // it would make a staging build silently load production assets, which
+        // would have HIDDEN #425 instead of surfacing it — the same failure
+        // shape as the silent `assumeTrue` this file used to have.
+        //
+        // Once #425 is verified, delete the fallback so staging tests prove
+        // STAGING's own catalog again. Until then the flavor branch simply does
+        // not match on staging and this arm carries the test.
         val secure = firstStorageImage(apiBase, flavorHost)
             ?: firstStorageImage("https://$apex/api/v1", apex)
 
