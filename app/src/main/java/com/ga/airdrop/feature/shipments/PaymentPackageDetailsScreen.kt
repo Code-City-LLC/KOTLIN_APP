@@ -174,7 +174,12 @@ internal fun PaymentPackageDetailsContent(
         ShipmentsSectionCard(title = "Payment Summary") {
             ShipmentsListRow("Invoice Number", payment.invoiceId ?: "-")
             ShipmentsListRow("Payment Method", ShipmentsFormat.capitalizeFirstWord(payment.method))
-            ShipmentsListRow("Amount Paid", ShipmentsFormat.usdJmdPlain(payment.totalAmount, rate))
+            ShipmentsListRow(
+                "Amount Paid",
+                // Currency-aware: an NCB payment's totalAmount is ALREADY JMD,
+                // and the USD helper would multiply it by the rate a second time.
+                ShipmentsFormat.dualForCurrency(payment.totalAmount, payment.currency, rate),
+            )
             ShipmentsListRow(
                 "Exchange Rate",
                 if (rate > 0) "USD 1 = JMD ${ShipmentsFormat.moneyPlain(rate)}" else "-",

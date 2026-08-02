@@ -160,9 +160,14 @@ fun ProductPaymentDetailsScreen(
                             )
                             ShipmentsListRow(
                                 "Amount Paid",
-                                ShipmentsFormat.usdJmdPlainPositive(
-                                    payment.totalAmount ?: order?.salePriceUsd ?: order?.invoiceAmountUsd,
+                                // ONE precedence, shared with state.totalUsd below,
+                                // so "Amount Paid" and "Total" cannot disagree — they
+                                // used to use opposite orders.
+                                ShipmentsFormat.dualForCurrency(
+                                    state.totalAmount,
+                                    state.totalCurrency,
                                     rate,
+                                    positiveOnly = true,
                                 ),
                             )
                             ShipmentsListRow(
@@ -172,7 +177,14 @@ fun ProductPaymentDetailsScreen(
                             )
                         }
 
-                        TotalChargesBox(value = ShipmentsFormat.usdJmdPlainPositive(state.totalUsd, rate))
+                        TotalChargesBox(
+                            value = ShipmentsFormat.dualForCurrency(
+                                state.totalAmount,
+                                state.totalCurrency,
+                                rate,
+                                positiveOnly = true,
+                            ),
+                        )
 
                         Spacer(Modifier.height(Spacing.md))
                     }

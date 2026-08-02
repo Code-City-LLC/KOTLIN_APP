@@ -321,6 +321,65 @@ object ShipmentsFormat {
     fun dual(usd: Double?, exchangeRate: Double): String =
         usd?.let { "JMD ${money(it * exchangeRate)} / USD ${money(it)}" } ?: "-"
 
+    /**
+     * The ONE currency-aware money renderer. Use this for any amount that came
+     * off a Payment record.
+     *
+     * ⚠️ WHY THIS EXISTS. [dual] and [usdJmdPlain] MULTIPLY by the rate — they
+     * assume the amount is USD, and the KDoc above [dual] says so explicitly:
+     * *"Never pass an already-converted JMD figure in here or it is multiplied
+     * twice."*
+     *
+     * The NCB rail hardcodes `currency = "JMD"`, so `Payment.totalAmount` on
+     * that rail is ALREADY Jamaican dollars. Both payment-detail screens passed
+     * it straight into the USD helpers, and `Payment.currency` — which sits
+     * right beside the amount — was referenced ZERO times by either screen.
+     *
+     * A customer who paid JMD 50,000 was shown:
+     *     JMD 8,100,000.00 / USD 50,000.00      (162x, the exchange rate)
+     * instead of:
+     *     JMD 50,000.00 / USD 308.64
+     *
+     * The payments LIST was correct, so the list and the detail screen
+     * contradicted each other on the same payment. Found on iOS by SwiftHawk
+     * (fixed there at 8da77cc) and confirmed independently in Kotlin.
+     *
+     * Centralised deliberately: three separate patches would drift, and this
+     * defect is exactly what drift produces.
+     *
+     * @param amount the figure as the server sent it
+     * @param currency the currency THAT figure is denominated in
+     * @param exchangeRate USD -> JMD
+     * @param positiveOnly render "-" for a zero amount as well as a missing one.
+     *   Mirrors [usdJmdPlainPositive] exactly, so the call sites that migrated
+     *   off it change ONLY in how they treat currency — nothing else.
+     */
+    fun dualForCurrency(
+        amount: Double?,
+        currency: String?,
+        exchangeRate: Double,
+        positiveOnly: Boolean = false,
+    ): String {
+        if (amount == null) return "-"
+        if (positiveOnly && amount <= 0.0) return "-"
+        // A non-finite or non-positive rate cannot convert anything. Showing the
+        // amount in the currency we actually know beats inventing a companion
+        // figure from a broken rate.
+        if (!exchangeRate.isFinite() || exchangeRate <= 0.0) {
+            return "${currency?.trim()?.uppercase(Locale.US) ?: "USD"} ${moneyPlain(amount)}"
+        }
+        return when (currency?.trim()?.uppercase(Locale.US)) {
+            // Already JMD: divide to recover USD. Never multiply.
+            "JMD" -> "USD ${moneyPlain(amount / exchangeRate)} / JMD ${moneyPlain(amount)}"
+            // USD, or absent — the wire default per Laravel's own reporting.
+            "USD", null, "" -> "USD ${moneyPlain(amount)} / JMD ${moneyPlain(amount * exchangeRate)}"
+            // Some third currency. We have no rate for it, so we do NOT guess a
+            // second figure — a fabricated companion amount is worse than one
+            // honest one.
+            else -> "${currency.trim().uppercase(Locale.US)} ${moneyPlain(amount)}"
+        }
+    }
+
     /** [dual], but blank rather than "-" for a missing or zero amount. */
     fun dualPositive(usd: Double?, exchangeRate: Double): String =
         usd?.takeIf { it > 0.0 }?.let { dual(it, exchangeRate) } ?: "-"
