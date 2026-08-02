@@ -205,9 +205,13 @@ class TrackUnknownStatusDoesNotBlankListTest {
         val rows = statuses.mapIndexed { i, s ->
             """{"package_id":${41 + i},"tracking_code":"AD-${41 + i}","status":"$s",
                "current_stage_key":"$s","updated_at":"2026-08-02T10:00:00+00:00"}"""
-        }.joinToString(",")
-        return """{"success":true,"data":{"deliveries":[$rows],
-            "meta":{"current_page":1,"per_page":50,"total":${statuses.size},"last_page":1}}}"""
+        }
+        return pageWithRows(*rows.toTypedArray())
+    }
+
+    private fun pageWithRows(vararg rows: String): String {
+        return """{"success":true,"data":{"deliveries":[${rows.joinToString(",")}],
+            "meta":{"current_page":1,"per_page":50,"total":${rows.size},"last_page":1}}}"""
     }
 
     private fun repo(json: String) = DeliveryTrackingRepository(
@@ -261,6 +265,47 @@ class TrackUnknownStatusDoesNotBlankListTest {
             .activeDeliveries(page = 1, perPage = 50)
 
         assertTrue("a failed read must NOT become an empty list. Got: $result", result.isFailure)
+    }
+
+    @Test
+    fun `a missing package id is corruption and fails the page visibly`() = runBlocking {
+        val result = repo(
+            pageWithRows(
+                """{"package_id":41,"tracking_code":"AD-41","status":"assigned"}""",
+                """{"tracking_code":"AD-MISSING","status":"out_for_delivery"}""",
+            ),
+        ).activeDeliveries(page = 1, perPage = 50)
+
+        assertTrue(
+            "a required identity must not disappear through mapNotNull into an " +
+                "apparently successful partial/empty list. Got: $result",
+            result.isFailure,
+        )
+    }
+
+    @Test
+    fun `an invalid package id fails even when its status is forward-compatible`() = runBlocking {
+        val result = repo(
+            pageWithRows(
+                """{"package_id":0,"tracking_code":"AD-ZERO","status":"ready_for_pickup"}""",
+            ),
+        ).activeDeliveries(page = 1, perPage = 50)
+
+        assertTrue(
+            "required identity validation must run before unknown-status tolerance. Got: $result",
+            result.isFailure,
+        )
+    }
+
+    @Test
+    fun `a blank status is malformed rather than an unknown future status`() = runBlocking {
+        val result = repo(
+            pageWithRows(
+                """{"package_id":41,"tracking_code":"AD-41","status":"   "}""",
+            ),
+        ).activeDeliveries(page = 1, perPage = 50)
+
+        assertTrue("blank required status must fail visibly. Got: $result", result.isFailure)
     }
 
     @Test
