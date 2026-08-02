@@ -43,6 +43,15 @@ data class CartUiState(
     // Swift moved off the hardcoded 161.00 to the shared last-known rate;
     // seed with the same shipments default (FuchsiaTower Pass-4 C6).
     val exchangeUsdToJmd: Double = com.ga.airdrop.feature.shipments.DEFAULT_USD_TO_JMD,
+    /**
+     * Whether [exchangeUsdToJmd] came from the SERVER or is still the seed.
+     *
+     * The seed has been wrong in production before (160.625 shown while the
+     * server said 162.00). Carrying this lets a caller about to quote money
+     * distinguish a confirmed rate from a starting guess; without it both are
+     * the same Double and the difference cannot be recovered.
+     */
+    val exchangeRateVerified: Boolean = false,
     val form: CartBillingForm = CartBillingForm(),
     val note: String = "",
     val loadingCart: Boolean = false,
@@ -104,7 +113,10 @@ class CartViewModel(
     val countryOptions: List<String> get() = CountryCatalog.displayOptions
 
     private val _state = MutableStateFlow(
-        CartUiState(exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current),
+        CartUiState(
+        exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+        exchangeRateVerified = com.ga.airdrop.core.prefs.ExchangeRateStore.verified,
+    ),
     )
     val state: StateFlow<CartUiState> = _state
 
@@ -166,6 +178,7 @@ class CartViewModel(
                     val appleHero = _state.value.appleHero
                     _state.value = CartUiState(
                         exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+                        exchangeRateVerified = com.ga.airdrop.core.prefs.ExchangeRateStore.verified,
                         loadingCart = changed != null,
                         note = changed?.let(CartNoteStore::note).orEmpty(),
                         appleHero = appleHero,
@@ -184,12 +197,37 @@ class CartViewModel(
     private fun loadRate() {
         viewModelScope.launch {
             // RECONCILE: GET /exchange-rates → { usd_to_jmd }.
-            checkout.exchangeRate().onSuccess { rate ->
-                if (rate > 0) {
-                    com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
-                    _state.update { it.copy(exchangeUsdToJmd = rate) }
+            checkout.exchangeRate()
+                .onSuccess { rate ->
+                    if (rate > 0) {
+                        com.ga.airdrop.core.prefs.ExchangeRateStore.update(rate)
+                        _state.update {
+                            it.copy(exchangeUsdToJmd = rate, exchangeRateVerified = true)
+                        }
+                    }
                 }
-            }
+                .onFailure {
+                    // ⚠️ The failure used to be swallowed entirely — no onFailure
+                    // at all — so the screen kept rendering DEFAULT_USD_TO_JMD
+                    // (160.625) as though the server had confirmed it.
+                    //
+                    // That is not hypothetical: the app quoted 160.625 for months
+                    // while the server said 162.00, understating every JMD figure,
+                    // and nothing recorded that the number was a seed rather than
+                    // an answer.
+                    //
+                    // We still SHOW the last-known rate — a blank price is worse
+                    // than a slightly stale one, and JMD/USD must both render.
+                    // What changes is that the state now carries whether anyone
+                    // has actually confirmed it, so a caller quoting money can
+                    // tell the difference instead of guessing.
+                    _state.update {
+                        it.copy(
+                            exchangeRateVerified =
+                                com.ga.airdrop.core.prefs.ExchangeRateStore.verified,
+                        )
+                    }
+                }
         }
     }
 
