@@ -233,12 +233,38 @@ internal class LiveAgentChatViewModel(
         return session.conversationId
     }
 
+    /**
+     * ⚠️ MUST NOT WIPE A MESSAGE THE CUSTOMER HAS ALREADY TYPED AND SENT.
+     *
+     * `messages = turns` replaced the whole list with the server's thread. On
+     * the FIRST message of a conversation the order is:
+     *
+     *   send()  -> optimistically appends the customer's turn, CLEARS the input
+     *   deliver -> ensureConversation() -> startSession() -> applySession()
+     *
+     * and the session the server returns does not contain that message yet, so
+     * the customer watched their own sentence vanish the instant they hit send.
+     * The draft was already cleared, so it was unrecoverable — retype it, with
+     * no error and nothing explaining what happened.
+     *
+     * Any local customer turn the server has not echoed back is carried over.
+     * Matched on id AND on trimmed body, so a server echo under a different id
+     * still collapses instead of doubling the message.
+     */
     private fun applySession(user: AirdropUser, session: AutoPilotAppChatSession) {
         val agent = session.assignedAgentName?.takeIf { it.isNotBlank() } ?: "Nirvana"
         session.messages.forEach(::markDisplayed)
-        val turns = session.messages
+        val serverTurns = session.messages
             .filter { it.body.isNotBlank() }
             .map { it.toTurn(agent) }
+        val serverIds = serverTurns.mapTo(mutableSetOf()) { it.id }
+        val serverBodies = serverTurns.mapTo(mutableSetOf()) { it.body.trim() }
+        val pendingLocal = _state.value.messages.filter { local ->
+            local.role == LiveChatRole.Customer &&
+                local.id !in serverIds &&
+                local.body.trim() !in serverBodies
+        }
+        val turns = serverTurns + pendingLocal
         _state.update {
             it.copy(
                 loading = false,

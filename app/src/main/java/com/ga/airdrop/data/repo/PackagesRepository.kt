@@ -55,12 +55,33 @@ class PackagesRepository(private val service: AirdropApiService) {
     suspend fun invoices(packageId: String): Result<List<PackageInvoiceDocument>> =
         packageDetails(packageId).map { it.invoices }
 
+    /**
+     * ⚠️ A REJECTED UPLOAD MUST NOT REPORT SUCCESS.
+     *
+     * This was `.data?.documents ?: emptyList()` with no `success` guard, and a
+     * null-check cannot save it: when `data` is null `DataEnvelopeSerializer`
+     * re-decodes the WHOLE envelope as the payload (Envelopes.kt:131-135). With
+     * `ignoreUnknownKeys = true` and defaulted fields that fallback CANNOT fail,
+     * so `{"success":false,"message":"...","data":null}` yielded a non-null
+     * payload with no documents and returned `Result.success(emptyList())`.
+     *
+     * The customer is then told their invoice uploaded. It did not. Their
+     * package sits at customs waiting on a document nobody has, and the one
+     * screen that would tell them shows the upload as done.
+     *
+     * Now matches [packageDetails] above, which already guards.
+     */
     suspend fun uploadPackageInvoices(
         packageId: String,
         files: List<UploadFile>,
     ): Result<List<PackageInvoiceDocument>> = apiResult {
         val parts = files.map { it.toPart("invoices[]") }
-        service.uploadPackageInvoices(packageId, parts).data?.documents ?: emptyList()
+        val envelope = service.uploadPackageInvoices(packageId, parts)
+        val failed = { error(envelope.message ?: "Invoice upload failed. Please try again.") }
+        val payload = envelope.data?.takeUnless { envelope.success == false } ?: failed()
+        // `documents` is nullable on the wire; a success envelope carrying no
+        // list is a contract violation, not "you uploaded nothing".
+        payload.documents ?: failed()
     }
 
     suspend fun deletePackageInvoice(packageId: String, invoiceId: Int): Result<MutationResponse> =

@@ -657,7 +657,11 @@ private fun PackageDetailsContent(
             ) {
                 Text(text = "Total", style = AirdropType.title2, color = colors.textDarkTitle)
                 Text(
-                    text = ShipmentsFormat.usdJmd(state.chargesTotal ?: 0.0, rate),
+                    // ⚠️ An UNKNOWN total is not a total of zero. `?: 0.0` rendered
+                    // "USD 0.00 / JMD 0.00" directly above Add to Cart, so a
+                    // customer whose charges had not loaded saw a free package
+                    // and added it. usdJmd already renders "-" for null.
+                    text = ShipmentsFormat.usdJmd(state.chargesTotal, rate),
                     style = AirdropType.title2,
                     color = BrandPalette.OrangeMain,
                     textAlign = TextAlign.End,
