@@ -102,6 +102,17 @@ interface DeliveryTrackingGateway {
      */
     suspend fun packageJourneys(page: Int, perPage: Int): Result<PackageJourneysPage>
 
+    /**
+     * ⚠️ NO PRODUCTION CALLER SINCE TRACK MOVED TO [packageJourneys]. Only the
+     * repository's own tests reach it now.
+     *
+     * Kept rather than deleted because the endpoint is live and its guards are
+     * the record of two shipped defects (the unknown status that blanked the
+     * whole screen; the soft-error envelope that became an empty list). Do NOT
+     * wire a new screen to it: it reads `package_deliveries`, so a package held
+     * for collection cannot appear in the result, which is the entire reason
+     * Track stopped using it.
+     */
     suspend fun activeDeliveries(page: Int, perPage: Int): Result<ActiveDeliveriesPage>
     suspend fun deliveryTracking(packageId: Int): Result<DeliveryTrackingResult>
 

@@ -4,7 +4,9 @@ import com.ga.airdrop.core.session.AuthenticatedRequestOwner
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.data.repo.ActiveDeliveriesPage
-import com.ga.airdrop.data.repo.ActiveDelivery
+import com.ga.airdrop.data.repo.JourneyFulfilment
+import com.ga.airdrop.data.repo.JourneyStage
+import com.ga.airdrop.data.repo.PackageJourney
 import com.ga.airdrop.data.model.PackageTimelineEntry
 import com.ga.airdrop.data.repo.DeliveryTrackingGateway
 import com.ga.airdrop.data.repo.DeliveryTrackingResult
@@ -49,7 +51,7 @@ class DeliveryCenterViewModelTest {
     @Test
     fun zeroActiveDeliveriesPublishesHonestEmptyState() = runTest(dispatcher) {
         val gateway = gateway(
-            active = { _, _ -> Result.success(page(emptyList())) },
+            journeys = { _, _ -> Result.success(page(emptyList())) },
         )
 
         val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
@@ -64,8 +66,8 @@ class DeliveryCenterViewModelTest {
     fun oneActiveDeliveryOpensItsServerDetailWithoutAListShell() = runTest(dispatcher) {
         val calls = mutableListOf<String>()
         val gateway = gateway(
-            active = { page, perPage ->
-                calls += "active:$page:$perPage"
+            journeys = { page, perPage ->
+                calls += "journeys:$page:$perPage"
                 Result.success(page(listOf(active(41))))
             },
             detail = { packageId ->
@@ -77,7 +79,7 @@ class DeliveryCenterViewModelTest {
         val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
         advanceUntilIdle()
 
-        assertEquals(listOf("active:1:50", "detail:41"), calls)
+        assertEquals(listOf("journeys:1:50", "detail:41"), calls)
         assertEquals(DeliveryCenterContent.Detail, viewModel.state.value.content)
         assertEquals(41, viewModel.state.value.selectedPackageId)
         assertEquals(
@@ -89,11 +91,11 @@ class DeliveryCenterViewModelTest {
 
     @Test
     fun multiplePaginatedDeliveriesListThenDrillAndBackToSameList() = runTest(dispatcher) {
-        val activeCalls = mutableListOf<Int>()
+        val journeyCalls = mutableListOf<Int>()
         val detailCalls = mutableListOf<Int>()
         val gateway = gateway(
-            active = { requestedPage, _ ->
-                activeCalls += requestedPage
+            journeys = { requestedPage, _ ->
+                journeyCalls += requestedPage
                 when (requestedPage) {
                     1 -> Result.success(page(listOf(active(11)), hasNext = true, currentPage = 1))
                     2 -> Result.success(page(listOf(active(22)), hasNext = false, currentPage = 2))
@@ -109,8 +111,8 @@ class DeliveryCenterViewModelTest {
         advanceUntilIdle()
 
         assertEquals(DeliveryCenterContent.List, viewModel.state.value.content)
-        assertEquals(listOf(11, 22), viewModel.state.value.activeDeliveries.map(ActiveDelivery::packageId))
-        assertEquals(listOf(1, 2), activeCalls)
+        assertEquals(listOf(11, 22), viewModel.state.value.journeys.map(PackageJourney::packageId))
+        assertEquals(listOf(1, 2), journeyCalls)
         assertTrue(detailCalls.isEmpty())
 
         viewModel.selectDelivery(22)
@@ -121,14 +123,14 @@ class DeliveryCenterViewModelTest {
 
         assertTrue(viewModel.returnToList())
         assertEquals(DeliveryCenterContent.List, viewModel.state.value.content)
-        assertEquals(listOf(11, 22), viewModel.state.value.activeDeliveries.map(ActiveDelivery::packageId))
+        assertEquals(listOf(11, 22), viewModel.state.value.journeys.map(PackageJourney::packageId))
     }
 
     @Test
     fun pageFailurePublishesErrorWithoutLeakingPartialListAndRetryRecovers() = runTest(dispatcher) {
         var attempt = 0
         val gateway = gateway(
-            active = { requestedPage, _ ->
+            journeys = { requestedPage, _ ->
                 when {
                     attempt == 0 && requestedPage == 1 ->
                         Result.success(page(listOf(active(11)), hasNext = true))
@@ -144,7 +146,7 @@ class DeliveryCenterViewModelTest {
         advanceUntilIdle()
 
         assertEquals(DeliveryCenterContent.Error, viewModel.state.value.content)
-        assertTrue(viewModel.state.value.activeDeliveries.isEmpty())
+        assertTrue(viewModel.state.value.journeys.isEmpty())
         assertEquals("Delivery service unavailable", viewModel.state.value.error)
 
         viewModel.retry()
@@ -158,7 +160,7 @@ class DeliveryCenterViewModelTest {
         var activeCalls = 0
         val detailCalls = mutableListOf<Int>()
         val gateway = gateway(
-            active = { _, _ ->
+            journeys = { _, _ ->
                 activeCalls += 1
                 Result.success(page(emptyList()))
             },
@@ -180,14 +182,142 @@ class DeliveryCenterViewModelTest {
         assertEquals(77, viewModel.state.value.selectedPackageId)
     }
 
+    // ── The pickup gap ──────────────────────────────────────────────────────
+    //
+    // Two separate things kept a package held for collection off this screen,
+    // and fixing either alone leaves it invisible:
+    //
+    //   1. the root list read /deliveries/active, which is backed by
+    //      package_deliveries and structurally cannot contain a pickup; and
+    //   2. the detail gate was `delivery != null`, so even a pickup that DID
+    //      reach the list fell through to "we don't have delivery information".
+    //
+    // These three tests hold both.
+
+    @Test
+    fun aLonePickupOpensItsJourneyInsteadOfSayingThereIsNoDelivery() = runTest(dispatcher) {
+        val detailCalls = mutableListOf<Int>()
+        val gateway = gateway(
+            journeys = { _, _ ->
+                Result.success(page(listOf(active(41, JourneyFulfilment.Pickup))))
+            },
+            detail = { detailCalls += it; error("must not be asked for a pickup") },
+            timeline = {
+                Result.success(
+                    listOf(
+                        PackageTimelineEntry(
+                            key = "received",
+                            label = "Received at Warehouse",
+                            state = "done",
+                        ),
+                        PackageTimelineEntry(
+                            key = "ready_pickup",
+                            label = "Ready for Pickup",
+                            state = "current",
+                        ),
+                    ),
+                )
+            },
+        )
+
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertEquals(
+            "a pickup has a real warehouse journey; NoDelivery is the wrong answer",
+            DeliveryCenterContent.Detail,
+            viewModel.state.value.content,
+        )
+        assertEquals(
+            "the last mile does not exist for a pickup, so asking for it is a bug",
+            emptyList<Int>(),
+            detailCalls,
+        )
+        assertEquals(
+            listOf("Received at Warehouse", "Ready for Pickup"),
+            viewModel.state.value.timeline.map { it.label },
+        )
+        assertNull("and there is no delivery to show", viewModel.state.value.delivery)
+    }
+
+    @Test
+    fun aPickupAppearsInTheListAlongsideADelivery() = runTest(dispatcher) {
+        val gateway = gateway(
+            journeys = { _, _ ->
+                Result.success(
+                    page(
+                        listOf(
+                            active(44, JourneyFulfilment.Pickup),
+                            active(22, JourneyFulfilment.Delivery),
+                        ),
+                    ),
+                )
+            },
+        )
+
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertEquals(DeliveryCenterContent.List, viewModel.state.value.content)
+        assertEquals(
+            "the pickup must be on Track, not filtered out of it",
+            listOf(44, 22),
+            viewModel.state.value.journeys.map(PackageJourney::packageId),
+        )
+    }
+
+    @Test
+    fun aLastMileFailureNoLongerBlanksAJourneyThatLoadedFine() = runTest(dispatcher) {
+        // The rail comes from /packages/{id}/timeline; `delivery` is never
+        // rendered as steps. Failing the whole screen on the last-mile read is
+        // the same "one bad read blanks everything" shape fixed elsewhere.
+        val gateway = gateway(
+            journeys = { _, _ -> Result.success(page(listOf(active(41)))) },
+            detail = { Result.failure(IllegalStateException("delivery service down")) },
+            timeline = {
+                Result.success(
+                    listOf(PackageTimelineEntry(key = "received", label = "Received", state = "done")),
+                )
+            },
+        )
+
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertEquals(
+            "the journey loaded; showing 'Couldn't load' over it is the bug",
+            DeliveryCenterContent.Detail,
+            viewModel.state.value.content,
+        )
+        assertNull(viewModel.state.value.error)
+        assertEquals(listOf("Received"), viewModel.state.value.timeline.map { it.label })
+    }
+
+    @Test
+    fun bothReadsFailingIsStillAnHonestErrorScreen() = runTest(dispatcher) {
+        // The relaxation above must not become blanket tolerance: when there is
+        // genuinely nothing to render, say so rather than showing an empty rail.
+        val gateway = gateway(
+            journeys = { _, _ -> Result.success(page(listOf(active(41)))) },
+            detail = { Result.failure(IllegalStateException("delivery service down")) },
+            timeline = { Result.failure(IllegalStateException("Tracking is unavailable")) },
+        )
+
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertEquals(DeliveryCenterContent.Error, viewModel.state.value.content)
+        assertEquals("Tracking is unavailable", viewModel.state.value.error)
+    }
+
     @Test
     fun replacedAccountCannotPublishDelayedOldAccountCompletion() = runTest(dispatcher) {
-        val oldCompletion = CompletableDeferred<Result<ActiveDeliveriesPage>>()
+        val oldCompletion = CompletableDeferred<Result<PackageJourneysPage>>()
         var activeCalls = 0
         var detailCalls = 0
         val boundary = boundary()
         val gateway = gateway(
-            active = { _, _ ->
+            journeys = { _, _ ->
                 activeCalls += 1
                 if (activeCalls == 1) {
                     withContext(NonCancellable) { oldCompletion.await() }
@@ -211,25 +341,37 @@ class DeliveryCenterViewModelTest {
         advanceUntilIdle()
 
         assertEquals(DeliveryCenterContent.Empty, viewModel.state.value.content)
-        assertTrue(viewModel.state.value.activeDeliveries.isEmpty())
+        assertTrue(viewModel.state.value.journeys.isEmpty())
         assertEquals(0, detailCalls)
     }
 
-    private fun active(packageId: Int) = ActiveDelivery(
+    private fun active(
+        packageId: Int,
+        fulfilment: JourneyFulfilment = JourneyFulfilment.Delivery,
+    ) = PackageJourney(
         packageId = packageId,
-        trackingCode = "AD-$packageId",
+        ardNumber = "AD-$packageId",
         description = "Package $packageId",
-        status = "assigned",
-        scheduledDate = null,
-        currentStageKey = "assigned",
-        updatedAt = null,
+        valueUsd = null,
+        weightLbs = null,
+        shipper = null,
+        status = 7,
+        statusName = if (fulfilment == JourneyFulfilment.Pickup) {
+            "Ready for Pickup"
+        } else {
+            "Preparing for Dispatch"
+        },
+        statusIcon = null,
+        fulfilment = fulfilment,
+        currentStage = "assigned",
+        stages = listOf(JourneyStage("assigned", "Preparing for Dispatch", null, 7, "current", null)),
     )
 
     private fun page(
-        deliveries: List<ActiveDelivery>,
+        journeys: List<PackageJourney>,
         hasNext: Boolean = false,
         currentPage: Int = 1,
-    ) = ActiveDeliveriesPage(deliveries, currentPage, hasNext)
+    ) = PackageJourneysPage(journeys, currentPage, hasNext)
 
     private fun tracking() = TrackedDelivery(
         status = "out_for_delivery",
@@ -245,8 +387,11 @@ class DeliveryCenterViewModelTest {
     )
 
     private fun gateway(
+        // Track's root moved to /packages/journeys. Any call to the old
+        // deliveries-only root from this screen is now a bug, so it blows up
+        // rather than quietly answering.
         active: suspend (Int, Int) -> Result<ActiveDeliveriesPage> = { _, _ ->
-            error("Unexpected active-deliveries call")
+            error("Track must not read /deliveries/active — it cannot see a pickup")
         },
         detail: suspend (Int) -> Result<DeliveryTrackingResult> = {
             error("Unexpected delivery-tracking call")
