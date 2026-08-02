@@ -66,9 +66,47 @@ class DeliveryTrackingRepository(
     private val service: AirdropApiService,
 ) : DeliveryTrackingGateway {
 
+    /**
+     * ⚠️ A SOFT-ERROR ENVELOPE IS NOT AN EMPTY JOURNEY.
+     *
+     * This used to be `service.packageTimeline(id).data?.entries.orEmpty()` with
+     * no `success` guard — the only method in this file that skipped the check
+     * its siblings apply, and the only one with no packageId cross-check.
+     *
+     * Why `.orEmpty()` could not save it: when `data` is null or absent,
+     * `DataEnvelopeSerializer` re-decodes the WHOLE envelope as the payload
+     * (Envelopes.kt:131-135). With `ignoreUnknownKeys = true` and every
+     * PackageTimelinePayload field defaulted, that fallback CANNOT fail — so
+     * `{"success":false,"message":"Package not found","data":null}` yields
+     * `entries = []` and `data` is never null. The result was
+     * `Result.success(emptyList())`.
+     *
+     * Downstream that reads as fact, not as failure: PackageDetailsViewModel
+     * sets `timelineOutcome = LOADED`, and the screen's "read failed" arm needs
+     * `timeline.isNotEmpty()` so it never fires. A customer whose package has a
+     * full journey — drop alerted, received, customs, ready for pickup — is
+     * told it has NO recorded history, with no error and no retry. That is the
+     * exact harm `timelineOutcome` was introduced to prevent, bypassed one
+     * layer beneath it.
+     *
+     * Now matches [deliveryTracking] and [activeDeliveries]: routed through
+     * `apiResult`, rejects `success == false`, and cross-checks the returned
+     * package id so a response for a different package cannot be shown.
+     */
     override suspend fun packageTimeline(packageId: Int): Result<List<PackageTimelineEntry>> =
-        runCatching {
-            service.packageTimeline(packageId).data?.entries.orEmpty()
+        apiResult {
+            require(packageId > 0)
+            val envelope = service.packageTimeline(packageId)
+            val payload = envelope.data
+                ?.takeUnless { envelope.success == false }
+                ?: error(envelope.message ?: DELIVERY_CONTRACT_ERROR)
+            // Null id = the fallback decode above produced a hollow payload from
+            // an error envelope. A mismatched id = a response for someone else's
+            // package. Neither is a timeline.
+            if (payload.packageId == null || payload.packageId != packageId) {
+                error(envelope.message ?: DELIVERY_CONTRACT_ERROR)
+            }
+            payload.entries
         }
 
     override suspend fun activeDeliveries(
