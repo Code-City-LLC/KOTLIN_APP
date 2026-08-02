@@ -22,6 +22,7 @@ import com.ga.airdrop.feature.cart.CheckoutFlow
 import com.ga.airdrop.feature.cart.CheckoutFlowStore
 import com.ga.airdrop.feature.cart.CheckoutNextRoute
 import com.ga.airdrop.feature.cart.CheckoutPhase
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import com.ga.airdrop.feature.cart.checkoutNextRoute
 import com.ga.airdrop.feature.cart.parseCheckoutCurrency
 import java.util.Locale
@@ -643,6 +644,21 @@ class DeliveryMethodViewModel(
         _state.update { it.copy(showCurrencyPopup = false) }
         if (_state.value.ctaState != DeliveryCtaState.Idle) return
         val selected = parseCheckoutCurrency(currency)
+        // ⚠️ TOLD. If a JMD pick still reaches here — a stale screen, a restored
+        // popup, an automated path — the customer gets a straight answer rather
+        // than "invalid currency", which would read as their mistake. See
+        // AirdropFeatureFlags.jmdNcbCheckout.
+        if (selected == CheckoutCurrency.JMD && !AirdropFeatureFlags.jmdNcbCheckout) {
+            _state.update {
+                it.copy(
+                    errorTitle = "JMD payment unavailable",
+                    errorMessage = "Paying in Jamaican dollars is temporarily unavailable " +
+                        "while we complete work with our card processor. Choose USD to " +
+                        "check out now. No payment was started.",
+                )
+            }
+            return
+        }
         val next = checkoutNextRoute(currency)
         if (selected == null || next == null) {
             _state.update {
