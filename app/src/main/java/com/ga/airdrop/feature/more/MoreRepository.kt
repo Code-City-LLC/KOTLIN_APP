@@ -341,10 +341,23 @@ class MoreRepository internal constructor(
     override suspend fun logout(): Result<Unit> =
         request("POST", "/auth/logout", "{}".toRequestBody(jsonMedia)) { }
 
-    /** GET /aircoins/status → available ?? balance, rendered as the header label. */
+    /**
+     * GET /aircoins/status → available ?? balance, rendered as the header label.
+     *
+     * ⚠️ `?: 0` USED TO SIT ON THE END OF THIS CHAIN. A response that carried
+     * neither key — a shape change, a soft error, a partial payload — resolved
+     * to **zero**, and the header told a customer with a real balance that they
+     * had no AirCoins. Nothing distinguished "you have none" from "we could not
+     * read it", and a zero balance is exactly the kind of thing someone acts on.
+     *
+     * Now it fails instead, so [MoreViewModel] keeps the last known value rather
+     * than overwriting it with a fabricated zero.
+     */
     override suspend fun airCoinsBalance(): Result<Int> = request("GET", "/aircoins/status") { root ->
         val payload = root.objectAt("data") ?: root
-        payload.flexInt("available") ?: payload.flexInt("balance") ?: 0
+        payload.flexInt("available")
+            ?: payload.flexInt("balance")
+            ?: error("AirCoins status carried neither 'available' nor 'balance'")
     }
 
     // ─── Internals ───

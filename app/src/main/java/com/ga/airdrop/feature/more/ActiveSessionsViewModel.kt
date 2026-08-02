@@ -39,6 +39,25 @@ class ActiveSessionsViewModel(
         viewModelScope.launch {
             runCatching { service.activeSessions() }
                 .onSuccess { env ->
+                    // ⚠️ HTTP 200 IS NOT SUCCESS. Laravel answers a rejected read
+                    // with {"success":false,"message":"…"} and a null/absent data,
+                    // which .orEmpty() turned into "No active sessions found." —
+                    // on a SECURITY screen, where that reads as "nothing else is
+                    // signed in to your account". A customer checking for an
+                    // intruder would be reassured by a failed read.
+                    //
+                    // The onFailure branch below already handles hard errors
+                    // correctly; this is the soft-error path it never saw.
+                    if (env.success == false) {
+                        _state.update {
+                            it.copy(
+                                loading = false,
+                                alert = "Couldn't load sessions" to
+                                    (env.message ?: "Please try again."),
+                            )
+                        }
+                        return@onSuccess
+                    }
                     _state.update { it.copy(sessions = env.data.orEmpty(), loading = false) }
                 }
                 .onFailure { e ->

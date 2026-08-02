@@ -101,8 +101,15 @@ fun ShippingRatesScreen(
                     StandardRatesTable(
                         rows = rates?.airdropStandard?.rates
                             ?.takeIf { it.isNotEmpty() }
-                            ?.map { rate ->
-                                (rate.weightLbs?.let { formatWeight(it) } ?: "0") to (rate.rateUsd ?: 0.0)
+                            ?.mapNotNull { rate ->
+                                // ⚠️ A row whose rate_usd is missing used to render "$0.00",
+                    // which reads as "shipping this weight is FREE". Dropping the
+                    // row is the honest failure: a published rate table with a
+                    // gap is confusing, but a rate table quoting zero is wrong in
+                    // the direction a customer will act on.
+                    rate.rateUsd?.let { usd ->
+                        (rate.weightLbs?.let { formatWeight(it) } ?: "0") to usd
+                    }
                             }
                             .orEmpty(),
                         overTwentyRate = rates?.airdropStandard?.overTwentyLbRate,

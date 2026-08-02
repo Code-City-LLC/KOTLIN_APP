@@ -75,6 +75,17 @@ data class DocumentsUiState(
      * document does not exist.
      */
     val legacyUserIdFailed: Boolean = false,
+    /**
+     * True when GET /user/documents failed, so [files] is UNKNOWN rather than
+     * empty.
+     *
+     * Without this the screen renders all five compliance slots as "not
+     * uploaded" on any read failure — indistinguishable from a customer who has
+     * genuinely uploaded nothing. Someone whose ID and proof of address are
+     * already on file is told they are missing, and may re-submit personal
+     * documents that were never lost.
+     */
+    val filesLoadFailed: Boolean = false,
     val pendingUploads: Map<String, PendingDocumentUpload> = emptyMap(),
     val loading: Boolean = false,
     val refreshing: Boolean = false,
@@ -229,14 +240,20 @@ class DocumentsViewModel(
                                 files = files,
                                 loading = false,
                                 refreshing = false,
+                                filesLoadFailed = false,
                             )
                         }
                     }
                 }
-                // Render slots without files so Upload still works (RN parity on 401).
+                // Render slots without files so Upload still works (RN parity on
+                // 401) — that part is deliberate and stays. What was missing is
+                // any record that the read FAILED, so "no file here" and "we
+                // could not find out" rendered identically.
                 .onFailure {
                     sessionBoundary.apply(owner) {
-                        _state.update { it.copy(loading = false, refreshing = false) }
+                        _state.update {
+                            it.copy(loading = false, refreshing = false, filesLoadFailed = true)
+                        }
                     }
                 }
         }
