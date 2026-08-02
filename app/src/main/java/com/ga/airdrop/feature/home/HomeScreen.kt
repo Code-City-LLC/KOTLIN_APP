@@ -679,12 +679,39 @@ fun ProductHighlightCard(product: AuctionProduct, onClick: () -> Unit) {
                     .clip(RoundedCornerShape(10.dp))
                     .background(colors.gray200),
             ) {
-                AsyncImage(
-                    model = product.displayImageUrl,
-                    contentDescription = product.displayTitle,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
+                // ⚠️ A FAILED IMAGE MUST SHOW A PLACEHOLDER, NOT A BLANK BOX.
+                //
+                // Home was the ONLY product-image surface with no error branch.
+                // Shop, auction checkout and product details all carried one;
+                // this did not, so a load failure left an empty grey rectangle
+                // with no indication anything was wrong.
+                //
+                // Not hypothetical: every one of the 53 live catalog images is
+                // returning HTTP 404 right now (Laravel #425, ORC 89422 —
+                // verified myself against the apex before writing this). Codex
+                // reported that "Kotlin cards/details show the placeholder on
+                // null/load failure"; that is true of Shop and FALSE of Home,
+                // which is why I checked my own code instead of accepting it.
+                var imageFailed by remember(product.displayImageUrl) {
+                    mutableStateOf(product.displayImageUrl.isNullOrBlank())
+                }
+                if (imageFailed) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_standard_shipping),
+                        contentDescription = product.displayTitle,
+                        colorFilter = ColorFilter.tint(colors.gray400),
+                        modifier = Modifier.align(Alignment.Center).size(48.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                } else {
+                    AsyncImage(
+                        model = product.displayImageUrl,
+                        contentDescription = product.displayTitle,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        onError = { imageFailed = true },
+                    )
+                }
             }
             Text(
                 text = product.displayTitle,
