@@ -276,6 +276,7 @@ interface ShopCheckoutRepository {
     /** RECONCILE: POST /payments/ncb-complete-payment { spi_token } → { invoice_id }. */
     suspend fun ncbCompletePayment(
         spiToken: String,
+        checkoutId: Long?,
         expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> =
         Result.failure(NotImplementedError("NCB checkout not wired for this repository"))
@@ -330,6 +331,7 @@ private object UnboundShopCheckoutRepository : ShopCheckoutRepository {
 
     override suspend fun ncbCompletePayment(
         spiToken: String,
+        checkoutId: Long?,
         expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> = Result.failure(unbound)
 }

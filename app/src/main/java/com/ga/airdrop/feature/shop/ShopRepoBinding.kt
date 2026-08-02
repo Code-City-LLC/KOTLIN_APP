@@ -152,7 +152,8 @@ private class DataShopCheckoutRepository(
 
     override suspend fun ncbCompletePayment(
         spiToken: String,
+        checkoutId: Long?,
         expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> =
-        payments.ncbCompletePayment(spiToken, expectedSession)
+        payments.ncbCompletePayment(spiToken, checkoutId, expectedSession)
 }

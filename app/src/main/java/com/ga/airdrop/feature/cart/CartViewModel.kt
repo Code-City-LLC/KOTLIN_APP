@@ -82,6 +82,8 @@ data class CartUiState(
     val ncbBusy: Boolean = false,
     val ncbRedirectData: String? = null,
     val ncbSpiToken: String? = null,
+    /** Laravel binds settlement to {spi_token, checkout_id, user} — ORC 89144. */
+    val ncbCheckoutId: Long? = null,
     val ncbInvoiceId: String? = null,
     // Captured at NCB-session time (the flow is cleared on success) so the
     // payment-success screen can show the right fulfillment variant + amount.
@@ -951,6 +953,7 @@ class CartViewModel(
                                 ncbBusy = false,
                                 ncbRedirectData = resp.redirectData,
                                 ncbSpiToken = resp.spiToken,
+                                ncbCheckoutId = resp.checkoutId?.trim()?.toLongOrNull()?.takeIf { it > 0L },
                                 navToNcb3DS = true,
                             )
                         }
@@ -981,12 +984,17 @@ class CartViewModel(
         // 3DS page restored from a previous build could reach this. Fail closed.
         if (!AirdropFeatureFlags.jmdNcbCheckout) return
         val spiToken = _state.value.ncbSpiToken?.trim()?.takeIf(String::isNotEmpty) ?: return
+        // Fail closed — see PaymentsRepository.ncbCompletePayment.
+        val checkoutId = _state.value.ncbCheckoutId?.takeIf { it > 0L } ?: return orderError(
+            "Payment not confirmed",
+            "We couldn't confirm your payment. Please contact support before paying again.",
+        )
         val owner = currentOwner() ?: return
         val requestOwner = sessionBoundary.requestOwner(owner) ?: return
         val flow = CheckoutFlowStore.current(owner)
         _state.update { it.copy(ncbBusy = true, errorTitle = null, errorMessage = null) }
         sessionJobs.launch {
-            checkout.ncbCompletePayment(spiToken, requestOwner.provenance)
+            checkout.ncbCompletePayment(spiToken, checkoutId, requestOwner.provenance)
                 .onSuccess { resp ->
                     // Durable cart clear + flow clear are owner-scoped (inside apply)
                     // so a session swap can't wipe the wrong session's cart/flow —
@@ -1006,6 +1014,7 @@ class CartViewModel(
                                 // (e.g. a late WebView callback) short-circuits instead
                                 // of re-POSTing ncb-complete-payment.
                                 ncbSpiToken = null,
+                                ncbCheckoutId = null,
                                 navToNcbSuccess = true,
                             )
                         }

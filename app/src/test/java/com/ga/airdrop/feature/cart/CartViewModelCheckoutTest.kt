@@ -471,6 +471,7 @@ class CartViewModelCheckoutTest {
         ): Result<com.ga.airdrop.data.model.NcbSessionResponse> = Result.failure(RuntimeException("unused"))
         override suspend fun ncbCompletePayment(
             spiToken: String,
+            checkoutId: Long?,
             expectedSession: AuthTokenStore.RequestProvenance,
         ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> = Result.failure(RuntimeException("unused"))
     }
@@ -498,6 +499,7 @@ class CartViewModelCheckoutTest {
         ): Result<com.ga.airdrop.data.model.NcbSessionResponse> = Result.failure(RuntimeException("unused"))
         override suspend fun ncbCompletePayment(
             spiToken: String,
+            checkoutId: Long?,
             expectedSession: AuthTokenStore.RequestProvenance,
         ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> = Result.failure(RuntimeException("unused"))
     }
