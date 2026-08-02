@@ -49,9 +49,24 @@ class JmdCheckoutGateTest {
 
     @Test
     fun `the shipped default is pinned — changing it must be deliberate`() {
-        // ⚠️ This asserted `false` when the rail was entirely unverified. It now
-        // asserts `true`, matching iOS (ORC 89022) after Kemar's "connect the
-        // working NCB… focus on connecting to the live".
+        // ⚠️ ASSERTS false, AND THE REASON IS MEASURED, NOT RELAYED.
+        //
+        // I briefly flipped this to `true` on ORC 89022, which reported the
+        // submitted iOS build as shipping the flag ON. ORC 89219 contradicted
+        // it. Rather than flip again on a second secondhand report I read
+        // Swift's submitted source myself, at the exact commit behind build
+        // 202608020401:
+        //
+        //   0446a14 Airdrop/AirdropFeatureFlags.swift:234-235
+        //     static var ncbJmdCheckout: Bool {
+        //       get { UserDefaults.standard.bool(forKey: Key.ncbJmdCheckout) }
+        //
+        // UserDefaults.bool(forKey:) returns FALSE for an unset key, so a fresh
+        // iOS install ships this rail OFF. 89219 was right and 89022 was wrong.
+        //
+        // Kotlin matches. Two platforms with opposite defaults on one payment
+        // rail is worse than either default — which was my reason for flipping
+        // ON, applied to a premise that was false.
         //
         // The point of this test is unchanged: the shipped default is a DECISION,
         // and flipping it without touching this line is not possible. Whoever
@@ -62,9 +77,10 @@ class JmdCheckoutGateTest {
         // gate-OFF cases in this class, which are NOT deleted.
         restore()
         assertEquals(
-            "AirdropFeatureFlags.jmdNcbCheckout default changed. iOS and Android " +
-                "must not diverge on a payment rail — check ORC before changing it.",
-            true,
+            "AirdropFeatureFlags.jmdNcbCheckout default changed. iOS ships OFF " +
+                "(verified in Swift source 0446a14, not relayed). Do not diverge " +
+                "on a payment rail — read the other platform's SOURCE first.",
+            false,
             original,
         )
     }

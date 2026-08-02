@@ -104,5 +104,5 @@ object AirdropFeatureFlags {
      * USD / Stripe is deliberately untouched by this flag.
      */
     @Volatile
-    var jmdNcbCheckout: Boolean = true
+    var jmdNcbCheckout: Boolean = false
 }
