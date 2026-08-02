@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.cart
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import java.util.UUID
 import kotlinx.serialization.Serializable
@@ -177,10 +178,22 @@ fun checkoutNextRoute(currency: String?): CheckoutNextRoute? =
         null -> null
     }
 
+/**
+ * ⚠️ This is the ENTIRE payment-rail decision — there is no other gate, no
+ * remote config and no server readiness check. Currency alone chooses the rail.
+ *
+ * JMD returns null while [AirdropFeatureFlags.jmdNcbCheckout] is off, so the
+ * rail cannot initiate even if a persisted JMD flow survives a restart, an
+ * upgrade, or a hidden UI path. Hiding the option in
+ * [com.ga.airdrop.feature.delivery.CurrencyChoicePopup] is not sufficient on its
+ * own: a flow persisted by an earlier build would otherwise walk straight into
+ * PowerTranz.
+ */
 fun checkoutPaymentRail(currency: String?): CheckoutPaymentRail? =
     when (parseCheckoutCurrency(currency)) {
         CheckoutCurrency.USD -> CheckoutPaymentRail.STRIPE
-        CheckoutCurrency.JMD -> CheckoutPaymentRail.NCB_POWERTRANZ
+        CheckoutCurrency.JMD ->
+            CheckoutPaymentRail.NCB_POWERTRANZ.takeIf { AirdropFeatureFlags.jmdNcbCheckout }
         null -> null
     }
 
