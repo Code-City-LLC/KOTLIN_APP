@@ -255,3 +255,95 @@ class ProductPaymentTotalPrecedenceTest {
         assertEquals("USD 308.64 / JMD 50000.00", render(state))
     }
 }
+
+/**
+ * #218 fixed the two payment-DETAIL screens and I reported that the payments
+ * LIST was already correct. **It was not.** Both were wrong, in the same way.
+ *
+ * What I actually saw was two screens disagreeing — and I concluded the one I
+ * had not read must be the right one. `ShipmentsUi.kt:1013` was calling
+ * `dual()`, which multiplies, and never read `payment.currency`. They differed
+ * only because their exchange-rate fallbacks differed, not because one of them
+ * was correct.
+ *
+ * Worse, #218 left a SECOND site on a screen it did edit: "Amount Paid" became
+ * currency-aware while the "Total" box two rows below kept calling
+ * `usdJmdPlain`. One screen, one payment, two different numbers.
+ *
+ * These tests pin the exact precedence both remaining sites use, so a third
+ * pass cannot miss a fourth site.
+ */
+class PaymentPackageTotalPrecedenceTest {
+
+    private val rate = 162.0
+
+    private fun state(
+        paid: Double? = null,
+        currency: String? = null,
+        chargesTotal: Double? = null,
+    ) = PaymentPackageDetailsUiState(
+        payment = paid?.let { ShipmentPayment(id = 1, totalAmount = it, currency = currency) },
+        detail = chargesTotal?.let {
+            ShipmentPackageDetail(id = 1, additionalChargesTotal = it)
+        },
+        exchangeRate = rate,
+    )
+
+    private fun render(s: PaymentPackageDetailsUiState) =
+        ShipmentsFormat.dualForCurrency(s.totalAmount, s.totalCurrency, s.effectiveRate)
+
+    @Test
+    fun `an NCB total keeps its JMD currency and is NOT multiplied`() {
+        val s = state(paid = 50_000.0, currency = "JMD")
+        assertEquals("JMD", s.totalCurrency)
+        assertEquals("USD 308.64 / JMD 50000.00", render(s))
+    }
+
+    @Test
+    fun `the package charges fallback is USD by contract`() {
+        // additionalCharges* feed the Breakdown table, which renders them under
+        // an explicit "USD" header and multiplies for its JMD column. Tagging
+        // them with a payment's JMD currency would divide them by 162.
+        val s = state(chargesTotal = 400.0)
+        assertEquals(400.0, s.totalAmount!!, 0.001)
+        assertEquals("USD", s.totalCurrency)
+        assertEquals("USD 400.00 / JMD 64800.00", render(s))
+    }
+
+    @Test
+    fun `a JMD payment does not leak its currency onto the USD charges fallback`() {
+        // The payment wins the precedence, so the currency must follow the
+        // payment — but if the payment amount is absent, the currency must NOT
+        // carry over to the charges figure.
+        val s = state(paid = null, currency = "JMD", chargesTotal = 400.0)
+        assertEquals("USD", s.totalCurrency)
+        assertEquals("USD 400.00 / JMD 64800.00", render(s))
+    }
+
+    @Test
+    fun `Amount Paid and Total render the SAME string for the same payment`() {
+        // The defect this class exists for: one screen, one payment, two numbers.
+        val s = state(paid = 50_000.0, currency = "JMD")
+        val amountPaidRow = ShipmentsFormat.dualForCurrency(
+            s.payment!!.totalAmount, s.payment!!.currency, s.effectiveRate,
+        )
+        assertEquals("the two rows must agree", amountPaidRow, render(s))
+    }
+
+    @Test
+    fun `the payments LIST renders a JMD payment identically to the detail screen`() {
+        // ShipmentsUi.kt:1013 — the site I wrongly reported as already correct.
+        val payment = ShipmentPayment(
+            id = 1, totalAmount = 50_000.0, currency = "JMD", exchangeRate = rate,
+        )
+        val listCell = ShipmentsFormat.dualForCurrency(
+            payment.totalAmount, payment.currency, payment.exchangeRate ?: rate,
+        )
+        assertEquals(
+            "list and detail must not disagree about the same payment",
+            render(state(paid = 50_000.0, currency = "JMD")),
+            listCell,
+        )
+        assertTrue("must not be inflated. Got: $listCell", !listCell.contains("8100000"))
+    }
+}
