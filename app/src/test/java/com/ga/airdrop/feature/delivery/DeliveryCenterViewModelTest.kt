@@ -8,6 +8,7 @@ import com.ga.airdrop.data.repo.ActiveDelivery
 import com.ga.airdrop.data.model.PackageTimelineEntry
 import com.ga.airdrop.data.repo.DeliveryTrackingGateway
 import com.ga.airdrop.data.repo.DeliveryTrackingResult
+import com.ga.airdrop.data.repo.PackageJourneysPage
 import com.ga.airdrop.data.repo.TrackedDelivery
 import com.ga.airdrop.data.repo.TrackedDeliveryStage
 import kotlinx.coroutines.CompletableDeferred
@@ -255,7 +256,11 @@ class DeliveryCenterViewModelTest {
         timeline: suspend (Int) -> Result<List<PackageTimelineEntry>> = {
             Result.success(emptyList())
         },
+        journeys: suspend (Int, Int) -> Result<PackageJourneysPage> = { _, _ ->
+            error("Unexpected package-journeys call")
+        },
     ) = object : DeliveryTrackingGateway {
+        override suspend fun packageJourneys(page: Int, perPage: Int) = journeys(page, perPage)
         override suspend fun activeDeliveries(page: Int, perPage: Int) = active(page, perPage)
         override suspend fun deliveryTracking(packageId: Int) = detail(packageId)
         override suspend fun packageTimeline(packageId: Int) = timeline(packageId)
