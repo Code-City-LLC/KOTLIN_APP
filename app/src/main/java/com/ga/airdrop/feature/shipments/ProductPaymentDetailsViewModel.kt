@@ -20,7 +20,35 @@ data class ProductPaymentDetailsUiState(
     val effectiveRate: Double
         get() = payment?.exchangeRate ?: order?.exchangeRate ?: exchangeRate
 
-    /** Prefers sale price, then paid amount, then invoice amount (Swift). */
+    /**
+     * THE single total precedence. Both "Amount Paid" and "Total" read it.
+     *
+     * ⚠️ The screen used to inline its own order — `payment.totalAmount` FIRST —
+     * while this property put `salePriceUsd` first. Two precedences on one
+     * screen means the two rows can show different numbers for the same
+     * purchase, and nothing flags it.
+     *
+     * Kept as Swift's order (sale price wins) and made the only one.
+     */
+    val totalAmount: Double?
+        get() = order?.salePriceUsd ?: payment?.totalAmount ?: order?.invoiceAmountUsd
+
+    /**
+     * The currency [totalAmount] is denominated in.
+     *
+     * Only `payment.totalAmount` carries a currency off the wire; the order
+     * fallbacks are USD by contract (`salePriceUsd`, `invoiceAmountUsd` — the
+     * names say so). So the currency is the payment's ONLY when the payment is
+     * the value actually being shown.
+     */
+    val totalCurrency: String?
+        get() = if (order?.salePriceUsd == null && payment?.totalAmount != null) {
+            payment?.currency
+        } else {
+            "USD"
+        }
+
+    /** Retained for existing callers that genuinely want a USD-only figure. */
     val totalUsd: Double?
         get() = order?.salePriceUsd ?: payment?.totalAmount ?: order?.invoiceAmountUsd
 }
