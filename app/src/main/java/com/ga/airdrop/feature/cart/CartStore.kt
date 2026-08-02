@@ -311,6 +311,30 @@ object CartStore {
                 packages.isEmpty() &&
                 _items.value.any { it.resolvedKind == CartLineKind.PACKAGE }
             ) {
+                // ⚠️ PRESERVING THE ROWS AND HOLDING THE MUTATION LOCK ARE TWO
+                // DIFFERENT DECISIONS, AND CONFLATING THEM BRICKED CHECKOUT.
+                //
+                // Bailing out here skipped the ONLY release path for
+                // reconciliationRequiredByKey (the sweep below), so the hold
+                // became permanent:
+                //
+                //   customer removes their last package -> backs out mid-DELETE
+                //   -> the DELETE already succeeded, so the server cart is empty
+                //   -> outcome unknown locally, so the key takes a hold
+                //   -> recovery GET returns zero packages
+                //   -> we return here, the sweep never runs, the hold never clears
+                //
+                // From then on: "This package is unavailable for cart updates."
+                // on every remove, and "Cart update in progress" on every Pay.
+                // No in-app remedy — only a force-kill or logout, and nothing
+                // told them that. Same shape as the no-TTL checkout latch in
+                // #209: a guard with no way out.
+                //
+                // Keeping the rows is still correct — an empty payload really is
+                // ambiguous. But releasing a hold the snapshot has already
+                // superseded DELETES NOTHING; it only lets the customer act
+                // again. So the sweep runs on this path too.
+                releaseSupersededHolds(snapshot)
                 return@synchronized false
             }
             val changed = mutate(trackAsLocalMutation = false) { current ->
@@ -325,11 +349,27 @@ object CartStore {
                 }
                 localAuctions + protectedLocalPackages + authoritativePackages
             }
-            reconciliationRequiredByKey.entries.removeAll { (_, generation) ->
-                generation <= snapshot.reconciliationGeneration
-            }
+            releaseSupersededHolds(snapshot)
             changed
         }
+
+    /**
+     * Drop every unknown-outcome hold this snapshot is newer than.
+     *
+     * Extracted so BOTH exits from [reconcileServerPackages] run it — the
+     * ambiguous-empty-payload path used to return before reaching it, which made
+     * the hold permanent and left the customer unable to remove a package or pay.
+     *
+     * Releasing a hold is not the same as trusting the payload: it removes a
+     * BLOCK, it does not delete a row. The worst case is that the customer gets
+     * to retry an operation whose outcome we could not confirm, which is exactly
+     * what they should be allowed to do.
+     */
+    private fun releaseSupersededHolds(snapshot: ServerCartSnapshot) {
+        reconciliationRequiredByKey.entries.removeAll { (_, generation) ->
+            generation <= snapshot.reconciliationGeneration
+        }
+    }
 
     fun beginPackageMutation(line: CartLine, adding: Boolean): PackageMutation? =
         synchronized(mutationLock) {

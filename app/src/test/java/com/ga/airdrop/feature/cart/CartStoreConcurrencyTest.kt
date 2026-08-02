@@ -6,6 +6,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -264,5 +266,67 @@ class CartStoreConcurrencyTest {
         } finally {
             CartStore.synchronousCommitOverrideForTests = null
         }
+    }
+
+    /**
+     * The reconciliation hold must not become permanent when the server cart
+     * comes back empty.
+     *
+     * REAL SEQUENCE THIS REPRODUCES:
+     *   customer removes their LAST package, then backs out mid-DELETE. The
+     *   DELETE already reached Laravel and succeeded, so the server cart is
+     *   empty, but the local outcome is unknown so the key takes a hold. The
+     *   recovery GET /cart returns zero packages.
+     *
+     * Before the fix, reconcileServerPackages returned early on that empty
+     * payload — BEFORE the sweep that is the only release path — so the hold
+     * survived every subsequent refresh. The customer then saw
+     * "This package is unavailable for cart updates." on every remove and
+     * "Cart update in progress" on every Pay, with no in-app remedy: only a
+     * force-kill or logout cleared it, and nothing said so.
+     *
+     * Preserving the ROW on an ambiguous empty payload is still correct and is
+     * asserted below. Releasing the HOLD is a separate decision — it deletes
+     * nothing, it just lets the customer act again.
+     */
+    @Test
+    fun `an empty server cart still releases an unknown-outcome hold`() {
+        val line = CartStore.CartLine(
+            id = 77,
+            packageId = 77,
+            title = "Only package",
+            kind = CartStore.CartLineKind.PACKAGE,
+            statusCode = 7,
+            serverConfirmed = true,
+        )
+        CartStore.add(line)
+
+        // The DELETE whose outcome we never learned.
+        val deletion = requireNotNull(CartStore.beginPackageMutation(line, adding = false))
+        assertTrue(CartStore.markPackageMutationOutcomeUnknown(deletion))
+
+        // The hold is live: the customer cannot touch this package.
+        assertNull(
+            "precondition — an unknown outcome must hold the key",
+            CartStore.beginPackageMutation(line, adding = false),
+        )
+
+        // Recovery GET /cart, begun AFTER the hold, comes back empty.
+        val recovery = CartStore.beginServerCartSnapshot()
+        CartStore.reconcileServerPackages(emptyList(), recovery)
+
+        // The row is deliberately kept — an empty payload is ambiguous.
+        assertTrue(
+            "an ambiguous empty payload must NOT delete the cached row",
+            CartStore.contains(line.key),
+        )
+
+        // ...but the customer must be able to act on it again.
+        assertNotNull(
+            "the hold must be released by a snapshot that supersedes it. Left " +
+                "held, the customer cannot remove the package and cannot pay — " +
+                "with no in-app way out.",
+            CartStore.beginPackageMutation(line, adding = false),
+        )
     }
 }
