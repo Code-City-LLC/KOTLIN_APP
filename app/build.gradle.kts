@@ -54,7 +54,10 @@ val playUploadSigningConfigured =
 //
 // To re-check before any release, do not trust this constant — ask Play:
 //   edits.bundles().list(packageName=..., editId=...)  -> max(versionCode)
-val knownPlayProductionVersionCodeFloor = 26
+// Raised to 27 after v27 (3.2.1) was uploaded on 2026-08-02. Verified against
+// the API, not remembered: edits.bundles().list() -> [2,22,23,24,25,26,27].
+// A versionCode is burned by being UPLOADED, not by shipping.
+val knownPlayProductionVersionCodeFloor = 27
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
