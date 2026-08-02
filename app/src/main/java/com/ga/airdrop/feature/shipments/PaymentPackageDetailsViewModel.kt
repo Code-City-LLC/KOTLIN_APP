@@ -37,6 +37,33 @@ data class PaymentPackageDetailsUiState(
     val effectiveRate: Double
         get() = payment?.exchangeRate ?: detail?.exchangeRate ?: exchangeRate
 
+    /**
+     * The figure the Total box shows, AS THE SERVER SENT IT — not necessarily USD.
+     *
+     * `payment.totalAmount` on the NCB rail is already JMD, so this must be
+     * paired with [totalCurrency] and rendered through
+     * [ShipmentsFormat.dualForCurrency]. Feeding it to a USD-only helper
+     * multiplies it by the rate a second time — the 162x receipt.
+     */
+    val totalAmount: Double?
+        get() = payment?.totalAmount
+            ?: detail?.additionalChargesTotal
+            ?: detail?.additionalCharges?.values?.sum()?.takeIf { detail.additionalCharges.isNotEmpty() }
+
+    /**
+     * The currency [totalAmount] is denominated in.
+     *
+     * Only `payment.totalAmount` carries a currency off the wire. The package
+     * `additionalCharges*` fallbacks are USD by contract — the Breakdown of
+     * Charges table above renders them under an explicit "USD" column header
+     * and multiplies for its "Local (JMD)" column, which is only correct for
+     * USD input. So the payment's currency applies ONLY when the payment is the
+     * value actually being shown.
+     */
+    val totalCurrency: String?
+        get() = if (payment?.totalAmount != null) payment?.currency else "USD"
+
+    /** Retained for callers that genuinely want a USD-only figure. */
     val totalUsd: Double?
         get() = payment?.totalAmount
             ?: detail?.additionalChargesTotal
