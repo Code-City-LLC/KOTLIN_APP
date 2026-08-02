@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.shop
 
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
@@ -282,6 +283,23 @@ class AuctionCheckoutViewModel(
         }
         when (parseCheckoutCurrency(s.currency)) {
             CheckoutCurrency.JMD -> {
+                // ⚠️ THE BYPASS. This arm decides the rail itself and never
+                // called checkoutPaymentRail(), so the JMD gate added for v27
+                // covered the CART path only — an auction checkout walked
+                // straight to NCB card entry. Caught by BrightHarbor (ORC
+                // 88806) after I had already told the room v27 "will not ship
+                // an open NCB rail". It would have.
+                if (!AirdropFeatureFlags.jmdNcbCheckout) {
+                    _state.update {
+                        it.copy(
+                            errorTitle = "JMD payment unavailable",
+                            errorMessage = "Paying in Jamaican dollars is temporarily " +
+                                "unavailable while we complete work with our card " +
+                                "processor. No payment was started.",
+                        )
+                    }
+                    return
+                }
                 // JMD → the NCB (PowerTranz) card-entry screen (is_auction=true,
                 // this single package). No Stripe hosted checkout / pending record.
                 // Retry the billing prefill in case the init fetch failed, so the
@@ -459,6 +477,19 @@ class AuctionCheckoutViewModel(
         cardCvv: String,
     ) {
         if (_ncb.value.busy) return
+        // ⚠️ LOWEST BOUNDARY. Gating navigation alone is not enough: a restored
+        // screen, a persisted flow from an earlier build, or any future entry
+        // point reaches this directly. Money movement starts HERE.
+        if (!AirdropFeatureFlags.jmdNcbCheckout) {
+            _ncb.update {
+                it.copy(
+                    errorMessage = "Paying in Jamaican dollars is temporarily " +
+                        "unavailable while we complete work with our card " +
+                        "processor. No payment was started.",
+                )
+            }
+            return
+        }
         val product = _state.value.product
         val packageId = product?.packageId?.takeIf { it > 0 }
         if (product == null || packageId == null || product.id <= 0) {
@@ -542,6 +573,10 @@ class AuctionCheckoutViewModel(
 
     override fun completeNcbPayment() {
         if (_ncb.value.busy) return
+        // ⚠️ SETTLEMENT. The last boundary, and the one that actually moves
+        // money. Gated even though creation is gated above, because a 3DS page
+        // restored from a previous build reaches this directly.
+        if (!AirdropFeatureFlags.jmdNcbCheckout) return
         val spiToken = ncbSpiToken?.trim()?.takeIf(String::isNotEmpty) ?: return
         val owner = sessionBoundary.capture()?.takeIf { it.sessionId == sessionOwner?.sessionId } ?: return
         val requestOwner = sessionBoundary.requestOwner(owner) ?: return

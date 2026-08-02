@@ -3,6 +3,7 @@ package com.ga.airdrop.feature.cart
 import com.ga.airdrop.core.config.AirdropFeatureFlags
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -114,5 +115,77 @@ class JmdCheckoutGateTest {
 
         AirdropFeatureFlags.jmdNcbCheckout = true
         assertEquals(CheckoutNextRoute.PROFILE_INFORMATION, checkoutNextRoute("JMD"))
+    }
+}
+
+/**
+ * The gate must hold at EVERY money-movement boundary, not just the cart's.
+ *
+ * I shipped #227 asserting the gate governed "initiates", and told the room v27
+ * "will not ship an open NCB rail". **That was false.**
+ * `AuctionCheckoutViewModel` decides the rail itself in a `when` on the
+ * currency and never calls `checkoutPaymentRail()`, so an auction checkout in
+ * JMD walked straight to NCB card entry with the gate off. Caught by
+ * BrightHarbor in read-only review (ORC 88806), not by me.
+ *
+ * The lesson is the same one as the persisted-flow case: **gating the decision
+ * function only covers callers that ask it.** The enforcement has to sit at the
+ * boundary where money actually moves — session creation and completion — so a
+ * path that never consults the selector still cannot pay.
+ *
+ * This test pins the INVENTORY of gated boundaries by reading the source, so a
+ * new NCB entry point added later without a gate fails the build.
+ */
+class JmdGateCoversEveryBoundaryTest {
+
+    private fun repoRoot(): java.io.File {
+        var d: java.io.File? = java.io.File(System.getProperty("user.dir") ?: ".").absoluteFile
+        while (d != null) {
+            if (java.io.File(d, "app/src/main").isDirectory) return d
+            d = d.parentFile
+        }
+        throw AssertionError("cannot locate repo root — this guard cannot verify anything")
+    }
+
+    private fun source(rel: String) = java.io.File(repoRoot(), rel).readText()
+
+    @Test
+    fun `every NCB money-movement boundary consults the gate`() {
+        val boundaries = listOf(
+            "app/src/main/java/com/ga/airdrop/feature/cart/CartViewModel.kt" to
+                listOf("createNcbSession", "completeNcbPayment"),
+            "app/src/main/java/com/ga/airdrop/feature/shop/AuctionCheckoutViewModel.kt" to
+                listOf("createNcbSession", "completeNcbPayment"),
+        )
+
+        boundaries.forEach { (path, fns) ->
+            val src = source(path)
+            fns.forEach { fn ->
+                val start = src.indexOf("override fun $fn(")
+                assertTrue("$path has no `override fun $fn(`", start >= 0)
+                // The gate must appear within the first ~1200 chars of the body,
+                // i.e. before any work is done — not buried after a network call.
+                val head = src.substring(start, minOf(start + 1200, src.length))
+                assertTrue(
+                    "$path::$fn does NOT check AirdropFeatureFlags.jmdNcbCheckout " +
+                        "before doing work. This is exactly the auction bypass " +
+                        "(ORC 88806): money movement reachable without the gate.",
+                    head.contains("jmdNcbCheckout"),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `the auction currency branch is gated too, not just the cart selector`() {
+        val src = source("app/src/main/java/com/ga/airdrop/feature/shop/AuctionCheckoutViewModel.kt")
+        val jmdArm = src.indexOf("CheckoutCurrency.JMD ->")
+        assertTrue("auction has no JMD branch", jmdArm >= 0)
+        val arm = src.substring(jmdArm, minOf(jmdArm + 1200, src.length))
+        assertTrue(
+            "the auction JMD branch navigates to NCB card entry without consulting " +
+                "the gate — the bypass BrightHarbor found",
+            arm.contains("jmdNcbCheckout"),
+        )
     }
 }

@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.cart
 
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.location.CountryCatalog
@@ -846,6 +847,13 @@ class CartViewModel(
         cardCvv: String,
     ) {
         if (_state.value.ncbBusy) return
+        // ⚠️ LOWEST BOUNDARY — see AuctionCheckoutViewModel.createNcbSession.
+        // Money movement starts here, so the gate is enforced here and not only
+        // at navigation.
+        if (!AirdropFeatureFlags.jmdNcbCheckout) {
+            return orderError("JMD payment unavailable", "Paying in Jamaican dollars is temporarily unavailable while we " +
+                "complete work with our card processor. No payment was started.")
+        }
         val owner = currentOwner() ?: return orderError(
             "Sign in required",
             "Log in to your Airdropja account before paying.",
@@ -947,6 +955,9 @@ class CartViewModel(
      */
     override fun completeNcbPayment() {
         if (_state.value.ncbBusy) return
+        // ⚠️ Completion is the SETTLEMENT call. Even with creation gated, a
+        // 3DS page restored from a previous build could reach this. Fail closed.
+        if (!AirdropFeatureFlags.jmdNcbCheckout) return
         val spiToken = _state.value.ncbSpiToken?.trim()?.takeIf(String::isNotEmpty) ?: return
         val owner = currentOwner() ?: return
         val requestOwner = sessionBoundary.requestOwner(owner) ?: return
