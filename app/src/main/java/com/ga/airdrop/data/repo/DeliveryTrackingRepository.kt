@@ -133,7 +133,23 @@ class DeliveryTrackingRepository(
             ?.takeUnless { envelope.success == false }
             ?: error(envelope.message ?: DELIVERY_CONTRACT_ERROR)
 
-        val deliveries = payload.deliveries.map(ActiveDeliverySummary::toDomain)
+        // ⚠️ mapNotNull, NOT map. One unrecognised row must never blank the
+        // whole screen.
+        //
+        // toDomain() error()s on an unknown status, and an error() inside map()
+        // rejects the ENTIRE payload — Track renders "Couldn't load" over a
+        // response that was almost entirely good. The comment on toDomain
+        // records that this ALREADY SHIPPED once: the allow-list was
+        // {assigned, out_for_delivery}, Laravel started returning `delivered`,
+        // and one delivered row killed every customer's Track screen.
+        //
+        // Widening the allow-list fixes that one instance and leaves the
+        // mechanism intact for the next new status. Laravel is adding exactly
+        // that: /packages/journeys deliberately carries pickup and
+        // warehouse-only packages whose statuses are outside this set
+        // (ORC 89528/89569). Dropping the unknown row is a visible gap in one
+        // card; error()ing is a blank screen for everyone.
+        val deliveries = payload.deliveries.mapNotNull { it.toDomainOrNull() }
         if (deliveries.map { it.packageId }.distinct().size != deliveries.size) {
             error(DELIVERY_CONTRACT_ERROR)
         }
@@ -171,6 +187,17 @@ class DeliveryTrackingRepository(
         )
     }
 }
+
+/**
+ * Null for a row this build does not understand, instead of throwing.
+ *
+ * The contract violations that indicate a BROKEN PAYLOAD still throw via
+ * [toDomain] — a missing package id is not a new status, it is corruption.
+ * Only an unrecognised *status* degrades to a dropped row, because that is the
+ * case Laravel keeps legitimately extending.
+ */
+private fun ActiveDeliverySummary.toDomainOrNull(): ActiveDelivery? =
+    runCatching { toDomain() }.getOrNull()
 
 private fun ActiveDeliverySummary.toDomain(): ActiveDelivery {
     val id = packageId?.takeIf { it > 0 } ?: error(DELIVERY_CONTRACT_ERROR)

@@ -179,3 +179,95 @@ class PackageTimelineSoftErrorTest {
         )
     }
 }
+
+/**
+ * One unrecognised delivery status must never blank the whole Track screen.
+ *
+ * `toDomain()` calls `error()` on a status outside `ACTIVE_LIST_STATUSES`, and
+ * that `error()` used to run inside `map()` — so it rejected the ENTIRE payload
+ * rather than the one row. Track rendered "Couldn't load" over a response that
+ * was almost entirely good.
+ *
+ * ⚠️ This ALREADY SHIPPED once. The allow-list was `{assigned,
+ * out_for_delivery}`, Laravel began returning `delivered`, and a single
+ * delivered row killed every customer's Track screen. The comment on
+ * `toDomain` records it. Widening the list fixed that instance and left the
+ * mechanism intact for the next new status — and Laravel is adding exactly
+ * that: `/packages/journeys` deliberately carries pickup and warehouse-only
+ * packages whose statuses are outside this set (ORC 89528 / 89569).
+ *
+ * A dropped row is a visible gap in one card. `error()` is a blank screen for
+ * everyone.
+ */
+class TrackUnknownStatusDoesNotBlankListTest {
+
+    private fun page(vararg statuses: String): String {
+        val rows = statuses.mapIndexed { i, s ->
+            """{"package_id":${41 + i},"tracking_code":"AD-${41 + i}","status":"$s",
+               "current_stage_key":"$s","updated_at":"2026-08-02T10:00:00+00:00"}"""
+        }.joinToString(",")
+        return """{"success":true,"data":{"deliveries":[$rows],
+            "meta":{"current_page":1,"per_page":50,"total":${statuses.size},"last_page":1}}}"""
+    }
+
+    private fun repo(json: String) = DeliveryTrackingRepository(
+        Proxy.newProxyInstance(
+            AirdropApiService::class.java.classLoader,
+            arrayOf(AirdropApiService::class.java),
+        ) { _, method, _ ->
+            when (method.name) {
+                "activeDeliveries" -> AirdropJson.decodeFromString(
+                    DataEnvelope.serializer(
+                        com.ga.airdrop.data.model.ActiveDeliveriesPayload.serializer(),
+                    ),
+                    json,
+                )
+                else -> error("Unexpected service call: ${method.name}")
+            }
+        } as AirdropApiService,
+    )
+
+    @Test
+    fun `one unknown status drops ONLY that row, the rest of Track survives`() = runBlocking {
+        val result = repo(page("assigned", "ready_for_pickup", "out_for_delivery"))
+            .activeDeliveries(page = 1, perPage = 50)
+
+        assertTrue(
+            "an unrecognised status must not reject the whole payload — that is a " +
+                "blank Track screen for every customer. Got: $result",
+            result.isSuccess,
+        )
+        val kept = result.getOrNull()!!.deliveries
+        assertEquals("the two known rows must survive", 2, kept.size)
+        assertEquals(listOf("assigned", "out_for_delivery"), kept.map { it.status })
+    }
+
+    @Test
+    fun `a page of ONLY unknown statuses is an empty list, not a failure`() = runBlocking {
+        // Forward-compatibility: when journeys lands, an all-pickup page must
+        // render as "nothing to track here" rather than an error screen.
+        val result = repo(page("ready_for_pickup", "at_warehouse"))
+            .activeDeliveries(page = 1, perPage = 50)
+
+        assertTrue("got: $result", result.isSuccess)
+        assertEquals(0, result.getOrNull()!!.deliveries.size)
+    }
+
+    @Test
+    fun `a genuinely BROKEN payload still fails — this is not blanket tolerance`() = runBlocking {
+        // A soft-error envelope is corruption, not an unknown status. It must
+        // still be rejected, or this fix would trade one silent lie for another.
+        val result = repo("""{"success":false,"message":"Unauthorized","data":null}""")
+            .activeDeliveries(page = 1, perPage = 50)
+
+        assertTrue("a failed read must NOT become an empty list. Got: $result", result.isFailure)
+    }
+
+    @Test
+    fun `all-known statuses are completely unaffected`() = runBlocking {
+        val result = repo(page("assigned", "out_for_delivery", "delivered"))
+            .activeDeliveries(page = 1, perPage = 50)
+        assertTrue("got: $result", result.isSuccess)
+        assertEquals(3, result.getOrNull()!!.deliveries.size)
+    }
+}
