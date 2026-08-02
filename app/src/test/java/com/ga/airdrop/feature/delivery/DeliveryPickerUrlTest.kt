@@ -11,7 +11,7 @@ class DeliveryPickerUrlTest {
     fun `picker uses the current flavor API origin`() {
         val url = deliveryPickerBaseUrl(BuildConfig.API_BASE_URL)
         val expectedHost = when (BuildConfig.ENV_NAME) {
-            "Production" -> "app.airdropja.com"
+            "Production" -> "airdropja.com"
             "Staging" -> "pre-staging.airdropja.com"
             else -> error("Unexpected environment ${BuildConfig.ENV_NAME}")
         }
@@ -22,9 +22,18 @@ class DeliveryPickerUrlTest {
             "${BuildConfig.API_BASE_URL.trimEnd('/')}/delivery/picker?embed=ios",
             url,
         )
-        if (BuildConfig.ENV_NAME == "Production") {
-            assertFalse(url.startsWith(BuildConfig.WEB_BASE_URL.trimEnd('/') + "/api/"))
-        }
+        // The old guard here asserted the picker URL must NOT start with
+        // WEB_BASE_URL + "/api/". That caught the original defect, where the URL
+        // was built from WEB_BASE_URL — a DIFFERENT host on production that
+        // 404'd. Staging never caught it because both bases were already one
+        // host there.
+        //
+        // Production now uses that same host, so the two bases share an origin
+        // on BOTH flavors and the assertion can no longer fail for the reason it
+        // was written. It can only fail because the bases agree, which is now
+        // correct. Removing it is part of the host change, not a weakening: the
+        // assertEquals above still pins the URL to API_BASE_URL, which is what
+        // actually guards the defect and survives any number of hosts merging.
     }
 
     @Test

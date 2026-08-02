@@ -100,7 +100,7 @@ android {
         }
         create("prod") {
             dimension = "env"
-            buildConfigField("String", "API_BASE_URL", "\"https://app.airdropja.com/api/v1\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://airdropja.com/api/v1\"")
             buildConfigField("String", "WEB_BASE_URL", "\"https://airdropja.com\"")
             // Swift Production.xcconfig LEGACY_BASE_URL.
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://airdropja.com/airdrop/inc\"")
