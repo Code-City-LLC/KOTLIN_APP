@@ -10,7 +10,7 @@
 | 1 | **Figma** "Revamping-AirDrop-App" (`N4k6jzpeLZgeRS5O1xfyIv`) | Figma remote MCP | Pixel-perfect visuals: layout, spacing, colors, type, icons. Screen canvas "UID — App" (node `40000002:83125`); per-screen node map below. |
 | 2 | **Swift iOS app** | `../SWIFT_APP` | Behavior truth: 52-screen inventory, navigation, flows, API wiring, DesignTokens.swift, APIEndpoints.swift, route resolver, known gaps. |
 | 3 | **React Native app** (old) | `../AD-REACT_NATIVE_APP-OLD` | Reference: route structure, Android identity (`com.ga.airdrop.app`), Cairo fonts, assets, behaviors Swift missed (debounce, logout hygiene). |
-| 4 | **Laravel backend** | `../AIRDROP-LARAVEL` | Contract: `/api/v1` (Sanctum bearer), 60+ endpoints, models, envs (prod `app.airdropja.com`, pre-staging `pre-staging.airdropja.com`). |
+| 4 | **Laravel backend** | `../AIRDROP-LARAVEL` | Contract: `/api/v1` (Sanctum bearer), 60+ endpoints, models, envs (prod `airdropja.com`, pre-staging `pre-staging.airdropja.com`). |
 
 Conflict rule update (2026-07-05): Swift is the precedence guide whenever
 Swift and Figma disagree. Figma remains the pixel-measurement source where
@@ -69,7 +69,7 @@ Calculator `40001464:29102/30381/30723` · Calculator Results `40001817:19439/20
   - `core/navigation` — route resolver mirroring `FigmaRouteResolver` (route string + referenceID deep links from push)
   - `data` — API service + models ported from Swift Codable structs / Laravel resources; repositories
   - `feature/{auth,home,shipments,shop,contacts,more,calculator,dropalert,cart}` — screens + ViewModels (MVVM, StateFlow)
-- **Config:** `prod` → `https://app.airdropja.com/api/v1`; `staging` → pre-staging; buildConfig flavors `prod`/`staging`.
+- **Config:** `prod` → `https://airdropja.com/api/v1`; `staging` → pre-staging; buildConfig flavors `prod`/`staging`.
 - **Identity:** `applicationId com.ga.airdrop.app` (matches existing RN Android/Firebase identity), minSdk 26, target/compile 35.
 - **Libraries:** Retrofit, OkHttp, kotlinx-serialization, Coil (images), Navigation-Compose, DataStore/EncryptedSharedPreferences, Firebase Messaging (FCM), Stripe Android (PaymentSheet — backend `/payments/create-payment-sheet`), AndroidX Browser (Stripe hosted checkout), Pdf viewer for invoices.
 - **Design tokens:** ported verbatim from `SWIFT_APP/Airdrop/DesignTokens.swift` (itself generated from Figma variables): orange `#F15114`, navy `#2a2367`, dynamic gray100–700, status palettes, spacing 5/10/15/20/30/40/50/60, radius 5–30, Cairo type scale h1–body3.

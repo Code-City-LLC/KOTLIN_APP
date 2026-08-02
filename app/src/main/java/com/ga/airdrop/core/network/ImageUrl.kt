@@ -5,7 +5,7 @@ package com.ga.airdrop.core.network
  * at an AirDrop host (`airdropja.com` or any subdomain); otherwise returns
  * [raw] unchanged.
  *
- * The production backend (`APP_URL=http://app.airdropja.com`) emits cleartext
+ * The production backend (`APP_URL=http://airdropja.com`) emits cleartext
  * storage URLs for product / banner / order images. Android blocks cleartext
  * HTTP by default (targetSdk ≥ 28), so without this upgrade Coil silently drops
  * those loads and the Shop auction/featured cards, Home shortlist, Promotions

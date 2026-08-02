@@ -39,10 +39,10 @@ class DeliveryPickerUrlTest {
     @Test
     fun `marker coordinates use a stable locale-independent query`() {
         assertEquals(
-            "https://app.airdropja.com/api/v1/delivery/picker" +
+            "https://airdropja.com/api/v1/delivery/picker" +
                 "?embed=ios&lat=18.017900&lng=-76.809900",
             deliveryPickerUrl(
-                apiBaseUrl = "https://app.airdropja.com/api/v1/",
+                apiBaseUrl = "https://airdropja.com/api/v1/",
                 marker = 18.0179 to -76.8099,
             ),
         )
