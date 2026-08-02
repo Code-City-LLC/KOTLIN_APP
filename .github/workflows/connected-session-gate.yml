@@ -90,7 +90,13 @@ jobs:
           # waitUntil timeouts — never the same ones, all passing locally, which
           # is the signature of a starved emulator rather than N separate bugs.
           # swiftshader software rendering on 2 cores with 2 GB is the cause.
-          cores: 4
+          # ⚠️ 3, NOT 4. ubuntu-latest has FOUR vCPU total. Giving the emulator
+          # all four leaves nothing for Gradle, adb and the OS, which starves
+          # the very thing the extra core was meant to help. I bumped it to 4
+          # and the run stalled with no output — that was my error, reverted
+          # here. The real fix in this change is disable-animations; the core
+          # count was never the lever.
+          cores: 3
           ram-size: 6144M
           heap-size: 768M
           # ⚠️ ANIMATIONS OFF AT THE DEVICE LEVEL, explicitly.
