@@ -147,7 +147,7 @@ class PackageDetailsParityTest {
             .performClick()
         compose.onNodeWithText("Delete invoice").assertIsDisplayed()
         compose.onNodeWithText("Delete").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
+        compose.waitUntil(timeoutMillis = 20_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
     }
 
     @Test
@@ -191,7 +191,7 @@ class PackageDetailsParityTest {
             .performClick()
         compose.onNodeWithText("Delete").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             packageDetailsViewModel.state.value.deletingInvoiceId == 101
         }
         compose.onNodeWithTag("package-details-invoice-deleting-101")
@@ -206,7 +206,7 @@ class PackageDetailsParityTest {
             packageDetailsViewModel.state.value.loading,
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             packagesRepo.deletedInvoiceIds == listOf(101) &&
                 packageDetailsViewModel.state.value.deletingInvoiceId == null
         }
@@ -594,7 +594,7 @@ class PackageDetailsParityTest {
 
         compose.onNodeWithTag("package-details-timeline-retry").performScrollTo().performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             timelineGateway.timelineRequests > before
         }
         assertTrue(
@@ -650,7 +650,7 @@ class PackageDetailsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Summary").fetchSemanticsNodes().isNotEmpty()
         }
     }

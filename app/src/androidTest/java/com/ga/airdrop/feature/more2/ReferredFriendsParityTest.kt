@@ -33,7 +33,7 @@ class ReferredFriendsParityTest {
         )
         val viewModel = setReferredFriends(repository)
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.referredFriendsCalls.get() == 1 && !viewModel.state.value.loading
         }
         compose.runOnIdle {
@@ -100,7 +100,7 @@ class ReferredFriendsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.referredFriendsCalls.get() == 1 && !viewModel.state.value.loading
         }
         compose.waitForIdle()

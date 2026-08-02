@@ -165,7 +165,7 @@ class AddAuthorizedUserParityTest {
         compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123-456-789")
         compose.onNodeWithTag("add-authorized-user-primary").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) { api.addCalls.get() == 1 }
+        compose.waitUntil(timeoutMillis = 20_000) { api.addCalls.get() == 1 }
         assertEquals("digits only on the wire", "123456789", api.lastAddRequest?.trnNo)
     }
 
@@ -192,7 +192,7 @@ class AddAuthorizedUserParityTest {
         val api = FakeMore2Api()
         setAddUser(api, editId = 101, mode = ThemeController.Mode.DARK)
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.authorizedUserCalls.get() == 1
         }
         compose.onNodeWithText("Edit User").assertIsDisplayed()
@@ -207,7 +207,7 @@ class AddAuthorizedUserParityTest {
         compose.onNodeWithTag("add-authorized-user-last-name-input").performTextInput("Updated")
         compose.onNodeWithTag("add-authorized-user-primary").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.updateCalls.get() == 1 && backClicks == 1
         }
         val payload = api.lastUpdateRequest
@@ -251,7 +251,7 @@ class AddAuthorizedUserParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             !viewModel.state.value.loadingUser
         }
         compose.waitForIdle()

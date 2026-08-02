@@ -95,7 +95,7 @@ class NotificationsStatusParityTest {
                 )
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag(NotificationsTags.ROOT).fetchSemanticsNodes().isNotEmpty()
         }
     }

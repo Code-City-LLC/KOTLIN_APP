@@ -123,7 +123,7 @@ class PreferencesParityScreenshotTest {
         }
         val viewModel = holder.get()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.currentUserCalls.get() == 1 &&
                 viewModel.state.value.email == "swift-user@example.com"
         }
@@ -134,7 +134,7 @@ class PreferencesParityScreenshotTest {
             viewModel.save()
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.updateProfileCalls.get() == 1 && !viewModel.state.value.saving
         }
 

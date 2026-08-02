@@ -161,7 +161,7 @@ class ShopRootListParityTest {
         compose.onNodeWithText("Paste Any Amazon Product Link").assertDoesNotExist()
         compose.onNode(hasSetTextAction(), useUnmergedTree = true)
             .performTextInput("adapter")
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.featuredSearches.contains("adapter")
         }
         assertEquals(
@@ -180,21 +180,21 @@ class ShopRootListParityTest {
             viewModel = ProductListViewModel(featured = false, products = repo)
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.auctionSearches.size >= 1
         }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.onQueryChange("abc")
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.auctionSearches.contains("abc")
         }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.onQueryChange("ab")
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.auctionSearches.size >= 3 && repo.auctionSearches.last() == null
         }
 

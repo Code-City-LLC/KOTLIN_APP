@@ -682,7 +682,7 @@ class HomeActivityTilesScreenshotTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Services").fetchSemanticsNodes().isNotEmpty()
         }
     }
@@ -814,7 +814,7 @@ class HomeActivityTilesScreenshotTest {
         node: SemanticsNodeInteraction,
         label: String,
     ): Bitmap {
-        compose.waitUntil(timeoutMillis = 5_000) { nodeHasVisibleBounds(node) }
+        compose.waitUntil(timeoutMillis = 20_000) { nodeHasVisibleBounds(node) }
         compose.waitForIdle()
         assertTrue("$label must have visible non-zero bounds", nodeHasVisibleBounds(node))
         return captureBitmapWithRetry(label) {

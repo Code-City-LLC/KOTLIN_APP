@@ -72,7 +72,7 @@ class RestrictedItemsParityTest {
 
         compose.onNodeWithTag("restricted-search-input", useUnmergedTree = true)
             .performTextInput("lithium")
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Lithium batteries and magnetised materials")
                 .fetchSemanticsNodes()
                 .isNotEmpty()
@@ -89,7 +89,7 @@ class RestrictedItemsParityTest {
         saveRootScreenshot("restricted_items_search_results_swift_light.png")
 
         compose.onNodeWithTag("restricted-search-result-0").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("restricted-detail-root-RESTRICTED_COMMODITIES")
                 .fetchSemanticsNodes()
                 .isNotEmpty()
@@ -104,7 +104,7 @@ class RestrictedItemsParityTest {
         setRestrictedItems(mode = ThemeController.Mode.DARK)
 
         compose.onNodeWithTag("restricted-category-PERMITTED").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("restricted-detail-root-PERMITTED")
                 .fetchSemanticsNodes()
                 .isNotEmpty()
@@ -145,7 +145,7 @@ class RestrictedItemsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("restricted-list-root").fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()

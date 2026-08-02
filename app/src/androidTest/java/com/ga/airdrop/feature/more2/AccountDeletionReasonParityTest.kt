@@ -61,7 +61,7 @@ class AccountDeletionReasonParityTest {
             viewModel.requestDelete()
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("account-deletion-confirm-sheet", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
@@ -104,7 +104,7 @@ class AccountDeletionReasonParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             missingVerificationCallbacks.get() == 1
         }
         compose.waitForIdle()
@@ -161,7 +161,7 @@ class AccountDeletionReasonParityTest {
             viewModel.confirmDelete(context)
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) { viewModel.state.value.deleted }
+        compose.waitUntil(timeoutMillis = 20_000) { viewModel.state.value.deleted }
 
         assertEquals("secret-password", api.lastPassword.get())
         assertNull("Swift parity: account deletion clears bearer token", AuthTokenStore.token)

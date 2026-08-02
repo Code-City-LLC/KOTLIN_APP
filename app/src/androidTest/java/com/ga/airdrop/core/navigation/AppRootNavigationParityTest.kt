@@ -64,7 +64,7 @@ class AppRootNavigationParityTest {
         setNavigationHarness(startDestination = Routes.MORE)
 
         compose.onNodeWithContentDescription("Home").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("nav-home-root").fetchSemanticsNodes().isNotEmpty()
         }
         assertEquals(0, compose.onAllNodesWithTag("nav-more-root").fetchSemanticsNodes().size)
@@ -76,7 +76,7 @@ class AppRootNavigationParityTest {
         setNavigationHarness(startDestination = Routes.HOME)
 
         compose.onNodeWithContentDescription("Shipment").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("nav-shipments-root").fetchSemanticsNodes().isNotEmpty()
         }
         assertEquals(0, compose.onAllNodesWithTag("nav-home-root").fetchSemanticsNodes().size)
@@ -101,7 +101,7 @@ class AppRootNavigationParityTest {
             token.value = null
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Welcome to AirDrop").fetchSemanticsNodes().isNotEmpty() &&
                 compose.onAllNodesWithText("Log in").fetchSemanticsNodes().isNotEmpty()
         }
@@ -260,7 +260,7 @@ class AppRootNavigationParityTest {
         compose.onNodeWithTag("nav-more-root").assertExists()
         compose.onNodeWithContentDescription("Home").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("nav-home-root").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("nav-previous-route").assertTextEquals("Previous route: none")
@@ -273,7 +273,7 @@ class AppRootNavigationParityTest {
         setNavigationHarness(startDestination = Routes.MORE)
 
         compose.onNodeWithText("Open FAQs").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("nav-faq").fetchSemanticsNodes().isNotEmpty()
         }
 

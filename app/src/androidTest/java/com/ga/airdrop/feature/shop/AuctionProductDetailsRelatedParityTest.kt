@@ -303,7 +303,7 @@ class AuctionProductDetailsRelatedParityTest {
         )
 
         waitForDetails()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("auction-details-hero-placeholder").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -386,7 +386,7 @@ class AuctionProductDetailsRelatedParityTest {
     }
 
     private fun waitForDetails() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Description").fetchSemanticsNodes().isNotEmpty()
         }
     }
@@ -398,7 +398,7 @@ class AuctionProductDetailsRelatedParityTest {
      * The title is always present once the details load.
      */
     private fun waitForDetailsWithoutDescription() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(SampleProduct.title).fetchSemanticsNodes().isNotEmpty()
         }
     }

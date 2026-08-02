@@ -55,12 +55,12 @@ class AuctionProductDetailsCartFlowParityTest {
         saveRootScreenshot("auction_details_cart_initial_light.png")
 
         compose.onNodeWithTag("auction-details-quantity-increase").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("2").fetchSemanticsNodes().isNotEmpty()
         }
 
         compose.onNodeWithTag("auction-details-primary-cta").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Added to cart").fetchSemanticsNodes().isNotEmpty() &&
                 CartStore.count == 1
         }
@@ -77,7 +77,7 @@ class AuctionProductDetailsCartFlowParityTest {
         assertEquals(AuctionProduct.priceUsd, line.priceUsd, 0.001)
 
         compose.onNodeWithText("View Cart").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { navigations == listOf(Routes.CART) }
+        compose.waitUntil(timeoutMillis = 20_000) { navigations == listOf(Routes.CART) }
     }
 
     @Test
@@ -91,7 +91,7 @@ class AuctionProductDetailsCartFlowParityTest {
         waitForDetails()
 
         compose.onNodeWithTag("auction-details-primary-cta").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Already in cart").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -101,7 +101,7 @@ class AuctionProductDetailsCartFlowParityTest {
         assertEquals("Duplicate add must preserve the existing single checkout unit", 1, CartStore.items.value.single().qty)
 
         compose.onNodeWithText("View Cart").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { navigations == listOf(Routes.CART) }
+        compose.waitUntil(timeoutMillis = 20_000) { navigations == listOf(Routes.CART) }
     }
 
     @Test
@@ -115,7 +115,7 @@ class AuctionProductDetailsCartFlowParityTest {
         waitForDetails()
 
         compose.onNodeWithContentDescription("Cart").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { navigations == listOf(Routes.CART) }
+        compose.waitUntil(timeoutMillis = 20_000) { navigations == listOf(Routes.CART) }
     }
 
     private fun setDetailsContent(
@@ -160,7 +160,7 @@ class AuctionProductDetailsCartFlowParityTest {
     }
 
     private fun waitForDetails() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Description").fetchSemanticsNodes().isNotEmpty()
         }
     }

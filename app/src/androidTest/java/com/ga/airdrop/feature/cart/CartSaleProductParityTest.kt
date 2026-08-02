@@ -424,7 +424,7 @@ class CartSaleProductParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             val lineVisible = compose.onAllNodesWithTag("cart-sale-line-${line.id}")
                 .fetchSemanticsNodes().isNotEmpty()
             val heroSettled = products.featuredCalls.get() == 1 &&

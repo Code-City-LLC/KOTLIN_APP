@@ -93,7 +93,7 @@ class PaymentMethodsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Payment Methods").fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()

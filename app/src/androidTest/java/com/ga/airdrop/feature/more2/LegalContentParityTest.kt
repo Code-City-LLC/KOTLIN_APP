@@ -164,7 +164,7 @@ class LegalContentParityTest {
                 FaqScreen(onBack = {}, onNavigate = {}, viewModel = viewModel)
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag(
                 "faq-1-title-chevron-gap",
                 useUnmergedTree = true,

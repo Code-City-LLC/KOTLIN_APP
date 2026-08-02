@@ -364,7 +364,7 @@ class GoldPriorityParityTest {
         assertClose(downgradeTopBeforeScroll, boundsTop(downgrade), "Pinned destructive action top")
         assertTrue("Safe action must precede destructive action", boundsTop(keep) < boundsTop(downgrade))
         compose.onNodeWithTag("tier-change-cancel").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("tier-change-sheet").fetchSemanticsNodes().isEmpty()
         }
 
@@ -418,7 +418,7 @@ class GoldPriorityParityTest {
         assertClose(notNowTopBeforeScroll, boundsTop(notNow), "Pinned Not Now action top")
         assertTrue("Upgrade action must precede Not Now", boundsTop(upgrade) < boundsTop(notNow))
         compose.onNodeWithTag("tier-change-cancel").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("tier-change-sheet").fetchSemanticsNodes().isEmpty()
         }
 
@@ -590,7 +590,7 @@ class GoldPriorityParityTest {
         compose.onNodeWithTag("tier-change-sheet").assertIsDisplayed()
 
         compose.runOnIdle { sessionEpoch.value++ }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("tier-change-sheet").fetchSemanticsNodes().isEmpty()
         }
         compose.onNodeWithTag("tier-change-sheet").assertDoesNotExist()

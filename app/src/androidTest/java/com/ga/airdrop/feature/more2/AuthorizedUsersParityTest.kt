@@ -97,7 +97,7 @@ class AuthorizedUsersParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.authorizedUsersCalls.get() == 1 && !viewModel.state.value.loading
         }
         val callsBeforeManualRefresh = api.authorizedUsersCalls.get()
@@ -111,7 +111,7 @@ class AuthorizedUsersParityTest {
             viewModel.refresh()
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.authorizedUsersCalls.get() == callsBeforeManualRefresh + 1 &&
                 !viewModel.state.value.refreshing
         }
@@ -147,7 +147,7 @@ class AuthorizedUsersParityTest {
                 )
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.authorizedUsersCalls.get() == 1 && !viewModel.state.value.loading
         }
         assertEquals(

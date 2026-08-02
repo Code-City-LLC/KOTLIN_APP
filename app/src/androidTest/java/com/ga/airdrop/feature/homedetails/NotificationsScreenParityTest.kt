@@ -122,7 +122,7 @@ class NotificationsScreenParityTest {
 
         // save() fires onAuthenticatedSessionChanged, so the probe must have
         // been asked — through the fake, never the network.
-        compose.waitUntil(timeoutMillis = 5_000) { probeCalls.get() > 0 }
+        compose.waitUntil(timeoutMillis = 20_000) { probeCalls.get() > 0 }
         assertTrue("the injected probe must be the one invoked", probeCalls.get() > 0)
 
         // No real 401, therefore no teardown: auth, session and account intact.

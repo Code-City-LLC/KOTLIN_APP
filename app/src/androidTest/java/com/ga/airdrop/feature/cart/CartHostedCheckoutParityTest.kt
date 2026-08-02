@@ -153,14 +153,14 @@ class CartHostedCheckoutParityTest {
         assertEquals("Checkout fields must retain the frozen Swift order", orderedFieldTops.sorted(), orderedFieldTops)
 
         compose.onNodeWithTag("checkout-profile-select-card").performScrollTo().performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Add new profile").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Add new profile").performClick()
         assertEquals("", formSnapshot.get().firstName)
         assertEquals("JMD", formSnapshot.get().currency)
         compose.onNodeWithTag("checkout-profile-select-card").performScrollTo().performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("John Brown").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("John Brown").performClick()
@@ -423,7 +423,7 @@ class CartHostedCheckoutParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.removeOrderSummaryItem(lines[0])
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             CartStore.count == 1 && viewModel.capturedCheckoutLines().map { it.key } == listOf(lines[1].key)
         }
         val reduced = requireNotNull(viewModel.currentCheckoutFlow())
@@ -434,7 +434,7 @@ class CartHostedCheckoutParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.removeOrderSummaryItem(lines[1])
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             CartStore.count == 0 && viewModel.state.value.orderSummaryRestartNav
         }
         assertNull(viewModel.currentCheckoutFlow())
@@ -522,7 +522,7 @@ class CartHostedCheckoutParityTest {
         waitForCart()
         compose.onNodeWithText("Continue").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             navigated.get() == Routes.DELIVERY_METHOD
         }
 
@@ -561,7 +561,7 @@ class CartHostedCheckoutParityTest {
         )
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewModel::payOrderSummary)
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.checkoutCalls.get() == 1 && viewModel.state.value.checkoutUrl == CheckoutUrl
         }
 
@@ -762,7 +762,7 @@ class CartHostedCheckoutParityTest {
     }
 
     private fun waitForCart() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
         }
     }

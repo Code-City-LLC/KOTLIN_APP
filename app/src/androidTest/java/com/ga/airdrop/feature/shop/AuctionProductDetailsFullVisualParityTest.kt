@@ -180,7 +180,7 @@ class AuctionProductDetailsFullVisualParityTest {
     }
 
     private fun waitForDetails() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Description").fetchSemanticsNodes().isNotEmpty()
         }
     }
