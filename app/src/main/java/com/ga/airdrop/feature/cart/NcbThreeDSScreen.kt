@@ -265,4 +265,3 @@ internal fun isNcbCallback(
     if (!allowedHost.equals(uri.host, ignoreCase = true)) return false
     return uri.path?.lowercase()?.trimEnd('/').orEmpty() == NCB_CALLBACK_PATH
 }
-
