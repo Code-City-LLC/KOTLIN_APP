@@ -191,13 +191,18 @@ class DeliveryTrackingRepository(
 /**
  * Null for a row this build does not understand, instead of throwing.
  *
- * The contract violations that indicate a BROKEN PAYLOAD still throw via
- * [toDomain] — a missing package id is not a new status, it is corruption.
- * Only an unrecognised *status* degrades to a dropped row, because that is the
- * case Laravel keeps legitimately extending.
+ * Contract violations that indicate a BROKEN PAYLOAD are validated before the
+ * forward-compatible status check — a missing package id is not a new status,
+ * it is corruption. Only a non-blank, unrecognised *status* degrades to a
+ * dropped row, because that is the case Laravel keeps legitimately extending.
  */
-private fun ActiveDeliverySummary.toDomainOrNull(): ActiveDelivery? =
-    runCatching { toDomain() }.getOrNull()
+private fun ActiveDeliverySummary.toDomainOrNull(): ActiveDelivery? {
+    packageId?.takeIf { it > 0 } ?: error(DELIVERY_CONTRACT_ERROR)
+    val normalizedStatus = status?.trim()?.takeIf(String::isNotEmpty)
+        ?: error(DELIVERY_CONTRACT_ERROR)
+    if (normalizedStatus !in ACTIVE_LIST_STATUSES) return null
+    return toDomain()
+}
 
 private fun ActiveDeliverySummary.toDomain(): ActiveDelivery {
     val id = packageId?.takeIf { it > 0 } ?: error(DELIVERY_CONTRACT_ERROR)
