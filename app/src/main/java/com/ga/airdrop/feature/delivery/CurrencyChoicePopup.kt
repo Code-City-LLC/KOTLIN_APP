@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
@@ -55,13 +56,18 @@ fun CurrencyChoicePopup(
                     testTag = "delivery-currency-usd",
                     onClick = { onPick("USD") },
                 )
-                CurrencyOptionRow(
-                    flag = "🇯🇲",
-                    code = "JMD",
-                    subtitle = "Jamaican Dollar",
-                    testTag = "delivery-currency-jmd",
-                    onClick = { onPick("JMD") },
-                )
+                // ⚠️ OFFERED only when the rail can actually complete. A visible
+                // option that fails on tap is worse than no option — see
+                // AirdropFeatureFlags.jmdNcbCheckout for why this is off.
+                if (AirdropFeatureFlags.jmdNcbCheckout) {
+                    CurrencyOptionRow(
+                        flag = "🇯🇲",
+                        code = "JMD",
+                        subtitle = "Jamaican Dollar",
+                        testTag = "delivery-currency-jmd",
+                        onClick = { onPick("JMD") },
+                    )
+                }
             }
         },
         confirmButton = {},

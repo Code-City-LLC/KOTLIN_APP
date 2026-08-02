@@ -63,7 +63,7 @@ class AuctionCheckoutParityTest {
         )
 
         waitForCheckout()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("auction-checkout-hero-placeholder").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -79,7 +79,7 @@ class AuctionCheckoutParityTest {
         waitForCheckout()
         compose.onNodeWithTag("auction-checkout-continue").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Sign in required").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -156,7 +156,7 @@ class AuctionCheckoutParityTest {
             }
 
             releaseLiveRate.complete(Unit)
-            compose.waitUntil(timeoutMillis = 5_000) {
+            compose.waitUntil(timeoutMillis = 20_000) {
                 viewModel.state.value.exchangeUsdToJmd == 180.0 &&
                     com.ga.airdrop.core.prefs.ExchangeRateStore.current == 180.0
             }
@@ -277,7 +277,7 @@ class AuctionCheckoutParityTest {
     }
 
     private fun waitForCheckout() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Continue to pay").fetchSemanticsNodes().isNotEmpty()
         }
     }

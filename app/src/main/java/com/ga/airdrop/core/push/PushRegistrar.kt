@@ -218,13 +218,27 @@ object PushRegistrar {
         registerRequest: suspend (String, AuthTokenStore.RequestProvenance) -> Boolean,
     ): Boolean {
         if (!registrationAllowed(expected, generation)) return false
-        val token = prefs?.getString(KEY_TOKEN, null)
-            ?: tokenRequester()?.takeIf { it.isNotBlank() }?.also { fresh ->
-                if (registrationAllowed(expected, generation)) {
-                    prefs?.edit()?.putString(KEY_TOKEN, fresh)?.apply()
-                }
+        // ⚠️ THE CACHE MUST NOT OUTRANK FCM.
+        //
+        // This read the cached token FIRST and only consulted FCM when the cache
+        // was empty, so a rotation that happened while signed out was never
+        // noticed: FCM issues a new token, the app registers the STALE cached one
+        // on next sign-in, and every push from then on is addressed to a token
+        // the device no longer holds. Push dies silently and permanently — no
+        // error anywhere, and reinstalling is the only cure a customer could
+        // stumble onto.
+        //
+        // Ask FCM first and treat its answer as authoritative; fall back to the
+        // cache only when FCM cannot answer right now (offline, Play Services
+        // unavailable), which keeps the previously-working behaviour for the
+        // transient case without letting it win permanently.
+        val fresh = tokenRequester()?.takeIf { it.isNotBlank() }
+        val token = fresh ?: prefs?.getString(KEY_TOKEN, null) ?: return false
+        if (fresh != null && fresh != prefs?.getString(KEY_TOKEN, null)) {
+            if (registrationAllowed(expected, generation)) {
+                prefs?.edit()?.putString(KEY_TOKEN, fresh)?.apply()
             }
-            ?: return false
+        }
         return registerTokenAwait(token, expected, force, generation, registerRequest)
     }
 

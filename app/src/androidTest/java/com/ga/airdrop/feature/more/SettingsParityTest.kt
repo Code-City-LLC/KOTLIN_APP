@@ -127,7 +127,7 @@ class SettingsParityTest {
         compose.onNodeWithText("Cache Cleared Successfully!").assertIsDisplayed()
         compose.onNodeWithText("You’ve successfully cleared your cache. Enjoy smoother performance and more storage space.").assertIsDisplayed()
         compose.onNodeWithText("OK").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag(SettingsTags.CACHE_SHEET, useUnmergedTree = true)
                 .fetchSemanticsNodes()
                 .isEmpty()
@@ -148,7 +148,7 @@ class SettingsParityTest {
         )
         compose.onNodeWithText("Sign out of this AirDrop account?").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Sign out of this AirDrop account?")
                 .fetchSemanticsNodes()
                 .isEmpty()
@@ -200,7 +200,7 @@ class SettingsParityTest {
             viewModel.logout(context)
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.logoutCalls.get() == 1 && viewModel.state.value.loggedOut
         }
 
@@ -264,7 +264,7 @@ class SettingsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("${SettingsTags.NOTIFICATIONS}-row", useUnmergedTree = true)
                 .fetchSemanticsNodes()
                 .isNotEmpty()

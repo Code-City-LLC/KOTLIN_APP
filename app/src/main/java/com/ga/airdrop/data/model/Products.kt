@@ -60,13 +60,31 @@ data class AuctionProduct(
             ?: images?.firstOrNull { it.isPrimary == true }?.url
             ?: images?.firstOrNull()?.url
 
-    val displayPriceUsd: Double
+    /**
+     * The price as a figure, or **null when the wire carried none we could
+     * parse**.
+     *
+     * ⚠️ This used to end `?: 0.0`. That zero did not stay on screen — it flows
+     * `displayPriceUsd` -> `ShopProduct.priceUsd` (ShopRepoBinding.kt:29) ->
+     * the cart line -> `CartStore.totalUsd()`. So an unparseable price became a
+     * **free line item in a real order total**, silently.
+     *
+     * A genuine 0.00 from the server still comes through as 0.0 and is a fact.
+     * What is gone is inventing one.
+     */
+    val displayPriceUsdOrNull: Double?
         get() = currencyDouble(currentPrice)
             ?: currencyDouble(salePrice)
             ?: currencyDouble(price)
             ?: currencyDouble(regularPrice)
             ?: priceUsd
-            ?: 0.0
+
+    /**
+     * ⚠️ DISPLAY ONLY — never let this reach a cart line or a total. Use
+     * [displayPriceUsdOrNull] and refuse the item when it is null.
+     */
+    val displayPriceUsd: Double
+        get() = displayPriceUsdOrNull ?: 0.0
 
     val isAvailable: Boolean get() = status == null || status == "available"
 

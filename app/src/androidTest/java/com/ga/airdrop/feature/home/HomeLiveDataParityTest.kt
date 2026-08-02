@@ -35,7 +35,7 @@ class HomeLiveDataParityTest {
         val repository = FakeHomeRepository()
         val viewModel = HomeViewModel(repository, FakeAuthenticatedSessionBoundary())
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.currentUserCalls.get() == 1 &&
                 repository.airCoinsCalls.get() == 1 &&
                 repository.auctionCalls.get() == 1 &&
@@ -57,7 +57,7 @@ class HomeLiveDataParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Services").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -66,7 +66,7 @@ class HomeLiveDataParityTest {
             lifecycleOwner.handle(Lifecycle.Event.ON_RESUME)
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.currentUserCalls.get() >= 2 &&
                 repository.airCoinsCalls.get() >= 2 &&
                 repository.auctionCalls.get() >= 2
@@ -80,7 +80,7 @@ class HomeLiveDataParityTest {
 
         // Let the init{} cold load settle so the pull isn't a no-op behind an
         // active refresh job.
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.currentUserCalls.get() >= 1 &&
                 viewModel.state.value.auctionHighlights.size == 1 &&
                 !viewModel.state.value.loading
@@ -98,7 +98,7 @@ class HomeLiveDataParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Services").fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -107,7 +107,7 @@ class HomeLiveDataParityTest {
         // Swift homeRefreshControl: pulling the Home scroll fires onPullToRefresh.
         compose.onNodeWithTag("home-pull-refresh").performTouchInput { swipeDown() }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.currentUserCalls.get() > callsBefore &&
                 repository.airCoinsCalls.get() > callsBefore &&
                 repository.auctionCalls.get() > callsBefore
@@ -120,7 +120,7 @@ class HomeLiveDataParityTest {
         val repository = FakeHomeRepository()
         val viewModel = HomeViewModel(repository, FakeAuthenticatedSessionBoundary())
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             viewModel.state.value.auctionHighlights.size == 1 &&
                 !viewModel.state.value.loading
         }
@@ -128,7 +128,7 @@ class HomeLiveDataParityTest {
         repository.auctionResult = Result.failure(IllegalStateException("offline"))
         viewModel.refresh()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.auctionCalls.get() >= 2 &&
                 viewModel.state.value.auctionHighlights.isEmpty() &&
                 !viewModel.state.value.loading

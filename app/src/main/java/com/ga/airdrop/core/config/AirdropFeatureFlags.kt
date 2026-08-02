@@ -60,4 +60,49 @@ object AirdropFeatureFlags {
      */
     @Volatile
     var notificationCategoryPreferences: Boolean = false
+
+    /**
+     * JMD checkout — the NCB / PowerTranz card rail.
+     *
+     * ## OFF for v27 (3.2.1). Kemar's call, 2026-08-02.
+     *
+     * One boolean governs **three** things, because any two of them drifting
+     * apart is a bug — the same rule [notificationCategoryPreferences] follows:
+     *  1. whether JMD is **OFFERED** (CurrencyChoicePopup)
+     *  2. whether the rail can **INITIATE** (DeliveryMethodViewModel.onCurrencyChosen
+     *     and CheckoutFlowStore.checkoutPaymentRail)
+     *  3. what the customer is **TOLD** when they would have picked it
+     *
+     * ## Why it is off, and why v27 specifically
+     *
+     * v26 shipped pointing at the retired host, so it cannot reach the API at
+     * all — which means NO customer is completing an NCB payment today. The rail
+     * is dead in the field by accident, not by decision.
+     *
+     * **v27 fixes the host, and that RE-ENABLES this rail as a side effect.**
+     * So shipping v27 without this flag is not "leaving the NCB risk unchanged";
+     * it is turning a payment path back on. BrightHarbor gated the release on
+     * exactly that (ORC 88698) and they were right to.
+     *
+     * ## ⚠️ What has to be TRUE before this goes on
+     *
+     * Laravel's NCB completion is still under active rejection — ORC 88519,
+     * 88520, 88588. Specifically:
+     *  - the replay path checks `$checkout->invoice_id`, but `ncb_checkouts` has
+     *    no such column, so the claimed idempotency path is DEAD
+     *  - `GET_LOCK` only serialises overlapping requests; on provider timeout,
+     *    process death, or approval-then-local-failure the lock releases while
+     *    status stays `3ds_complete`, so a retry can call `/payment` again —
+     *    the unknown-outcome DOUBLE CHARGE
+     *  - raw SpiToken is still logged and persisted
+     *
+     * Flip this **only** after BronzeMountain's contract is green, HazyGorge's
+     * independent review passes, and the strict callback recognizer
+     * (`isNcbCallback`, ORC 88696) has landed with its negative tests. Turning it
+     * on early risks a real customer being charged twice.
+     *
+     * USD / Stripe is deliberately untouched by this flag.
+     */
+    @Volatile
+    var jmdNcbCheckout: Boolean = false
 }

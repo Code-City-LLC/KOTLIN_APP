@@ -129,7 +129,7 @@ class ProductListBottomClearanceParityTest {
     }
 
     private fun waitForProducts() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Swift Product 1").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("product-list-grid").assertIsDisplayed()

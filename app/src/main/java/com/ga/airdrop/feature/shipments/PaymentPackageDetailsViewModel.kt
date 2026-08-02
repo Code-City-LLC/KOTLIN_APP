@@ -14,6 +14,20 @@ data class PaymentPackageDetailsUiState(
     val detail: ShipmentPackageDetail? = null,
     /** Laravel's canonical journey; the client no longer builds the rail. */
     val timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry> = emptyList(),
+    /**
+     * True when the timeline read FAILED, so [timeline] is unknown rather than
+     * genuinely empty.
+     *
+     * Its twin screen (PackageDetailsScreen) already branches three ways —
+     * failed / loaded-but-unusable / genuinely empty — but this one collapsed a
+     * failure into emptyList() and rendered an empty bordered card with no rows,
+     * no message and no retry. The customer could not tell whether the package
+     * had no journey, the screen was broken, or the read had failed.
+     *
+     * Kemar's rule is that BOTH package-detail screens show full history, so
+     * both must be equally honest when they cannot.
+     */
+    val timelineLoadFailed: Boolean = false,
     val exchangeRate: Double = 160.0, // Swift fallback for this VC
     val showHistory: Boolean = false,
     val showCifInfo: Boolean = false,
@@ -23,6 +37,33 @@ data class PaymentPackageDetailsUiState(
     val effectiveRate: Double
         get() = payment?.exchangeRate ?: detail?.exchangeRate ?: exchangeRate
 
+    /**
+     * The figure the Total box shows, AS THE SERVER SENT IT — not necessarily USD.
+     *
+     * `payment.totalAmount` on the NCB rail is already JMD, so this must be
+     * paired with [totalCurrency] and rendered through
+     * [ShipmentsFormat.dualForCurrency]. Feeding it to a USD-only helper
+     * multiplies it by the rate a second time — the 162x receipt.
+     */
+    val totalAmount: Double?
+        get() = payment?.totalAmount
+            ?: detail?.additionalChargesTotal
+            ?: detail?.additionalCharges?.values?.sum()?.takeIf { detail.additionalCharges.isNotEmpty() }
+
+    /**
+     * The currency [totalAmount] is denominated in.
+     *
+     * Only `payment.totalAmount` carries a currency off the wire. The package
+     * `additionalCharges*` fallbacks are USD by contract — the Breakdown of
+     * Charges table above renders them under an explicit "USD" column header
+     * and multiplies for its "Local (JMD)" column, which is only correct for
+     * USD input. So the payment's currency applies ONLY when the payment is the
+     * value actually being shown.
+     */
+    val totalCurrency: String?
+        get() = if (payment?.totalAmount != null) payment?.currency else "USD"
+
+    /** Retained for callers that genuinely want a USD-only figure. */
     val totalUsd: Double?
         get() = payment?.totalAmount
             ?: detail?.additionalChargesTotal
@@ -89,10 +130,19 @@ class PaymentPackageDetailsViewModel(
                     if (packageId != null) {
                         packagesRepo.packageDetails(packageId.toString())
                             .onSuccess { detail ->
-                                // A timeline failure must not blank the screen.
-                                val timeline = tracking.packageTimeline(packageId).getOrNull().orEmpty()
+                                // A timeline failure must not blank the screen —
+                                // still true, so we keep rendering. What was
+                                // missing is any record that it FAILED, which
+                                // made "no journey" and "we could not load it"
+                                // pixel-identical.
+                                val timelineResult = tracking.packageTimeline(packageId)
                                 _state.update {
-                                    it.copy(detail = detail, timeline = timeline, loading = false)
+                                    it.copy(
+                                        detail = detail,
+                                        timeline = timelineResult.getOrNull().orEmpty(),
+                                        timelineLoadFailed = timelineResult.isFailure,
+                                        loading = false,
+                                    )
                                 }
                             }
                             .onFailure { e ->

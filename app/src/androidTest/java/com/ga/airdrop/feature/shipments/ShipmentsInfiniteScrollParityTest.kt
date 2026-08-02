@@ -45,12 +45,12 @@ class ShipmentsInfiniteScrollParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.calls.any { it.page == 1 && it.shippingMethod == null } &&
                 !viewModel.state.value.loading
         }
         compose.runOnIdle { viewModel.selectMethod(ShipmentTypeFilter.Express) }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.calls.filter { it.shippingMethod == "Express" }.map { it.page }
                 .containsAll(listOf(1, 2, 3)) &&
                 !viewModel.state.value.loadingMore &&

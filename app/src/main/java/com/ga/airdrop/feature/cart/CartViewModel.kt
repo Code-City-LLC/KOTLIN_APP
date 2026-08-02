@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.cart
 
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.location.CountryCatalog
@@ -81,6 +82,8 @@ data class CartUiState(
     val ncbBusy: Boolean = false,
     val ncbRedirectData: String? = null,
     val ncbSpiToken: String? = null,
+    /** Laravel binds settlement to {spi_token, checkout_id, user} — ORC 89144. */
+    val ncbCheckoutId: Long? = null,
     val ncbInvoiceId: String? = null,
     // Captured at NCB-session time (the flow is cleared on success) so the
     // payment-success screen can show the right fulfillment variant + amount.
@@ -719,7 +722,29 @@ class CartViewModel(
                 return
             }
             CheckoutPaymentRail.STRIPE -> Unit
-            null -> return orderError("Checkout unavailable", "The selected payment currency is invalid.")
+            null -> {
+                // ⚠️ A GATED currency is not an INVALID one, and the customer
+                // must not be told it is. Once the JMD gate makes
+                // checkoutPaymentRail() return null, an existing JMD cart lands
+                // here on Pay — and "the selected payment currency is invalid"
+                // blames them for choosing something we offered them, while
+                // saying nothing about what to do next.
+                //
+                // Caught by CartHostedCheckoutParityTest failing on the gate,
+                // which is the test doing its job: it noticed the behaviour
+                // change AND the wrong message behind it.
+                if (parseCheckoutCurrency(flow.currency) == CheckoutCurrency.JMD &&
+                    !AirdropFeatureFlags.jmdNcbCheckout
+                ) {
+                    return orderError(
+                        "JMD payment unavailable",
+                        "Paying in Jamaican dollars is temporarily unavailable while we " +
+                            "complete work with our card processor. Return to your cart " +
+                            "and choose USD. No payment was started.",
+                    )
+                }
+                return orderError("Checkout unavailable", "The selected payment currency is invalid.")
+            }
         }
         val requestOwner = sessionBoundary.requestOwner(owner)
             ?: return orderError("Sign in required", "Log in to your Airdropja account before checking out.")
@@ -846,6 +871,13 @@ class CartViewModel(
         cardCvv: String,
     ) {
         if (_state.value.ncbBusy) return
+        // ⚠️ LOWEST BOUNDARY — see AuctionCheckoutViewModel.createNcbSession.
+        // Money movement starts here, so the gate is enforced here and not only
+        // at navigation.
+        if (!AirdropFeatureFlags.jmdNcbCheckout) {
+            return orderError("JMD payment unavailable", "Paying in Jamaican dollars is temporarily unavailable while we " +
+                "complete work with our card processor. No payment was started.")
+        }
         val owner = currentOwner() ?: return orderError(
             "Sign in required",
             "Log in to your Airdropja account before paying.",
@@ -921,6 +953,7 @@ class CartViewModel(
                                 ncbBusy = false,
                                 ncbRedirectData = resp.redirectData,
                                 ncbSpiToken = resp.spiToken,
+                                ncbCheckoutId = resp.checkoutId?.trim()?.toLongOrNull()?.takeIf { it > 0L },
                                 navToNcb3DS = true,
                             )
                         }
@@ -947,13 +980,21 @@ class CartViewModel(
      */
     override fun completeNcbPayment() {
         if (_state.value.ncbBusy) return
+        // ⚠️ Completion is the SETTLEMENT call. Even with creation gated, a
+        // 3DS page restored from a previous build could reach this. Fail closed.
+        if (!AirdropFeatureFlags.jmdNcbCheckout) return
         val spiToken = _state.value.ncbSpiToken?.trim()?.takeIf(String::isNotEmpty) ?: return
+        // Fail closed — see PaymentsRepository.ncbCompletePayment.
+        val checkoutId = _state.value.ncbCheckoutId?.takeIf { it > 0L } ?: return orderError(
+            "Payment not confirmed",
+            "We couldn't confirm your payment. Please contact support before paying again.",
+        )
         val owner = currentOwner() ?: return
         val requestOwner = sessionBoundary.requestOwner(owner) ?: return
         val flow = CheckoutFlowStore.current(owner)
         _state.update { it.copy(ncbBusy = true, errorTitle = null, errorMessage = null) }
         sessionJobs.launch {
-            checkout.ncbCompletePayment(spiToken, requestOwner.provenance)
+            checkout.ncbCompletePayment(spiToken, checkoutId, requestOwner.provenance)
                 .onSuccess { resp ->
                     // Durable cart clear + flow clear are owner-scoped (inside apply)
                     // so a session swap can't wipe the wrong session's cart/flow —
@@ -973,6 +1014,7 @@ class CartViewModel(
                                 // (e.g. a late WebView callback) short-circuits instead
                                 // of re-POSTing ncb-complete-payment.
                                 ncbSpiToken = null,
+                                ncbCheckoutId = null,
                                 navToNcbSuccess = true,
                             )
                         }

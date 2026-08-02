@@ -66,9 +66,21 @@ data class NcbSessionResponse(
     val checkoutId: String? = null,
 )
 
+/**
+ * ⚠️ `checkout_id` IS REQUIRED. Laravel af2e01b3 binds settlement to
+ * {spi_token, checkout_id, authenticated user}; a completion without it is
+ * rejected, and before this it was silently omitted — [NcbSessionResponse]
+ * DECODED `checkout_id` and every caller dropped it (ORC 89144, Codex).
+ *
+ * Carried as Long, not Int: the id arrives as a JSON string and `toInt()`
+ * returns null above Int.MAX_VALUE, which would surface as "missing id" rather
+ * than an error — failing closed for the WRONG reason on exactly the
+ * highest-numbered checkouts.
+ */
 @Serializable
 data class NcbCompleteRequest(
     @SerialName("spi_token") val spiToken: String,
+    @SerialName("checkout_id") val checkoutId: Long,
 )
 
 @Serializable

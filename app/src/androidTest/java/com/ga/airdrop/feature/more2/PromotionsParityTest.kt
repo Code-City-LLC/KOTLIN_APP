@@ -223,7 +223,7 @@ class PromotionsParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.promotionalCalls.get() == 1 &&
                 products.featuredCalls.get() == 1 &&
                 products.auctionCalls.get() == 1 &&

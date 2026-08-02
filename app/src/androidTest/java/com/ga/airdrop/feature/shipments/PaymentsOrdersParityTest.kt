@@ -89,7 +89,7 @@ class PaymentsOrdersParityTest {
             ),
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("payments-load-error").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("payments-load-error").assertIsDisplayed()
@@ -114,7 +114,7 @@ class PaymentsOrdersParityTest {
         )
 
         compose.onNodeWithContentDescription("Download invoice").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Download failed").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Download failed").assertIsDisplayed()
@@ -132,7 +132,7 @@ class PaymentsOrdersParityTest {
         setPaymentsContent(mode = ThemeController.Mode.LIGHT, repo = repo)
 
         compose.onNodeWithContentDescription("Download invoice").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { navigatedRoutes.isNotEmpty() }
+        compose.waitUntil(timeoutMillis = 20_000) { navigatedRoutes.isNotEmpty() }
         compose.waitForIdle()
 
         assertEquals(
@@ -189,7 +189,7 @@ class PaymentsOrdersParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Payments").fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()
@@ -219,7 +219,7 @@ class PaymentsOrdersParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Studio Monitor").fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()

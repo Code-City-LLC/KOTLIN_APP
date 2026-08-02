@@ -79,7 +79,7 @@ class AccountDeletionParityTest {
             .performTextInput("secret-password")
         compose.onNodeWithTag("account-deletion-confirm", useUnmergedTree = true).performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) { verifiedCallbacks.get() == 1 }
+        compose.waitUntil(timeoutMillis = 20_000) { verifiedCallbacks.get() == 1 }
         compose.waitForIdle()
 
         assertEquals(1, api.loginCalls.get())

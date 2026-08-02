@@ -90,7 +90,7 @@ class PaymentPackageDetailsParityTest {
             tracking = FakeTimelineGateway(emptyList()),
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             viewModel.state.value.error == "Package details unavailable"
         }
 

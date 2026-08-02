@@ -1010,8 +1010,18 @@ fun PaymentCard(
                     // fixes showing only one currency at all. The payment
                     // carries its OWN server rate; fall back to the app-wide
                     // store only when it does not.
-                    text = ShipmentsFormat.dual(
+                    //
+                    // ⚠️ CURRENCY-AWARE, and this line is WHY that helper exists.
+                    // It used to call dual(), which MULTIPLIES by the rate — so
+                    // an NCB payment (already JMD) was inflated 162x here too.
+                    // #218 fixed the detail screens and I reported that the LIST
+                    // was already correct. It was not. Both were wrong, in the
+                    // same way, and "the list disagrees with the detail" was a
+                    // misreading of two screens that happened to disagree only
+                    // because their rate fallbacks differed.
+                    text = ShipmentsFormat.dualForCurrency(
                         payment.totalAmount,
+                        payment.currency,
                         payment.exchangeRate ?: com.ga.airdrop.core.prefs.ExchangeRateStore.current,
                     ),
                     style = AirdropType.title2,

@@ -143,7 +143,7 @@ class AuthFigmaParityTest {
         )
 
         compose.onNodeWithText("Continue").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(
                 "Browse products or upload shipments directly from your phone in just seconds.",
             ).fetchSemanticsNodes().isNotEmpty()

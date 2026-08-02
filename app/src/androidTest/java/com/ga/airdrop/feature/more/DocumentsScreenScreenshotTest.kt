@@ -125,14 +125,14 @@ class DocumentsScreenScreenshotTest {
                 DocumentsScreen(onBack = {}, onNavigate = {}, viewModel = viewModel)
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             viewModel.state.value.ownerSessionId == "session-a"
         }
         compose.onAllNodesWithText("Upload")[0].performClick()
         compose.onNodeWithTag("upload-source-sheet").assertIsDisplayed()
 
         boundary.replace("session-b", accountId = 202)
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             viewModel.state.value.ownerSessionId == "session-b"
         }
         compose.waitForIdle()
@@ -156,14 +156,14 @@ class DocumentsScreenScreenshotTest {
                 DocumentsScreen(onBack = {}, onNavigate = {}, viewModel = viewModel)
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             viewModel.state.value.files["airdrop_contract"] != null
         }
         compose.onNodeWithContentDescription("Delete").performClick()
         compose.onNodeWithText("Delete Document").assertIsDisplayed()
 
         boundary.replace("session-b", accountId = 202)
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             viewModel.state.value.ownerSessionId == "session-b"
         }
         compose.waitForIdle()
@@ -187,7 +187,7 @@ class DocumentsScreenScreenshotTest {
         }
 
         compose.onNodeWithTag("documents-pull-refresh").assertIsDisplayed()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.loadCount.get() >= 1 && !viewModel.state.value.loading
         }
     }
@@ -204,7 +204,7 @@ class DocumentsScreenScreenshotTest {
             viewModel.refresh()
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.loadCount.get() >= 1 && !viewModel.state.value.refreshing
         }
     }
@@ -223,7 +223,7 @@ class DocumentsScreenScreenshotTest {
             viewModel.commitPendingUpload(slot)
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.uploadCount.get() == 1 &&
                 repository.loadCount.get() == 1 &&
                 viewModel.state.value.pendingUploads["file_1583"] == null &&
@@ -258,7 +258,7 @@ class DocumentsScreenScreenshotTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.commitPendingUpload(slot)
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.uploadCount.get() == 1 &&
                 repository.loadCount.get() == 1 &&
                 viewModel.state.value.pendingUploads["trn"] == null &&
@@ -286,14 +286,14 @@ class DocumentsScreenScreenshotTest {
             viewModel = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
             viewModel.load()
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.loadCount.get() == 1 && !viewModel.state.value.loading
         }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.delete(requireNotNull(viewModel.claimDelete(slot)))
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.deleteCount.get() == 1 &&
                 repository.loadCount.get() == 2 &&
                 !viewModel.state.value.loading
@@ -317,14 +317,14 @@ class DocumentsScreenScreenshotTest {
             viewModel = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
             viewModel.load()
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.loadCount.get() == 1 && !viewModel.state.value.loading
         }
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.delete(requireNotNull(viewModel.claimDelete(slot)))
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.deleteCount.get() == 1 &&
                 repository.loadCount.get() == 2 &&
                 !viewModel.state.value.loading

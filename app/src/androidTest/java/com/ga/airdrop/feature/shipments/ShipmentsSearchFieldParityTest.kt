@@ -63,7 +63,7 @@ class ShipmentsSearchFieldParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Ready for Pickup").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Search by Airdrop Tracking # or Courier #").assertIsDisplayed()

@@ -255,7 +255,13 @@ internal fun PaymentPackageDetailsContent(
             }
         }
 
-        TotalChargesBox(value = ShipmentsFormat.usdJmdPlain(state.totalUsd, rate))
+        // ⚠️ Currency-aware, same reason as "Amount Paid" above. #218 fixed that
+        // row and left THIS one calling the USD-only helper, so one screen
+        // showed the same payment correctly in one place and inflated 162x two
+        // rows below. Both now read one precedence and one renderer.
+        TotalChargesBox(
+            value = ShipmentsFormat.dualForCurrency(state.totalAmount, state.totalCurrency, rate),
+        )
 
         Spacer(Modifier.height(116.dp))
     }

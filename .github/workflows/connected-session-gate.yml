@@ -90,10 +90,34 @@ jobs:
           # waitUntil timeouts — never the same ones, all passing locally, which
           # is the signature of a starved emulator rather than N separate bugs.
           # swiftshader software rendering on 2 cores with 2 GB is the cause.
+          # ⚠️ 3, NOT 4. ubuntu-latest has FOUR vCPU total. Giving the emulator
+          # all four leaves nothing for Gradle, adb and the OS, which starves
+          # the very thing the extra core was meant to help. I bumped it to 4
+          # and the run stalled with no output — that was my error, reverted
+          # here. The real fix in this change is disable-animations; the core
+          # count was never the lever.
           cores: 3
-          ram-size: 4096M
-          heap-size: 512M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          ram-size: 6144M
+          heap-size: 768M
+          # ⚠️ ANIMATIONS OFF AT THE DEVICE LEVEL, explicitly.
+          #
+          # The bump above (2->3 cores, 2->4 GB) reduced the flake but did not
+          # end it: three consecutive runs lost a DIFFERENT unrelated pair of
+          # tests each time — AboutQuietHours, then AddAuthorizedUser, then
+          # PushDeepLink — every one of them passing locally on the same commit.
+          # Different tests each run is the signature of a starved emulator, not
+          # of N real defects.
+          #
+          # The remaining cause is Compose UI tests waiting on animated frames
+          # under swiftshader software rendering. 146 of our androidTest waits
+          # use a 5s budget, which a fast dev machine meets trivially and a
+          # software-rendered CI emulator does not. Rather than raise 146
+          # timeouts — which weakens every one of them permanently to fix a
+          # transient environment problem — remove the animations the frames are
+          # waiting on.
+          disable-animations: true
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -no-metrics
           script: bash .github/scripts/connected-session-gate.sh
 
       - name: Upload connected test reports

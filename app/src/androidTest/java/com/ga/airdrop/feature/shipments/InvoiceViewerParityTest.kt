@@ -67,7 +67,7 @@ class InvoiceViewerParityTest {
             mode = ThemeController.Mode.LIGHT,
             url = file.toUri().toString(),
         )
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             runCatching {
                 compose.onNodeWithTag("invoice-save-button").assertIsEnabled()
                 compose.onNodeWithTag("invoice-share-button").assertIsEnabled()

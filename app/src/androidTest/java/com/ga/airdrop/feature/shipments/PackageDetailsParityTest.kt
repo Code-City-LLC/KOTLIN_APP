@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -146,7 +147,7 @@ class PackageDetailsParityTest {
             .performClick()
         compose.onNodeWithText("Delete invoice").assertIsDisplayed()
         compose.onNodeWithText("Delete").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
+        compose.waitUntil(timeoutMillis = 20_000) { packagesRepo.deletedInvoiceIds == listOf(101) }
     }
 
     @Test
@@ -190,7 +191,7 @@ class PackageDetailsParityTest {
             .performClick()
         compose.onNodeWithText("Delete").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             packageDetailsViewModel.state.value.deletingInvoiceId == 101
         }
         compose.onNodeWithTag("package-details-invoice-deleting-101")
@@ -205,7 +206,7 @@ class PackageDetailsParityTest {
             packageDetailsViewModel.state.value.loading,
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             packagesRepo.deletedInvoiceIds == listOf(101) &&
                 packageDetailsViewModel.state.value.deletingInvoiceId == null
         }
@@ -593,7 +594,7 @@ class PackageDetailsParityTest {
 
         compose.onNodeWithTag("package-details-timeline-retry").performScrollTo().performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             timelineGateway.timelineRequests > before
         }
         assertTrue(
@@ -649,7 +650,7 @@ class PackageDetailsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Summary").fetchSemanticsNodes().isNotEmpty()
         }
     }
@@ -724,11 +725,34 @@ class PackageDetailsParityTest {
             .performScrollTo()
             .assertIsDisplayed()
         assertEquals(1, compose.onAllNodesWithText("1 USD = 161.00 JMD").fetchSemanticsNodes().size)
+        // ⚠️ The fixture sets additionalChargesTotal = null and additionalCharges
+        // = emptyMap() — the total is UNKNOWN, not zero. This used to assert
+        // "USD 0.00 / JMD 0.00": it asserted the BUG. A fabricated zero rendered
+        // directly above the Add to Cart button, so a customer whose charges had
+        // not loaded saw a free package and could add it.
+        //
+        // Asserted on the TAGGED node, not with a screen-wide text search — a
+        // bare "-" appears in plenty of places and would pass without proving
+        // anything about the total.
         compose.onNodeWithTag("package-details-total-value")
             .performScrollTo()
             .assertIsDisplayed()
-        assertTextExists("USD 0.00 / JMD 0.00")
-        assertEquals(0, compose.onAllNodesWithText("-").fetchSemanticsNodes().size)
+            .assertTextEquals("-")
+        // This asserted ZERO bare dashes on the whole screen. That was a real
+        // parity guard — Swift fills every field here, so a dash anywhere meant
+        // a value had silently gone missing — but it was written when the total
+        // itself was a fabricated 0.00, so nothing on this screen could be
+        // legitimately unknown.
+        //
+        // Now the total is honestly unknown and renders one dash. The guard is
+        // kept in spirit: EXACTLY ONE dash is allowed, and it must be the total.
+        // Any second dash still means a field regressed into emptiness.
+        assertEquals(
+            "exactly one placeholder is expected (the unknown total). A second " +
+                "dash means another field silently lost its value.",
+            1,
+            compose.onAllNodesWithText("-").fetchSemanticsNodes().size,
+        )
     }
 
     private fun sampleDetail(

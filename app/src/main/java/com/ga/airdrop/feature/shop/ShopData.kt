@@ -38,13 +38,27 @@ data class ShopProduct(
     val title: String = "",
     val imageUrl: String? = null,
     val priceUsd: Double = 0.0,
+    /**
+     * ⚠️ False when the wire carried no parseable price.
+     *
+     * [priceUsd] then holds 0.0 as a rendering placeholder ONLY. Adding such a
+     * product to the cart would put a free line into a real order total, so the
+     * add path must refuse it — see `isAvailableForPurchase`.
+     */
+    val priceKnown: Boolean = true,
     val regularPriceUsd: Double? = null,
     val inventory: Int? = null,
     val description: String? = null,
     val amazonUrl: String? = null,
     val packageId: Int? = null,
     val createdAt: String? = null,
-)
+) {
+    /**
+     * A product with no readable price must not be purchasable. Selling it
+     * would charge 0.00; showing it without a price is honest.
+     */
+    val isAvailableForPurchase: Boolean get() = priceKnown && priceUsd > 0.0
+}
 
 const val AMAZON_ASSOCIATES_DISCLOSURE =
     "As an Amazon Associate, AirDrop earns from qualifying purchases."
@@ -262,6 +276,7 @@ interface ShopCheckoutRepository {
     /** RECONCILE: POST /payments/ncb-complete-payment { spi_token } → { invoice_id }. */
     suspend fun ncbCompletePayment(
         spiToken: String,
+        checkoutId: Long?,
         expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> =
         Result.failure(NotImplementedError("NCB checkout not wired for this repository"))
@@ -316,6 +331,7 @@ private object UnboundShopCheckoutRepository : ShopCheckoutRepository {
 
     override suspend fun ncbCompletePayment(
         spiToken: String,
+        checkoutId: Long?,
         expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<com.ga.airdrop.data.model.NcbCompleteResponse> = Result.failure(unbound)
 }

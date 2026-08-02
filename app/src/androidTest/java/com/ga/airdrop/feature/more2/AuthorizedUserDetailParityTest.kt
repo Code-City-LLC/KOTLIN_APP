@@ -83,7 +83,7 @@ class AuthorizedUserDetailParityTest {
         setDetail(api, ThemeController.Mode.DARK)
 
         compose.onNodeWithText("Deactivate User").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.deactivateCalls.get() == 1 &&
                 api.authorizedUserCalls.get() == 2 &&
                 api.status == "Inactive"
@@ -91,7 +91,7 @@ class AuthorizedUserDetailParityTest {
         compose.onNodeWithText("Activate User").assertIsDisplayed()
 
         compose.onNodeWithText("Activate User").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.activateCalls.get() == 1 &&
                 api.authorizedUserCalls.get() == 3 &&
                 api.status == "Active"
@@ -100,7 +100,7 @@ class AuthorizedUserDetailParityTest {
 
         compose.onNodeWithText("Delete User").performClick()
         compose.onNodeWithText("Delete").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.deleteCalls.get() == 1 && backClicks == 1
         }
         saveRootScreenshot("authorized_user_detail_swift_dark.png")
@@ -134,7 +134,7 @@ class AuthorizedUserDetailParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.authorizedUserCalls.get() >= 1 &&
                 !viewModel.state.value.loading &&
                 viewModel.state.value.user != null

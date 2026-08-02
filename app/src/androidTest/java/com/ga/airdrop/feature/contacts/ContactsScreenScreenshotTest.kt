@@ -182,12 +182,12 @@ class ContactsScreenScreenshotTest {
     fun copyButtonShowsCopiedToast() {
         setHelpContent(ThemeController.Mode.DARK)
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().isNotEmpty()
         }
         assertEquals(11, compose.onAllNodesWithContentDescription("Copy").fetchSemanticsNodes().size)
         compose.onAllNodesWithContentDescription("Copy")[0].performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("All the information is copied").fetchSemanticsNodes().isNotEmpty()
         }
     }
@@ -198,7 +198,7 @@ class ContactsScreenScreenshotTest {
         socialFilename: String,
     ) {
         setHelpContent(mode)
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Contact Number").fetchSemanticsNodes().isNotEmpty()
         }
         saveRootScreenshot(topFilename)

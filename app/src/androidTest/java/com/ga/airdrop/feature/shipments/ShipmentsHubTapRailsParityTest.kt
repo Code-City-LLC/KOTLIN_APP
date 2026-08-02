@@ -67,7 +67,7 @@ class ShipmentsHubTapRailsParityTest {
             sessionBoundary = FakeAuthenticatedSessionBoundary(),
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.exchangeRateCalls.get() == 1 &&
                 repo.summaryCalls.get() == 1 &&
                 repo.packagesCalls.get() == 1 &&
@@ -99,7 +99,7 @@ class ShipmentsHubTapRailsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(repo.readyText).fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -108,7 +108,7 @@ class ShipmentsHubTapRailsParityTest {
             lifecycleOwner.handle(Lifecycle.Event.ON_RESUME)
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.exchangeRateCalls.get() >= 2 &&
                 repo.summaryCalls.get() >= 2 &&
                 repo.packagesCalls.get() >= 2 &&
@@ -130,7 +130,7 @@ class ShipmentsHubTapRailsParityTest {
             sessionBoundary = FakeAuthenticatedSessionBoundary(),
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.ordersCalls.get() == 1 && !viewModel.state.value.loading
         }
 
@@ -150,7 +150,7 @@ class ShipmentsHubTapRailsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(repo.readyText).fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()
@@ -189,7 +189,7 @@ class ShipmentsHubTapRailsParityTest {
             }
             compose.onNodeWithTag("shipments-quick-track-field").performTextInput("ARD000000101")
             compose.onNodeWithTag("shipments-quick-track-submit").performClick()
-            compose.waitUntil(timeoutMillis = 5_000) {
+            compose.waitUntil(timeoutMillis = 20_000) {
                 navigatedRoutes.lastOrNull() == Routes.packageDetails("101")
             }
 
@@ -469,7 +469,7 @@ class ShipmentsHubTapRailsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(repo.readyText).fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()

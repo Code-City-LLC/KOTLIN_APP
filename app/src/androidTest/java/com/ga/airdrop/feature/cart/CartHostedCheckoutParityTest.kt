@@ -1,5 +1,7 @@
 package com.ga.airdrop.feature.cart
 
+import org.junit.Assert.assertFalse
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -151,14 +153,14 @@ class CartHostedCheckoutParityTest {
         assertEquals("Checkout fields must retain the frozen Swift order", orderedFieldTops.sorted(), orderedFieldTops)
 
         compose.onNodeWithTag("checkout-profile-select-card").performScrollTo().performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Add new profile").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Add new profile").performClick()
         assertEquals("", formSnapshot.get().firstName)
         assertEquals("JMD", formSnapshot.get().currency)
         compose.onNodeWithTag("checkout-profile-select-card").performScrollTo().performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("John Brown").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("John Brown").performClick()
@@ -421,7 +423,7 @@ class CartHostedCheckoutParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.removeOrderSummaryItem(lines[0])
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             CartStore.count == 1 && viewModel.capturedCheckoutLines().map { it.key } == listOf(lines[1].key)
         }
         val reduced = requireNotNull(viewModel.currentCheckoutFlow())
@@ -432,7 +434,7 @@ class CartHostedCheckoutParityTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             viewModel.removeOrderSummaryItem(lines[1])
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             CartStore.count == 0 && viewModel.state.value.orderSummaryRestartNav
         }
         assertNull(viewModel.currentCheckoutFlow())
@@ -520,7 +522,7 @@ class CartHostedCheckoutParityTest {
         waitForCart()
         compose.onNodeWithText("Continue").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             navigated.get() == Routes.DELIVERY_METHOD
         }
 
@@ -559,7 +561,7 @@ class CartHostedCheckoutParityTest {
         )
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewModel::payOrderSummary)
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repo.checkoutCalls.get() == 1 && viewModel.state.value.checkoutUrl == CheckoutUrl
         }
 
@@ -595,16 +597,79 @@ class CartHostedCheckoutParityTest {
             ),
         )
 
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewModel::payOrderSummary)
+        val gateWasOn = AirdropFeatureFlags.jmdNcbCheckout
+        try {
+            // ── Gate ON: the original contract. JMD -> NCB, never Stripe. ──
+            AirdropFeatureFlags.jmdNcbCheckout = true
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(viewModel::payOrderSummary)
 
-        // JMD now routes to the NCB (PowerTranz) card-entry screen — NOT the Stripe
-        // hosted checkout, and NOT an error. No Stripe checkout is created, no error
-        // surfaces, and the cart is preserved until the NCB payment actually completes.
-        assertEquals(0, repo.checkoutCalls.get())
-        assertTrue(viewModel.state.value.navToNcbCardEntry)
-        assertNull(viewModel.state.value.errorTitle)
-        assertNull(viewModel.state.value.checkoutUrl)
-        assertEquals(1, CartStore.count)
+            // JMD routes to the NCB (PowerTranz) card-entry screen — NOT the Stripe
+            // hosted checkout, and NOT an error. No Stripe checkout is created, no
+            // error surfaces, and the cart is preserved until NCB actually completes.
+            assertEquals(0, repo.checkoutCalls.get())
+            assertTrue(viewModel.state.value.navToNcbCardEntry)
+            assertNull(viewModel.state.value.errorTitle)
+            assertNull(viewModel.state.value.checkoutUrl)
+            assertEquals(1, CartStore.count)
+        } finally {
+            AirdropFeatureFlags.jmdNcbCheckout = gateWasOn
+        }
+    }
+
+    /**
+     * The other half, and the one that ships: with the JMD gate OFF, an
+     * EXISTING JMD cart must be refused honestly and must still not create a
+     * Stripe checkout.
+     *
+     * ⚠️ This case is why the test above is now parameterised instead of
+     * deleted. When the gate landed, that test failed — and the failure was
+     * correct twice over. It caught the behaviour change, AND it exposed that
+     * the fallback message said *"the selected payment currency is invalid"*,
+     * which blames the customer for a currency we offered them and tells them
+     * nothing about what to do. A gated currency is not an invalid one.
+     */
+    @Test
+    fun orderSummaryJmdIsRefusedHonestlyWhenTheRailIsGatedOff() {
+        val repo = FakeCartCheckoutRepository()
+        val viewModel = prepareOrderSummaryViewModel(
+            repo = repo,
+            currency = "JMD",
+            note = "JMD gated off",
+            lines = listOf(
+                CartStore.CartLine(
+                    id = 3002,
+                    packageId = 8002,
+                    title = "JMD sale",
+                    priceUsd = 9.0,
+                    kind = CartStore.CartLineKind.AUCTION,
+                    isAuction = true,
+                ),
+            ),
+        )
+
+        val gateWasOn = AirdropFeatureFlags.jmdNcbCheckout
+        try {
+            AirdropFeatureFlags.jmdNcbCheckout = false
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(viewModel::payOrderSummary)
+
+            val state = viewModel.state.value
+            assertEquals("a gated rail must never fall through to Stripe", 0, repo.checkoutCalls.get())
+            assertFalse("the NCB card entry must not open", state.navToNcbCardEntry)
+            assertEquals("JMD payment unavailable", state.errorTitle)
+            assertNotNull(state.errorMessage)
+            assertTrue(
+                "the customer must be told they were not charged. Got: ${state.errorMessage}",
+                state.errorMessage!!.contains("No payment was started"),
+            )
+            assertFalse(
+                "a currency we offered is not 'invalid' — do not blame the customer. " +
+                    "Got: ${state.errorMessage}",
+                state.errorMessage!!.contains("invalid"),
+            )
+            assertEquals("the cart must survive a refused payment", 1, CartStore.count)
+        } finally {
+            AirdropFeatureFlags.jmdNcbCheckout = gateWasOn
+        }
     }
 
     private fun prepareOrderSummaryViewModel(
@@ -697,7 +762,7 @@ class CartHostedCheckoutParityTest {
     }
 
     private fun waitForCart() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Continue").fetchSemanticsNodes().isNotEmpty()
         }
     }

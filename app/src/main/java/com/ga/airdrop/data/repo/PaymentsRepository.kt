@@ -172,16 +172,24 @@ class PaymentsRepository(private val service: AirdropApiService) {
     /** Step 3: finalize after the 3DS callback; returns the invoice id. */
     suspend fun ncbCompletePayment(
         spiToken: String,
+        checkoutId: Long?,
         expectedSession: AuthTokenStore.RequestProvenance,
     ): Result<NcbCompleteResponse> {
         if (spiToken.isBlank()) {
             return Result.failure(IllegalArgumentException("Missing NCB payment token"))
         }
+        // ⚠️ FAIL CLOSED. Laravel binds settlement to {token, checkout_id, user}.
+        // Sending a completion without a usable id cannot settle, so it must not
+        // be attempted — a request that will be rejected is still a request
+        // against a payment endpoint.
+        if (checkoutId == null || checkoutId <= 0L) {
+            return Result.failure(IllegalArgumentException("Missing NCB checkout id"))
+        }
         return apiResult {
             val envelope = service.ncbCompletePayment(
                 authRevision = expectedSession.revision.toString(),
                 sessionId = expectedSession.sessionId,
-                body = NcbCompleteRequest(spiToken = spiToken),
+                body = NcbCompleteRequest(spiToken = spiToken, checkoutId = checkoutId),
             )
             val data = envelope.data
             if (envelope.success == false || data == null || data.invoiceId.isNullOrBlank()) {

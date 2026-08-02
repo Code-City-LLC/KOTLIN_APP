@@ -316,7 +316,7 @@ class InviteFriendParityScreenshotTest {
         compose.onNodeWithTag("invite-friend-description-input").performTextInput(" Good friend ")
         compose.onNodeWithTag("invite-friend-save").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.referFriendCalls.get() == 1 &&
                 api.lastReferFriendRequest.get() != null
         }

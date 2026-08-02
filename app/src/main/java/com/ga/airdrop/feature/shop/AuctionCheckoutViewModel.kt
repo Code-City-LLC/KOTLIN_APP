@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.shop
 
+import com.ga.airdrop.core.config.AirdropFeatureFlags
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
@@ -78,6 +79,14 @@ class AuctionCheckoutViewModel(
     private val _ncb = MutableStateFlow(NcbUiModel())
     override val ncbUi: StateFlow<NcbUiModel> = _ncb
     private var ncbSpiToken: String? = null
+
+    /**
+     * Laravel binds settlement to {spi_token, checkout_id, user} (ORC 89144).
+     *
+     * Long, not Int: the id arrives as a JSON string and `toInt()` returns null
+     * above Int.MAX_VALUE, which would look like "missing" instead of an error.
+     */
+    private var ncbCheckoutId: Long? = null
     private var ncbPrefillApplied = false
 
     private var sessionOwner: AuthenticatedSessionOwner? = sessionBoundary.capture()
@@ -105,11 +114,23 @@ class AuctionCheckoutViewModel(
                     AuthenticatedOwnerChange.SessionReplaced -> Unit
                 }
                 sessionOwner = changed
+                // ⚠️ SessionReplaced must clear NCB IDENTITY, not just hosted
+                // checkout state. Laravel binds settlement to
+                // {spi_token, checkout_id, user}; leaving a live token+id alive
+                // across an owner change is an OWNERSHIP failure — the next
+                // user could complete the previous user's checkout.
+                // Caught by Codex in review (ORC 89128).
+                ncbSpiToken = null
+                ncbCheckoutId = null
+                _ncb.update {
+                    it.copy(busy = false, redirectData = null, navTo3DS = false, navToSuccess = false)
+                }
                 _state.update {
                     it.copy(
                         paying = false,
                         checkoutUrl = null,
                         checkoutSessionId = null,
+                        navToNcbCardEntry = false,
                         errorTitle = if (changed == null) "Sign in required" else null,
                         errorMessage = if (changed == null) {
                             "Log in to your Airdropja account before checking out."
@@ -282,6 +303,23 @@ class AuctionCheckoutViewModel(
         }
         when (parseCheckoutCurrency(s.currency)) {
             CheckoutCurrency.JMD -> {
+                // ⚠️ THE BYPASS. This arm decides the rail itself and never
+                // called checkoutPaymentRail(), so the JMD gate added for v27
+                // covered the CART path only — an auction checkout walked
+                // straight to NCB card entry. Caught by BrightHarbor (ORC
+                // 88806) after I had already told the room v27 "will not ship
+                // an open NCB rail". It would have.
+                if (!AirdropFeatureFlags.jmdNcbCheckout) {
+                    _state.update {
+                        it.copy(
+                            errorTitle = "JMD payment unavailable",
+                            errorMessage = "Paying in Jamaican dollars is temporarily " +
+                                "unavailable while we complete work with our card " +
+                                "processor. No payment was started.",
+                        )
+                    }
+                    return
+                }
                 // JMD → the NCB (PowerTranz) card-entry screen (is_auction=true,
                 // this single package). No Stripe hosted checkout / pending record.
                 // Retry the billing prefill in case the init fetch failed, so the
@@ -459,6 +497,23 @@ class AuctionCheckoutViewModel(
         cardCvv: String,
     ) {
         if (_ncb.value.busy) return
+        // ⚠️ LOWEST BOUNDARY. Gating navigation alone is not enough: a restored
+        // screen, a persisted flow from an earlier build, or any future entry
+        // point reaches this directly. Money movement starts HERE.
+        // Fresh create wipes any prior identity, so a retry after an abandoned
+        // or failed 3DS cannot settle against a stale token/checkout pair.
+        ncbSpiToken = null
+        ncbCheckoutId = null
+        if (!AirdropFeatureFlags.jmdNcbCheckout) {
+            _ncb.update {
+                it.copy(
+                    errorMessage = "Paying in Jamaican dollars is temporarily " +
+                        "unavailable while we complete work with our card " +
+                        "processor. No payment was started.",
+                )
+            }
+            return
+        }
         val product = _state.value.product
         val packageId = product?.packageId?.takeIf { it > 0 }
         if (product == null || packageId == null || product.id <= 0) {
@@ -522,6 +577,7 @@ class AuctionCheckoutViewModel(
                 .onSuccess { resp ->
                     applyCurrentOwner(owner) {
                         ncbSpiToken = resp.spiToken
+                        ncbCheckoutId = resp.checkoutId?.trim()?.toLongOrNull()?.takeIf { it > 0L }
                         _ncb.update {
                             it.copy(busy = false, redirectData = resp.redirectData, navTo3DS = true)
                         }
@@ -542,18 +598,31 @@ class AuctionCheckoutViewModel(
 
     override fun completeNcbPayment() {
         if (_ncb.value.busy) return
+        // ⚠️ SETTLEMENT. The last boundary, and the one that actually moves
+        // money. Gated even though creation is gated above, because a 3DS page
+        // restored from a previous build reaches this directly.
+        if (!AirdropFeatureFlags.jmdNcbCheckout) return
         val spiToken = ncbSpiToken?.trim()?.takeIf(String::isNotEmpty) ?: return
+        // Fail closed: without a usable checkout id the server cannot bind the
+        // settlement, so we do not attempt it.
+        val checkoutId = ncbCheckoutId?.takeIf { it > 0L } ?: run {
+            _ncb.update {
+                it.copy(errorMessage = "We couldn't confirm your payment. Please contact support.")
+            }
+            return
+        }
         val owner = sessionBoundary.capture()?.takeIf { it.sessionId == sessionOwner?.sessionId } ?: return
         val requestOwner = sessionBoundary.requestOwner(owner) ?: return
         _ncb.update { it.copy(busy = true, errorMessage = null) }
         viewModelScope.launch {
-            checkout.ncbCompletePayment(spiToken, requestOwner.provenance)
+            checkout.ncbCompletePayment(spiToken, checkoutId, requestOwner.provenance)
                 .onSuccess { resp ->
                     applyCurrentOwner(owner) {
                         // Auction Buy-Now buys a single package directly — there is no
                         // cart row to clear. Consume the token so a late 3DS callback
                         // can't re-POST ncb-complete-payment.
                         ncbSpiToken = null
+                        ncbCheckoutId = null
                         _ncb.update {
                             it.copy(
                                 busy = false,

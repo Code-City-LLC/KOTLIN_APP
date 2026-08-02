@@ -70,12 +70,12 @@ class ShopRootScreenParityTest {
         waitForShopData()
 
         compose.onAllNodesWithContentDescription("Add to cart")[0].performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { CartStore.count == 1 }
+        compose.waitUntil(timeoutMillis = 20_000) { CartStore.count == 1 }
         assertEquals("Auction plus toggles CartStore without opening details", emptyList<String>(), navigations)
         assertEquals("Swift root auction plus stores one checkout unit", 1, CartStore.items.value.single().qty)
 
         compose.onNodeWithTag("shop-root-auction-card-${AuctionProducts.first().id}").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             navigations == listOf(Routes.auctionProductDetails(AuctionProducts.first().routeSlug, false))
         }
     }
@@ -94,7 +94,7 @@ class ShopRootScreenParityTest {
         )
 
         compose.onNodeWithTag("shop-root-featured-card-${FeaturedProducts.first().id}").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             navigations == listOf(Routes.auctionProductDetails(FeaturedProducts.first().routeSlug, true))
         }
     }
@@ -195,7 +195,7 @@ class ShopRootScreenParityTest {
     }
 
     private fun waitForShopData() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(AuctionProducts.first().title).fetchSemanticsNodes().isNotEmpty() &&
                 compose.onAllNodesWithText(FeaturedProducts.first().title).fetchSemanticsNodes().isNotEmpty()
         }

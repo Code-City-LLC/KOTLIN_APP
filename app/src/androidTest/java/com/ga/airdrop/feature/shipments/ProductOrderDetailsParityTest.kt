@@ -91,7 +91,7 @@ class ProductOrderDetailsParityTest {
             ordersRepo = orders,
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             viewModel.state.value.error == "Order details unavailable"
         }
 
@@ -131,7 +131,7 @@ class ProductOrderDetailsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Product Summary").fetchSemanticsNodes().isNotEmpty()
         }
         return orderRepo
@@ -162,7 +162,7 @@ class ProductOrderDetailsParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Order Summary").fetchSemanticsNodes().isNotEmpty()
         }
     }

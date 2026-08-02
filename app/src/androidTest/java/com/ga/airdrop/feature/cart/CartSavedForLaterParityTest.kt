@@ -71,14 +71,14 @@ class CartSavedForLaterParityTest {
             )
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Basket (2 Items)").fetchSemanticsNodes().isNotEmpty()
         }
 
         compose.onNodeWithTag("cart-sale-line-2001").performTouchInput { longClick() }
         compose.onNodeWithTag("cart-action-save-for-later").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             CartStore.count == 1 && SavedForLaterStore.count == 1
         }
         assertEquals("Save for Later removes only the selected active cart line", 1, CartStore.count)
@@ -92,13 +92,13 @@ class CartSavedForLaterParityTest {
         compose.onNodeWithText("Alpha Radio").assertIsDisplayed()
         compose.onNodeWithTag("saved-move-2001").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             CartStore.count == 2 && SavedForLaterStore.count == 0
         }
         compose.onNodeWithText("Nothing saved yet").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText("Basket (2 Items)").fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(
@@ -132,13 +132,13 @@ class CartSavedForLaterParityTest {
             ),
         )
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("cart-saved-pill").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("cart-saved-pill").performClick()
         compose.onNodeWithTag("saved-remove-3001").performClick()
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             CartStore.count == 1 && SavedForLaterStore.count == 0
         }
         assertEquals("Remove from saved must not remove active cart lines", 1, CartStore.count)

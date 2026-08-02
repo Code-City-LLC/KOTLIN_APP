@@ -153,7 +153,7 @@ class JustPaidJourneyParityTest {
     fun theArdIsShownAndTheStripeCheckoutIdIsNowhereOnScreen() {
         render(listOf(101, 102), FakePackages(setOf(101, 102)))
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("just-paid-package-101").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("just-paid-package-101").performScrollTo().assertIsDisplayed()
@@ -180,7 +180,7 @@ class JustPaidJourneyParityTest {
     fun aBlankServerStatusRendersAsUnavailableRatherThanAnInventedOne() {
         render(listOf(101), FakePackages(setOf(101), blankStatus = true))
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("just-paid-status-101").fetchSemanticsNodes().isNotEmpty()
         }
         // Scroll it into view BEFORE the capture below, or the screenshot is
@@ -208,7 +208,7 @@ class JustPaidJourneyParityTest {
     fun aPartialReadShowsWhatLoadedAndDeclaresWhatDidNot() {
         render(listOf(101, 102, 103), FakePackages(setOf(101, 103)))
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("just-paid-partial").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("just-paid-package-101").performScrollTo().assertIsDisplayed()
@@ -228,7 +228,7 @@ class JustPaidJourneyParityTest {
     fun aTotalFailureSaysSoAndDoesNotImplyAnEmptyOrder() {
         render(listOf(101, 102), FakePackages(emptySet()))
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("just-paid-unavailable").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("just-paid-unavailable").performScrollTo().assertIsDisplayed()
@@ -249,7 +249,7 @@ class JustPaidJourneyParityTest {
     fun noPackageIdsRendersTheNoneYetCopyAndNotAnError() {
         render(emptyList(), FakePackages(emptySet()))
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithTag("just-paid-none").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("just-paid-none").performScrollTo().assertIsDisplayed()

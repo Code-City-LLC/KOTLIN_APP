@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.calculator
 
+import com.ga.airdrop.feature.shipments.ShipmentsFormat
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.prefs.ExchangeRateStore
@@ -187,15 +188,32 @@ class RemoteCalculatorRepository(
             }
         }
 
-    /** Swift AuctionProduct.displayPrice — first parseable of the price fields. */
+    /**
+     * Swift AuctionProduct.displayPrice — first parseable of the price fields.
+     *
+     * ⚠️ TWO defects fixed here, both customer-visible.
+     *
+     * 1. `?: 0.0` turned "no parseable price" into a confident **$0.00** — a
+     *    product advertised as FREE in the calculator's product search. There is
+     *    no price to show, so it shows an em dash.
+     * 2. A bare `"$"` with a single figure. Kemar, 2026-07-26, twice and
+     *    verbatim: *"once a monetary value is there, we need to see both
+     *    values… Our primary currency is US dollar. So if we're not showing US
+     *    dollar, it is a problem."* A lone `$` in a Jamaican app is exactly the
+     *    ambiguity that rule exists to kill — it reads as JMD to half the users.
+     *
+     * The whole-app renderer is [ShipmentsFormat.dual]; this is a repository, so
+     * it takes the rate from the shared store the same way every other
+     * cold-start money render does.
+     */
     private fun JsonObject.displayPrice(): String {
         val value = flexDouble("current_price")
             ?: flexDouble("sale_price")
             ?: flexDouble("price")
             ?: flexDouble("regular_price")
             ?: flexDouble("price_usd")
-            ?: 0.0
-        return String.format(Locale.US, "$%,.2f", value)
+            ?: return "—"
+        return ShipmentsFormat.dual(value, ExchangeRateStore.current)
     }
 
     /**

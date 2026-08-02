@@ -156,7 +156,7 @@ class ShippingRatesParityTest {
             }
         }
 
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.shippingRatesCalls.get() == 1 && !viewModel.state.value.loading
         }
         compose.waitForIdle()

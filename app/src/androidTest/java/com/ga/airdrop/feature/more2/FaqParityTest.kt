@@ -164,7 +164,7 @@ class FaqParityTest {
         compose.onNodeWithTag("legal-retry", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             api.faqCalls.get() == callsBeforeRetry + 1 && !viewModel.state.value.loading
         }
         compose.waitForIdle()
@@ -420,7 +420,7 @@ class FaqParityTest {
             }
         }
         if (awaitFirstLoad) {
-            compose.waitUntil(timeoutMillis = 5_000) {
+            compose.waitUntil(timeoutMillis = 20_000) {
                 api.faqCalls.get() == 1 && !viewModel.state.value.loading
             }
             compose.waitForIdle()

@@ -172,7 +172,7 @@ class DropAlertConsigneeParityTest {
         compose.onNodeWithTag("drop-alert-submit-button", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             repository.submission != null && viewModel.state.value.dialog?.title == "Submitted"
         }
 

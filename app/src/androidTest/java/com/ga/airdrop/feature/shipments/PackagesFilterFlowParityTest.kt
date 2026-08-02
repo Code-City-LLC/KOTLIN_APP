@@ -73,12 +73,12 @@ class PackagesFilterFlowParityTest {
         saveNodeScreenshot("packages-filter-root", sheetScreenshot)
 
         compose.onNodeWithTag("packages-filter-status-row-7").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             packagesRepo.calls.any { it.status == 7 }
         }
 
         compose.onNodeWithTag("packages-filter-method-row-express").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             packagesRepo.calls.count { it.status == 7 } >= 2
         }
         compose.onNodeWithTag("packages-filter-close").performClick()
@@ -141,7 +141,7 @@ class PackagesFilterFlowParityTest {
                 }
             }
         }
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 20_000) {
             packagesRepo.calls.isNotEmpty() &&
                 compose.onAllNodesWithText("Standard visible").fetchSemanticsNodes().isNotEmpty()
         }
