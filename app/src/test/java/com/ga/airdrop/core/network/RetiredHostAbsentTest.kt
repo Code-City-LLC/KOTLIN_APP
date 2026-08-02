@@ -31,7 +31,18 @@ class RetiredHostAbsentTest {
     /** Assembled at runtime so this file does not itself contain the string. */
     private val retiredHost = "app" + "." + "airdropja" + "." + "com"
 
-    private val scannedExtensions = setOf("kt", "java", "kts", "xml", "json", "pro", "md", "yml", "yaml")
+    private val scannedExtensions = setOf("kt", "java", "kts", "xml", "json", "pro", "md", "yml", "yaml", "txt", "properties", "cfg", "env")
+
+    /**
+     * Build output and VCS internals only. Deliberately does NOT skip docs,
+     * fixtures, scripts or CI config — those are where it kept hiding.
+     *
+     * `worktrees` is excluded because a git worktree is a SEPARATE checkout at
+     * its own commit, often pre-fix. It is not this tree's source and its own
+     * repo runs its own guard; scanning it would fail this build for a
+     * different commit's content.
+     */
+    private val skippedDirectories = setOf(".git", "build", ".gradle", ".idea", "worktrees")
 
     private fun repoRoot(): File {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
@@ -50,16 +61,27 @@ class RetiredHostAbsentTest {
     @Test
     fun `the retired host appears nowhere in tracked source, config, fixtures or docs`() {
         val root = repoRoot()
-        val roots = listOf(File(root, "app/src"), File(root, "docs"), File(root, "app/build.gradle.kts"))
-            .filter { it.exists() }
-
-        assertTrue("nothing to scan under $root — the guard would pass vacuously", roots.isNotEmpty())
+        // ⚠️ THE WHOLE REPO, not a hand-picked list of directories.
+        //
+        // This used to scan only app/src, docs/ and app/build.gradle.kts — and
+        // that scope was the bug. BronzeMountain traced the root cause of the
+        // host keeps-coming-back problem (ORC 88775) to AGENT-FACING DOCS that
+        // still taught it as the production base URL: an AI primer, a backend
+        // source map, and worst of all an iOS RELEASE-CONFIGURATION table. An
+        // agent reads those first and reproduces the exact defect that put a
+        // build in the store pointing at a dead host.
+        //
+        // Every one of those lives at the REPO ROOT, which this guard did not
+        // look at. A guard that scans where you already looked cannot find
+        // what you missed.
+        val roots = listOf(root)
 
         var filesScanned = 0
         val offenders = mutableListOf<String>()
 
         roots.forEach { start ->
             start.walkTopDown()
+                .onEnter { dir -> dir.name !in skippedDirectories }
                 .filter { it.isFile && (it.extension.lowercase() in scannedExtensions || it.name.endsWith(".gradle.kts")) }
                 .forEach { file ->
                     filesScanned++

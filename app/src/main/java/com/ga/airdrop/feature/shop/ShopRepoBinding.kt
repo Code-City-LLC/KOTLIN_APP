@@ -26,7 +26,12 @@ private fun AuctionProduct.toShopProduct(): ShopProduct = ShopProduct(
     slug = slug,
     title = displayTitle,
     imageUrl = displayImageUrl,
-    priceUsd = displayPriceUsd,
+    // ⚠️ NOT displayPriceUsd. That falls back to 0.0, and this value becomes the
+    // cart line price and feeds CartStore.totalUsd() — an unparseable price
+    // would be charged as free. A product with no readable price is marked
+    // unavailable instead of being sold for nothing.
+    priceUsd = displayPriceUsdOrNull ?: 0.0,
+    priceKnown = displayPriceUsdOrNull != null,
     regularPriceUsd = regularPrice?.replace(",", "")?.trim { it == '$' || it == ' ' }?.toDoubleOrNull(),
     inventory = inventory,
     description = description,

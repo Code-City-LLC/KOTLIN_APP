@@ -24,6 +24,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -201,6 +202,14 @@ fun DeliveryMapView(
             .clip(RoundedCornerShape(5.dp))
             .testTag("delivery-map"),
     ) {
+        // ⚠️ KEYED. AndroidView's factory runs ONCE per node — a changed
+        // `webView` value does not remount it. So "tap to retry" bumped
+        // crashKey, remember(crashKey) built a fresh WebView, and
+        // DisposableEffect(webView) destroyed the OLD one while AndroidView
+        // kept displaying it. The retry did not merely fail: it destroyed the
+        // only mounted view, so tapping it turned a broken map into a
+        // permanently blank one. key() recreates the node so factory re-runs.
+        key(crashKey) {
         AndroidView(
             factory = { webView },
             modifier = Modifier.fillMaxSize(),
@@ -222,6 +231,7 @@ fun DeliveryMapView(
                 }
             },
         )
+        }
         if (loadFailed) {
             Box(
                 Modifier
