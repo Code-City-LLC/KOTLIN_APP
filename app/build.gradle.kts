@@ -38,9 +38,23 @@ val playUploadSigningConfigured =
 // ⚠️ Keep this at the HIGHEST versionCode already on Play, not the one it was
 // when this line was written. It said 21 while 25 was live on production, so
 // -PplayVersionCode=22|23|24|25 passed this guard and would have been rejected
-// only by Google — the guard existing but not guarding. Bumped when v25
-// (3.1.3) shipped 2026-08-01. Raise it on every release.
-val knownPlayProductionVersionCodeFloor = 25
+// only by Google — the guard existing but not guarding. Raise it on EVERY
+// release.
+//
+// It went stale again immediately: this said 25 while **26 (3.2.0) was already
+// live and fully rolled out on production**. Queried from the Android Publisher
+// API on 2026-08-02, not read off a note:
+//
+//     production track -> release "26 (3.2.0)", status=completed
+//     all uploaded bundle versionCodes -> [2, 21, 22, 23, 24, 25, 26]
+//
+// A versionCode is burned by being UPLOADED, not by shipping — a cancelled or
+// halted release still consumes it. So the floor must track the highest ever
+// uploaded, which is what that bundles list gives you. Next safe code is 27.
+//
+// To re-check before any release, do not trust this constant — ask Play:
+//   edits.bundles().list(packageName=..., editId=...)  -> max(versionCode)
+val knownPlayProductionVersionCodeFloor = 26
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
