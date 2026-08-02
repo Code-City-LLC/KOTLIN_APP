@@ -720,7 +720,29 @@ class CartViewModel(
                 return
             }
             CheckoutPaymentRail.STRIPE -> Unit
-            null -> return orderError("Checkout unavailable", "The selected payment currency is invalid.")
+            null -> {
+                // ⚠️ A GATED currency is not an INVALID one, and the customer
+                // must not be told it is. Once the JMD gate makes
+                // checkoutPaymentRail() return null, an existing JMD cart lands
+                // here on Pay — and "the selected payment currency is invalid"
+                // blames them for choosing something we offered them, while
+                // saying nothing about what to do next.
+                //
+                // Caught by CartHostedCheckoutParityTest failing on the gate,
+                // which is the test doing its job: it noticed the behaviour
+                // change AND the wrong message behind it.
+                if (parseCheckoutCurrency(flow.currency) == CheckoutCurrency.JMD &&
+                    !AirdropFeatureFlags.jmdNcbCheckout
+                ) {
+                    return orderError(
+                        "JMD payment unavailable",
+                        "Paying in Jamaican dollars is temporarily unavailable while we " +
+                            "complete work with our card processor. Return to your cart " +
+                            "and choose USD. No payment was started.",
+                    )
+                }
+                return orderError("Checkout unavailable", "The selected payment currency is invalid.")
+            }
         }
         val requestOwner = sessionBoundary.requestOwner(owner)
             ?: return orderError("Sign in required", "Log in to your Airdropja account before checking out.")
