@@ -817,6 +817,22 @@ private fun DeliveryDetail(
                         )
                     }
                     val rows = TrackJourney.rows(timeline)
+                    // A successful read that returned NOTHING is a fact, and it
+                    // needs its own sentence. Laravel ships an explicit empty
+                    // journey (entries:[] / total:0) for a package with no
+                    // recorded events yet; without this line the customer gets
+                    // a card with a silent blank where the rail should be and
+                    // no way to tell that apart from a rail that failed to
+                    // load — which is the whole distinction the banner above
+                    // exists to draw.
+                    if (rows.isEmpty() && !timelineUnavailable) {
+                        Text(
+                            text = "No updates recorded yet.",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            modifier = Modifier.testTag("track-timeline-empty"),
+                        )
+                    }
                     rows.forEachIndexed { index, row ->
                         DeliveryTimelineStep(
                             stage = TrackedDeliveryStage(

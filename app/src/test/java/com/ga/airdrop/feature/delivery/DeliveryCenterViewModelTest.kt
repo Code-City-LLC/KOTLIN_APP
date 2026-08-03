@@ -311,6 +311,63 @@ class DeliveryCenterViewModelTest {
     }
 
     @Test
+    fun aPickupWithNothingRecordedYetStillShowsItsCardNotADeliveryDeadEnd() = runTest(dispatcher) {
+        // Laravel ships an EXPLICIT empty journey (entries:[] / total:0) for a
+        // package with no recorded events. For a pickup that read succeeds, is
+        // empty, and has no last mile — and Track used to fall through to
+        // NoDelivery: "Delivery details are not available. Package #41 does not
+        // have a delivery journey to show yet." The word delivery, twice, over
+        // a package sitting at the collection counter, named by internal id
+        // instead of its ARD.
+        //
+        // We are not missing anything in that state: /packages/journeys already
+        // returned a validated row for this package. iOS renders that card
+        // unconditionally, so the platforms disagreed on identical bytes.
+        val gateway = gateway(
+            journeys = { _, _ ->
+                Result.success(page(listOf(active(41, JourneyFulfilment.Pickup))))
+            },
+            detail = { error("must not be asked for a pickup") },
+            timeline = { Result.success(emptyList()) },
+        )
+
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertEquals(
+            "a pickup we HAVE a journey for must render its card, not a " +
+                "delivery-worded dead end",
+            DeliveryCenterContent.Detail,
+            viewModel.state.value.content,
+        )
+        assertEquals(41, viewModel.state.value.selectedJourney?.packageId)
+        assertFalse(
+            "the read succeeded — this is an empty journey, not a failed one",
+            viewModel.state.value.timelineUnavailable,
+        )
+    }
+
+    @Test
+    fun aPackageWeHaveNoJourneyForStillReachesTheHonestNoDeliveryState() = runTest(dispatcher) {
+        // The clause above must not swallow the genuine case. A deep link into
+        // a package Track was handed no journey for, whose timeline is empty
+        // and which has no delivery, still has nothing to show.
+        val gateway = gateway(
+            journeys = { _, _ -> Result.success(page(emptyList())) },
+            detail = { Result.success(DeliveryTrackingResult(it, delivery = null)) },
+            timeline = { Result.success(emptyList()) },
+        )
+        val viewModel = DeliveryCenterViewModel(
+            initialPackageId = 77,
+            gateway = gateway,
+            sessionBoundary = boundary(),
+        )
+        advanceUntilIdle()
+
+        assertEquals(DeliveryCenterContent.NoDelivery, viewModel.state.value.content)
+    }
+
+    @Test
     fun aPackageAppearingOnTwoPagesKeepsTheFirstCopyInsteadOfKillingTrack() = runTest(dispatcher) {
         // ⚠️ OVERLAP IS NORMAL, NOT CORRUPTION.
         //

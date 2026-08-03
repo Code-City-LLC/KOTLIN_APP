@@ -118,12 +118,37 @@ data class DeliveryCenterUiState(
 
     /**
      * A timeline read that FAILED counts as something to show, because the
-     * screen has to say so. Only a successful, genuinely empty journey with no
-     * last mile falls through to [DeliveryCenterContent.NoDelivery].
+     * screen has to say so.
+     *
+     * ⚠️ `selectedJourney != null` IS LOAD-BEARING, and leaving it out put a
+     * PICKUP back on a delivery-worded dead end inside the very branch that
+     * exists to stop that.
+     *
+     * Laravel ships an explicit EMPTY journey (`entries:[] / total:0`) for a
+     * package with nothing recorded yet. For a pickup that read succeeds, is
+     * empty, and has no last mile — so without this clause the gate was false
+     * and Track fell through to [DeliveryCenterContent.NoDelivery]: "Delivery
+     * details are not available. Package #41 does not have a delivery journey
+     * to show yet." The word delivery, twice, over a package sitting at the
+     * collection counter, named by internal id instead of its ARD.
+     *
+     * We are NOT missing information in that state. `/packages/journeys`
+     * already returned a validated row for this package — id, ARD, description,
+     * status name, and a required non-empty stages rail. iOS renders that card
+     * unconditionally (FigmaDeliveryCenterViewController.renderTimeline runs for
+     * every single-journey case, empty entries included), so the two platforms
+     * disagreed on identical bytes.
+     *
+     * NoDelivery stays reachable and stays honest — for a package we were
+     * handed no journey for at all, e.g. a deep link into something Track
+     * cannot describe.
      */
     private val hasJourneyToShow: Boolean
         get() = selectedPackageId != null &&
-            (timeline.isNotEmpty() || timelineUnavailable || delivery != null)
+            (
+                timeline.isNotEmpty() || timelineUnavailable ||
+                    delivery != null || selectedJourney != null
+                )
 
     val selectedJourney: PackageJourney?
         get() = journeys.firstOrNull { it.packageId == selectedPackageId }
