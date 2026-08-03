@@ -379,10 +379,32 @@ class DeliveryCenterViewModel(
             val response = gateway.packageJourneys(page = page, perPage = ACTIVE_PAGE_SIZE)
                 .getOrThrow()
             response.journeys.forEach { journey ->
-                // A package repeated ACROSS pages means the pages disagree with
-                // each other; the per-page check cannot see that.
-                if (!seenPackageIds.add(journey.packageId)) error(TRACK_UNAVAILABLE)
-                all += journey
+                // ⚠️ A ROW ON TWO PAGES IS NORMAL, NOT CORRUPTION — KEEP THE FIRST.
+                //
+                // This used to `error(TRACK_UNAVAILABLE)` on a repeat, which
+                // discarded EVERY package and rendered "Tracking information is
+                // unavailable" — including the pickup this branch exists to
+                // surface. But overlap is an ordinary property of offset
+                // pagination over live data: if a package changes status
+                // between the page-1 and page-2 requests, the server re-sorts
+                // and one row legitimately lands on both pages.
+                //
+                // iOS hit exactly this on 2026-07-25 and fixed it the same way
+                // (FigmaDeliveryCenterViewController.fetchAllJourneys, verbatim:
+                // "overlap is a normal property of offset pagination over live
+                // data ... A user with >50 active deliveries could lose the
+                // whole screen to that"). Android kept throwing, so the two
+                // platforms rendered different screens from identical bytes.
+                //
+                // The guard was inherited from /deliveries/active, where a
+                // second page was rare. /packages/journeys carries EVERY
+                // trackable package, so multi-page reads are now the common
+                // case and this fired far more often than it ever did before.
+                //
+                // Integrity is not lost: DeliveryTrackingRepository.packageJourneys
+                // still rejects a duplicate id WITHIN a page, which is the shape
+                // that actually indicates a corrupt payload.
+                if (seenPackageIds.add(journey.packageId)) all += journey
             }
             if (!response.hasNextPage) break
             page += 1

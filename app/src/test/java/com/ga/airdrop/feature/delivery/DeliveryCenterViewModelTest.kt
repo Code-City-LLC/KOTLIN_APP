@@ -311,6 +311,56 @@ class DeliveryCenterViewModelTest {
     }
 
     @Test
+    fun aPackageAppearingOnTwoPagesKeepsTheFirstCopyInsteadOfKillingTrack() = runTest(dispatcher) {
+        // ⚠️ OVERLAP IS NORMAL, NOT CORRUPTION.
+        //
+        // Offset pagination over live data legitimately repeats a row: if a
+        // package changes status between the page-1 and page-2 requests the
+        // server re-sorts and one package lands on both pages. This loop used
+        // to error() on that, which threw away EVERY package and showed
+        // "Tracking information is unavailable" — including the pickup this
+        // whole branch exists to surface.
+        //
+        // iOS hit this on 2026-07-25 and fixed it the same way
+        // (FigmaDeliveryCenterViewController.fetchAllJourneys): keep the first
+        // occurrence. Android kept throwing, so the two platforms rendered
+        // different screens from identical bytes.
+        //
+        // The exposure got much worse here: /deliveries/active rarely returned
+        // more than one page, but /packages/journeys carries every trackable
+        // package, so multi-page reads are now the common case.
+        val gateway = gateway(
+            journeys = { requestedPage, _ ->
+                when (requestedPage) {
+                    1 -> Result.success(
+                        page(listOf(active(11), active(22)), hasNext = true, currentPage = 1),
+                    )
+                    // 22 repeats — the server re-sorted between requests.
+                    2 -> Result.success(
+                        page(listOf(active(22), active(33)), hasNext = false, currentPage = 2),
+                    )
+                    else -> error("Unexpected page $requestedPage")
+                }
+            },
+        )
+
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertNull(
+            "a legitimately repeated row must NOT blank Track. Got error: " +
+                "${viewModel.state.value.error}",
+            viewModel.state.value.error,
+        )
+        assertEquals(DeliveryCenterContent.List, viewModel.state.value.content)
+        assertEquals(
+            "keep the first occurrence, drop the duplicate, preserve server order",
+            listOf(11, 22, 33),
+            viewModel.state.value.journeys.map(PackageJourney::packageId),
+        )
+    }
+
+    @Test
     fun replacedAccountCannotPublishDelayedOldAccountCompletion() = runTest(dispatcher) {
         val oldCompletion = CompletableDeferred<Result<PackageJourneysPage>>()
         var activeCalls = 0
