@@ -120,6 +120,76 @@ test_classes_from_source_paths() {
   } | tr '/' '.' | LC_ALL=C sort -u
 }
 
+# ⚠️ THE PACKAGE MAP ABOVE HAS A BLIND SPOT: CROSS-PACKAGE REFERENCES.
+#
+# test_classes_from_source_paths selects tests that live in the SAME package as
+# the changed production file. A test that lives in package A but exercises a
+# symbol from package B is therefore never selected when B changes.
+#
+# Measured, not assumed. On the branch that added this pass, changing
+# `core/config/AirdropFeatureFlags.kt` (the JMD/NCB payment flag) selected only
+# `core.config.*` by package — while `feature.cart.CartHostedCheckoutParityTest`,
+# `feature.more.NotificationSettingsParityTest` and
+# `feature.security.BiometricLockSignOutParityTest` all read that flag directly
+# and were skipped. Those are payment and auth surfaces.
+#
+# ⚠️ A CORRECTION, KEPT ON PURPOSE. I first justified this pass with
+# `feature/home/HomeDeliveryCenterNavigationTest`, claiming the gate skipped it
+# when Track changed. That was WRONG: the test only asserts the Home tile routes
+# to `Routes.deliveryCenter()` — it never renders the Delivery Center, so a
+# Track change cannot break it and the gate was right to skip it. It had merely
+# matched a `grep DeliveryCenter` on its own class name. The mechanism was real;
+# my example was not. Recorded so the next reader trusts the measured cases
+# above rather than the story I told first.
+#
+# This closes it by REFERENCE rather than a hand-maintained map, which would go
+# stale the first time somebody forgot to update it.
+#
+# STRICTLY ADDITIVE. It only ever prints MORE classes; nothing here can remove a
+# class the package map already selected. The worst case is running extra tests,
+# never running fewer — which is the only acceptable failure mode for a gate.
+test_classes_referencing_changed_sources() {
+  local root="${CONNECTED_SESSION_ANDROIDTEST_ROOT:-app/src/androidTest/java}"
+  [[ -d "$root" ]] || return 0
+  {
+    local path symbol test_file relative symbols
+    while IFS= read -r path; do
+      case "$path" in
+        app/src/main/java/*.kt) ;;
+        *) continue ;;
+      esac
+      [[ -f "$path" ]] || continue
+      # ⚠️ THE FILE BASENAME ALONE IS NOT ENOUGH, and using only it left the
+      # exact blind spot this pass exists to close still open.
+      #
+      # HomeDeliveryCenterNavigationTest refers to `DeliveryCenterTags`, which
+      # is DECLARED IN DeliveryCenterScreen.kt but is not its basename. Matching
+      # on "DeliveryCenterScreen" therefore still missed it. Kotlin lets a file
+      # declare any number of top-level symbols under an unrelated filename, so
+      # the declarations are what a test can actually name — read those.
+      symbols="$(
+        { printf '%s\n' "$(basename "$path" .kt)"
+          sed -nE 's/^[[:space:]]*(public |internal |private )?(sealed |abstract |open |data |enum |value )*(class|object|interface)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*).*/\4/p' "$path"
+        } | LC_ALL=C sort -u
+      )"
+      while IFS= read -r symbol; do
+      [[ -n "$symbol" ]] || continue
+      # A 1-3 char symbol would match half the tree; require something specific.
+      [[ ${#symbol} -ge 4 ]] || continue
+      while IFS= read -r test_file; do
+        [[ -n "$test_file" ]] || continue
+        # Same rule the package map applies: a *Test.kt with no @Test produces
+        # no testcases, and assert_results fails any requested class that
+        # produced none. Selecting one would block every PR touching it.
+        grep -q "@Test" "$test_file" || continue
+        relative="${test_file#"$root"/}"
+        printf '%s\n' "${relative%.kt}"
+      done < <(grep -rlw --include='*Test.kt' -- "$symbol" "$root" 2>/dev/null || true)
+      done <<< "$symbols"
+    done
+  } | tr '/' '.' | LC_ALL=C sort -u
+}
+
 changed_test_classes() {
   local base_sha="${CONNECTED_SESSION_BASE_SHA:-}"
   local head_sha="${CONNECTED_SESSION_HEAD_SHA:-HEAD}"
@@ -147,6 +217,10 @@ changed_test_classes() {
     # Edited production code -> run that package's tests.
     git diff --name-only --diff-filter=ACMRT "$base_sha" "$head_sha" -- app/src/main/java \
       | test_classes_from_source_paths
+    # Edited production code -> ALSO run tests that reference it from another
+    # package. Additive; see test_classes_referencing_changed_sources.
+    git diff --name-only --diff-filter=ACMRT "$base_sha" "$head_sha" -- app/src/main/java \
+      | test_classes_referencing_changed_sources
   } | LC_ALL=C sort -u
 }
 

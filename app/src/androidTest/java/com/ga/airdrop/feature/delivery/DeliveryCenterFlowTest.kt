@@ -15,7 +15,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
-import com.ga.airdrop.data.repo.ActiveDelivery
+import com.ga.airdrop.data.repo.JourneyFulfilment
+import com.ga.airdrop.data.repo.JourneyStage
+import com.ga.airdrop.data.repo.PackageJourney
 import com.ga.airdrop.data.repo.TrackedDelivery
 import com.ga.airdrop.data.repo.TrackedDeliveryStage
 import com.ga.airdrop.data.model.PackageTimelineEntry
@@ -85,7 +87,7 @@ class DeliveryCenterFlowTest {
             AirdropTheme {
                 DeliveryCenterScreenContent(
                     state = DeliveryCenterUiState(
-                        activeDeliveries = listOf(active(11), active(22)),
+                        journeys = listOf(active(11), active(22)),
                         loading = false,
                         loadedOnce = true,
                     ),
@@ -123,7 +125,7 @@ class DeliveryCenterFlowTest {
             AirdropTheme {
                 DeliveryCenterScreenContent(
                     state = DeliveryCenterUiState(
-                        activeDeliveries = listOf(active(41)),
+                        journeys = listOf(active(41)),
                         selectedPackageId = 41,
                         delivery = delivery,
                         // The rail is Laravel's projection. These are
@@ -231,7 +233,7 @@ class DeliveryCenterFlowTest {
             AirdropTheme {
                 DeliveryCenterScreenContent(
                     state = DeliveryCenterUiState(
-                        activeDeliveries = listOf(active(51)),
+                        journeys = listOf(active(51)),
                         selectedPackageId = 51,
                         delivery = TrackedDelivery(
                             status = "assigned",
@@ -290,7 +292,7 @@ class DeliveryCenterFlowTest {
             AirdropTheme {
                 DeliveryCenterScreenContent(
                     state = DeliveryCenterUiState(
-                        activeDeliveries = listOf(active(61)),
+                        journeys = listOf(active(61)),
                         selectedPackageId = 61,
                         delivery = TrackedDelivery(
                             status = "assigned",
@@ -337,14 +339,24 @@ class DeliveryCenterFlowTest {
         source = "status",
     )
 
-    private fun active(packageId: Int) = ActiveDelivery(
+    private fun active(
+        packageId: Int,
+        fulfilment: JourneyFulfilment = JourneyFulfilment.Delivery,
+    ) = PackageJourney(
         packageId = packageId,
-        trackingCode = "AD-$packageId",
+        ardNumber = "AD-$packageId",
         description = "Package $packageId",
-        status = "assigned",
-        scheduledDate = null,
-        currentStageKey = "assigned",
-        updatedAt = null,
+        valueUsd = null,
+        weightLbs = null,
+        shipper = null,
+        status = 7,
+        statusName = "Preparing for Dispatch",
+        statusIcon = null,
+        fulfilment = fulfilment,
+        currentStage = "assigned",
+        stages = listOf(
+            JourneyStage("assigned", "Preparing for Dispatch", null, 7, "current", null),
+        ),
     )
 
     private fun stage(key: String, label: String, state: String, at: String?) =

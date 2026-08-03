@@ -4,7 +4,10 @@ import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.model.ActiveDeliverySummary
 import com.ga.airdrop.data.model.DeliveryTracking
 import com.ga.airdrop.data.model.DeliveryTrackingStage
+import com.ga.airdrop.data.model.JourneyStageDto
+import com.ga.airdrop.data.model.PackageJourneySummary
 import com.ga.airdrop.data.model.PackageTimelineEntry
+import java.util.Locale
 
 data class ActiveDelivery(
     val packageId: Int,
@@ -47,7 +50,69 @@ data class DeliveryTrackingResult(
     val delivery: TrackedDelivery?,
 )
 
+/**
+ * How a package reaches its owner. The server sends this as a REQUIRED literal
+ * because the two are genuinely different flows — a pickup is never forced
+ * through the four delivery stages — and because it is the thing
+ * `/deliveries/active` could not express at all.
+ */
+enum class JourneyFulfilment { Pickup, Delivery }
+
+/** One composed row of a journey rail. Server-owned; the client renders it. */
+data class JourneyStage(
+    val key: String,
+    val label: String,
+    val icon: String?,
+    /** Numeric warehouse status; null on a last-mile leg. */
+    val status: Int?,
+    /** done | current | pending. */
+    val state: String,
+    val at: String?,
+)
+
+/**
+ * One Track row from `/packages/journeys` — the superset of [ActiveDelivery]
+ * that finally includes pickup and warehouse-only packages.
+ */
+data class PackageJourney(
+    val packageId: Int,
+    val ardNumber: String?,
+    val description: String?,
+    val valueUsd: String?,
+    val weightLbs: String?,
+    val shipper: String?,
+    val status: Int,
+    val statusName: String,
+    val statusIcon: String?,
+    val fulfilment: JourneyFulfilment,
+    val currentStage: String?,
+    val stages: List<JourneyStage>,
+)
+
+data class PackageJourneysPage(
+    val journeys: List<PackageJourney>,
+    val currentPage: Int,
+    val hasNextPage: Boolean,
+)
+
 interface DeliveryTrackingGateway {
+    /**
+     * The canonical Track root. Includes pickup and warehouse-only packages,
+     * which [activeDeliveries] structurally cannot.
+     */
+    suspend fun packageJourneys(page: Int, perPage: Int): Result<PackageJourneysPage>
+
+    /**
+     * ⚠️ NO PRODUCTION CALLER SINCE TRACK MOVED TO [packageJourneys]. Only the
+     * repository's own tests reach it now.
+     *
+     * Kept rather than deleted because the endpoint is live and its guards are
+     * the record of two shipped defects (the unknown status that blanked the
+     * whole screen; the soft-error envelope that became an empty list). Do NOT
+     * wire a new screen to it: it reads `package_deliveries`, so a package held
+     * for collection cannot appear in the result, which is the entire reason
+     * Track stopped using it.
+     */
     suspend fun activeDeliveries(page: Int, perPage: Int): Result<ActiveDeliveriesPage>
     suspend fun deliveryTracking(packageId: Int): Result<DeliveryTrackingResult>
 
@@ -65,6 +130,69 @@ interface DeliveryTrackingGateway {
 class DeliveryTrackingRepository(
     private val service: AirdropApiService,
 ) : DeliveryTrackingGateway {
+
+    /**
+     * The Track root. Every trackable package, pickup included.
+     *
+     * ⚠️ THIS IS STRICTER THAN [activeDeliveries] ON PURPOSE, and the two rules
+     * are not in conflict.
+     *
+     * [activeDeliveries] drops an unrecognised row (`mapNotNull`) because its
+     * hazard is a *new status string* — Laravel keeps adding them, and one
+     * `error()` inside a `map` blanked every customer's Track screen once
+     * already. That hazard does not exist here: `status` is numeric and
+     * deliberately NOT allow-listed, so a status this build has never seen is
+     * already valid input, not an unknown row.
+     *
+     * What is rejected here is genuine corruption — a row with no id, no
+     * status, no `fulfilment`, or an empty `stages` rail. Those are schema
+     * regressions, and dropping them would silently hide a package from a
+     * customer who owns it, which is the very failure this endpoint exists to
+     * end. iOS rejects exactly the same set (AirdropAPI.PackageJourney,
+     * #89556/#89576/#89595); a client that quietly kept rows iOS refuses would
+     * mean two different Track screens over identical bytes.
+     */
+    override suspend fun packageJourneys(
+        page: Int,
+        perPage: Int,
+    ): Result<PackageJourneysPage> = apiResult {
+        require(page > 0 && perPage in 1..50)
+        val payload = service.packageJourneys(page = page, perPage = perPage, track = null)
+        if (payload.success == false) error(payload.message ?: JOURNEY_CONTRACT_ERROR)
+
+        // ⚠️ `data == null` is a FAILED READ, never "you have no packages".
+        // An explicit `[]` is the honest empty state and must come through.
+        // Collapsing the two is how a customer with packages gets told they
+        // have none — see PackageJourneysPayload.data.
+        val rows = payload.data ?: error(payload.message ?: JOURNEY_CONTRACT_ERROR)
+        val meta = payload.meta ?: error(payload.message ?: JOURNEY_CONTRACT_ERROR)
+
+        val journeys = rows.map { it.toDomain() }
+        // Rejected, not silently deduped: the list needs a stable identity per
+        // row, and a duplicate id means the page itself is wrong.
+        if (journeys.map { it.packageId }.distinct().size != journeys.size) {
+            error(JOURNEY_CONTRACT_ERROR)
+        }
+
+        val currentPage = meta.currentPage ?: error(JOURNEY_CONTRACT_ERROR)
+        val lastPage = meta.lastPage
+        val total = meta.total
+        // Page 2 rendered as page 1 shows the wrong packages, so the echo is
+        // required to match rather than defaulted to the request.
+        if (
+            currentPage != page ||
+            (lastPage != null && (lastPage <= 0 || lastPage < currentPage)) ||
+            (total != null && total < 0)
+        ) {
+            error(JOURNEY_CONTRACT_ERROR)
+        }
+
+        PackageJourneysPage(
+            journeys = journeys,
+            currentPage = currentPage,
+            hasNextPage = lastPage?.let { currentPage < it } ?: (journeys.size >= perPage),
+        )
+    }
 
     /**
      * ⚠️ A SOFT-ERROR ENVELOPE IS NOT AN EMPTY JOURNEY.
@@ -189,6 +317,79 @@ class DeliveryTrackingRepository(
 }
 
 /**
+ * A Track row, or a thrown contract error. There is deliberately no
+ * `toDomainOrNull` sibling here — see the KDoc on
+ * [DeliveryTrackingRepository.packageJourneys] for why this list fails closed
+ * where the active-deliveries list degrades.
+ */
+private fun PackageJourneySummary.toDomain(): PackageJourney {
+    val id = id?.takeIf { it > 0 } ?: error(JOURNEY_CONTRACT_ERROR)
+    // REQUIRED but never allow-listed. Laravel adds warehouse statuses
+    // constantly; a status this build has never seen is valid input and
+    // renders under its server-sent name. A MISSING status is different — it
+    // is a schema regression, and treating it as 0 would render some other
+    // status's identity.
+    val normalizedStatus = status ?: error(JOURNEY_CONTRACT_ERROR)
+    // The server guarantees a non-empty name and already substitutes
+    // "Unknown Status" for an unnamed status — but a blank slipped through to
+    // iOS from a live DB row, so the same fallback is mirrored here rather
+    // than rendering an empty status pill.
+    val normalizedName = statusName?.trim()?.takeIf(String::isNotEmpty) ?: UNKNOWN_STATUS_NAME
+    val normalizedFulfilment = when (fulfilment?.trim()?.lowercase(Locale.US)) {
+        "pickup" -> JourneyFulfilment.Pickup
+        "delivery" -> JourneyFulfilment.Delivery
+        // Not defaulted to Delivery: guessing would route a package we are
+        // holding for collection through the four delivery stages and tell the
+        // customer it is on a van.
+        else -> error(JOURNEY_CONTRACT_ERROR)
+    }
+    // `railFor()` always emits a progressive rail, so an empty one is a
+    // regression, not a package with nothing to show.
+    if (stages.isEmpty()) error(JOURNEY_CONTRACT_ERROR)
+    val normalizedStages = stages.map(JourneyStageDto::toDomain)
+    if (normalizedStages.map { it.key }.distinct().size != normalizedStages.size) {
+        error(JOURNEY_CONTRACT_ERROR)
+    }
+    return PackageJourney(
+        packageId = id,
+        ardNumber = ardNumber?.trim()?.takeIf(String::isNotEmpty),
+        description = description?.trim()?.takeIf(String::isNotEmpty),
+        valueUsd = valueUsd?.trim()?.takeIf(String::isNotEmpty),
+        weightLbs = weightLbs?.trim()?.takeIf(String::isNotEmpty),
+        shipper = shipper?.trim()?.takeIf(String::isNotEmpty),
+        status = normalizedStatus,
+        statusName = normalizedName,
+        statusIcon = statusIcon?.trim()?.takeIf(String::isNotEmpty),
+        fulfilment = normalizedFulfilment,
+        currentStage = currentStage?.trim()?.takeIf(String::isNotEmpty),
+        stages = normalizedStages,
+    )
+}
+
+private fun JourneyStageDto.toDomain(): JourneyStage {
+    val normalizedKey = key?.trim()?.takeIf(String::isNotEmpty) ?: error(JOURNEY_CONTRACT_ERROR)
+    val normalizedLabel = label?.trim()?.takeIf(String::isNotEmpty) ?: error(JOURNEY_CONTRACT_ERROR)
+    // ⚠️ NOT coerced to "pending" the way DeliveryTrackingStage does it.
+    //
+    // There the state is one row of a rail whose shape is already known, so a
+    // strange value degrades to the neutral row. Here the rail IS the screen:
+    // silently calling an unrecognised state "pending" would show a completed
+    // pickup as not-yet-happened. An unknown state is a schema change, and it
+    // must surface as one.
+    val normalizedState = state?.trim()?.lowercase(Locale.US)
+        ?.takeIf { it in DELIVERY_STAGE_STATES }
+        ?: error(JOURNEY_CONTRACT_ERROR)
+    return JourneyStage(
+        key = normalizedKey,
+        label = normalizedLabel,
+        icon = icon?.trim()?.takeIf(String::isNotEmpty),
+        status = status,
+        state = normalizedState,
+        at = at?.trim()?.takeIf(String::isNotEmpty),
+    )
+}
+
+/**
  * Null for a row this build does not understand, instead of throwing.
  *
  * Contract violations that indicate a BROKEN PAYLOAD are validated before the
@@ -281,6 +482,11 @@ private fun DeliveryTrackingStage.toDomain(): TrackedDeliveryStage {
 
 private const val DELIVERY_CONTRACT_ERROR =
     "Delivery information is unavailable. Please try again."
+/** Track's root covers more than deliveries now, so it says so. */
+private const val JOURNEY_CONTRACT_ERROR =
+    "Tracking information is unavailable. Please try again."
+/** Mirrors the server's own fallback for an unnamed status. */
+private const val UNKNOWN_STATUS_NAME = "Unknown Status"
 /** Known statuses — used for ORDERING and invariants only, never as a filter. */
 private val DELIVERY_STATUSES =
     setOf("assigned", "out_for_delivery", "delivered", "failed", "cancelled")
