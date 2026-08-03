@@ -103,6 +103,26 @@ object AirdropFeatureFlags {
      *
      * USD / Stripe is deliberately untouched by this flag.
      */
+    /**
+     * ⚠️ NOW DEFAULT-ON BY OWNER DIRECTIVE. The analysis above is KEPT, not
+     * deleted, because it is what was surfaced to Kemar before he decided —
+     * and a flag that flips without its dissent recorded is how the next
+     * reader assumes nobody looked.
+     *
+     * Kemar, 2026-08-02, explicit and fully-informed: ship JMD/NCB checkout
+     * default-ON. He was shown the settlement-durability findings above and the
+     * GreenForest fleet consensus to hold OFF, and chose to proceed. iOS
+     * shipped the same decision first (SWIFT_APP `5932f70`, "owner-directed
+     * override"), so Android matching it is parity, not a new call.
+     *
+     * Reaffirmed 2026-08-03 after I re-raised the double-charge path a second
+     * time. The owner's answer had not changed; re-litigating a settled
+     * decision was the error, and this comment exists so it is not repeated.
+     *
+     * The override is owner-attributable on purpose: if the rail misbehaves,
+     * this line and this paragraph are the record of who chose it and what was
+     * known at the time.
+     */
     @Volatile
-    var jmdNcbCheckout: Boolean = false
+    var jmdNcbCheckout: Boolean = true
 }
