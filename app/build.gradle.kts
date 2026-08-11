@@ -77,14 +77,14 @@ val playReleaseConfigured =
 
 android {
     namespace = "com.ga.airdrop"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         // Matches the existing Play Store / Firebase Android identity used by
         // the previous React Native app (AD-REACT_NATIVE_APP-OLD).
         applicationId = "com.ga.airdrop.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Local builds keep the current repository code. prodRelease gets an
         // owner-verified Play code through androidComponents below.
         versionCode = 8
