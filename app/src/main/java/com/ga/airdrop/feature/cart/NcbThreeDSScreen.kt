@@ -236,6 +236,10 @@ fun NcbThreeDSScreen(
                             )
                         }
                     },
+                    onRelease = { webView ->
+                        webView.stopLoading()
+                        webView.destroy()
+                    },
                 )
             }
             // Manual fallback (Swift's "Complete Payment" button). Re-enables
