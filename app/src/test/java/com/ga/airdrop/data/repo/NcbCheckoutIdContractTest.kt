@@ -1,8 +1,14 @@
 package com.ga.airdrop.data.repo
 
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.api.AirdropJson
+import com.ga.airdrop.data.model.CreateNcbSessionRequest
+import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.NcbCompleteRequest
 import com.ga.airdrop.data.model.NcbSessionResponse
+import java.lang.reflect.Proxy
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
@@ -33,6 +39,50 @@ class NcbCheckoutIdContractTest {
         AirdropJson.decodeFromString<NcbSessionResponse>(json)
 
     private fun parse(raw: String?) = raw?.trim()?.toLongOrNull()?.takeIf { it > 0L }
+
+    private fun createResult(checkoutId: String?): Result<NcbSessionResponse> = runBlocking {
+        val service = Proxy.newProxyInstance(
+            AirdropApiService::class.java.classLoader,
+            arrayOf(AirdropApiService::class.java),
+        ) { _, method, _ ->
+            when (method.name) {
+                "createNcbSession" -> DataEnvelope(
+                    success = true,
+                    data = NcbSessionResponse(
+                        spiToken = "spi-test",
+                        redirectData = "<html>3DS</html>",
+                        checkoutId = checkoutId,
+                    ),
+                )
+                else -> error("Unexpected service call: ${method.name}")
+            }
+        } as AirdropApiService
+
+        PaymentsRepository(service).createNcbSession(
+            request = CreateNcbSessionRequest(
+                packageIds = listOf(41),
+                currency = "JMD",
+                isAuction = false,
+                firstName = "Test",
+                lastName = "Customer",
+                address = "1 Test Street",
+                city = "Kingston",
+                country = "JM",
+                cardName = "Test Customer",
+                cardNumber = "4111111111111111",
+                cardMonth = "12",
+                cardYear = "2030",
+                cardCvv = "123",
+                deliveryMode = "pickup",
+                pickupLocation = "Kingston",
+            ),
+            expectedSession = AuthTokenStore.RequestProvenance(
+                revision = 7,
+                sessionId = "ncb-contract-session",
+                accountId = 9,
+            ),
+        )
+    }
 
     // ── The wire ────────────────────────────────────────────────────────────
 
@@ -101,5 +151,28 @@ class NcbCheckoutIdContractTest {
     fun `a normal id is accepted, so the guard is not merely restrictive`() {
         assertEquals(1L, parse(session("""{"spi_token":"t","checkout_id":"1"}""").checkoutId))
         assertEquals(4321L, parse(session("""{"spi_token":"t","checkout_id":" 4321 "}""").checkoutId))
+    }
+
+    // ── The repository boundary that decides whether 3DS may open ─────────
+
+    @Test
+    fun `session creation fails before 3DS when checkout_id is unusable`() {
+        listOf<String?>(null, "", "   ", "abc", "0", "-1", "1.5").forEach { raw ->
+            val result = createResult(raw)
+            assertTrue("checkout_id=$raw must be rejected", result.isFailure)
+            assertTrue(
+                "the failure must identify the broken settlement reference: ${result.exceptionOrNull()}",
+                result.exceptionOrNull()?.message.orEmpty().contains("checkout reference"),
+            )
+        }
+    }
+
+    @Test
+    fun `session creation accepts a positive Long checkout_id`() {
+        val big = Int.MAX_VALUE.toLong() + 1L
+        val result = createResult(" $big ")
+
+        assertTrue("a valid Long checkout id must still open 3DS: $result", result.isSuccess)
+        assertEquals(" $big ", result.getOrThrow().checkoutId)
     }
 }

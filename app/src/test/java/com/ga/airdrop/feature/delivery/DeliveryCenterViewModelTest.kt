@@ -431,7 +431,7 @@ class DeliveryCenterViewModelTest {
         // ⚠️ THE CEILING IS A STOP, NOT AN ERROR.
         //
         // `error(TRACK_UNAVAILABLE)` past MAX_ACTIVE_PAGES meant an account with
-        // more than ~5000 packages saw "Tracking information is unavailable" —
+        // more than ~20,000 packages saw "Tracking information is unavailable" —
         // punished for having too many. Past the cap we render the most
         // relevant set the server already ordered. iOS bounds the same walk and
         // never throws at the ceiling (509607a).
@@ -454,7 +454,7 @@ class DeliveryCenterViewModelTest {
         )
         assertEquals(
             "the walk stops at the cap and keeps every page it read",
-            100,
+            400,
             viewModel.state.value.journeys.size,
         )
     }

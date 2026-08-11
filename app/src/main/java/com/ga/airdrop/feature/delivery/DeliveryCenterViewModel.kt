@@ -460,7 +460,7 @@ class DeliveryCenterViewModel(
             // ⚠️ THE CEILING IS A STOP, NOT AN ERROR.
             //
             // This was `error(TRACK_UNAVAILABLE)`, so an account heavy enough to
-            // need more than MAX_ACTIVE_PAGES pages (>5000 packages) got a
+            // need more than MAX_ACTIVE_PAGES pages (>20,000 packages) got a
             // "Tracking information is unavailable" card instead of its
             // packages — punished for having too many.
             //
@@ -520,7 +520,10 @@ class DeliveryCenterViewModel(
 
     companion object {
         private const val ACTIVE_PAGE_SIZE = 50
-        private const val MAX_ACTIVE_PAGES = 100
+        // Swift AirdropAPI.collectJourneys caps the same server-ordered walk at
+        // 400 pages. Keeping a lower Android-only cap silently hid up to 15,000
+        // otherwise valid rows from unusually large accounts.
+        private const val MAX_ACTIVE_PAGES = 400
         private const val TRACK_UNAVAILABLE =
             "Tracking information is unavailable. Please try again."
 

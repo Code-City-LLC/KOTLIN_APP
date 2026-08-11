@@ -22,6 +22,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.network.ForegroundRefreshCoordinator
 import com.ga.airdrop.core.network.TokenRefresher
 import com.ga.airdrop.core.push.AirdropMessagingService
 import com.ga.airdrop.core.push.PushDeepLink
@@ -69,7 +70,7 @@ class MainActivity : FragmentActivity() {
     }
 
     /**
-     * Android 13+ (targetSdk 35): POST_NOTIFICATIONS defaults to DENIED and
+     * Android 13+ (targetSdk 36): POST_NOTIFICATIONS defaults to DENIED and
      * every notify() silently no-ops until the user grants it. The permission
      * was declared in the manifest but never requested — no push was ever
      * visible on 13+. RN requests on app mount (NotificationService.ts:29-39);
@@ -193,17 +194,19 @@ class MainActivity : FragmentActivity() {
             return
         }
         lifecycleScope.launch {
-            runCatching { ApiClient.service.refreshToken(EmptyRequest()) }
-                .onSuccess {
-                    TokenRefresher.applyForegroundRefresh(refreshingSession, null, it.token)
-                }
-                .onFailure { e ->
-                    TokenRefresher.applyForegroundRefresh(
-                        refreshingSession,
-                        (e as? HttpException)?.code(),
-                        null,
-                    )
-                }
+            ForegroundRefreshCoordinator.run {
+                runCatching { ApiClient.service.refreshToken(EmptyRequest()) }
+                    .onSuccess {
+                        TokenRefresher.applyForegroundRefresh(refreshingSession, null, it.token)
+                    }
+                    .onFailure { e ->
+                        TokenRefresher.applyForegroundRefresh(
+                            refreshingSession,
+                            (e as? HttpException)?.code(),
+                            null,
+                        )
+                    }
+            }
             // Runs on both arms: a failed refresh leaves the old session intact
             // (only a 401 clears it), and these calls session-gate themselves.
             afterRefresh()

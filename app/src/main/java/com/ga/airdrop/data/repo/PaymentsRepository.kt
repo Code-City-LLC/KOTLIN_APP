@@ -165,6 +165,14 @@ class PaymentsRepository(private val service: AirdropApiService) {
             ) {
                 error(envelope.message ?: "Unable to start the JMD payment. Please try again.")
             }
+            // Settlement is bound to {spi_token, checkout_id, user}. Reject an
+            // incomplete session here, before either checkout ViewModel opens
+            // 3DS. Waiting until ncbCompletePayment() leaves the customer able
+            // to finish issuer authentication for a payment we already know we
+            // cannot settle.
+            if (data.checkoutId?.trim()?.toLongOrNull()?.takeIf { it > 0L } == null) {
+                error(envelope.message ?: "Payment session is missing its checkout reference. Please try again.")
+            }
             data
         }
     }

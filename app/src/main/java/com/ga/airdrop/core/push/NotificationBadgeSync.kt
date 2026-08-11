@@ -1,6 +1,7 @@
 package com.ga.airdrop.core.push
 
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.network.ForegroundRefreshCoordinator
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.SessionStore
@@ -107,7 +108,9 @@ internal object NotificationBadgeSync {
         val probe = gateway
         scope.launch {
             val unread = runCatching {
-                probe.unreadCount(PROBE_PAGE_SIZE)
+                ForegroundRefreshCoordinator.run {
+                    probe.unreadCount(PROBE_PAGE_SIZE)
+                }
             }.getOrNull() ?: return@launch // network/parse failure: keep the last good badge
             if (generation.get() != started) return@launch // a newer refresh/session won
             SessionStore.updateForSession(owner) {

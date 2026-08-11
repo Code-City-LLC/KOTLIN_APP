@@ -4,7 +4,10 @@ kotlin = "2.1.21"
 coreKtx = "1.16.0"
 activityCompose = "1.10.1"
 composeBom = "2025.05.01"
-navigationCompose = "2.9.0"
+# 2.9.8 is the current stable 2.9.x release and includes the later NavHost
+# predictive-back race fix in addition to the fix shipped in 2.9.4. Keep this
+# upgrade paired with the targetSdk 36 migration and its device gesture proof.
+navigationCompose = "2.9.8"
 lifecycle = "2.9.0"
 retrofit = "2.11.0"
 okhttp = "4.12.0"

@@ -29,6 +29,13 @@ class AirdropMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // The backend writes the in-app inbox row before sending FCM. Refresh
+        // that authoritative unread count for every received push so the
+        // header bell lights immediately while the app is active. This is
+        // independent of whether Android can/should present a tray alert (body,
+        // channel settings and Quiet Hours are presentation concerns).
+        NotificationBadgeSync.refresh()
+
         // Swift AirdropPushNotificationRouter parses deep fallback chains for
         // every field — a payload keyed "message"/"screen"/"package_id" must
         // not lose its title/body/route/reference on Android (round-3 sweep).

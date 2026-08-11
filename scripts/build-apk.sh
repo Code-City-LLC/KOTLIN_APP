@@ -28,6 +28,10 @@
 #   scripts/build-apk.sh --validate-apk <path> <variant>
 #     Read-only ZIP/package/version/signature validation. Publishes nothing.
 #
+#   scripts/build-apk.sh --print-app-version <variant>
+#     Print the version identity the validator expects. prod-release requires
+#     PLAY_VERSION_CODE and PLAY_VERSION_NAME, matching the Gradle release gate.
+#
 #   Env:
 #     KEEP=<n>   override retention count (default 3)
 #     MIN_FREE_GB=<n>   override pre-flight free-disk guard (default 3)
@@ -98,8 +102,21 @@ next_build_number() {
 }
 
 app_version() {
+  local variant="${1:-}"
   local gradle_file="$REPO_ROOT/app/build.gradle.kts"
   local name code
+  if [ "$variant" = "prod-release" ]; then
+    name="${PLAY_VERSION_NAME:-}"
+    code="${PLAY_VERSION_CODE:-}"
+    [ -n "$name" ] || die "prod-release requires PLAY_VERSION_NAME"
+    [[ "$code" =~ ^[1-9][0-9]*$ ]] || \
+      die "prod-release requires PLAY_VERSION_CODE as a positive integer"
+    case "$name" in
+      *$'\n'*|*$'\r'*|*$'\t'*) die "PLAY_VERSION_NAME must be one line" ;;
+    esac
+    echo "$name($code)"
+    return
+  fi
   name="$(grep -m1 -E 'versionName[[:space:]]*=' "$gradle_file" 2>/dev/null | grep -oE '"[^"]+"' | tr -d '"')"
   code="$(grep -m1 -E 'versionCode[[:space:]]*=' "$gradle_file" 2>/dev/null | grep -oE '[0-9]+' | head -1)"
   echo "${name:-?}(${code:-?})"
@@ -251,7 +268,7 @@ validate_apk() {
     prod*) expected="com.ga.airdrop.app" ;;
     *) die "cannot validate unknown APK variant: $variant" ;;
   esac
-  expected_app="$(app_version)"
+  expected_app="$(app_version "$variant")"
   [ "$package" = "$expected" ] || die "APK package mismatch: expected $expected, found ${package:-unknown}"
   [ "$name($code)" = "$expected_app" ] || die "APK version mismatch: expected $expected_app, found ${name:-?}(${code:-?})"
   "$apksigner" verify --verbose "$src" >/dev/null || die "APK signature verification failed"
@@ -331,7 +348,7 @@ publish_apk() {
 
   bytes="$(wc -c < "$dest" | tr -d '[:space:]')"
   printf 'v%s\t%s\t%s\tapp_version=%s\tgradle_version=%s\tgit=%s\t%s bytes\n' \
-    "$n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$variant" "$(app_version)" \
+    "$n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$variant" "$(app_version "$variant")" \
     "$(gradle_version)" "$source_sha" "$bytes" >> "$LOG_FILE"
   fail_at after_log
 
@@ -407,6 +424,12 @@ if [ "${1:-}" = "--validate-apk" ]; then
   exit 0
 fi
 
+if [ "${1:-}" = "--print-app-version" ]; then
+  [ -n "${2:-}" ] || die "usage: --print-app-version <variant>"
+  app_version "$2"
+  exit 0
+fi
+
 if [ "${1:-}" = "--bundle" ]; then
   # Produce a Play-ready Android App Bundle (.aab). Deliberately SEPARATE from the
   # APK publication ledger below: an AAB is a Play-Console upload artifact, not a
@@ -414,7 +437,7 @@ if [ "${1:-}" = "--bundle" ]; then
   #
   # Usage: scripts/build-apk.sh --bundle [staging-release | prod-release]
   #   prod-release  -> the real Play upload. Requires keystore.properties (upload
-  #                    key) AND PLAY_VERSION_CODE (> 21); optionally PLAY_VERSION_NAME.
+  #                    key), PLAY_VERSION_CODE and PLAY_VERSION_NAME.
   #   staging-release -> debug-signed smoke test of the bundle path (no keystore).
   case "${2:-prod-release}" in
     staging-release) BUNDLE_TASK="bundleStagingRelease"; BUNDLE_SUBDIR="stagingRelease" ;;
@@ -427,8 +450,7 @@ if [ "${1:-}" = "--bundle" ]; then
     [ -f "$REPO_ROOT/keystore.properties" ] || die "prodRelease is gated: keystore.properties (Play upload key) is required.
        Provision it, export PLAY_VERSION_CODE (> 21), then re-run. For a signing-free
        smoke test of the bundle path use: scripts/build-apk.sh --bundle staging-release"
-    [ -n "${PLAY_VERSION_CODE:-}" ] || die "prodRelease needs an owner-verified PLAY_VERSION_CODE (> 21).
-       Export PLAY_VERSION_CODE=<n> (optionally PLAY_VERSION_NAME=<x.y>) and re-run."
+    app_version "prod-release" >/dev/null
   fi
   step "Building  ($BUNDLE_TASK) …"
   ( cd "$REPO_ROOT" && ./gradlew "$BUNDLE_TASK" )
@@ -456,6 +478,13 @@ validate_numeric_inputs
 mkdir -p "$APK_DIR"
 
 resolve_variant "${1:-staging}"
+
+# Fail before starting Gradle when the production release identity is absent or
+# malformed. Gradle enforces the same pair; this keeps the sanctioned builder's
+# validator, provenance ledger and artifact on one source of truth.
+if [ "$VARIANT_LABEL" = "prod-release" ]; then
+  app_version "$VARIANT_LABEL" >/dev/null
+fi
 
 step "Pre-flight"
 resolve_toolchain

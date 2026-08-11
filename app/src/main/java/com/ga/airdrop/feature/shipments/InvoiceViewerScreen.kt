@@ -11,9 +11,6 @@ import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.widget.Toast
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,7 +49,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import coil.compose.SubcomposeAsyncImage
 import com.ga.airdrop.BuildConfig
@@ -264,65 +260,6 @@ fun InvoiceViewerScreen(
                             style = AirdropType.body1,
                             color = colors.textDescription,
                             textAlign = TextAlign.Center,
-                        )
-                    }
-                }
-                else -> {
-                    val target = secureUrl
-                    AndroidView(
-                        factory = { ctx ->
-                            WebView(ctx).apply {
-                                settings.javaScriptEnabled = true
-                                settings.loadWithOverviewMode = true
-                                settings.useWideViewPort = true
-                                webViewClient = object : WebViewClient() {
-                                    override fun onPageFinished(view: WebView?, url: String?) {
-                                        loading = false
-                                    }
-
-                                    override fun onReceivedError(
-                                        view: WebView?,
-                                        request: WebResourceRequest?,
-                                        error: android.webkit.WebResourceError?,
-                                    ) {
-                                        if (request?.isForMainFrame == true) {
-                                            loading = false
-                                            loadError = error?.description?.toString()
-                                        }
-                                    }
-                                }
-                                loadUrl(target)
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    if (loading && loadError == null) {
-                        Column(
-                            modifier = Modifier.align(Alignment.Center),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(28.dp),
-                                color = BrandPalette.OrangeMain,
-                                strokeWidth = 2.5.dp,
-                            )
-                            Text(
-                                text = "Downloading $fileName...",
-                                style = AirdropType.body1,
-                                color = colors.textDescription,
-                            )
-                        }
-                    }
-                    loadError?.let { message ->
-                        Text(
-                            text = "Couldn't download $fileName.\n$message",
-                            style = AirdropType.body1,
-                            color = colors.textDescription,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .padding(Spacing.md),
                         )
                     }
                 }

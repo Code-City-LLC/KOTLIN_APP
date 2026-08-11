@@ -6,6 +6,7 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.auth.AuthTokenStore
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -45,6 +46,19 @@ class PushDeepLinkParityTest {
         assertRoute("AuctionProductCheckoutView", Routes.AUCTION_CHECKOUT, referenceId = "auction-22")
         assertEquals("auction-22", com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef)
         com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
+    }
+
+    @Test
+    fun appUpdatePushTappedLoggedOutSurvivesUntilAuthentication() {
+        AuthTokenStore.clear()
+        PushDeepLink.capture(
+            Intent().putExtra(AirdropMessagingService.EXTRA_ROUTE, "AppUpdateView"),
+        )
+
+        assertNull("a logged-out account cannot consume the route yet", PushDeepLink.consume())
+
+        AuthTokenStore.save("push-route-app-update-token")
+        assertEquals(Routes.APP_UPDATE, PushDeepLink.consume(AuthTokenStore.snapshot()))
     }
 
     @Test

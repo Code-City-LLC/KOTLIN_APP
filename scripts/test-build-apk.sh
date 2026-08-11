@@ -36,6 +36,28 @@ test_publish() {
 
 printf 'fake-apk-for-bookkeeping-tests\n' > "$ROOT/fake.apk"
 
+# prodRelease does not use defaultConfig's scaffold version. The same
+# owner-supplied identity must drive Gradle, validation and the ledger.
+if env -u PLAY_VERSION_CODE -u PLAY_VERSION_NAME \
+  "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
+  fail "prod-release identity was accepted without Play version inputs"
+fi
+if PLAY_VERSION_CODE=29 env -u PLAY_VERSION_NAME \
+  "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
+  fail "prod-release identity was accepted without PLAY_VERSION_NAME"
+fi
+if PLAY_VERSION_CODE=0 PLAY_VERSION_NAME=3.2.3 \
+  "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
+  fail "prod-release identity accepted a non-positive PLAY_VERSION_CODE"
+fi
+prod_identity="$(
+  PLAY_VERSION_CODE=29 PLAY_VERSION_NAME=3.2.3 \
+    "$BUILDER" --print-app-version prod-release
+)"
+[ "$prod_identity" = "3.2.3(29)" ] || \
+  fail "prod-release validator ignored the owner-supplied Play identity"
+pass "prod-release validator uses the owner-supplied Play identity"
+
 # Self-test must ignore an exported real store byte-for-byte and inode-for-inode.
 real="$ROOT/real publication"
 mkdir -p "$real"
