@@ -120,6 +120,75 @@ class PackageDetailsParityTest {
         compose.onNodeWithTag("upload-source-cancel").assertIsDisplayed()
     }
 
+    /**
+     * ⚠️ THE UPLOAD ZONE WAS RENDERED UNCONDITIONALLY, so a DELIVERED package
+     * still offered a live drop zone. Kemar reported it: upload must stop at
+     * Ready for Pickup — once the customer has the package there is nothing
+     * left to invoice against, and accepting a file writes an attachment onto
+     * a closed shipment.
+     *
+     * Status codes read from Laravel's own catalog (StatusIcons.php,
+     * Packages::scopeReadyForPickup), which agree with ShipmentStatusCatalog:
+     * 7 Ready for Pickup, 18 Paid and Ready for Pick Up, 8 Delivered.
+     */
+    @Test
+    fun invoiceUploadIsHiddenOnceDelivered() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "8", statusName = "Delivered"),
+        )
+
+        assertEquals(
+            "a delivered package must not offer an invoice upload zone",
+            0,
+            compose.onAllNodesWithTag("package-details-upload-invoice-zone")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun invoiceUploadIsStillOfferedAtReadyForPickup() {
+        // The boundary Kemar named: upload stops AT ready for pickup, meaning
+        // it is still offered there. Gating one status too early would remove a
+        // real affordance from packages that still need one.
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "7", statusName = "Ready for Pickup"),
+        )
+
+        compose.onNodeWithTag("package-details-upload-invoice-zone")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun invoiceUploadIsStillOfferedWhenPaidAndReadyForPickUp() {
+        // Status 18 is still awaiting collection, not collected.
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "18", statusName = "Paid and Ready for Pick Up"),
+        )
+
+        compose.onNodeWithTag("package-details-upload-invoice-zone")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun anUnreadableStatusKeepsTheUploadZone() {
+        // Fails OPEN on purpose. An unknown status costs a pointless upload;
+        // failing closed would silently strip the affordance from packages that
+        // still need it — the worse of the two, and the harder one to notice.
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "???", statusName = "Unknown"),
+        )
+
+        compose.onNodeWithTag("package-details-upload-invoice-zone")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
     @Test
     fun invoiceDeleteRemainsAvailableBeforeReadyForPickup() {
         setPackageDetailsContent(

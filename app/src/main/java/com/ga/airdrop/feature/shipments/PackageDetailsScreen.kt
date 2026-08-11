@@ -535,6 +535,29 @@ private fun PackageDetailsContent(
         }
 
         // Upload Your Invoice
+        //
+        // ⚠️ THIS WAS RENDERED UNCONDITIONALLY, SO A DELIVERED PACKAGE STILL
+        // OFFERED A LIVE UPLOAD DROP ZONE. Kemar reported it: invoice upload
+        // must stop at Ready for Pickup — once the customer has the package,
+        // there is nothing left to invoice against, and accepting a file there
+        // writes an attachment onto a closed shipment.
+        //
+        // The API does NOT tell us this: PackageResource exposes no
+        // upload-allowed flag, so the gate has to live here, on the numeric
+        // status. Codes read from Laravel's own catalog rather than guessed —
+        // app/Support/StatusIcons.php and Models/Packages::scopeReadyForPickup,
+        // which agree with Kotlin's ShipmentStatusCatalog:
+        //     7  Ready for Pickup            (offered — the last point it is)
+        //     18 Paid and Ready for Pick Up  (offered — still awaiting collection)
+        //     8  Delivered                   (HIDDEN — the reported bug)
+        //
+        // Gated on DELIVERED only, deliberately narrow. A wider "terminal
+        // statuses" set would be a guess, and guessing a status set is exactly
+        // how the Track allow-list shipped and blanked every customer's screen.
+        // An unknown/unparseable status keeps the zone: failing OPEN here costs
+        // a pointless upload, failing closed would silently remove a real
+        // affordance from packages that still need one.
+        if (detail.status?.trim()?.toIntOrNull() != DELIVERED_STATUS) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             val canDeleteInvoices = state.canDeleteInvoices
             Row(
@@ -570,6 +593,7 @@ private fun PackageDetailsContent(
                     onDelete = { onDeleteInvoice(doc.id) },
                 )
             }
+        }
         }
 
         // CIF Value info row — Figma 40001753:21889 (verified via Figma MCP:
@@ -1319,3 +1343,6 @@ private fun packageDetailsBrandTitle(method: ShipmentMethodUi): String =
         ShipmentMethodUi.Express -> "Express"
         ShipmentMethodUi.SeaDrop -> "SeaDrop"
     }
+
+/** Laravel status 8 — the package is with the customer; nothing left to invoice. */
+private const val DELIVERED_STATUS = 8
