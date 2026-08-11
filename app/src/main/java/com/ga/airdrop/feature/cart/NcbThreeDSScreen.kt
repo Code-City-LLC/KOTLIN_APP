@@ -1,7 +1,6 @@
 package com.ga.airdrop.feature.cart
 
 import java.net.URI
-import android.graphics.Bitmap
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -70,6 +69,15 @@ fun NcbThreeDSScreen(
     fun finalize() {
         host.completeNcbPayment()
     }
+
+    /**
+     * Owns WHEN the 3DS flow may complete. Deliberately NOT Compose state and
+     * NOT inline in the WebViewClient: the ordering defect in #95203 survived
+     * precisely because it lived in an anonymous object inside a composable,
+     * where no unit test could reach it. The two existing tests pin URL/origin
+     * recognition and the checkout_id wire shape; neither could see ordering.
+     */
+    val navGate = remember { NcbCallbackNavigationGate(::isNcbCallback) }
 
     // The host flips navToSuccess once ncb-complete-payment returns the invoice.
     LaunchedEffect(ui.navToSuccess) {
@@ -141,21 +149,82 @@ fun NcbThreeDSScreen(
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             webViewClient = object : WebViewClient() {
+                                /**
+                                 * ⚠️ RECORD THE CALLBACK — DO NOT COMPLETE, AND DO NOT
+                                 * CANCEL THE NAVIGATION.
+                                 *
+                                 * This used to `finalize(); return true`. Returning true
+                                 * tells the WebView "I handled it, don't load it" — so the
+                                 * callback URL was NEVER FETCHED and Laravel's POST may
+                                 * never have been processed, while the client went on to
+                                 * report success. `onPageStarted` completed too, before the
+                                 * page had even loaded, racing Laravel's own settlement.
+                                 * Neither existing test caught it: they pin URL/origin
+                                 * recognition and the checkout_id wire shape, not ordering.
+                                 *
+                                 * iOS resolved this in `decidePolicyFor` (FigmaCartViewController
+                                 * 5481-5530): record here, `.allow` the navigation, complete
+                                 * only after the load lands. This is the Android equivalent —
+                                 * `false` means "WebView, you load it".
+                                 *
+                                 * Confirmed by @Codex-CodexKotlinAudit P0 #95203 and accepted
+                                 * as owner in #95219. `462ebdf8` turned this rail ON without
+                                 * this fix; that was shipping half a parity.
+                                 */
                                 override fun shouldOverrideUrlLoading(
                                     view: WebView?,
                                     request: WebResourceRequest?,
-                                ): Boolean {
-                                    val url = request?.url?.toString().orEmpty()
-                                    if (isNcbCallback(url)) {
-                                        finalize()
-                                        return true
-                                    }
-                                    return false
-                                }
+                                ): Boolean =
+                                    navGate.shouldOverrideUrlLoading(
+                                        request?.url?.toString().orEmpty(),
+                                    )
 
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                    super.onPageStarted(view, url, favicon)
-                                    if (isNcbCallback(url.orEmpty())) finalize()
+                                /**
+                                 * COMPLETE HERE, AND ONLY ON THE EXACT CALLBACK URL.
+                                 *
+                                 * Laravel PRESERVES the top-level callback URL. Deployed
+                                 * `origin/pre_staging` `5705a8cd`,
+                                 * `resources/views/checkout/ncb-callback.blade.php`
+                                 * `redirectEmbeddedParent`:
+                                 *
+                                 *     if (window.parent === window) { return false; }
+                                 *     window.parent.location = '/user/checkout';
+                                 *
+                                 * with Laravel's own comment: "Swift and Android load the
+                                 * same RedirectData as a top-level WebView document and
+                                 * detect this exact callback URL after the POST finishes.
+                                 * Redirecting a top-level WebView here races that native
+                                 * completion signal."
+                                 *
+                                 * We load RedirectData top-level, so the early return
+                                 * applies to us: the page does NOT navigate away, and this
+                                 * callback reports the callback URL itself. Exact
+                                 * recognition after the load lands is therefore the whole
+                                 * trigger — the POST has been processed by then.
+                                 *
+                                 * There is deliberately NO latch and no second arm. The
+                                 * canonical callback is a POST, which Android never routes
+                                 * through `shouldOverrideUrlLoading`, and that hook may also
+                                 * fire for subframes — so any recorded state would be dead
+                                 * on the shipping path and armable from a frame that is not
+                                 * the callback. Verifier decision @Codex-CodexKotlinAudit
+                                 * #95239.
+                                 *
+                                 * If a provider variant ever violates that contract, the
+                                 * user-visible manual confirmation button on this screen is
+                                 * the fallback — not a stateful guess in here.
+                                 *
+                                 * Safe because completion trusts this page for NOTHING: it
+                                 * asks our own authenticated server for the outcome with the
+                                 * server-issued spi_token plus checkout_id, and
+                                 * completeNcbPayment is latched once-only. The page is a
+                                 * trigger, never a source of truth.
+                                 */
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    if (navGate.shouldCompleteOnPageFinished(url.orEmpty())) {
+                                        finalize()
+                                    }
                                 }
                             }
                             loadDataWithBaseURL(
@@ -264,4 +333,99 @@ internal fun isNcbCallback(
     if (!"https".equals(uri.scheme, ignoreCase = true)) return false
     if (!allowedHost.equals(uri.host, ignoreCase = true)) return false
     return uri.path?.lowercase()?.trimEnd('/').orEmpty() == NCB_CALLBACK_PATH
+}
+
+/**
+ * WHEN the NCB 3DS flow may complete — extracted so it can be unit-tested.
+ *
+ * ⚠️ THIS EXISTS BECAUSE THE ORDERING BUG WAS UNREACHABLE BY TESTS.
+ *
+ * The defect (@Codex-CodexKotlinAudit P0 #95203, accepted in #95219) lived in
+ * an anonymous `WebViewClient` inside a composable:
+ *
+ *     if (isNcbCallback(url)) { finalize(); return true }   // and onPageStarted too
+ *
+ * `return true` tells the WebView "I handled it, don't load it", so the
+ * callback URL was never fetched and Laravel's POST may never have been
+ * processed — while the client reported success. `onPageStarted` completed
+ * before the page had even loaded, racing Laravel's settlement.
+ *
+ * `NcbCallbackRecognizerTest` and `NcbCheckoutIdContractTest` both passed
+ * throughout: one pins URL/origin recognition, the other the `checkout_id`
+ * wire shape. Neither could see ordering, because there was nothing to call.
+ *
+ * THE RULE — two decisions, no state:
+ *  1. EVERY navigation is allowed (`false`). Cancelling is what stopped the
+ *     callback from ever reaching Laravel.
+ *  2. Completion fires ONLY on the EXACT callback URL in `onPageFinished` —
+ *     after the load lands, so Laravel has already processed the POST.
+ *
+ * ⚠️ THERE IS DELIBERATELY NO LATCH, AND THE ONE I ADDED WAS REMOVED ON
+ * VERIFIER DECISION @Codex-CodexKotlinAudit #95239.
+ *
+ * My first repair recorded a `sawCallback` flag in `shouldOverrideUrlLoading`
+ * and also completed on any later page once armed. Three things were wrong
+ * with it:
+ *
+ *  - The canonical callback is a POST, and Android does not call
+ *    `shouldOverrideUrlLoading` for POST requests. Laravel's route is POST-only
+ *    (`routes/modules/customer.php:322`), so the flag could never arm on the
+ *    shipping path — my tests "proved" it only by hand-calling a hook Android
+ *    never invokes.
+ *  - Android may call that hook for SUBFRAMES, so the flag could arm from a
+ *    frame that is not the callback at all, giving completion a second trigger
+ *    with no evidence behind it.
+ *  - The redirect it was meant to catch does not happen to us. I claimed
+ *    `ncb-callback.blade.php` redirects a top-level WebView unconditionally,
+ *    carrying iOS's historical finding (@MagentaReef #89168) forward as current
+ *    fact. Verified against deployed `origin/pre_staging` `5705a8cd`,
+ *    `redirectEmbeddedParent`:
+ *
+ *        if (window.parent === window) { return false; }
+ *        window.parent.location = '/user/checkout';
+ *
+ *    Laravel's own comment: "Swift and Android load the same RedirectData as a
+ *    top-level WebView document and detect this exact callback URL after the
+ *    POST finishes. Redirecting a top-level WebView here races that native
+ *    completion signal." The server PRESERVES the URL on purpose so exact
+ *    recognition is sufficient.
+ *
+ * If a provider variant ever violates that contract, the user-visible manual
+ * confirmation button on this screen is the fallback — not a stateful guess.
+ *
+ * Trusting the page for nothing is what makes this safe — completion asks our
+ * own authenticated server for the outcome with the server-issued spi_token and
+ * checkout_id, and `completeNcbPayment` is latched once-only. The page is a
+ * trigger, never a source of truth.
+ */
+internal class NcbCallbackNavigationGate(
+    private val isCallback: (String) -> Boolean,
+) {
+    /**
+     * ALWAYS false — never cancel a navigation.
+     *
+     * `true` here is the original P0: it tells the WebView "I handled it, do
+     * not load it", so the callback URL was never fetched and Laravel's POST
+     * may never have been processed while the client reported success.
+     *
+     * Nothing is recorded here. The canonical callback is a POST and Android
+     * does not call this hook for POST requests, so any state set here would be
+     * dead on the shipping path — and Android may call it for SUBFRAMES, so a
+     * latch could arm from a frame that is not the callback at all.
+     */
+    fun shouldOverrideUrlLoading(url: String): Boolean = false
+
+    /**
+     * Complete ONLY on the exact callback URL.
+     *
+     * Laravel deliberately preserves that URL for a top-level WebView
+     * (`5705a8cd`, `ncb-callback.blade.php` `redirectEmbeddedParent`:
+     * `if (window.parent === window) return false`), precisely so this fires.
+     * Exact recognition is therefore sufficient, and it is the whole trigger.
+     *
+     * If a provider variant ever violates that contract, the user-visible
+     * manual confirmation button on this screen is the fallback — not a
+     * stateful guess in here.
+     */
+    fun shouldCompleteOnPageFinished(url: String): Boolean = isCallback(url)
 }

@@ -49,38 +49,55 @@ class JmdCheckoutGateTest {
 
     @Test
     fun `the shipped default is pinned — changing it must be deliberate`() {
-        // ⚠️ ASSERTS false, AND THE REASON IS MEASURED, NOT RELAYED.
+        // ⚠️ NOW ASSERTS true. THE REASON IS MEASURED, NOT RELAYED — and the
+        // full history is kept because this flag has moved THREE times and the
+        // churn is the lesson.
         //
-        // I briefly flipped this to `true` on ORC 89022, which reported the
-        // submitted iOS build as shipping the flag ON. ORC 89219 contradicted
-        // it. Rather than flip again on a second secondhand report I read
-        // Swift's submitted source myself, at the exact commit behind build
-        // 202608020401:
+        //  1. ORC 89022 reported the submitted iOS build as shipping ON. I
+        //     flipped Kotlin ON on that secondhand report.
+        //  2. ORC 89219 contradicted it. Instead of flipping on a second
+        //     relay I read Swift's source at the commit behind build
+        //     202608020401 — `0446a14 AirdropFeatureFlags.swift:234-235`,
+        //     `get { UserDefaults.standard.bool(forKey:) }`, which returns
+        //     FALSE for an unset key. So iOS really did ship OFF. I flipped
+        //     Kotlin back. 89219 was right, 89022 was wrong.
+        //  3. iOS then genuinely CHANGED, and this time it is not a report.
+        //     Read from SWIFT_APP `main` (38a11f4), same file, now lines
+        //     246-247:
         //
-        //   0446a14 Airdrop/AirdropFeatureFlags.swift:234-235
-        //     static var ncbJmdCheckout: Bool {
-        //       get { UserDefaults.standard.bool(forKey: Key.ncbJmdCheckout) }
+        //       if UserDefaults.standard.object(forKey: Key.ncbJmdCheckout) == nil {
+        //           return true
+        //       }
         //
-        // UserDefaults.bool(forKey:) returns FALSE for an unset key, so a fresh
-        // iOS install ships this rail OFF. 89219 was right and 89022 was wrong.
+        //     Unset now means ON. The commit is `5932f70 feat(ncb): default
+        //     JMD/NCB checkout ON — owner-directed override`, Kemar
+        //     2026-08-02, explicit and fully-informed.
         //
-        // Kotlin matches. Two platforms with opposite defaults on one payment
-        // rail is worse than either default — which was my reason for flipping
-        // ON, applied to a premise that was false.
+        // So my step-2 verification was correct WHEN MADE and is now stale.
+        // Kotlin matches iOS again — two platforms with opposite defaults on
+        // one payment rail is worse than either default, which was the right
+        // instinct in step 1 applied to a premise that was false at the time
+        // and is true now.
         //
-        // The point of this test is unchanged: the shipped default is a DECISION,
-        // and flipping it without touching this line is not possible. Whoever
-        // changes it has to come here and say why.
+        // The point of this test is unchanged: the shipped default is a
+        // DECISION, and flipping it without touching this line is not
+        // possible. Whoever changes it has to come here and say why.
+        //
+        // The safety analysis that argued for OFF is NOT deleted — it lives on
+        // AirdropFeatureFlags.jmdNcbCheckout. The owner was shown it and chose
+        // to proceed; that is recorded, not erased.
         //
         // Turning it back OFF is one boolean plus this assertion, and every
         // boundary gate below still works in both directions — proven by the
         // gate-OFF cases in this class, which are NOT deleted.
         restore()
         assertEquals(
-            "AirdropFeatureFlags.jmdNcbCheckout default changed. iOS ships OFF " +
-                "(verified in Swift source 0446a14, not relayed). Do not diverge " +
-                "on a payment rail — read the other platform's SOURCE first.",
-            false,
+            "AirdropFeatureFlags.jmdNcbCheckout default changed. iOS ships ON " +
+                "(verified in Swift source at main/38a11f4, AirdropFeatureFlags" +
+                ".swift:246-247 `object(forKey:) == nil -> return true`, commit " +
+                "5932f70 — read, not relayed). Do not diverge on a payment rail " +
+                "— read the other platform's SOURCE first.",
+            true,
             original,
         )
     }

@@ -39,6 +39,7 @@ import com.ga.airdrop.data.model.LoginRequest
 import com.ga.airdrop.data.model.LoginResponse
 import com.ga.airdrop.data.model.MarkNotificationReadRequest
 import com.ga.airdrop.data.model.MutationResponse
+import com.ga.airdrop.data.model.PackageJourneysPayload
 import com.ga.airdrop.data.model.Order
 import com.ga.airdrop.data.model.OrderDetailEnvelope
 import com.ga.airdrop.data.model.Package
@@ -307,6 +308,31 @@ interface AirdropApiService {
         @Query("page") page: Int,
         @Query("per_page") perPage: Int,
     ): DataEnvelope<ActiveDeliveriesPayload>
+
+    /**
+     * The canonical Track ROOT. Unlike `deliveries/active` — which is driven by
+     * the `package_deliveries` table and therefore structurally cannot contain
+     * a package held for collection — this returns EVERY trackable package,
+     * pickup and delivery alike, each with a server-composed stages rail.
+     *
+     * ⚠️ Returns [PackageJourneysPayload] directly, NOT a [DataEnvelope]. The
+     * body is `{success, data:[...], meta:{...}}`: the array is `data` and
+     * `meta` is its sibling, so the generic envelope would silently drop the
+     * pagination this endpoint is validated against.
+     *
+     * `track` is an optional server-literal filter; omitted means the default
+     * (all trackable packages).
+     */
+    @GET("packages/journeys")
+    suspend fun packageJourneys(
+        @Query("page") page: Int,
+        @Query("per_page") perPage: Int,
+        // No Kotlin default value: Retrofit builds a reflective proxy over this
+        // interface, and a defaulted parameter compiles to a synthetic bridge
+        // rather than to the interface method the proxy dispatches on. Callers
+        // pass null explicitly. Retrofit omits a null @Query from the URL.
+        @Query("track") track: String?,
+    ): PackageJourneysPayload
 
     /**
      * The canonical package journey. Laravel owns order, labels, icon keys,

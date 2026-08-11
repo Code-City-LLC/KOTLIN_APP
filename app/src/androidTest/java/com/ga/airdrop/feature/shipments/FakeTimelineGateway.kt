@@ -4,6 +4,7 @@ import com.ga.airdrop.data.model.PackageTimelineEntry
 import com.ga.airdrop.data.repo.ActiveDeliveriesPage
 import com.ga.airdrop.data.repo.DeliveryTrackingGateway
 import com.ga.airdrop.data.repo.DeliveryTrackingResult
+import com.ga.airdrop.data.repo.PackageJourneysPage
 
 /**
  * Stands in for `GET /packages/{id}/timeline` in screen tests.
@@ -31,6 +32,9 @@ class FakeTimelineGateway(
 ) : DeliveryTrackingGateway {
 
     constructor(detail: ShipmentPackageDetail?) : this(fromHistory(detail))
+
+    override suspend fun packageJourneys(page: Int, perPage: Int): Result<PackageJourneysPage> =
+        Result.failure(UnsupportedOperationException("not used by package screens"))
 
     override suspend fun activeDeliveries(page: Int, perPage: Int): Result<ActiveDeliveriesPage> =
         Result.failure(UnsupportedOperationException("not used by package screens"))

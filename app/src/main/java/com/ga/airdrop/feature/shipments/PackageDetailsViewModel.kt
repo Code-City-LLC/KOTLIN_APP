@@ -107,7 +107,14 @@ data class PackageDetailsUiState(
      * .canDeleteInvoices(for:) (L1473-1485): the delete/trash action is hidden
      * once a package reaches one of Swift's explicit terminal/locked status IDs,
      * with a status-name fallback for missing, stale, or non-numeric values.
-     * Upload stays allowed at every status. UI/action-gating parity only (QC #14710).
+     * UI/action-gating parity only (QC #14710).
+     *
+     * ⚠️ Upload is gated too — see [canUploadInvoices] — but the two are NOT the
+     * same rule. They share this recognized locked-status predicate and nothing
+     * more: upload additionally requires a recognized status and fails CLOSED on
+     * absent/unknown, while delete stays independent and fail-OPEN there (an
+     * absent detail or unreadable status leaves delete available, deliberately,
+     * because hiding a delete affordance is the lesser harm).
      *
      * Deliberately independent of [showChargesAndCart]. Do not fold these together.
      */
@@ -119,6 +126,53 @@ data class PackageDetailsUiState(
             val values = listOfNotNull(detail?.status, detail?.statusName).map { it.trim() }
             if (values.any(::statusLocksInvoiceDeletion)) return false
             return true
+        }
+
+    /**
+     * Invoice UPLOAD eligibility — **fail CLOSED**. Upload is a mutation, and it
+     * is offered only when the package is PROVEN to be in a known pre-collection
+     * state. Unknown, missing or unreadable ⇒ BLOCKED, with zero repository POST
+     * (ORC 95620/95648).
+     *
+     * ## Why fail closed, when delete deliberately fails open
+     *
+     * **Laravel does not currently reject the unsafe upload**, so there is no
+     * server-side backstop — this predicate is the only gate. An unrecognised
+     * status is therefore not a wasted tap; it is an attachment written onto a
+     * shipment that may already be closed. (Swift's fail-open is not
+     * authoritative for this decision.)
+     *
+     * ⚠️ **This is NOT the inverse of [canDeleteInvoices], and must never be
+     * simplified into one.** The two share the recognized locked-status
+     * predicate and nothing more. `canDeleteInvoices` returns true when `detail`
+     * or the status is absent — deliberately, because hiding a delete affordance
+     * is the lesser harm. Aliasing them would re-open upload for exactly the
+     * absent/unknown cases this exists to close.
+     *
+     * ## The rule, in order
+     *
+     *  1. `detail` must be present.
+     *  2. At least one of `status` / `statusName` must resolve to a **recognized**
+     *     catalog status — see [invoiceStatusIsRecognized]. Eligibility must be
+     *     PROVEN, not merely un-disproven.
+     *  3. **No** value may lock via [statusLocksInvoiceDeletion]. Lock precedence
+     *     wins: on conflicting fields, the lock decides.
+     *
+     * Known pre-collection states stay open (6, and the non-sequential 9, 10, 12
+     * — never a numeric `< 7` test, which would wrongly block those three).
+     * Locked IDs {7, 8, 14-20} and terminal-sounding names are blocked.
+     */
+    val canUploadInvoices: Boolean
+        get() {
+            val current = detail ?: return false
+            val values = listOfNotNull(current.status, current.statusName)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            if (values.isEmpty()) return false
+            // Lock precedence FIRST: a recognized locked value beats any other
+            // field that happens to look eligible.
+            if (values.any(::statusLocksInvoiceDeletion)) return false
+            return values.any(::invoiceStatusIsRecognized)
         }
 
     val chargesTotal: Double?
@@ -145,6 +199,44 @@ internal fun statusLocksInvoiceDeletion(value: String): Boolean {
 }
 
 private val INVOICE_DELETION_LOCKED_STATUS_IDS = setOf(7, 8, 14, 15, 16, 17, 18, 19, 20)
+
+/**
+ * Is this value a status we actually RECOGNISE? Used only by [PackageDetailsUiState
+ * .canUploadInvoices], where eligibility for a mutation must be proven rather than
+ * assumed. Local to this file on purpose (ORC 95658) — the shared catalog is not
+ * changed by this task.
+ *
+ * ⚠️ **[ShipmentStatusCatalog.idFor] is deliberately NOT used here**, and calling it
+ * would silently reopen the hole this closes. Two reasons, both real:
+ *
+ *  1. It falls back to `contains` matching in BOTH directions, so generic text like
+ *     "Processing" or "Shipment" would be accepted as a proven stage.
+ *  2. Its `normalize` strips every non-alphanumeric character, so `"???"` normalises
+ *     to the EMPTY string — and every catalog name contains the empty string. An
+ *     unguarded `idFor("???")` returns status **1**, which would mark the most
+ *     obviously unreadable status in the codebase as eligible. (ORC 95657.)
+ *
+ * So: numeric codes are checked against catalog membership, names must match a
+ * catalog name EXACTLY once normalised, and a candidate with no letter or digit is
+ * unknown by definition.
+ */
+internal fun invoiceStatusIsRecognized(value: String): Boolean {
+    normalizedInvoiceStatusCode(value)?.let { code ->
+        return ShipmentStatusCatalog.defaults.any { it.id == code }
+    }
+    val target = normalizedCatalogName(value)
+    // Punctuation-only / blank: nothing to recognise. Guarded BEFORE any name
+    // comparison, which is the exact `"???"` trap above.
+    if (target.isEmpty()) return false
+    // "Auction" is the backend alias of catalog id 17 "Sale"; handled explicitly
+    // because it is a real status name that is not in `defaults` under that word.
+    if (target == "auction") return true
+    return ShipmentStatusCatalog.defaults.any { normalizedCatalogName(it.name) == target }
+}
+
+/** Same normalisation shape the catalog uses, kept local so this gate owns its rule. */
+private fun normalizedCatalogName(value: String): String =
+    value.lowercase(java.util.Locale.US).filter(Char::isLetterOrDigit)
 
 private fun normalizedInvoiceStatusCode(value: String): Int? {
     val normalized = value.trim().replace(",", ".")
@@ -212,6 +304,18 @@ class PackageDetailsViewModel(
         if (files.isEmpty()) return
         val state = _state.value
         if (state.loading || state.uploading || state.deletingInvoiceId != null) return
+        // ⚠️ THE BOUNDARY IS ENFORCED HERE, NOT ONLY IN THE UI.
+        //
+        // Hiding the drop zone stops the ordinary path, and nothing else. A
+        // source sheet opened a moment before the status flipped is still on
+        // screen holding a live callback into this function; so is any future
+        // caller. If the gate lived only in the composable, that sheet would
+        // POST an invoice onto a package the customer has already collected —
+        // the exact write the gate exists to prevent, arriving through the one
+        // route nobody was watching.
+        //
+        // Same audited predicate as the UI, so the two cannot disagree.
+        if (!state.canUploadInvoices) return
         val existing = state.detail?.invoices?.size ?: 0
         val allowed = (3 - existing).coerceAtLeast(0)
         if (allowed == 0) {

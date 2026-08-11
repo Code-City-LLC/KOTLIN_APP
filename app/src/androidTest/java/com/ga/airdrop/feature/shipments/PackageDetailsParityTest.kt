@@ -96,7 +96,15 @@ class PackageDetailsParityTest {
 
     @Test
     fun invoiceUploadUsesSwiftSourceSheetAndCorrectFormatCopy() {
-        setPackageDetailsContent(ThemeController.Mode.LIGHT)
+        // Status 6 (pre-boundary), not the fixture default of 7. This case is
+        // about the source sheet and the helper COPY, not about the boundary —
+        // and upload is now correctly blocked at 7, so the default fixture would
+        // have it asserting against a zone that is deliberately absent. Pinning
+        // an explicit pre-pickup status keeps it testing what it is named for.
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
+        )
 
         compose.onNodeWithText("PDF and image files (JPG, PNG, GIF, BMP, WEBP) are allowed")
             .performScrollTo()
@@ -118,6 +126,276 @@ class PackageDetailsParityTest {
         compose.onNodeWithTag("upload-source-photo").assertIsDisplayed()
         compose.onNodeWithTag("upload-source-camera").assertIsDisplayed()
         compose.onNodeWithTag("upload-source-cancel").assertIsDisplayed()
+    }
+
+    /**
+     * ⚠️ THE UPLOAD ZONE WAS RENDERED UNCONDITIONALLY, so a DELIVERED package
+     * still offered a live drop zone. Kemar reported it: upload must stop at
+     * Ready for Pickup — once the customer has the package there is nothing
+     * left to invoice against, and accepting a file writes an attachment onto
+     * a closed shipment.
+     *
+     * Status codes read from Laravel's own catalog (StatusIcons.php,
+     * Packages::scopeReadyForPickup), which agree with ShipmentStatusCatalog:
+     * 7 Ready for Pickup, 18 Paid and Ready for Pick Up, 8 Delivered.
+     */
+    @Test
+    fun invoiceUploadIsHiddenOnceDelivered() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "8", statusName = "Delivered"),
+        )
+
+        assertEquals(
+            "a delivered package must not offer an invoice upload zone",
+            0,
+            compose.onAllNodesWithTag("package-details-upload-invoice-zone")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    /**
+     * ⚠️ CORRECTED BOUNDARY. These two cases previously asserted the OPPOSITE —
+     * that upload was still offered at 7 and 18 — reading "upload stops at Ready
+     * for Pickup" as "stops one status after it". It does not: at 7 and 18 the
+     * customer can already collect the package, so there is nothing left to
+     * invoice against, and those are precisely the states a customer is most
+     * likely to be looking at. Blocked AT the boundary, not after it.
+     */
+    @Test
+    fun invoiceUploadIsBlockedAtReadyForPickup() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "7", statusName = "Ready for Pickup"),
+        )
+
+        assertEquals(
+            "upload must be blocked AT Ready for Pickup (7), not one status later",
+            0,
+            compose.onAllNodesWithTag("package-details-upload-invoice-zone")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun invoiceUploadIsBlockedWhenPaidAndReadyForPickUp() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "18", statusName = "Paid and Ready for Pick Up"),
+        )
+
+        assertEquals(
+            "status 18 is collectable, so upload must be blocked",
+            0,
+            compose.onAllNodesWithTag("package-details-upload-invoice-zone")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    /** The state BEFORE the boundary must still offer upload — the gate must not overreach. */
+    @Test
+    fun invoiceUploadIsStillOfferedBeforeReadyForPickup() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
+        )
+
+        compose.onNodeWithTag("package-details-upload-invoice-zone")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /**
+     * ⚠️ LOCKING UPLOAD MUST NOT TAKE AWAY THE RECORD.
+     *
+     * Hiding the whole section once the boundary is crossed would delete the
+     * customer's view of invoices they already filed — exactly when they are
+     * most likely to want them (collection, customs, a dispute). Upload goes;
+     * the rows and their View action stay, and the heading stops asking for a
+     * file the screen will not take.
+     */
+    @Test
+    fun lockedUploadStillShowsExistingInvoicesAndRenamesTheSection() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "8", statusName = "Delivered"),
+        )
+
+        compose.onNodeWithTag("package-details-invoice-section-title")
+            .performScrollTo()
+            .assertTextEquals("Invoices")
+        assertEquals(
+            "the upload zone must be gone while the filed invoice stays readable",
+            0,
+            compose.onAllNodesWithTag("package-details-upload-invoice-zone")
+                .fetchSemanticsNodes().size,
+        )
+
+        // ⚠️ Presence is not proof the row still WORKS. Locking upload must not
+        // leave a View button that navigates nowhere, so this exercises the
+        // action and asserts the real navigation the unlocked case performs.
+        compose.onNodeWithTag("package-details-invoice-view-101")
+            .performScrollTo()
+            .performClick()
+        assertTrue(
+            "a locked package must still open its filed invoice in the shared viewer, " +
+                "got: ${navigatedRoutes.lastOrNull()}",
+            navigatedRoutes.lastOrNull().orEmpty().startsWith("invoiceViewer?url="),
+        )
+    }
+
+    /**
+     * ⚠️ THE GATE THAT ACTUALLY MATTERS — hiding UI is not enforcement.
+     *
+     * A source sheet opened moments before the status flipped still holds a live
+     * callback into `uploadInvoices`. If the boundary lived only in the
+     * composable, that sheet would POST an invoice onto a collected package
+     * through the one route nobody watches. This asserts the repository is never
+     * reached: zero POSTs, not "a POST that fails".
+     */
+    @Test
+    fun aBlockedStatusMakesTheViewModelUploadInert() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "7", statusName = "Ready for Pickup"),
+        )
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            packageDetailsViewModel.uploadInvoices(
+                listOf(
+                    InvoiceUploadFile(
+                        fileName = "stale-sheet.pdf",
+                        mimeType = "application/pdf",
+                        bytes = ByteArray(16),
+                    ),
+                ),
+            )
+        }
+        compose.waitForIdle()
+
+        assertEquals(
+            "a locked status must reach the repository ZERO times, not fail after POSTing",
+            0,
+            packagesRepo.uploadCalls,
+        )
+    }
+
+    /** A terminal NAME locks even when the numeric code is unusable. */
+    @Test
+    fun aTerminalStatusNameBlocksUploadEvenWithoutAUsableCode() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "not-a-number", statusName = "Delivered"),
+        )
+
+        assertEquals(
+            "a terminal status NAME must lock upload even when the code is unparseable",
+            0,
+            compose.onAllNodesWithTag("package-details-upload-invoice-zone")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    /**
+     * ⚠️ PINS THE UNKNOWN POLICY: **BLOCK**, on screen as well as in the state.
+     *
+     * This asserted the OPPOSITE until ORC 95620 — that an unreadable status
+     * kept the zone — on the reasoning that the cost was one pointless upload.
+     * That assumed a server-side backstop, and there is none: Laravel does not
+     * reject the unsafe upload, so the client is the only gate.
+     *
+     * `"???"` specifically, because it is the input that defeats naive
+     * recognition: the catalog's own lookup strips punctuation to an empty
+     * string that every status name contains, resolving to status 1 (ORC 95657).
+     */
+    @Test
+    fun anUnreadableStatusBlocksTheUploadZone() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "???", statusName = "Unknown"),
+        )
+
+        assertEquals(
+            "an unrecognisable status must BLOCK upload — there is no server-side " +
+                "backstop, so this predicate is the only gate",
+            0,
+            compose.onAllNodesWithTag("package-details-upload-invoice-zone")
+                .fetchSemanticsNodes().size,
+        )
+        // The record must remain not just visible but USABLE in the unknown
+        // state — a View button that navigates nowhere is not a preserved
+        // record. Same assertion as the locked-status case.
+        compose.onNodeWithTag("package-details-invoice-view-101")
+            .performScrollTo()
+            .performClick()
+        assertTrue(
+            "an unreadable status must still open its filed invoice in the shared " +
+                "viewer, got: ${navigatedRoutes.lastOrNull()}",
+            navigatedRoutes.lastOrNull().orEmpty().startsWith("invoiceViewer?url="),
+        )
+    }
+
+    /**
+     * ⚠️ ACTION-LAYER zero-POST proof for an UNRECOGNISABLE status.
+     *
+     * The predicate cases pin the decision; this pins the CONSEQUENCE. A future
+     * caller-side shortcut — a retained sheet, a deep link, a re-entrant tap —
+     * would bypass every UI assertion in this file, so the contract that matters
+     * is "the repository is never reached", not "the zone is hidden".
+     */
+    @Test
+    fun anUnreadableStatusMakesTheViewModelUploadInert() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "???", statusName = "Unknown"),
+        )
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            packageDetailsViewModel.uploadInvoices(
+                listOf(
+                    InvoiceUploadFile(
+                        fileName = "unknown-status.pdf",
+                        mimeType = "application/pdf",
+                        bytes = ByteArray(16),
+                    ),
+                ),
+            )
+        }
+        compose.waitForIdle()
+
+        assertEquals(
+            "an unrecognisable status must reach the repository ZERO times",
+            0,
+            packagesRepo.uploadCalls,
+        )
+    }
+
+    /** Same contract for a MISSING status — the harness makes this cheap to pin. */
+    @Test
+    fun aMissingStatusMakesTheViewModelUploadInert() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "", statusName = ""),
+        )
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            packageDetailsViewModel.uploadInvoices(
+                listOf(
+                    InvoiceUploadFile(
+                        fileName = "missing-status.pdf",
+                        mimeType = "application/pdf",
+                        bytes = ByteArray(16),
+                    ),
+                ),
+            )
+        }
+        compose.waitForIdle()
+
+        assertEquals(
+            "a missing status must reach the repository ZERO times",
+            0,
+            packagesRepo.uploadCalls,
+        )
     }
 
     @Test
@@ -547,11 +825,22 @@ class PackageDetailsParityTest {
     /**
      * ⚠️ A SUCCESSFUL RESPONSE WE CANNOT READ IS NOT AN EMPTY JOURNEY EITHER.
      *
-     * `TrackJourney.rows()` drops any entry with a blank label, so a nonempty
-     * but malformed payload maps to zero rows. Branching on `rows.isEmpty()`
-     * alone therefore still presented a garbled response as CONFIRMED zero
+     * Originally: `TrackJourney.rows()` DROPPED any entry with a blank label, so
+     * a nonempty but malformed payload mapped to zero rows, and branching on
+     * `rows.isEmpty()` alone presented a garbled response as CONFIRMED zero
      * history — the same conflation as the failure case, one level deeper.
-     * The gate is now on the RAW payload. BrightHarbor #80372.
+     * BrightHarbor #80372.
+     *
+     * Since 2ac03ed9 the mapper no longer drops anything: it THROWS
+     * `IllegalArgumentException` on a blank label, because a renderer that
+     * repairs its input makes the repository guard pointless. That turned this
+     * very case into a renderer CRASH — the sole connected-gate failure at
+     * 2ac03ed9. The caller in `PackageDetailsScreen` now catches that specific
+     * rejection and classifies it as unreadable, so the mapper stays strict and
+     * the customer still gets the honest "couldn't be loaded" card.
+     *
+     * This test is the one that proves all three: strict mapper, no crash, and
+     * unreadable never rendered as confirmed-empty.
      */
     @Test
     fun aSuccessfulButUnreadablePayloadIsNotConfirmedZeroHistory() {

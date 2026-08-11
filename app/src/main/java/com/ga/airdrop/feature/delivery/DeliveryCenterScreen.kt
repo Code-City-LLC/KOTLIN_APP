@@ -70,7 +70,8 @@ import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.DeliveryStagePalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
-import com.ga.airdrop.data.repo.ActiveDelivery
+import com.ga.airdrop.data.repo.JourneyFulfilment
+import com.ga.airdrop.data.repo.PackageJourney
 import com.ga.airdrop.data.repo.TrackedDelivery
 import com.ga.airdrop.data.repo.TrackedDeliveryStage
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
@@ -184,15 +185,14 @@ internal fun DeliveryCenterScreenContent(
                 )
                 DeliveryCenterContent.Empty -> EmptyDeliveryState(onRefresh = onRefresh)
                 DeliveryCenterContent.List -> ActiveDeliveriesList(
-                    deliveries = state.activeDeliveries,
+                    journeys = state.journeys,
                     refreshing = state.refreshing,
                     onRefresh = onRefresh,
                     onSelect = onSelectDelivery,
                 )
                 DeliveryCenterContent.Detail -> DeliveryDetail(
-                    summary = state.selectedSummary,
+                    journey = state.selectedJourney,
                     packageId = requireNotNull(state.selectedPackageId),
-                    delivery = requireNotNull(state.delivery),
                     timeline = state.timeline,
                     timelineUnavailable = state.timelineUnavailable,
                     refreshing = state.refreshing,
@@ -584,7 +584,7 @@ private fun DeliveryMessageCard(
 
 @Composable
 private fun ActiveDeliveriesList(
-    deliveries: List<ActiveDelivery>,
+    journeys: List<PackageJourney>,
     refreshing: Boolean,
     onRefresh: () -> Unit,
     onSelect: (Int) -> Unit,
@@ -607,7 +607,11 @@ private fun ActiveDeliveriesList(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Active deliveries",
+                        // Not "Active deliveries" any more: this list now also
+                        // carries packages waiting to be collected, and calling
+                        // them deliveries is the same wrong word that kept them
+                        // off the screen.
+                        text = "Your shipments",
                         style = AirdropType.title2,
                         color = AirdropTheme.colors.textDarkTitle,
                     )
@@ -624,15 +628,21 @@ private fun ActiveDeliveriesList(
                 // Kemar 2026-07-26: subtitle removed — the list explains itself.
             }
         }
-        items(deliveries, key = ActiveDelivery::packageId) { delivery ->
-            ActiveDeliveryRow(delivery = delivery, onClick = { onSelect(delivery.packageId) })
+        items(journeys, key = PackageJourney::packageId) { journey ->
+            JourneyRow(journey = journey, onClick = { onSelect(journey.packageId) })
         }
     }
 }
 
 @Composable
-private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
+private fun JourneyRow(journey: PackageJourney, onClick: () -> Unit) {
     val colors = AirdropTheme.colors
+    // The rail's own current row is the truthful thing to colour and draw
+    // from — it is what the server says is happening now. `current_stage` is
+    // the same key, so fall back to it when no row is marked current.
+    val currentKey = journey.stages.firstOrNull { it.state == "current" }?.key
+        ?: journey.currentStage
+        ?: journey.stages.lastOrNull { it.state == "done" }?.key
     Row(
         Modifier
             .fillMaxWidth()
@@ -641,7 +651,7 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
             .border(1.dp, colors.cardHairline, RoundedCornerShape(Radius.s))
             .clickable(onClick = onClick)
             .padding(Spacing.md)
-            .testTag(DeliveryCenterTags.row(delivery.packageId)),
+            .testTag(DeliveryCenterTags.row(journey.packageId)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
@@ -649,7 +659,7 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
         // not one flat orange for every delivery. Green = delivered,
         // orange = in flight, red = failed, grey = cancelled, with the circle
         // tinted from the same colour so the row reads at a glance.
-        val statusColor = deliveryStatusColor(delivery.status)
+        val statusColor = deliveryStatusColor(currentKey.orEmpty())
         Box(
             Modifier
                 .size(48.dp)
@@ -658,11 +668,7 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                // Per-status icon. This was hardcoded to the in-transit truck,
-                // so EVERY row in the list showed the same glyph no matter what
-                // stage the delivery was actually at — the stage icons only
-                // worked on the detail journey.
-                painter = painterResource(deliveryStageIcon(delivery.status)),
+                painter = painterResource(deliveryStageIcon(currentKey.orEmpty())),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(statusColor),
                 modifier = Modifier.size(25.dp),
@@ -670,13 +676,13 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
         }
         Column(Modifier.weight(1f)) {
             Text(
-                text = delivery.trackingCode ?: "Package #${delivery.packageId}",
+                text = journey.ardNumber ?: "Package #${journey.packageId}",
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            delivery.description?.let {
+            journey.description?.let {
                 Text(
                     text = it,
                     style = AirdropType.body2,
@@ -686,9 +692,19 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
                 )
             }
             Text(
-                text = customerSafeStatusLabel(delivery.status),
+                // ⚠️ THE SERVER'S OWN WORDS, not a client mapping.
+                //
+                // The old row ran a bare delivery status through
+                // customerSafeStatusLabel because `/deliveries/active` sent an
+                // operations word ("assigned") the customer must never read.
+                // `status_name` is already the customer-facing name — Laravel
+                // even substitutes "Unknown Status" itself — so re-deriving it
+                // here would only be a second, staler copy of the same table,
+                // and would mangle every pickup and warehouse status the
+                // mapping was never written for.
+                text = journey.statusName,
                 style = AirdropType.body2.copy(fontWeight = FontWeight.SemiBold),
-                color = deliveryStatusColor(delivery.status),
+                color = statusColor,
             )
         }
         Text(text = "›", style = AirdropType.title1, color = colors.textDescription)
@@ -703,9 +719,8 @@ private fun ActiveDeliveryRow(delivery: ActiveDelivery, onClick: () -> Unit) {
  */
 @Composable
 private fun DeliveryDetail(
-    summary: ActiveDelivery?,
+    journey: PackageJourney?,
     packageId: Int,
-    delivery: TrackedDelivery,
     timeline: List<com.ga.airdrop.data.model.PackageTimelineEntry>,
     timelineUnavailable: Boolean,
     refreshing: Boolean,
@@ -740,18 +755,26 @@ private fun DeliveryDetail(
                 CircularDeliveryHero()
                 Column(Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Your Delivery",
+                        // "Your Delivery" over a package waiting at the
+                        // warehouse counter is simply the wrong sentence, and
+                        // it is the same wrong word that kept pickups off this
+                        // screen entirely. The server tells us which flow this
+                        // is; nothing here guesses.
+                        text = when (journey?.fulfilment) {
+                            JourneyFulfilment.Pickup -> "Your Pickup"
+                            else -> "Your Delivery"
+                        },
                         style = AirdropType.title2,
                         color = colors.textDarkTitle,
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = summary?.trackingCode?.let { "Tracking #$it" }
+                        text = journey?.ardNumber?.let { "Tracking #$it" }
                             ?: "Package #$packageId",
                         style = AirdropType.body2,
                         color = colors.textDescription,
                     )
-                    summary?.description?.let {
+                    journey?.description?.let {
                         Text(
                             text = it,
                             style = AirdropType.body2,
@@ -794,6 +817,22 @@ private fun DeliveryDetail(
                         )
                     }
                     val rows = TrackJourney.rows(timeline)
+                    // A successful read that returned NOTHING is a fact, and it
+                    // needs its own sentence. Laravel ships an explicit empty
+                    // journey (entries:[] / total:0) for a package with no
+                    // recorded events yet; without this line the customer gets
+                    // a card with a silent blank where the rail should be and
+                    // no way to tell that apart from a rail that failed to
+                    // load — which is the whole distinction the banner above
+                    // exists to draw.
+                    if (rows.isEmpty() && !timelineUnavailable) {
+                        Text(
+                            text = "No updates recorded yet.",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            modifier = Modifier.testTag("track-timeline-empty"),
+                        )
+                    }
                     rows.forEachIndexed { index, row ->
                         DeliveryTimelineStep(
                             stage = TrackedDeliveryStage(

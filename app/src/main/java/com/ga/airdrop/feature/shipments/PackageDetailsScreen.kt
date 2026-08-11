@@ -40,6 +40,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -224,7 +225,22 @@ fun PackageDetailsScreen(
             modifier = Modifier.align(Alignment.TopCenter),
         )
 
-        if (showInvoiceSourcePicker) {
+        // ⚠️ A sheet that was already open when the status flipped must not stay
+        // open offering an upload the screen will now refuse.
+        //
+        // This was a bare `showInvoiceSourcePicker = false` evaluated DURING
+        // composition — my bug, caught in review. Writing to remembered state
+        // while composing is undefined behaviour: it can re-enter composition
+        // and is not guaranteed to run once per change. Keyed side effect
+        // instead, so it fires exactly when eligibility actually flips.
+        //
+        // This is the courtesy, not the gate — PackageDetailsViewModel
+        // .uploadInvoices refuses the POST on its own.
+        LaunchedEffect(state.canUploadInvoices) {
+            if (!state.canUploadInvoices) showInvoiceSourcePicker = false
+        }
+
+        if (showInvoiceSourcePicker && state.canUploadInvoices) {
             val existingCount = detail?.invoices?.size ?: 0
             AirdropUploadSourceSheet(
                 config = AirdropUploadSourceConfig(
@@ -419,23 +435,45 @@ private fun PackageDetailsContent(
             titleContentGap = 14.dp,
             contentSpacing = 12.dp,
         ) {
-            val rows = TrackJourney.rows(state.timeline)
+            // ⚠️ `TrackJourney.rows` is STRICT since 2ac03ed9: a malformed entry
+            // THROWS rather than being silently repaired, and that stays exactly
+            // as it is. But this call sat BEFORE the classification below, so a
+            // successful-but-unreadable payload took the renderer down with an
+            // IllegalArgumentException instead of reaching the honest "couldn't
+            // be loaded" card — the connected regression at 2ac03ed9
+            // (PackageDetailsParityTest.aSuccessfulButUnreadablePayloadIsNotConfirmedZeroHistory).
+            //
+            // So the rejection is caught HERE, at the caller, and classified as
+            // unreadable. Only the mapper's own IllegalArgumentException is
+            // absorbed — any other failure still propagates, because turning an
+            // unknown crash into a tidy error card is how real bugs get hidden.
+            val mapped = try {
+                TrackJourney.rows(state.timeline)
+            } catch (rejected: IllegalArgumentException) {
+                // The repository is supposed to reject these upstream; if one
+                // still arrives, it is a payload we cannot understand.
+                null
+            }
+            val rows = mapped.orEmpty()
+            val mappingRejected = mapped == null
             // ⚠️ THREE DISTINCT SITUATIONS, THREE DIFFERENT ANSWERS.
             //
             //   FAILED                        -> we could not read it. Say so.
             //   LOADED + raw payload empty    -> genuinely no recorded events.
-            //   LOADED + raw entries present
-            //     but all dropped as invalid  -> we read something we could not
+            //   LOADED + entries present but
+            //     REJECTED by the mapper      -> we read something we could not
             //                                    understand. NOT "no history".
             //
-            // The third is the subtle one, and it is why this gates on the RAW
-            // payload rather than on the mapped rows: TrackJourney drops any
-            // entry with a blank label, so a malformed-but-successful response
-            // maps to zero rows and would otherwise be presented as confirmed
-            // zero history. BrightHarbor #80372.
+            // The third is the subtle one. It used to be detected by "raw
+            // entries present but zero rows mapped", which was true when the
+            // mapper DROPPED blank-label rows. It no longer drops anything — it
+            // throws — so the signal is now `mappingRejected`. The raw-vs-mapped
+            // comparison is kept alongside it: it still catches a future mapper
+            // that returns fewer rows than it was given without raising.
+            // BrightHarbor #80372.
             val readFailed = state.timelineOutcome == TimelineOutcome.FAILED
             val payloadUnusable = state.timelineOutcome == TimelineOutcome.LOADED &&
-                state.timeline.isNotEmpty() && rows.isEmpty()
+                (mappingRejected || (state.timeline.isNotEmpty() && rows.isEmpty()))
             if (rows.isEmpty() && (readFailed || payloadUnusable)) {
                 // ⚠️ A FAILED READ IS NOT AN EMPTY JOURNEY.
                 //
@@ -535,6 +573,37 @@ private fun PackageDetailsContent(
         }
 
         // Upload Your Invoice
+        //
+        // ⚠️ THIS WAS RENDERED UNCONDITIONALLY, SO A DELIVERED PACKAGE STILL
+        // OFFERED A LIVE UPLOAD DROP ZONE. Kemar reported it: invoice upload
+        // must stop at Ready for Pickup — once the customer has the package,
+        // there is nothing left to invoice against, and accepting a file there
+        // writes an attachment onto a closed shipment.
+        //
+        // The API does NOT tell us this: PackageResource exposes no
+        // upload-allowed flag, so the gate lives on the status.
+        //
+        // Upload must stop AT Ready for Pickup, not one state after it — at 7
+        // and 18 the customer can already collect, so there is nothing left to
+        // invoice against. Gating on DELIVERED (8) alone left the live drop zone
+        // on every ready-to-collect package.
+        //
+        // ⚠️ UPLOAD AND DELETE SHARE THE RECOGNIZED LOCKED-STATUS PREDICATE AND
+        // NOTHING MORE. `statusLocksInvoiceDeletion` — both fields, locked set
+        // {7,8,14..20}, comma/decimal normalisation, catalog lookup, terminal-name
+        // fallback — is reused rather than re-derived, because a second copy of a
+        // status boundary drifts. Beyond that they intentionally DIVERGE:
+        //
+        //   • upload additionally requires a RECOGNIZED status and fails CLOSED —
+        //     unknown, missing or unparseable HIDES the zone;
+        //   • delete stays independent and fail-OPEN on absent/unknown.
+        //
+        // See PackageDetailsViewModel.canUploadInvoices for why upload fails
+        // closed. Do not "simplify" one into the other.
+        val invoiceUploadAllowed = state.canUploadInvoices
+        // Locked with nothing uploaded means there is nothing to say, so the
+        // whole section goes. Locked WITH invoices keeps them readable.
+        if (invoiceUploadAllowed || detail.invoices.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             val canDeleteInvoices = state.canDeleteInvoices
             Row(
@@ -543,24 +612,41 @@ private fun PackageDetailsContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Upload Your Invoice",
+                    // Once locked this section is a record, not an action, and
+                    // the heading has to stop asking for something the screen
+                    // will not accept.
+                    text = if (invoiceUploadAllowed) "Upload Your Invoice" else "Invoices",
                     style = AirdropType.title2,
                     color = colors.textDarkTitle,
+                    modifier = Modifier.testTag("package-details-invoice-section-title"),
                 )
                 Text(
-                    text = "(${detail.invoices.size}/3)",
+                    // "/3" is the remaining-upload allowance. With upload locked
+                    // there is no allowance left to describe, so it would be a
+                    // quota against an action that cannot happen.
+                    text = if (invoiceUploadAllowed) {
+                        "(${detail.invoices.size}/3)"
+                    } else {
+                        "(${detail.invoices.size})"
+                    },
                     style = AirdropType.body2,
                     color = colors.textDescription,
                 )
             }
-            UploadInvoiceZone(uploading = state.uploading, onClick = onPickFiles)
-            Text(
-                text = "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
-                    "Only the following formats are allowed: pdf, jpg, jpeg, png, gif, bmp, webp.",
-                // Swift origin/main corrects the stale Figma/RN doc/docx/html copy.
-                style = AirdropType.body3,
-                color = colors.textDescription,
-            )
+            if (invoiceUploadAllowed) {
+                UploadInvoiceZone(uploading = state.uploading, onClick = onPickFiles)
+                Text(
+                    text = "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
+                        "Only the following formats are allowed: pdf, jpg, jpeg, png, gif, bmp, webp.",
+                    // Swift origin/main corrects the stale Figma/RN doc/docx/html copy.
+                    style = AirdropType.body3,
+                    color = colors.textDescription,
+                )
+            }
+            // Existing invoices stay listed and viewable at every status,
+            // including unknown ones — locking upload must not take away the
+            // record of what was already filed. Delete applies its own
+            // independent policy per row and is untouched by this gate.
             detail.invoices.forEach { doc ->
                 InvoiceFileRow(
                     doc = doc,
@@ -570,6 +656,7 @@ private fun PackageDetailsContent(
                     onDelete = { onDeleteInvoice(doc.id) },
                 )
             }
+        }
         }
 
         // CIF Value info row — Figma 40001753:21889 (verified via Figma MCP:

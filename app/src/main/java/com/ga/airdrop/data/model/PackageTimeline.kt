@@ -23,13 +23,34 @@ data class PackageTimelinePayload(
     @SerialName("tracking_code")
     @Serializable(with = FlexibleStringSerializer::class)
     val trackingCode: String? = null,
-    val entries: List<PackageTimelineEntry> = emptyList(),
+    /**
+     * ⚠️ NULLABLE, AND THE NULL IS LOAD-BEARING. This used to default to
+     * `emptyList()`, which made a MISSING key indistinguishable from a present
+     * `[]` — so a schema regression read as "this package has no history" and a
+     * customer with a full journey was told there was none.
+     *
+     * `null` = the key was absent (schema failure). `[]` = Laravel's explicit
+     * empty history, which is a fact and must render. iOS uses `decode` rather
+     * than `decodeIfPresent` for exactly this distinction.
+     */
+    val entries: List<PackageTimelineEntry>? = null,
     /** Key of the row the package is on right now; null when nothing has happened. */
     @SerialName("current_key")
     @Serializable(with = FlexibleStringSerializer::class)
     val currentKey: String? = null,
     @SerialName("has_delivery")
     val hasDelivery: Boolean? = null,
+    /**
+     * REQUIRED by the contract and cross-checked against `entries.size`.
+     *
+     * ⚠️ THIS FIELD WAS NOT DECODED AT ALL, and I told the Swift lane owner in
+     * ORC #95154 row 7 that Kotlin enforced `total == entries.count`. It did
+     * not. A truncated page therefore rendered as a shorter journey than the
+     * one that happened, with nothing to notice it. Caught by
+     * @Codex-CodexKotlinAudit #95189.
+     */
+    @Serializable(with = FlexibleIntSerializer::class)
+    val total: Int? = null,
 )
 
 @Serializable
