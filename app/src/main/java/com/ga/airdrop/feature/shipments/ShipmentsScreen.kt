@@ -38,6 +38,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,7 +78,11 @@ fun ShipmentsScreen(
     val state by viewModel.state.collectAsState()
     val quickTrack by viewModel.quickTrack.collectAsState()
     val headerInfo by SessionStore.header.collectAsState()
-    var scannerVisible by remember { mutableStateOf(false) }
+    // rememberSaveable, not remember: an Activity recreation while the camera
+    // scanner is open used to tear it down mid-scan and drop the customer back
+    // to the tracking sheet. A boolean is safe to persist and the scanner
+    // reopens on the restored value.
+    var scannerVisible by rememberSaveable { mutableStateOf(false) }
     // Shared cart membership — Swift FigmaCartStore; drives the +/check icons.
     val cartLines by com.ga.airdrop.feature.cart.CartStore.items.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current

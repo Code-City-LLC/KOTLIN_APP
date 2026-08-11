@@ -45,6 +45,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,7 +106,11 @@ fun PackageDetailsScreen(
         detail?.shippingMethod,
         missingValue = "Shipping Method",
     )
-    var showInvoiceSourcePicker by remember { mutableStateOf(false) }
+    // rememberSaveable, not remember: the upload-source sheet hosts the
+    // camera/document ActivityResult launchers, so an Activity recreation while
+    // the external picker was in front closed the sheet, unregistered the
+    // launchers, and the file the customer chose was silently dropped.
+    var showInvoiceSourcePicker by rememberSaveable { mutableStateOf(false) }
 
     val damagePhotoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
