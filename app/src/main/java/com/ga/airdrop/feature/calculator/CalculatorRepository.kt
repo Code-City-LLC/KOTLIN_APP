@@ -196,7 +196,7 @@ class RemoteCalculatorRepository(
                 val element = runCatching { json.parseToJsonElement(text) }.getOrNull()
                 val array = when (element) {
                     is kotlinx.serialization.json.JsonArray -> element
-                    is JsonObject -> element.arrayAt("data", "items", "custom_duty_rates")
+                    is JsonObject -> element.paginatedArray()
                     else -> null
                 } ?: return@use emptyList()
                 array.mapNotNull { item ->
@@ -245,4 +245,36 @@ class RemoteCalculatorRepository(
             }
         }.getOrNull()?.takeIf { it > 0 } ?: ExchangeRateStore.current
     }
+}
+
+/**
+ * ⚠️ `arrayAt` DOES NOT WALK A PATH — it checks each key for a TOP-LEVEL array
+ * and returns the first hit. I used `arrayAt("data", "items", ...)` in
+ * `215903c3` as if it descended, so against Laravel's real
+ * `{"data":{"items":[...]}}` every key missed, the parse fell through to null,
+ * and a VALID duty-rate search rendered empty. Caught by QC before release
+ * (ORC #99841/#99843).
+ *
+ * This mirrors `PaginatedSerializer.deserialize` (Envelopes.kt:67-103), which
+ * is what every Retrofit-backed call in the app already uses. Raw OkHttp here
+ * has to reproduce that order deliberately, in this exact sequence:
+ *
+ *   1. `data` holding an array          -> {"data":[...]}
+ *   2. `data` holding an object         -> {"data":{"items":[...]}}   <- Laravel
+ *   3. a list key at the top level      -> {"items":[...]}
+ *
+ * Keep it in step with LIST_KEYS if that list grows.
+ */
+private fun JsonObject.paginatedArray(): kotlinx.serialization.json.JsonArray? {
+    val listKeys = listOf("items", "data", "custom_duty_rates", "results")
+    (this["data"] as? kotlinx.serialization.json.JsonArray)?.let { return it }
+    (this["data"] as? JsonObject)?.let { data ->
+        for (key in listKeys) {
+            (data[key] as? kotlinx.serialization.json.JsonArray)?.let { return it }
+        }
+    }
+    for (key in listKeys) {
+        (this[key] as? kotlinx.serialization.json.JsonArray)?.let { return it }
+    }
+    return null
 }
