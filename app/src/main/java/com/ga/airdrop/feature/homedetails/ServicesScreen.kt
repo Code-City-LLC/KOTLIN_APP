@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.feature.homedetails.components.CopiedToastPill
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 import kotlinx.coroutines.delay
+import kotlin.math.truncate
 
 /** Swift FigmaServicesViewController.onCopy (:174-178) — the fixed 3-line
  *  service-info block copied by the header copy button, verbatim. */
@@ -408,24 +410,58 @@ private fun LogoMarqueeRow(
     val displayLogos = remember(logos) { logos + logos + logos }
     val state = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
 
+    // ⚠️ KEMAR REPORTED THIS DEAD: "the bottom line of the words in services
+    // that moves across does not work, does not move." The BOTTOM row, not the
+    // top — and the asymmetry is the clue.
+    //
+    // The old loop was `delay(16)` + `scrollBy(speed * 16 / 1000)`, which is
+    // wrong in three separate ways, and all three are fixed here because
+    // without a device I could not prove which one dominates:
+    //
+    //  1. SUB-PIXEL PER FRAME. At xxhdpi the top row asked for 0.523 px/frame
+    //     and the bottom for 0.451 px. Anything that drops a sub-pixel request
+    //     stalls the slower row first, which is exactly the reported symptom.
+    //     The remainder is now carried in `carry` and only whole pixels are
+    //     dispatched, so no fraction is ever lost regardless of what the list
+    //     does with a <1px scroll.
+    //  2. `delay(16)` IS NOT FRAME-SYNCED. It drifts under load and compounds
+    //     across `while (true)`. `withFrameNanos` gives the real frame clock,
+    //     and the delta is now integrated against actual elapsed time, so the
+    //     logos travel at the specified dp/second on any refresh rate.
+    //  3. STALE INDEX. `firstVisibleItemIndex` was read INSIDE `state.scroll`,
+    //     where it still holds the previous measure pass's value, so the wrap
+    //     could fire against an index that no longer applied. It is now read
+    //     outside the scroll block, after the frame has been laid out.
     LaunchedEffect(logos, movesForward, speedDpPerSecond, density) {
+        if (logos.isEmpty()) return@LaunchedEffect
         val direction = if (movesForward) 1f else -1f
         val speedPxPerSecond = with(density) { speedDpPerSecond.dp.toPx() } * direction
         val singleSetWidthPx = with(density) {
             logos.sumOf { logo -> logo.width + 56 }.dp.toPx()
         }
+        var lastFrameNanos = 0L
+        var carry = 0f
         while (true) {
-            delay(MARQUEE_FRAME_MILLIS)
-            state.scroll {
-                scrollBy(speedPxPerSecond * MARQUEE_FRAME_MILLIS / 1_000f)
-                when {
-                    movesForward && state.firstVisibleItemIndex >= logos.size * 2 -> {
-                        scrollBy(-singleSetWidthPx)
-                    }
-                    !movesForward && state.firstVisibleItemIndex <= 0 -> {
-                        scrollBy(singleSetWidthPx)
-                    }
+            withFrameNanos { now ->
+                if (lastFrameNanos != 0L) {
+                    carry += speedPxPerSecond * ((now - lastFrameNanos) / 1_000_000_000f)
                 }
+                lastFrameNanos = now
+            }
+            // Dispatch only whole pixels and keep the remainder for the next
+            // frame. truncate() rounds toward zero, so this is symmetric for
+            // the forward and reverse rows.
+            val step = truncate(carry)
+            if (step != 0f) {
+                carry -= step
+                state.scroll { scrollBy(step) }
+            }
+            // Read the index AFTER the scroll settles, not inside it.
+            when {
+                movesForward && state.firstVisibleItemIndex >= logos.size * 2 ->
+                    state.scroll { scrollBy(-singleSetWidthPx) }
+                !movesForward && state.firstVisibleItemIndex <= 0 ->
+                    state.scroll { scrollBy(singleSetWidthPx) }
             }
         }
     }
