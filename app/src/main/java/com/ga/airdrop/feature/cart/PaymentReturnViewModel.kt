@@ -11,7 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +60,32 @@ sealed interface PaymentReturnResult {
     data class NotPaid(val statusText: String, val terminal: Boolean = false) : PaymentReturnResult
     data class Unconfirmed(val detail: String) : PaymentReturnResult
 }
+
+/**
+ * Saves only an authoritative terminal non-payment after Activity/process
+ * recreation. Transient outcomes must reverify because they can become paid.
+ * Card details never enter this state or the saved-state Bundle.
+ */
+private val PaymentAlertOutcomeSaver = listSaver<PaymentReturnResult?, Any>(
+    save = { result ->
+        when (result) {
+            is PaymentReturnResult.NotPaid -> if (result.terminal) listOf(
+                "not_paid",
+                result.statusText,
+            ) else emptyList()
+            else -> emptyList()
+        }
+    },
+    restore = { saved ->
+        when (saved.firstOrNull() as? String) {
+            "not_paid" -> PaymentReturnResult.NotPaid(
+                statusText = saved.getOrNull(1) as? String ?: "unknown",
+                terminal = true,
+            )
+            else -> null
+        }
+    },
+)
 
 class PaymentReturnViewModel(
     private val payments: PaymentsRepository = PaymentsRepository(ApiClient.service),
@@ -243,9 +270,13 @@ internal fun PaymentReturnContent(
     onNotPaid: (statusText: String) -> Unit,
     onUnconfirmed: (detail: String) -> Unit,
 ) {
-    var pendingAlert by remember { mutableStateOf<PaymentReturnResult?>(null) }
+    var pendingAlert by rememberSaveable(
+        sessionId,
+        stateSaver = PaymentAlertOutcomeSaver,
+    ) { mutableStateOf<PaymentReturnResult?>(null) }
 
     LaunchedEffect(sessionId) {
+        if (pendingAlert != null) return@LaunchedEffect
         when (val result = verify(sessionId)) {
             is PaymentReturnResult.Success ->
                 onPaid(result.orderReference, result.formattedAmount, result.packageIds)
@@ -309,9 +340,13 @@ fun PaymentCancelledHost(
     verify: (suspend () -> PaymentReturnResult)? = null,
     viewModel: PaymentReturnViewModel = viewModel(),
 ) {
-    var result by remember { mutableStateOf<PaymentReturnResult?>(null) }
+    var result by rememberSaveable(
+        stateSaver = PaymentAlertOutcomeSaver,
+    ) { mutableStateOf<PaymentReturnResult?>(null) }
     LaunchedEffect(Unit) {
-        result = verify?.invoke() ?: viewModel.verifyPendingCancellation()
+        if (result == null) {
+            result = verify?.invoke() ?: viewModel.verifyPendingCancellation()
+        }
     }
     when (val outcome = result) {
         is PaymentReturnResult.Success -> LaunchedEffect(outcome) {
