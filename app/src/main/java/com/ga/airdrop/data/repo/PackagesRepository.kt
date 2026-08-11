@@ -48,8 +48,32 @@ class PackagesRepository(private val service: AirdropApiService) {
     suspend fun packagesShortlist(): Result<List<Package>> =
         packages(page = 1, perPage = 6).map { it.items }
 
+    /**
+     * ⚠️ THE RESPONSE MUST BE THE PACKAGE WE ASKED FOR.
+     *
+     * This validated `data != null` and nothing else, so a successful but
+     * MISMATCHED payload rendered as the requested package. The notification
+     * deep link reaches this path with an id taken straight off the push
+     * (`PushDeepLink` -> `PackageDetailsView`), so a stale or wrong reference
+     * showed the customer another package's contents — description, invoices,
+     * courier number — with no error anywhere.
+     *
+     * Swift carried the identical hole in `packageDetailsByID` and it was
+     * caught there first (ORC #99022). Kotlin already fails closed on an id
+     * mismatch in `packageTimeline` and in `addToCart` below (:150); package
+     * details was the one read that did not.
+     *
+     * `PackageDetail.id` defaults to 0, so a payload that omits `id` entirely
+     * fails here too. That is deliberate: a response we cannot verify is not
+     * the package we asked for. The message stays "Package not found" — from
+     * the customer's side that is exactly what happened, and it does not
+     * disclose that some other package came back.
+     */
     suspend fun packageDetails(packageId: String): Result<PackageDetail> = apiResult {
-        service.packageDetails(packageId).data ?: error("Package not found")
+        val detail = service.packageDetails(packageId).data ?: error("Package not found")
+        val requested = packageId.trim().toIntOrNull()
+        if (requested != null && detail.id != requested) error("Package not found")
+        detail
     }
 
     suspend fun invoices(packageId: String): Result<List<PackageInvoiceDocument>> =
