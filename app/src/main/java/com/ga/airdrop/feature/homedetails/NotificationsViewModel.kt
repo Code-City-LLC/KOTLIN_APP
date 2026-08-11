@@ -286,7 +286,11 @@ private fun resolveNotificationRoute(
                 "url",
             ).orEmpty()
             val title = notification?.title?.takeIf { it.isNotBlank() } ?: "Invoice"
-            Routes.invoiceViewer(url, title)
+            when {
+                url.isNotBlank() -> Routes.invoiceViewer(url, title)
+                ref.isNotEmpty() -> Routes.packageDetails(ref)
+                else -> Routes.PACKAGES
+            }
         }
         "PaymentsView" -> Routes.PAYMENTS
         "OrdersView" -> Routes.ORDERS

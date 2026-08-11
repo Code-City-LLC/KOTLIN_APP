@@ -278,6 +278,10 @@ class PackageDetailsViewModel(
     )
     val state: StateFlow<PackageDetailsUiState> = _state
     private val cartMutations = PackageCartMutationCoordinator(cartServer, sessionBoundary)
+    // Route references are intentionally unresolved at construction time.
+    // A courier value may be all digits, so even a numeric-looking reference
+    // must pass through the exact tracking/courier search before ID fallback.
+    private var resolvedPackageId: String? = null
 
     init {
         viewModelScope.launch {
@@ -327,9 +331,13 @@ class PackageDetailsViewModel(
             showTransient(title = "Upload Invoice", message = "Each file must be below 10 MB.")
             return
         }
+        val apiPackageId = resolvedPackageId ?: run {
+            showTransient(title = "Upload Invoice", message = "Package details are not ready. Try again.")
+            return
+        }
         _state.update { it.copy(uploading = true) }
         viewModelScope.launch {
-            repo.uploadInvoices(packageId, files.take(allowed))
+            repo.uploadInvoices(apiPackageId, files.take(allowed))
                 .onSuccess {
                     _state.update { it.copy(uploading = false) }
                     loadDetails(showLoading = false)
@@ -371,9 +379,19 @@ class PackageDetailsViewModel(
         val invoiceId = _state.value.confirmDeleteInvoiceId ?: return
         val state = _state.value
         if (state.uploading || state.deletingInvoiceId != null) return
+        val apiPackageId = resolvedPackageId ?: run {
+            _state.update {
+                it.copy(
+                    confirmDeleteInvoiceId = null,
+                    transientTitle = "Delete invoice",
+                    transientMessage = "Package details are not ready. Try again.",
+                )
+            }
+            return
+        }
         _state.update { it.copy(confirmDeleteInvoiceId = null, deletingInvoiceId = invoiceId) }
         viewModelScope.launch {
-            repo.deleteInvoice(packageId, invoiceId)
+            repo.deleteInvoice(apiPackageId, invoiceId)
                 .onSuccess {
                     _state.update { it.copy(deletingInvoiceId = null) }
                     loadDetails(showLoading = false)
@@ -444,10 +462,14 @@ class PackageDetailsViewModel(
     fun submitDamageReport() {
         val state = _state.value
         if (state.submittingDamageReport) return
+        val apiPackageId = resolvedPackageId ?: run {
+            _state.update { it.copy(damageReportError = "Package details are not ready. Try again.") }
+            return
+        }
         viewModelScope.launch {
             val description = state.damageReportDescription.trim()
             _state.update { it.copy(submittingDamageReport = true, damageReportError = null) }
-            repo.reportDamage(packageId, description, state.damageReportPhotos)
+            repo.reportDamage(apiPackageId, description, state.damageReportPhotos)
                 .onSuccess {
                     _state.update {
                         it.copy(
@@ -500,12 +522,28 @@ class PackageDetailsViewModel(
         if (showLoading) {
             _state.update { it.copy(loading = true, error = null) }
         }
-        repo.packageDetails(packageId)
+        val apiPackageId = resolveApiPackageId().getOrElse { error ->
+            _state.update {
+                it.copy(
+                    loading = false,
+                    error = error.message ?: "Unable to resolve this package reference.",
+                )
+            }
+            return
+        }
+        repo.packageDetails(apiPackageId)
+            .mapCatching { detail ->
+                check(detail.id.toString() == apiPackageId) {
+                    "Package details did not match the requested package."
+                }
+                detail
+            }
             .onSuccess { detail ->
+                resolvedPackageId = detail.id.toString()
                 // A timeline failure must not blank the whole screen; the rest
                 // of the package detail is still real. But it must also not be
                 // reported as an empty journey — those are different facts.
-                val fetched = packageId.toIntOrNull()?.let { tracking.packageTimeline(it) }
+                val fetched = tracking.packageTimeline(detail.id)
                 val ok = fetched?.isSuccess == true
                 _state.update {
                     it.copy(
@@ -531,6 +569,18 @@ class PackageDetailsViewModel(
                     }
                 }
             }
+    }
+
+    private suspend fun resolveApiPackageId(): Result<String> {
+        resolvedPackageId?.let { return Result.success(it) }
+        return resolvePackageReference(
+            reference = packageId,
+            packagesRepo = repo,
+            shortlist = hubRepo::packagesShortlist,
+            numericIdIsCanonical = true,
+        ).map { resolved ->
+            resolved.packageId.toString().also { resolvedPackageId = it }
+        }
     }
 
     private fun showTransient(title: String, message: String) {

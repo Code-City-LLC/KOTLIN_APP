@@ -68,6 +68,39 @@ class NotificationsRouteResolverTest {
     }
 
     @Test
+    fun `upload invoice without a document URL falls back to package details`() {
+        val route = resolveNotificationRoute(
+            AirdropNotification(
+                id = "invoice-required",
+                title = "Upload invoice",
+                route = "InvoiceViewerScreen",
+                referenceId = "ADX-240524",
+                payload = emptyMap(),
+            ),
+        )
+
+        assertEquals(Routes.packageDetails("ADX-240524"), route)
+    }
+
+    @Test
+    fun `upload invoice with a real document URL preserves the invoice viewer`() {
+        val route = resolveNotificationRoute(
+            AirdropNotification(
+                id = "invoice-ready",
+                title = "Invoice 42",
+                route = "InvoiceViewerScreen",
+                referenceId = "ADX-240524",
+                payload = mapOf("invoice_url" to "https://example.test/invoices/42.pdf"),
+            ),
+        )
+
+        assertEquals(
+            Routes.invoiceViewer("https://example.test/invoices/42.pdf", "Invoice 42"),
+            route,
+        )
+    }
+
+    @Test
     fun `blank or unknown notifications still do not invent a destination`() {
         assertNull(resolveNotificationRoute(AirdropNotification(id = "unknown", type = "unknown")))
         assertNull(resolveNotificationRoute(route = "", referenceId = "ADX-240524"))
