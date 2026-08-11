@@ -31,6 +31,13 @@ import org.junit.Test
  * as owner in #95219. iOS had already solved it in `FigmaCartViewController`
  * 5481-5530; `462ebdf8` turned this rail ON in Kotlin without it, which was
  * shipping half a parity.
+ *
+ * ⚠️ CORRECTED after @Codex-CodexKotlinAudit #95230. My first repair modelled
+ * completion through the `sawCallback` fallback, which CANNOT arm on the real
+ * path: `shouldOverrideUrlLoading` is not called for POST requests and
+ * Laravel's callback route is POST-only. The canonical sequence — no
+ * `shouldOverride` at all, completing from `onPageFinished(callback)` — is
+ * pinned below and is the one that ships.
  */
 class NcbCallbackNavigationOrderTest {
 
@@ -77,26 +84,65 @@ class NcbCallbackNavigationOrderTest {
         assertTrue(g.shouldCompleteOnPageFinished(callback))
     }
 
+    // ── THE CANONICAL SEQUENCE — this is what actually ships ────────────────
+
     @Test
-    fun `completion ALSO fires when the callback redirects us away`() {
-        // ⚠️ NOT belt-and-braces — without this arm the flow never completes.
+    fun `CANONICAL — a POST callback completes with NO shouldOverride call at all`() {
+        // ⚠️ THE SEQUENCE THAT REALLY HAPPENS, AND THE ONE I ORIGINALLY FAILED
+        // TO MODEL.
         //
-        // PowerTranz expects RedirectData in an iframe, so Laravel's
-        // ncb-callback.blade.php ends with
-        //     window.parent.location = '/user/checkout'
-        // We load RedirectData top-level, so window.parent IS window and the
-        // callback page redirects the whole WebView. onPageFinished therefore
-        // reports /user/checkout and NEVER the callback URL.
+        // Android documents that `shouldOverrideUrlLoading` is NOT called for
+        // POST requests, and Laravel's callback route is POST-only
+        // (routes/modules/customer.php:322). So on the shipping path that hook
+        // NEVER RUNS and `sawCallback` never arms.
         //
-        // iOS hit exactly this (@MagentaReef #89168): card authorised, app
-        // sitting there doing nothing.
+        // My first version of this file only proved completion via the
+        // `sawCallback` arm, by hand-calling shouldOverrideUrlLoading for a
+        // navigation Android will never deliver — a false green over a path
+        // that cannot occur. @Codex-CodexKotlinAudit #95230 caught it.
+        //
+        // Laravel deliberately PRESERVES the callback URL for exactly this
+        // (verified in deployed origin/pre_staging 5705a8cd,
+        // ncb-callback.blade.php redirectEmbeddedParent: `if (window.parent ===
+        // window) return false`, commented "Swift and Android ... detect this
+        // exact callback URL after the POST finishes").
+        val g = gate()
+        // No shouldOverrideUrlLoading call. None. That is the point.
+        assertFalse("nothing may arm the fallback on this path", g.sawCallback)
+        assertTrue(
+            "the canonical POST callback must complete from onPageFinished alone",
+            g.shouldCompleteOnPageFinished(callback),
+        )
+    }
+
+    @Test
+    fun `CANONICAL — completion does not depend on the fallback ever arming`() {
+        // Guards the arm-independence directly: if someone later makes
+        // completion require sawCallback, the shipping path silently stops
+        // completing and the customer's card is authorised with nothing shown.
+        val g = gate()
+        assertTrue(g.shouldCompleteOnPageFinished(callback))
+        assertFalse("still unarmed — completion came from the URL, not the latch", g.sawCallback)
+    }
+
+    // ── The NONCANONICAL fallback, labelled as such ─────────────────────────
+
+    @Test
+    fun `NONCANONICAL fallback — an armed latch completes on a later page`() {
+        // ⚠️ NOT A DEPLOYED PATH. Kept only for the iframe/browser integration,
+        // where PowerTranz posts the callback inside an iframe and Laravel
+        // redirects the PARENT to /user/checkout. This screen loads
+        // RedirectData top-level, where the server explicitly does NOT redirect
+        // (5705a8cd). Arming also requires shouldOverrideUrlLoading to have
+        // run, which a POST navigation does not trigger.
+        //
+        // So this documents behaviour, it does not prove a shipping path. It is
+        // inert on the canonical flow: it can only add a completion the
+        // isCallback arm would already have made.
         val g = gate()
         g.shouldOverrideUrlLoading(callback)
-        assertTrue(
-            "the callback page navigates itself away; completing only on the " +
-                "callback URL would never fire at all",
-            g.shouldCompleteOnPageFinished(landing),
-        )
+        assertTrue(g.sawCallback)
+        assertTrue(g.shouldCompleteOnPageFinished(landing))
     }
 
     // ── Not completing when we should not ───────────────────────────────────

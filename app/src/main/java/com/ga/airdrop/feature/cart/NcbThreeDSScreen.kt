@@ -344,13 +344,35 @@ internal fun isNcbCallback(
  *  2. COMPLETE after a load lands, either on the callback URL itself or on the
  *     page it redirected us to.
  *
- * Step 2's second arm is not belt-and-braces. Laravel's `ncb-callback.blade.php`
- * ends with `window.parent.location = '/user/checkout'` because PowerTranz
- * expects RedirectData in an iframe. We load it top-level, so `window.parent`
- * IS `window` and the callback page redirects the whole WebView away.
- * `onPageFinished` therefore reports `/user/checkout`, never the callback URL.
- * Completing only on the callback URL would never fire at all: card authorised,
- * app sitting there. iOS hit exactly this (@MagentaReef #89168).
+ * ⚠️ STEP 1 DOES NOT RUN ON THE CANONICAL PATH. Android documents that
+ * `shouldOverrideUrlLoading` is NOT called for POST requests, and Laravel's
+ * callback route is POST-only (`routes/modules/customer.php:322`). So
+ * `sawCallback` normally never arms, and the flow completes purely through
+ * step 2's `isCallback(url)` arm. Step 1 remains because it is the only place
+ * we would see the URL if a non-POST variant ever appears, and because
+ * returning false there is what keeps the navigation alive.
+ *
+ * ⚠️ THE `sawCallback` ARM IS A NONCANONICAL FALLBACK, AND MY ORIGINAL
+ * JUSTIFICATION FOR IT WAS STALE. I wrote that the callback page redirects a
+ * top-level WebView to /user/checkout unconditionally, carrying iOS's historical
+ * finding (@MagentaReef #89168) forward as current fact. Verified against
+ * deployed `origin/pre_staging` (`5705a8cd`,
+ * `resources/views/checkout/ncb-callback.blade.php`, `redirectEmbeddedParent`):
+ *
+ *     if (window.parent === window) { return false; }
+ *     window.parent.location = '/user/checkout';
+ *
+ * with Laravel's own comment: "Swift and Android load the same RedirectData as
+ * a top-level WebView document and detect this exact callback URL after the
+ * POST finishes. Redirecting a top-level WebView here races that native
+ * completion signal."
+ *
+ * So the server deliberately does NOT redirect us — it PRESERVES the callback
+ * URL precisely so `onPageFinished(callback)` can fire. The redirect only
+ * happens in the iframe/browser integration, which this screen is not. The arm
+ * is therefore kept only for that embedded variant, is inert on the shipping
+ * path, and must not be described as canonical. Corrected after
+ * @Codex-CodexKotlinAudit #95230.
  *
  * Trusting the page for nothing is what makes this safe — completion asks our
  * own authenticated server for the outcome with the server-issued spi_token and
