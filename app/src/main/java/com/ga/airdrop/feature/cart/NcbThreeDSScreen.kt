@@ -1,7 +1,6 @@
 package com.ga.airdrop.feature.cart
 
 import java.net.URI
-import android.graphics.Bitmap
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -70,6 +69,15 @@ fun NcbThreeDSScreen(
     fun finalize() {
         host.completeNcbPayment()
     }
+
+    /**
+     * Owns WHEN the 3DS flow may complete. Deliberately NOT Compose state and
+     * NOT inline in the WebViewClient: the ordering defect in #95203 survived
+     * precisely because it lived in an anonymous object inside a composable,
+     * where no unit test could reach it. The two existing tests pin URL/origin
+     * recognition and the checkout_id wire shape; neither could see ordering.
+     */
+    val navGate = remember { NcbCallbackNavigationGate(::isNcbCallback) }
 
     // The host flips navToSuccess once ncb-complete-payment returns the invoice.
     LaunchedEffect(ui.navToSuccess) {
@@ -141,21 +149,65 @@ fun NcbThreeDSScreen(
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             webViewClient = object : WebViewClient() {
+                                /**
+                                 * ⚠️ RECORD THE CALLBACK — DO NOT COMPLETE, AND DO NOT
+                                 * CANCEL THE NAVIGATION.
+                                 *
+                                 * This used to `finalize(); return true`. Returning true
+                                 * tells the WebView "I handled it, don't load it" — so the
+                                 * callback URL was NEVER FETCHED and Laravel's POST may
+                                 * never have been processed, while the client went on to
+                                 * report success. `onPageStarted` completed too, before the
+                                 * page had even loaded, racing Laravel's own settlement.
+                                 * Neither existing test caught it: they pin URL/origin
+                                 * recognition and the checkout_id wire shape, not ordering.
+                                 *
+                                 * iOS resolved this in `decidePolicyFor` (FigmaCartViewController
+                                 * 5481-5530): record here, `.allow` the navigation, complete
+                                 * only after the load lands. This is the Android equivalent —
+                                 * `false` means "WebView, you load it".
+                                 *
+                                 * Confirmed by @Codex-CodexKotlinAudit P0 #95203 and accepted
+                                 * as owner in #95219. `462ebdf8` turned this rail ON without
+                                 * this fix; that was shipping half a parity.
+                                 */
                                 override fun shouldOverrideUrlLoading(
                                     view: WebView?,
                                     request: WebResourceRequest?,
-                                ): Boolean {
-                                    val url = request?.url?.toString().orEmpty()
-                                    if (isNcbCallback(url)) {
-                                        finalize()
-                                        return true
-                                    }
-                                    return false
-                                }
+                                ): Boolean =
+                                    navGate.shouldOverrideUrlLoading(
+                                        request?.url?.toString().orEmpty(),
+                                    )
 
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                    super.onPageStarted(view, url, favicon)
-                                    if (isNcbCallback(url.orEmpty())) finalize()
+                                /**
+                                 * ⚠️ THE CALLBACK PAGE NAVIGATES ITSELF AWAY, SO WAITING FOR
+                                 * ITS URL HERE WOULD WAIT FOREVER.
+                                 *
+                                 * PowerTranz's SPI-3DS flow expects RedirectData in an
+                                 * IFRAME, so Laravel's `ncb-callback.blade.php` ends with
+                                 * `window.parent.location = '/user/checkout'`. We load
+                                 * RedirectData as a TOP-LEVEL document, so `window.parent`
+                                 * IS `window` — the callback page redirects the whole WebView
+                                 * to /user/checkout. This callback therefore reports
+                                 * /user/checkout, never the callback URL.
+                                 *
+                                 * So completing ONLY on `isNcbCallback(url)` would never
+                                 * fire: the card is authorised and the app just sits there.
+                                 * That is why the `sawNcbCallback` arm exists — iOS learned
+                                 * the same thing the hard way (@MagentaReef #89168) and
+                                 * completes on the redirect landing too.
+                                 *
+                                 * Safe because completion trusts this page for NOTHING: it
+                                 * asks our own authenticated server for the outcome with the
+                                 * server-issued spi_token plus checkout_id, and
+                                 * completeNcbPayment is latched once-only. The page is a
+                                 * trigger, never a source of truth.
+                                 */
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    if (navGate.shouldCompleteOnPageFinished(url.orEmpty())) {
+                                        finalize()
+                                    }
                                 }
                             }
                             loadDataWithBaseURL(
@@ -264,4 +316,64 @@ internal fun isNcbCallback(
     if (!"https".equals(uri.scheme, ignoreCase = true)) return false
     if (!allowedHost.equals(uri.host, ignoreCase = true)) return false
     return uri.path?.lowercase()?.trimEnd('/').orEmpty() == NCB_CALLBACK_PATH
+}
+
+/**
+ * WHEN the NCB 3DS flow may complete — extracted so it can be unit-tested.
+ *
+ * ⚠️ THIS EXISTS BECAUSE THE ORDERING BUG WAS UNREACHABLE BY TESTS.
+ *
+ * The defect (@Codex-CodexKotlinAudit P0 #95203, accepted in #95219) lived in
+ * an anonymous `WebViewClient` inside a composable:
+ *
+ *     if (isNcbCallback(url)) { finalize(); return true }   // and onPageStarted too
+ *
+ * `return true` tells the WebView "I handled it, don't load it", so the
+ * callback URL was never fetched and Laravel's POST may never have been
+ * processed — while the client reported success. `onPageStarted` completed
+ * before the page had even loaded, racing Laravel's settlement.
+ *
+ * `NcbCallbackRecognizerTest` and `NcbCheckoutIdContractTest` both passed
+ * throughout: one pins URL/origin recognition, the other the `checkout_id`
+ * wire shape. Neither could see ordering, because there was nothing to call.
+ *
+ * The rule, matching iOS `FigmaCartViewController` 5481-5530:
+ *  1. RECORD the callback when the navigation is proposed — the last point we
+ *     are guaranteed to see that URL — and ALLOW the load. Never complete here:
+ *     Laravel has not processed the POST yet.
+ *  2. COMPLETE after a load lands, either on the callback URL itself or on the
+ *     page it redirected us to.
+ *
+ * Step 2's second arm is not belt-and-braces. Laravel's `ncb-callback.blade.php`
+ * ends with `window.parent.location = '/user/checkout'` because PowerTranz
+ * expects RedirectData in an iframe. We load it top-level, so `window.parent`
+ * IS `window` and the callback page redirects the whole WebView away.
+ * `onPageFinished` therefore reports `/user/checkout`, never the callback URL.
+ * Completing only on the callback URL would never fire at all: card authorised,
+ * app sitting there. iOS hit exactly this (@MagentaReef #89168).
+ *
+ * Trusting the page for nothing is what makes this safe — completion asks our
+ * own authenticated server for the outcome with the server-issued spi_token and
+ * checkout_id, and `completeNcbPayment` is latched once-only. The page is a
+ * trigger, never a source of truth.
+ */
+internal class NcbCallbackNavigationGate(
+    private val isCallback: (String) -> Boolean,
+) {
+    /** Set once the callback navigation is seen; never reset. */
+    var sawCallback: Boolean = false
+        private set
+
+    /**
+     * Always returns false — "WebView, you load it". Returning true is the
+     * defect: it cancels the navigation so the callback is never delivered.
+     */
+    fun shouldOverrideUrlLoading(url: String): Boolean {
+        if (isCallback(url)) sawCallback = true
+        return false
+    }
+
+    /** Complete on the callback URL, or on the page it redirected us to. */
+    fun shouldCompleteOnPageFinished(url: String): Boolean =
+        isCallback(url) || sawCallback
 }
