@@ -40,6 +40,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -224,7 +225,22 @@ fun PackageDetailsScreen(
             modifier = Modifier.align(Alignment.TopCenter),
         )
 
-        if (showInvoiceSourcePicker) {
+        // ⚠️ A sheet that was already open when the status flipped must not stay
+        // open offering an upload the screen will now refuse.
+        //
+        // This was a bare `showInvoiceSourcePicker = false` evaluated DURING
+        // composition — my bug, caught in review. Writing to remembered state
+        // while composing is undefined behaviour: it can re-enter composition
+        // and is not guaranteed to run once per change. Keyed side effect
+        // instead, so it fires exactly when eligibility actually flips.
+        //
+        // This is the courtesy, not the gate — PackageDetailsViewModel
+        // .uploadInvoices refuses the POST on its own.
+        LaunchedEffect(state.canUploadInvoices) {
+            if (!state.canUploadInvoices) showInvoiceSourcePicker = false
+        }
+
+        if (showInvoiceSourcePicker && state.canUploadInvoices) {
             val existingCount = detail?.invoices?.size ?: 0
             AirdropUploadSourceSheet(
                 config = AirdropUploadSourceConfig(
@@ -565,21 +581,29 @@ private fun PackageDetailsContent(
         // writes an attachment onto a closed shipment.
         //
         // The API does NOT tell us this: PackageResource exposes no
-        // upload-allowed flag, so the gate has to live here, on the numeric
-        // status. Codes read from Laravel's own catalog rather than guessed —
-        // app/Support/StatusIcons.php and Models/Packages::scopeReadyForPickup,
-        // which agree with Kotlin's ShipmentStatusCatalog:
-        //     7  Ready for Pickup            (offered — the last point it is)
-        //     18 Paid and Ready for Pick Up  (offered — still awaiting collection)
-        //     8  Delivered                   (HIDDEN — the reported bug)
+        // upload-allowed flag, so the gate lives on the status.
         //
-        // Gated on DELIVERED only, deliberately narrow. A wider "terminal
-        // statuses" set would be a guess, and guessing a status set is exactly
-        // how the Track allow-list shipped and blanked every customer's screen.
-        // An unknown/unparseable status keeps the zone: failing OPEN here costs
-        // a pointless upload, failing closed would silently remove a real
-        // affordance from packages that still need one.
-        if (detail.status?.trim()?.toIntOrNull() != DELIVERED_STATUS) {
+        // Upload must stop AT Ready for Pickup, not one state after it — at 7
+        // and 18 the customer can already collect, so there is nothing left to
+        // invoice against. Gating on DELIVERED (8) alone left the live drop zone
+        // on every ready-to-collect package.
+        //
+        // ⚠️ UPLOAD AND DELETE SHARE THE RECOGNIZED LOCKED-STATUS PREDICATE AND
+        // NOTHING MORE. `statusLocksInvoiceDeletion` — both fields, locked set
+        // {7,8,14..20}, comma/decimal normalisation, catalog lookup, terminal-name
+        // fallback — is reused rather than re-derived, because a second copy of a
+        // status boundary drifts. Beyond that they intentionally DIVERGE:
+        //
+        //   • upload additionally requires a RECOGNIZED status and fails CLOSED —
+        //     unknown, missing or unparseable HIDES the zone;
+        //   • delete stays independent and fail-OPEN on absent/unknown.
+        //
+        // See PackageDetailsViewModel.canUploadInvoices for why upload fails
+        // closed. Do not "simplify" one into the other.
+        val invoiceUploadAllowed = state.canUploadInvoices
+        // Locked with nothing uploaded means there is nothing to say, so the
+        // whole section goes. Locked WITH invoices keeps them readable.
+        if (invoiceUploadAllowed || detail.invoices.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             val canDeleteInvoices = state.canDeleteInvoices
             Row(
@@ -588,24 +612,41 @@ private fun PackageDetailsContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Upload Your Invoice",
+                    // Once locked this section is a record, not an action, and
+                    // the heading has to stop asking for something the screen
+                    // will not accept.
+                    text = if (invoiceUploadAllowed) "Upload Your Invoice" else "Invoices",
                     style = AirdropType.title2,
                     color = colors.textDarkTitle,
+                    modifier = Modifier.testTag("package-details-invoice-section-title"),
                 )
                 Text(
-                    text = "(${detail.invoices.size}/3)",
+                    // "/3" is the remaining-upload allowance. With upload locked
+                    // there is no allowance left to describe, so it would be a
+                    // quota against an action that cannot happen.
+                    text = if (invoiceUploadAllowed) {
+                        "(${detail.invoices.size}/3)"
+                    } else {
+                        "(${detail.invoices.size})"
+                    },
                     style = AirdropType.body2,
                     color = colors.textDescription,
                 )
             }
-            UploadInvoiceZone(uploading = state.uploading, onClick = onPickFiles)
-            Text(
-                text = "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
-                    "Only the following formats are allowed: pdf, jpg, jpeg, png, gif, bmp, webp.",
-                // Swift origin/main corrects the stale Figma/RN doc/docx/html copy.
-                style = AirdropType.body3,
-                color = colors.textDescription,
-            )
+            if (invoiceUploadAllowed) {
+                UploadInvoiceZone(uploading = state.uploading, onClick = onPickFiles)
+                Text(
+                    text = "You're allowed to upload a maximum of 3 files each with a size below 10 MB. " +
+                        "Only the following formats are allowed: pdf, jpg, jpeg, png, gif, bmp, webp.",
+                    // Swift origin/main corrects the stale Figma/RN doc/docx/html copy.
+                    style = AirdropType.body3,
+                    color = colors.textDescription,
+                )
+            }
+            // Existing invoices stay listed and viewable at every status,
+            // including unknown ones — locking upload must not take away the
+            // record of what was already filed. Delete applies its own
+            // independent policy per row and is untouched by this gate.
             detail.invoices.forEach { doc ->
                 InvoiceFileRow(
                     doc = doc,
@@ -1365,6 +1406,3 @@ private fun packageDetailsBrandTitle(method: ShipmentMethodUi): String =
         ShipmentMethodUi.Express -> "Express"
         ShipmentMethodUi.SeaDrop -> "SeaDrop"
     }
-
-/** Laravel status 8 — the package is with the customer; nothing left to invoice. */
-private const val DELIVERED_STATUS = 8
