@@ -29,7 +29,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -414,20 +413,20 @@ private fun LogoMarqueeRow(
     // that moves across does not work, does not move." The BOTTOM row, not the
     // top — and the asymmetry is the clue.
     //
-    // The old loop was `delay(16)` + `scrollBy(speed * 16 / 1000)`, which is
-    // wrong in three separate ways, and all three are fixed here because
-    // without a device I could not prove which one dominates:
+    // The old loop was `delay(16)` + `scrollBy(speed * 16 / 1000)`, wrong in
+    // three separate ways. All three are fixed, and @Codex-MobileReleaseQC has
+    // since confirmed on device (A/B) that both rows now move:
     //
-    //  1. SUB-PIXEL PER FRAME. At xxhdpi the top row asked for 0.523 px/frame
-    //     and the bottom for 0.451 px. Anything that drops a sub-pixel request
-    //     stalls the slower row first, which is exactly the reported symptom.
-    //     The remainder is now carried in `carry` and only whole pixels are
-    //     dispatched, so no fraction is ever lost regardless of what the list
-    //     does with a <1px scroll.
-    //  2. `delay(16)` IS NOT FRAME-SYNCED. It drifts under load and compounds
-    //     across `while (true)`. `withFrameNanos` gives the real frame clock,
-    //     and the delta is now integrated against actual elapsed time, so the
-    //     logos travel at the specified dp/second on any refresh rate.
+    //  1. SUB-PIXEL PER STEP — the one that explains the reported asymmetry.
+    //     At xxhdpi the top row asked for 0.523 px/step and the bottom for
+    //     0.451 px, so whatever dropped a sub-pixel request stalled the SLOWER
+    //     row first. `carry` now keeps the remainder and only whole pixels are
+    //     dispatched, so no fraction is lost regardless of how the list treats
+    //     a <1px scroll.
+    //  2. FIXED-INTERVAL TIME. The step assumed exactly MARQUEE_FRAME_MILLIS
+    //     had elapsed; under load it had not, so the logos drifted slower than
+    //     the declared dp/second. Elapsed time is now measured off the
+    //     monotonic clock and integrated, so speed holds on any refresh rate.
     //  3. STALE INDEX. `firstVisibleItemIndex` was read INSIDE `state.scroll`,
     //     where it still holds the previous measure pass's value, so the wrap
     //     could fire against an index that no longer applied. It is now read
@@ -439,18 +438,36 @@ private fun LogoMarqueeRow(
         val singleSetWidthPx = with(density) {
             logos.sumOf { logo -> logo.width + 56 }.dp.toPx()
         }
-        var lastFrameNanos = 0L
+        // ⚠️ delay(), NOT withFrameNanos — AND THAT IS DELIBERATE.
+        //
+        // withFrameNanos registers a frame callback every iteration, so an
+        // infinite loop of it never lets the Compose clock go idle and
+        // `waitForIdle` never returns. @Codex-MobileReleaseQC measured exactly
+        // that on my first pass: the ticker moved correctly on device (A/B
+        // confirmed) while ServicesOrangeAccentParityTest went ComposeNotIdle
+        // and took the whole connected gate red with it.
+        //
+        // delay() suspends without holding the frame clock, so the composition
+        // settles between steps and the test suite can reach idle. The three
+        // real defects are still fixed without it:
+        //   - elapsed time is measured from the monotonic clock rather than
+        //     ASSUMED to be exactly MARQUEE_FRAME_MILLIS, so the logos travel
+        //     at the specified dp/second even when a frame runs long;
+        //   - `carry` keeps the sub-pixel remainder, so the slower bottom row
+        //     no longer loses its fraction every step (0.451 px/frame at
+        //     xxhdpi — the reason it stalled while the top row moved);
+        //   - firstVisibleItemIndex is read after the scroll, not inside it.
+        var lastNanos = 0L
         var carry = 0f
         while (true) {
-            withFrameNanos { now ->
-                if (lastFrameNanos != 0L) {
-                    carry += speedPxPerSecond * ((now - lastFrameNanos) / 1_000_000_000f)
-                }
-                lastFrameNanos = now
+            delay(MARQUEE_FRAME_MILLIS)
+            val now = System.nanoTime()
+            if (lastNanos != 0L) {
+                carry += speedPxPerSecond * ((now - lastNanos) / 1_000_000_000f)
             }
-            // Dispatch only whole pixels and keep the remainder for the next
-            // frame. truncate() rounds toward zero, so this is symmetric for
-            // the forward and reverse rows.
+            lastNanos = now
+            // Dispatch only whole pixels and keep the remainder. truncate()
+            // rounds toward zero, so this stays symmetric for the reverse row.
             val step = truncate(carry)
             if (step != 0f) {
                 carry -= step
