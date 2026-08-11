@@ -57,7 +57,16 @@ class PackageTimelineSoftErrorTest {
                 "NOT null — which is why a null-check alone cannot catch this",
             env.data,
         )
-        assertTrue("and it yields an EMPTY journey", env.data!!.entries.isEmpty())
+        // ⚠️ CHANGED MEANING, AND THE CHANGE IS THE POINT. `entries` used to
+        // default to emptyList(), so the hollow payload was INDISTINGUISHABLE
+        // from a genuine empty journey — that is what let a failed read render
+        // as "no history". It is now nullable, so absence reads as absence.
+        assertEquals(
+            "the hollow payload has NO entries key at all — it no longer " +
+                "masquerades as an empty journey",
+            null,
+            env.data!!.entries,
+        )
         assertEquals(
             "the hollow payload carries no package id — the tell the guard uses",
             null,
@@ -69,7 +78,7 @@ class PackageTimelineSoftErrorTest {
     fun `an absent data key behaves identically`() {
         val env = decode("""{"success":false,"message":"Unauthorized"}""")
         assertNotNull(env.data)
-        assertTrue(env.data!!.entries.isEmpty())
+        assertEquals(null, env.data!!.entries)
         assertEquals(null, env.data!!.packageId)
     }
 
@@ -83,7 +92,7 @@ class PackageTimelineSoftErrorTest {
             41,
             env.data!!.packageId,
         )
-        assertTrue(env.data!!.entries.isEmpty())
+        assertTrue("a real empty journey is a PRESENT []", env.data!!.entries!!.isEmpty())
     }
 
     @Test
@@ -137,8 +146,14 @@ class PackageTimelineSoftErrorTest {
     fun `REPO — a genuine empty journey still succeeds`() = runBlocking {
         // The guard must not be so strict it breaks the honest "no history yet"
         // case. A real response identifies its package.
-        val result = repo("""{"success":true,"data":{"package_id":41,"entries":[]}}""")
-            .packageTimeline(41)
+        // Fixture updated for the strict contract (#95189): a real Laravel
+        // empty history carries has_delivery and total:0 alongside the present
+        // []. The leniency being guarded is unchanged — an honest empty journey
+        // must still come through.
+        val result = repo(
+            """{"success":true,"data":{"package_id":41,"entries":[],
+               "current_key":null,"has_delivery":false,"total":0}}""",
+        ).packageTimeline(41)
 
         assertTrue("a real empty timeline must come through. Got: $result", result.isSuccess)
         assertTrue(result.getOrNull()!!.isEmpty())
@@ -149,10 +164,10 @@ class PackageTimelineSoftErrorTest {
         val result = repo(
             """
             {"success":true,"data":{"package_id":41,"entries":[
-              {"label":"Drop Alerted","state":"done"},
-              {"label":"Shipment Received","state":"done"},
-              {"label":"Processing at Customs","state":"current"}
-            ]}}
+              {"key":"drop_alerted","status":1,"source":"status","label":"Drop Alerted","state":"done"},
+              {"key":"received","status":3,"source":"status","label":"Shipment Received","state":"done"},
+              {"key":"customs","status":5,"source":"status","label":"Processing at Customs","state":"current"}
+            ],"current_key":"customs","has_delivery":false,"total":3}}
             """.trimIndent(),
         ).packageTimeline(41)
 

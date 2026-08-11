@@ -234,7 +234,22 @@ class DeliveryTrackingRepository(
             if (payload.packageId == null || payload.packageId != packageId) {
                 error(envelope.message ?: DELIVERY_CONTRACT_ERROR)
             }
-            payload.entries
+            // ⚠️ THE STRICT CONTRACT — matched to iOS f9c95b2 AirdropAPI.swift
+            // 4174-4284, after @Codex-CodexKotlinAudit #95189 proved Kotlin was
+            // accepting payloads iOS rejects.
+            //
+            // `entries` null means the KEY WAS ABSENT, which is a schema
+            // failure; a present `[]` is Laravel's explicit empty history and
+            // must come through. Collapsing those two is how a customer with a
+            // full journey gets told there is none.
+            val entries = payload.entries ?: error(DELIVERY_CONTRACT_ERROR)
+            if (payload.hasDelivery == null) error(DELIVERY_CONTRACT_ERROR)
+            // total was not decoded at all before this. A total that disagrees
+            // with the rail is a truncated or corrupt page — it rendered as a
+            // shorter journey than the one that happened.
+            val total = payload.total ?: error(DELIVERY_CONTRACT_ERROR)
+            if (total != entries.size) error(DELIVERY_CONTRACT_ERROR)
+            entries.map { it.validated() }
         }
 
     override suspend fun activeDeliveries(
@@ -494,3 +509,56 @@ private val DELIVERY_STATUSES =
 private val ACTIVE_LIST_STATUSES = setOf("assigned", "out_for_delivery", "delivered")
 private val TERMINAL_DELIVERY_STATUSES = setOf("delivered", "failed", "cancelled")
 private val DELIVERY_STAGE_STATES = setOf("done", "current", "pending")
+
+/**
+ * One timeline entry, or a thrown contract error — matched to iOS `f9c95b2`
+ * `AirdropAPI.TimelineEntry` (`AirdropAPI.swift` 4174-4284).
+ *
+ * ⚠️ KOTLIN WAS ACCEPTING PAYLOADS iOS REJECTS, AND THE FABRICATION HAPPENED
+ * DOWNSTREAM WHERE NOTHING COULD SEE IT.
+ *
+ * `TrackJourney.rows` used to paper over every one of these: it invented
+ * `entry_<index>` when `key` was missing, DROPPED an entry whose label was
+ * blank, defaulted a missing `state` to `"done"`, and passed unknown states
+ * straight through. So a corrupt payload became a plausible-looking journey
+ * instead of a visible failure — and a row the server never sent could read as
+ * COMPLETED. Proven by @Codex-CodexKotlinAudit #95189 against current source.
+ *
+ * The rules, and why each is strict or lenient:
+ *
+ * - **key** — REQUIRED, non-blank. It is the identity/dedup key. A synthetic
+ *   `entry_<index>` is not an identity: it changes when the list reorders, so
+ *   per-row state silently attaches to the wrong row.
+ * - **label** — blank falls back to `"Update"`, deliberately LENIENT. The
+ *   entry list is all-or-nothing, so throwing on one unnamed status would error
+ *   the ENTIRE timeline over a known live DB condition. iOS mirrors the
+ *   server's own `?? 'Update'` for exactly this reason. Dropping the row (the
+ *   old behaviour) is worse than either: a real recorded event just vanishes.
+ * - **state** — REQUIRED and strictly `done|current|pending`. Defaulting a
+ *   missing state to `"done"` told the customer a step COMPLETED that the
+ *   server never reported.
+ * - **status** — null is valid ONLY on the delivery rail. The timeline has two
+ *   rails: warehouse entries (`source: "status"`) always carry a numeric
+ *   package status; delivery-leg entries (`source: "delivery"`) always have
+ *   null. Making status optional everywhere was too broad — it silently
+ *   accepted a statusless WAREHOUSE row, hiding the status the app needs for
+ *   NEEDS_HELP/Contact affordances (@MagentaReef #89692).
+ */
+private fun PackageTimelineEntry.validated(): PackageTimelineEntry {
+    val normalizedKey = key?.trim()?.takeIf(String::isNotEmpty)
+        ?: error(DELIVERY_CONTRACT_ERROR)
+    val normalizedState = state?.trim()?.lowercase(Locale.US)
+        ?.takeIf { it in DELIVERY_STAGE_STATES }
+        ?: error(DELIVERY_CONTRACT_ERROR)
+    val normalizedSource = source?.trim()?.lowercase(Locale.US)
+    if (status == null && normalizedSource != "delivery") error(DELIVERY_CONTRACT_ERROR)
+    return copy(
+        key = normalizedKey,
+        label = label?.trim()?.takeIf(String::isNotEmpty) ?: UNNAMED_STATUS_LABEL,
+        state = normalizedState,
+        source = normalizedSource,
+    )
+}
+
+/** Mirrors the server's own `package_status_name ?? 'Update'` fallback. */
+private const val UNNAMED_STATUS_LABEL = "Update"
