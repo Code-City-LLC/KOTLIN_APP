@@ -47,6 +47,9 @@ class CalculatorViewModelTest {
         var invoice: Double? = null
         var weight: Double? = null
         var packages: Int? = null
+        var dutyRateId: Int? = null
+        var searchQueries = mutableListOf<String>()
+        var searchAnswer: List<CalcDutyRate> = emptyList()
         var calls = 0
 
         override suspend fun calculateShipment(
@@ -57,8 +60,10 @@ class CalculatorViewModelTest {
             lengthInches: Double?,
             widthInches: Double?,
             heightInches: Double?,
+            customDutyRateId: Int?,
         ): ShipmentCalculation {
             calls++
+            dutyRateId = customDutyRateId
             method = shippingMethod
             invoice = invoiceAmount
             weight = weightLbs
@@ -66,7 +71,10 @@ class CalculatorViewModelTest {
             return answer ?: error("pricing service unavailable")
         }
 
-        override suspend fun searchProducts(query: String, limit: Int): List<CalcProduct> = emptyList()
+        override suspend fun searchDutyRates(query: String, limit: Int): List<CalcDutyRate> {
+            searchQueries += query
+            return searchAnswer
+        }
 
         override suspend fun usdToJmdRate(): Double = 162.0
     }

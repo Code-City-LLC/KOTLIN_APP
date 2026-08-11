@@ -35,11 +35,27 @@ enum class ShippingMethod(val label: String, val apiValue: String, val info: Str
 enum class LengthUnit(val label: String) { INCH("Inch"), FT("ft") }
 enum class WeightUnit(val label: String) { LBS("lbs"), KG("kg") }
 
-/** Product row surfaced by the calculator search (Swift AuctionProduct subset). */
-data class CalcProduct(
+/**
+ * A customs duty rate — the catalogue the Shipping Calculator actually needs.
+ *
+ * ⚠️ THIS USED TO BE `CalcProduct`, READ FROM THE AUCTION CATALOGUE, WITH A
+ * PRICE. That was the wrong business object, not a broken query: the field
+ * searched `GET /products?in_stock=1` and rendered a shop price next to each
+ * row, so the customer picked a *product for sale* while the calculator needed
+ * a *duty classification*. The selected id then went nowhere, because
+ * `calculateShipment` had no parameter to carry it.
+ *
+ * There is deliberately NO price here. `/custom-duty-rates` returns
+ * `id, item_name, duty_percentage` and nothing else, and the calculator must
+ * never fabricate or autofill money it was not given.
+ *
+ * Root-caused by @Codex-LavenderGlen (ORC #99765) and @Codex-MobileReleaseQC
+ * (#99763), independently and to the same lines.
+ */
+data class CalcDutyRate(
     val id: Int,
-    val title: String,
-    val displayPrice: String,
+    val itemName: String,
+    val dutyPercentage: Double?,
 )
 
 /**

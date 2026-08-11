@@ -192,10 +192,11 @@ class CalculatorEntryParityTest {
             lengthInches: Double?,
             widthInches: Double?,
             heightInches: Double?,
+            customDutyRateId: Int?,
         ): ShipmentCalculation =
             throw AssertionError("Unused in CalculatorEntryParityTest")
 
-        override suspend fun searchProducts(query: String, limit: Int): List<CalcProduct> = emptyList()
+        override suspend fun searchDutyRates(query: String, limit: Int): List<CalcDutyRate> = emptyList()
 
         override suspend fun usdToJmdRate(): Double = 156.0
     }
