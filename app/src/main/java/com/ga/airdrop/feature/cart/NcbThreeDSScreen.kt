@@ -180,22 +180,39 @@ fun NcbThreeDSScreen(
                                     )
 
                                 /**
-                                 * ⚠️ THE CALLBACK PAGE NAVIGATES ITSELF AWAY, SO WAITING FOR
-                                 * ITS URL HERE WOULD WAIT FOREVER.
+                                 * COMPLETE HERE, AND ONLY ON THE EXACT CALLBACK URL.
                                  *
-                                 * PowerTranz's SPI-3DS flow expects RedirectData in an
-                                 * IFRAME, so Laravel's `ncb-callback.blade.php` ends with
-                                 * `window.parent.location = '/user/checkout'`. We load
-                                 * RedirectData as a TOP-LEVEL document, so `window.parent`
-                                 * IS `window` — the callback page redirects the whole WebView
-                                 * to /user/checkout. This callback therefore reports
-                                 * /user/checkout, never the callback URL.
+                                 * Laravel PRESERVES the top-level callback URL. Deployed
+                                 * `origin/pre_staging` `5705a8cd`,
+                                 * `resources/views/checkout/ncb-callback.blade.php`
+                                 * `redirectEmbeddedParent`:
                                  *
-                                 * So completing ONLY on `isNcbCallback(url)` would never
-                                 * fire: the card is authorised and the app just sits there.
-                                 * That is why the `sawNcbCallback` arm exists — iOS learned
-                                 * the same thing the hard way (@MagentaReef #89168) and
-                                 * completes on the redirect landing too.
+                                 *     if (window.parent === window) { return false; }
+                                 *     window.parent.location = '/user/checkout';
+                                 *
+                                 * with Laravel's own comment: "Swift and Android load the
+                                 * same RedirectData as a top-level WebView document and
+                                 * detect this exact callback URL after the POST finishes.
+                                 * Redirecting a top-level WebView here races that native
+                                 * completion signal."
+                                 *
+                                 * We load RedirectData top-level, so the early return
+                                 * applies to us: the page does NOT navigate away, and this
+                                 * callback reports the callback URL itself. Exact
+                                 * recognition after the load lands is therefore the whole
+                                 * trigger — the POST has been processed by then.
+                                 *
+                                 * There is deliberately NO latch and no second arm. The
+                                 * canonical callback is a POST, which Android never routes
+                                 * through `shouldOverrideUrlLoading`, and that hook may also
+                                 * fire for subframes — so any recorded state would be dead
+                                 * on the shipping path and armable from a frame that is not
+                                 * the callback. Verifier decision @Codex-CodexKotlinAudit
+                                 * #95239.
+                                 *
+                                 * If a provider variant ever violates that contract, the
+                                 * user-visible manual confirmation button on this screen is
+                                 * the fallback — not a stateful guess in here.
                                  *
                                  * Safe because completion trusts this page for NOTHING: it
                                  * asks our own authenticated server for the outcome with the
