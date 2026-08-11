@@ -108,6 +108,61 @@ class AuthInterceptorRefreshTest {
     // ── tests ───────────────────────────────────────────────────────────────
 
     @Test
+    fun `a session-bound PDF keeps Accept and safely refreshes once`() {
+        val provenance = requireNotNull(
+            AuthTokenStore.requestProvenance(AuthTokenStore.snapshot()),
+        )
+        val request = apiRequest("/api/v1/user/forms/contract/download")
+            .newBuilder()
+            .header("Accept", "application/pdf")
+            .header(AuthTokenStore.REQUEST_REVISION_HEADER, provenance.revision.toString())
+            .header(AuthTokenStore.REQUEST_SESSION_ID_HEADER, provenance.sessionId)
+            .header(AuthInterceptor.ALLOW_BOUND_REFRESH_HEADER, "true")
+            .build()
+        val chain = ScriptedChain(request) { req, _ ->
+            when {
+                isRefresh(req) -> response(req, 200, """{"token":"new-token"}""")
+                req.header("Authorization") == "Bearer new-token" -> response(req, 200)
+                else -> response(req, 401)
+            }
+        }
+
+        interceptor.intercept(chain).close()
+
+        assertEquals(3, chain.proceeded.size)
+        assertEquals("application/pdf", chain.proceeded[0].header("Accept"))
+        assertEquals("application/pdf", chain.proceeded[2].header("Accept"))
+        assertEquals("Bearer old-token", chain.proceeded[0].header("Authorization"))
+        assertEquals("Bearer new-token", chain.proceeded[2].header("Authorization"))
+        assertNull(chain.proceeded[0].header(AuthInterceptor.ALLOW_BOUND_REFRESH_HEADER))
+        assertNull(chain.proceeded[0].header(AuthTokenStore.REQUEST_REVISION_HEADER))
+        assertNull(chain.proceeded[0].header(AuthTokenStore.REQUEST_SESSION_ID_HEADER))
+    }
+
+    @Test
+    fun `a session-bound mutation cannot opt into automatic retry`() {
+        val provenance = requireNotNull(
+            AuthTokenStore.requestProvenance(AuthTokenStore.snapshot()),
+        )
+        val request = apiRequest("/api/v1/user/documents")
+            .newBuilder()
+            .post("{}".toRequestBody("application/json".toMediaType()))
+            .header(AuthTokenStore.REQUEST_REVISION_HEADER, provenance.revision.toString())
+            .header(AuthTokenStore.REQUEST_SESSION_ID_HEADER, provenance.sessionId)
+            .header(AuthInterceptor.ALLOW_BOUND_REFRESH_HEADER, "true")
+            .build()
+        val chain = ScriptedChain(request) { req, _ -> response(req, 401) }
+
+        interceptor.intercept(chain).use { result ->
+            assertEquals(401, result.code)
+        }
+
+        assertEquals("a mutation must make exactly one wire attempt", 1, chain.proceeded.size)
+        assertEquals("old-token", AuthTokenStore.token)
+        assertNull(chain.proceeded.single().header(AuthInterceptor.ALLOW_BOUND_REFRESH_HEADER))
+    }
+
+    @Test
     fun `401 refreshes once and retries with the rotated bearer`() {
         val chain = ScriptedChain(apiRequest()) { req, _ ->
             when {

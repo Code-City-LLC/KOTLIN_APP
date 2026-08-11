@@ -43,6 +43,10 @@ class AuthInterceptor internal constructor(
         val boundRevision = original.header(AuthTokenStore.REQUEST_REVISION_HEADER)
         val boundSessionId = original.header(AuthTokenStore.REQUEST_SESSION_ID_HEADER)
         val isSessionBound = boundRevision != null || boundSessionId != null
+        val allowBoundRefresh = (
+            original.header(ALLOW_BOUND_REFRESH_HEADER)
+                ?.equals("true", ignoreCase = true) == true
+            ) && (original.method == "GET" || original.method == "HEAD")
         val currentSnapshot = AuthTokenStore.snapshot()
         if (isSessionBound) {
             val expectedRevision = boundRevision?.toLongOrNull()
@@ -59,9 +63,15 @@ class AuthInterceptor internal constructor(
         val attachedToken = if (isNoAuth || isPreAuth) null else currentSnapshot.token
         val builder = original.newBuilder()
             .removeHeader(NO_AUTH_HEADER)
+            .removeHeader(ALLOW_BOUND_REFRESH_HEADER)
             .removeHeader(AuthTokenStore.REQUEST_REVISION_HEADER)
             .removeHeader(AuthTokenStore.REQUEST_SESSION_ID_HEADER)
-            .header("Accept", "application/json")
+        // JSON is the default, not a forced replacement. PDF/image downloads
+        // on the same authenticated client must keep their explicit media
+        // Accept value while receiving the exact same bearer/refresh safety.
+        if (original.header("Accept") == null) {
+            builder.header("Accept", "application/json")
+        }
         attachedToken?.let { builder.header("Authorization", "Bearer $it") }
         val request = builder.build()
 
@@ -73,7 +83,7 @@ class AuthInterceptor internal constructor(
 
         if (
             response.code != 401 || attachedToken == null || isPreAuth || isRefresh ||
-            isSessionBound
+            (isSessionBound && !allowBoundRefresh)
         ) {
             return response
         }
@@ -212,6 +222,12 @@ class AuthInterceptor internal constructor(
 
     companion object {
         const val NO_AUTH_HEADER = "X-Airdrop-No-Auth"
+        /**
+         * Opt-in for idempotent, session-bound reads that may safely perform
+         * the canonical single refresh + retry. Mutations remain non-retrying.
+         * This control header is stripped before every wire request.
+         */
+        const val ALLOW_BOUND_REFRESH_HEADER = "X-Airdrop-Allow-Bound-Refresh"
         private const val MAX_ERROR_BODY_BYTES = 1024L * 1024L
     }
 }

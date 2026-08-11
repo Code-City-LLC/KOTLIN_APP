@@ -100,7 +100,7 @@ fun DocumentsScreen(
     }
 
     fun openFile(slot: DocumentSlot) {
-        viewModel.openDocument(slot, com.ga.airdrop.BuildConfig.LEGACY_BASE_URL) { url, title ->
+        viewModel.openDocument(slot, com.ga.airdrop.BuildConfig.API_BASE_URL) { url, title ->
             onNavigate(Routes.invoiceViewer(url, title))
         }
     }
@@ -142,10 +142,9 @@ fun DocumentsScreen(
                         DocumentCard(
                             slot = slot,
                             file = state.files[slot.docType],
-                            legacyDownloadAvailable = legacyDownloadUrl(
-                                docType = slot.docType,
-                                userId = state.legacyUserId?.toString(),
-                                legacyBase = com.ga.airdrop.BuildConfig.LEGACY_BASE_URL,
+                            generatedFormAvailable = mobileFormDownloadUrl(
+                                slot.docType,
+                                com.ga.airdrop.BuildConfig.API_BASE_URL,
                             ) != null,
                             pendingUpload = state.pendingUploads[slot.docType],
                             uploading = state.uploadingType == slot.docType,
@@ -213,7 +212,7 @@ fun DocumentsScreen(
 internal fun DocumentCard(
     slot: DocumentSlot,
     file: MoreDocumentFile?,
-    legacyDownloadAvailable: Boolean = false,
+    generatedFormAvailable: Boolean = false,
     pendingUpload: PendingDocumentUpload? = null,
     uploading: Boolean,
     onInfo: () -> Unit,
@@ -300,8 +299,8 @@ internal fun DocumentCard(
                 SplitAction(
                     iconRes = R.drawable.ic_download_file,
                     label = "Download",
-                    // Swift :497 — uploaded file OR a legacy server form.
-                    enabled = !file?.fileUrl.isNullOrBlank() || legacyDownloadAvailable,
+                    // Uploaded file OR an authenticated server-generated form.
+                    enabled = !file?.fileUrl.isNullOrBlank() || generatedFormAvailable,
                     onClick = onDownload,
                     modifier = Modifier.weight(1f),
                 )

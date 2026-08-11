@@ -41,7 +41,7 @@ class DocumentsSessionBindingTest {
         waitUntil {
             repository.identityCalls.get() == 2 &&
                 repository.listCalls.get() == 2 &&
-                viewModel.state.value.legacyUserId == 202 &&
+                viewModel.state.value.accountUserId == 202 &&
                 viewModel.state.value.files["trn"]?.fileName == "account-b.pdf" &&
                 !viewModel.state.value.loading
         }
@@ -50,7 +50,7 @@ class DocumentsSessionBindingTest {
         repository.accountAList.complete(Result.success(documentsFor("account-a.pdf")))
         waitUntil { boundary.rejectedApplyAttempts.get() > 0 }
 
-        assertEquals(202, viewModel.state.value.legacyUserId)
+        assertEquals(202, viewModel.state.value.accountUserId)
         assertEquals("account-b.pdf", viewModel.state.value.files["trn"]?.fileName)
         assertEquals("session-a", repository.identityOwners.first().sessionId)
         assertEquals("session-b", repository.identityOwners.last().sessionId)
@@ -64,7 +64,7 @@ class DocumentsSessionBindingTest {
         val boundary = FakeAuthenticatedSessionBoundary("session-a", initialAccountId = 101)
         val repository = RecordingDocumentsRepository()
         val viewModel = onMain { DocumentsViewModel(repository, boundary) }
-        waitUntil { viewModel.state.value.legacyUserId == 101 }
+        waitUntil { viewModel.state.value.accountUserId == 101 }
 
         val slot = DOCUMENT_SLOTS.first { it.docType == "trn" }
         val claim = onMain { requireNotNull(viewModel.claimUpload(slot)) }
@@ -87,12 +87,12 @@ class DocumentsSessionBindingTest {
         val boundary = FakeAuthenticatedSessionBoundary("session-a", initialAccountId = 101)
         val repository = RecordingDocumentsRepository()
         val viewModel = onMain { DocumentsViewModel(repository, boundary) }
-        waitUntil { viewModel.state.value.legacyUserId == 101 }
+        waitUntil { viewModel.state.value.accountUserId == 101 }
         val slot = DOCUMENT_SLOTS.first { it.docType == "trn" }
         val accountAClaim = onMain { requireNotNull(viewModel.claimUpload(slot)) }
 
         boundary.replace("session-b", accountId = 202)
-        waitUntil { viewModel.state.value.legacyUserId == 202 }
+        waitUntil { viewModel.state.value.accountUserId == 202 }
         onMain {
             viewModel.stageUpload(
                 accountAClaim,
@@ -119,7 +119,7 @@ class DocumentsSessionBindingTest {
         val accountAClaim = onMain { requireNotNull(viewModel.claimDelete(slot)) }
 
         boundary.replace("session-b", accountId = 202)
-        waitUntil { viewModel.state.value.legacyUserId == 202 }
+        waitUntil { viewModel.state.value.accountUserId == 202 }
         onMain { viewModel.delete(accountAClaim) }
 
         assertEquals(0, repository.deleteAttempts.get())
@@ -127,39 +127,39 @@ class DocumentsSessionBindingTest {
     }
 
     @Test
-    fun documentOpenUsesCurrentLegacyIdentityAndRejectsPreCollectorReplacementGap() {
+    fun documentOpenUsesMobileFormRouteAndRejectsPreCollectorReplacementGap() {
         val boundary = FakeAuthenticatedSessionBoundary("session-a", initialAccountId = 101)
         val repository = LegacyOnlyDocumentsRepository()
         val viewModel = onMain { DocumentsViewModel(repository, boundary) }
-        waitUntil { viewModel.state.value.legacyUserId == 101 }
+        waitUntil { viewModel.state.value.accountUserId == 101 }
         val slot = DOCUMENT_SLOTS.first { it.docType == "airdrop_contract" }
         val openedUrl = AtomicReference<String?>()
 
         onMain {
-            viewModel.openDocument(slot, "https://legacy.example") { url, _ -> openedUrl.set(url) }
+            viewModel.openDocument(slot, "https://api.example/api/v1") { url, _ -> openedUrl.set(url) }
         }
         assertEquals(
-            "https://legacy.example/api_download-contract-form.php?user_documenttype=101",
+            "https://api.example/api/v1/user/forms/contract/download",
             openedUrl.get(),
         )
 
         openedUrl.set(null)
         boundary.replaceCurrent("session-b", accountId = 202)
         onMain {
-            viewModel.openDocument(slot, "https://legacy.example") { url, _ -> openedUrl.set(url) }
+            viewModel.openDocument(slot, "https://api.example/api/v1") { url, _ -> openedUrl.set(url) }
         }
         assertEquals(null, openedUrl.get())
 
         boundary.emitCurrent()
         waitUntil {
             viewModel.state.value.ownerSessionId == "session-b" &&
-                viewModel.state.value.legacyUserId == 202
+                viewModel.state.value.accountUserId == 202
         }
         onMain {
-            viewModel.openDocument(slot, "https://legacy.example") { url, _ -> openedUrl.set(url) }
+            viewModel.openDocument(slot, "https://api.example/api/v1") { url, _ -> openedUrl.set(url) }
         }
         assertEquals(
-            "https://legacy.example/api_download-contract-form.php?user_documenttype=202",
+            "https://api.example/api/v1/user/forms/contract/download",
             openedUrl.get(),
         )
     }
@@ -186,7 +186,7 @@ class DocumentsSessionBindingTest {
         assertEquals(1, repository.deleteAttempts.get())
         assertEquals(0, repository.serverDeleteCalls.get())
         boundary.emitCurrent()
-        waitUntil { viewModel.state.value.legacyUserId == 202 }
+        waitUntil { viewModel.state.value.accountUserId == 202 }
     }
 
     @Test
@@ -196,7 +196,7 @@ class DocumentsSessionBindingTest {
         val viewModel = onMain { DocumentsViewModel(repository, boundary) }
         onMain { viewModel.load() }
         waitUntil {
-            viewModel.state.value.legacyUserId == 101 &&
+            viewModel.state.value.accountUserId == 101 &&
                 viewModel.state.value.files["trn"] != null &&
                 !viewModel.state.value.loading
         }

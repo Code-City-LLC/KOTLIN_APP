@@ -29,6 +29,8 @@ import com.ga.airdrop.core.designsystem.theme.AirdropThemeProvider
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -137,6 +139,42 @@ class InvoiceViewerParityTest {
         assertTrue(shouldAttachAirdropAuth("${BuildConfig.API_BASE_URL}/packages/1/invoices/2"))
         assertTrue(shouldAttachAirdropAuth("${BuildConfig.WEB_BASE_URL}/storage/invoices/invoice.pdf"))
         assertTrue(!shouldAttachAirdropAuth("https://example.test/invoice.pdf"))
+    }
+
+    @Test
+    fun failedInvoiceCopyLeavesNoFinalOrPartialCustomerFile() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val marker = "invoice-copy-failure-${System.nanoTime()}.pdf"
+        val invoiceDir = File(context.cacheDir, "invoices")
+        val failingStream = object : InputStream() {
+            private var firstRead = true
+
+            override fun read(): Int = error("bulk read expected")
+
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (firstRead) {
+                    firstRead = false
+                    buffer[offset] = 0x25
+                    return 1
+                }
+                throw IOException("simulated body failure")
+            }
+        }
+
+        var failure: Throwable? = null
+        try {
+            copyInvoiceStreamToCache(context, marker, failingStream)
+        } catch (caught: Throwable) {
+            failure = caught
+        }
+
+        assertTrue("the simulated body failure must propagate", failure is IOException)
+        assertTrue(
+            "no final or .part customer file may survive a failed copy",
+            invoiceDir.listFiles()
+                .orEmpty()
+                .none { it.name.contains(marker) },
+        )
     }
 
     private fun setInvoiceViewerContent(
