@@ -10,9 +10,9 @@ import androidx.activity.compose.setContent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiDevice
 import com.ga.airdrop.MainActivity
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.ThemeController
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -35,14 +35,16 @@ class NcbLargeScreenChallengeTest {
      */
     @Test
     fun largeScreenRotationKeepsLiveChallengeDomAndDoesNotReplayRedirectData() {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val device = UiDevice.getInstance(instrumentation)
         var scenario: ActivityScenario<MainActivity>? = null
+        val previousTheme = ThemeController.mode
 
         try {
+            // Exercise the explicit-theme attachBaseContext path that previously
+            // pinned every configuration qualifier while forcing uiMode.
+            ThemeController.set(ThemeController.Mode.DARK)
             shell("wm size 1200x1920")
             shell("wm density 240")
-            device.setOrientationNatural()
+            shell("wm user-rotation lock 0")
 
             val loadKey = "ncb_redirect_loads_${System.nanoTime()}"
             val host = TestNcbHost(challengeHtml(loadKey))
@@ -64,6 +66,7 @@ class NcbLargeScreenChallengeTest {
                     activity.resources.configuration.smallestScreenWidthDp >= 600,
                 )
                 assertMainActivityOwnsAdaptiveChanges(activity)
+                assertDarkQualifier(activity)
             }
             waitForJavascript(
                 scenario,
@@ -77,7 +80,10 @@ class NcbLargeScreenChallengeTest {
             )
             assertEquals("\"1\"", evaluate(scenario, "window.__redirectLoads.toString()"))
 
-            device.setOrientationLeft()
+            // UiDevice.setOrientationLeft() is ignored by the headless API 36
+            // emulator used in GitHub Actions. Drive WindowManager directly;
+            // the display rotation then produces the real Configuration change.
+            shell("wm user-rotation lock 1")
             waitForOrientation(scenario, Configuration.ORIENTATION_LANDSCAPE)
 
             scenario.onActivity { activity ->
@@ -91,6 +97,7 @@ class NcbLargeScreenChallengeTest {
                     firstWebView,
                     requireNotNull(activity.window.decorView.findWebView()),
                 )
+                assertDarkQualifier(activity)
             }
             assertEquals(
                 "\"846291\"",
@@ -103,10 +110,11 @@ class NcbLargeScreenChallengeTest {
             )
         } finally {
             scenario?.close()
-            device.setOrientationNatural()
-            device.unfreezeRotation()
+            shell("wm user-rotation lock 0")
+            shell("wm user-rotation free")
             shell("wm size reset")
             shell("wm density reset")
+            ThemeController.set(previousTheme)
         }
     }
 
@@ -124,6 +132,13 @@ class NcbLargeScreenChallengeTest {
             ActivityInfo.CONFIG_KEYBOARD_HIDDEN or
             ActivityInfo.CONFIG_SMALLEST_SCREEN_SIZE
         assertEquals(required, info.configChanges and required)
+    }
+
+    private fun assertDarkQualifier(activity: MainActivity) {
+        assertEquals(
+            Configuration.UI_MODE_NIGHT_YES,
+            activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK,
+        )
     }
 
     private fun waitForOrientation(

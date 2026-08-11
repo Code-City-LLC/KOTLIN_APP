@@ -58,8 +58,12 @@ class MainActivity : FragmentActivity() {
     override fun attachBaseContext(newBase: Context) {
         val mask = ThemeController.nightMask()
         val base = if (mask != null) {
-            val config = Configuration(newBase.resources.configuration)
-            config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or mask
+            // createConfigurationContext treats non-zero fields as overrides.
+            // Copying the full startup Configuration here pinned orientation,
+            // screen bounds, density and every other qualifier for the lifetime
+            // of this context, so handled large-screen changes never reached
+            // Compose or the live NCB WebView. Override only the night qualifier.
+            val config = Configuration().apply { uiMode = mask }
             newBase.createConfigurationContext(config)
         } else {
             newBase
