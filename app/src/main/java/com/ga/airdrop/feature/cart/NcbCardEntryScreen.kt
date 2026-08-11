@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,9 +63,33 @@ fun NcbCardEntryScreen(
     val ui by host.ncbUi.collectAsState()
     val form = ui.form
 
-    var cardName by remember { mutableStateOf("${form.firstName} ${form.lastName}".trim().take(70)) }
+    // ⚠️ THE CARD NUMBER AND CVV ARE `remember` ON PURPOSE. DO NOT "FIX" THEM
+    // TO rememberSaveable.
+    //
+    // The other three recreation defects on this screen's sibling screens are
+    // genuine remember/rememberSaveable bugs. This one is not, and the obvious
+    // fix here is worse than the bug: rememberSaveable writes into the
+    // saved-instance-state Bundle, which the system may persist to disk and
+    // which survives PROCESS DEATH. A PAN and a CVV must never be written
+    // there — a CVV must not be stored at all once the transaction is done.
+    // MainActivity carries the same warning for the biometric-lock flag.
+    //
+    // Losing them is the SAFE outcome, and the exposure is now small:
+    // MainActivity declares android:configChanges for orientation/screenSize/
+    // screenLayout/smallestScreenSize/keyboard/keyboardHidden, so rotating or
+    // resizing no longer recreates the Activity and no longer clears these.
+    // What still clears them is a theme/locale/font-scale change or process
+    // death — and on every one of those, re-entering the card is correct.
+    //
+    // If mid-entry survival is ever required for the low-sensitivity fields,
+    // hoist them to the checkout ViewModel (survives recreation via the
+    // ViewModelStore, dies with the process, never touches disk). Never to
+    // saved state.
+    var cardName by rememberSaveable {
+        mutableStateOf("${form.firstName} ${form.lastName}".trim().take(70))
+    }
     var cardNumber by remember { mutableStateOf("") }
-    var expiry by remember { mutableStateOf("") } // MM/YY
+    var expiry by rememberSaveable { mutableStateOf("") } // MM/YY — not sensitive alone
     var cvv by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
