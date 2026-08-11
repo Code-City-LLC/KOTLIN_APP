@@ -616,11 +616,22 @@ class PackageDetailsParityTest {
     /**
      * ⚠️ A SUCCESSFUL RESPONSE WE CANNOT READ IS NOT AN EMPTY JOURNEY EITHER.
      *
-     * `TrackJourney.rows()` drops any entry with a blank label, so a nonempty
-     * but malformed payload maps to zero rows. Branching on `rows.isEmpty()`
-     * alone therefore still presented a garbled response as CONFIRMED zero
+     * Originally: `TrackJourney.rows()` DROPPED any entry with a blank label, so
+     * a nonempty but malformed payload mapped to zero rows, and branching on
+     * `rows.isEmpty()` alone presented a garbled response as CONFIRMED zero
      * history — the same conflation as the failure case, one level deeper.
-     * The gate is now on the RAW payload. BrightHarbor #80372.
+     * BrightHarbor #80372.
+     *
+     * Since 2ac03ed9 the mapper no longer drops anything: it THROWS
+     * `IllegalArgumentException` on a blank label, because a renderer that
+     * repairs its input makes the repository guard pointless. That turned this
+     * very case into a renderer CRASH — the sole connected-gate failure at
+     * 2ac03ed9. The caller in `PackageDetailsScreen` now catches that specific
+     * rejection and classifies it as unreadable, so the mapper stays strict and
+     * the customer still gets the honest "couldn't be loaded" card.
+     *
+     * This test is the one that proves all three: strict mapper, no crash, and
+     * unreadable never rendered as confirmed-empty.
      */
     @Test
     fun aSuccessfulButUnreadablePayloadIsNotConfirmedZeroHistory() {

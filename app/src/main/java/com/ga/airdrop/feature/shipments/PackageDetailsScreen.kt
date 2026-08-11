@@ -419,23 +419,45 @@ private fun PackageDetailsContent(
             titleContentGap = 14.dp,
             contentSpacing = 12.dp,
         ) {
-            val rows = TrackJourney.rows(state.timeline)
+            // ⚠️ `TrackJourney.rows` is STRICT since 2ac03ed9: a malformed entry
+            // THROWS rather than being silently repaired, and that stays exactly
+            // as it is. But this call sat BEFORE the classification below, so a
+            // successful-but-unreadable payload took the renderer down with an
+            // IllegalArgumentException instead of reaching the honest "couldn't
+            // be loaded" card — the connected regression at 2ac03ed9
+            // (PackageDetailsParityTest.aSuccessfulButUnreadablePayloadIsNotConfirmedZeroHistory).
+            //
+            // So the rejection is caught HERE, at the caller, and classified as
+            // unreadable. Only the mapper's own IllegalArgumentException is
+            // absorbed — any other failure still propagates, because turning an
+            // unknown crash into a tidy error card is how real bugs get hidden.
+            val mapped = try {
+                TrackJourney.rows(state.timeline)
+            } catch (rejected: IllegalArgumentException) {
+                // The repository is supposed to reject these upstream; if one
+                // still arrives, it is a payload we cannot understand.
+                null
+            }
+            val rows = mapped.orEmpty()
+            val mappingRejected = mapped == null
             // ⚠️ THREE DISTINCT SITUATIONS, THREE DIFFERENT ANSWERS.
             //
             //   FAILED                        -> we could not read it. Say so.
             //   LOADED + raw payload empty    -> genuinely no recorded events.
-            //   LOADED + raw entries present
-            //     but all dropped as invalid  -> we read something we could not
+            //   LOADED + entries present but
+            //     REJECTED by the mapper      -> we read something we could not
             //                                    understand. NOT "no history".
             //
-            // The third is the subtle one, and it is why this gates on the RAW
-            // payload rather than on the mapped rows: TrackJourney drops any
-            // entry with a blank label, so a malformed-but-successful response
-            // maps to zero rows and would otherwise be presented as confirmed
-            // zero history. BrightHarbor #80372.
+            // The third is the subtle one. It used to be detected by "raw
+            // entries present but zero rows mapped", which was true when the
+            // mapper DROPPED blank-label rows. It no longer drops anything — it
+            // throws — so the signal is now `mappingRejected`. The raw-vs-mapped
+            // comparison is kept alongside it: it still catches a future mapper
+            // that returns fewer rows than it was given without raising.
+            // BrightHarbor #80372.
             val readFailed = state.timelineOutcome == TimelineOutcome.FAILED
             val payloadUnusable = state.timelineOutcome == TimelineOutcome.LOADED &&
-                state.timeline.isNotEmpty() && rows.isEmpty()
+                (mappingRejected || (state.timeline.isNotEmpty() && rows.isEmpty()))
             if (rows.isEmpty() && (readFailed || payloadUnusable)) {
                 // ⚠️ A FAILED READ IS NOT AN EMPTY JOURNEY.
                 //
