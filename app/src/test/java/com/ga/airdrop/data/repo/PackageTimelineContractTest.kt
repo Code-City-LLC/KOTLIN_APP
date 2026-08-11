@@ -218,6 +218,41 @@ class PackageTimelineContractTest {
         assertEquals(listOf("done", "current", "pending"), r.getOrNull()!!.map { it.state })
     }
 
+    // ── EXACT vocabulary — no trimming, no case folding ─────────────────────
+
+    @Test
+    fun `an UPPERCASE state is rejected — iOS decodes a raw-value enum`() {
+        // Kotlin used to lowercase before matching, so "DONE" passed here and
+        // failed on iOS. Normalizing is drift in the LENIENT direction: it
+        // widens a server vocabulary the server does not emit.
+        assertTrue(load(body(entry(state = "DONE"), total = 1)).isFailure)
+        assertTrue(load(body(entry(state = "Current"), total = 1)).isFailure)
+    }
+
+    @Test
+    fun `a whitespace-wrapped state is rejected`() {
+        assertTrue(load(body(entry(state = " done "), total = 1)).isFailure)
+    }
+
+    @Test
+    fun `a null status with source Delivery capitalised is rejected`() {
+        // `source` is compared EXACTLY and preserved. Normalizing it would let
+        // "Delivery" pass as the delivery rail and admit a statusless WAREHOUSE
+        // row — the hole this invariant exists to close.
+        assertTrue(load(body(entry(status = "null", source = "Delivery"), total = 1)).isFailure)
+    }
+
+    @Test
+    fun `a null status with a whitespace-wrapped delivery source is rejected`() {
+        assertTrue(load(body(entry(status = "null", source = " delivery "), total = 1)).isFailure)
+    }
+
+    @Test
+    fun `source is PRESERVED verbatim, not normalized`() {
+        val r = load(body(entry(source = "status"), total = 1))
+        assertEquals("status", r.getOrNull()!!.single().source)
+    }
+
     // ── the source/status invariant ─────────────────────────────────────────
 
     @Test

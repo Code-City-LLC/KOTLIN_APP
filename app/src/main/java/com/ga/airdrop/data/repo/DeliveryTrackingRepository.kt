@@ -547,16 +547,24 @@ private val DELIVERY_STAGE_STATES = setOf("done", "current", "pending")
 private fun PackageTimelineEntry.validated(): PackageTimelineEntry {
     val normalizedKey = key?.trim()?.takeIf(String::isNotEmpty)
         ?: error(DELIVERY_CONTRACT_ERROR)
-    val normalizedState = state?.trim()?.lowercase(Locale.US)
-        ?.takeIf { it in DELIVERY_STAGE_STATES }
+    // ⚠️ EXACT, NOT NORMALIZED. This trimmed and lowercased, so Kotlin accepted
+    // "DONE" and " done " where Swift rejects both: iOS decodes `state` as a
+    // raw-value enum (`DeliveryStageState`), which matches the literal or
+    // throws. Normalizing here is drift in the LENIENT direction — it silently
+    // widens a server vocabulary the server does not actually emit, and the
+    // whole point of #95189 was to stop accepting payloads iOS rejects.
+    val exactState = state?.takeIf { it in DELIVERY_STAGE_STATES }
         ?: error(DELIVERY_CONTRACT_ERROR)
-    val normalizedSource = source?.trim()?.lowercase(Locale.US)
-    if (status == null && normalizedSource != "delivery") error(DELIVERY_CONTRACT_ERROR)
+    // `source` is PRESERVED verbatim and compared exactly, matching iOS's
+    // `status == nil && source != "delivery"`. Normalizing it would accept
+    // "Delivery" and " delivery " as the delivery rail and let a statusless
+    // WAREHOUSE row through — the exact hole the invariant closes.
+    if (status == null && source != "delivery") error(DELIVERY_CONTRACT_ERROR)
     return copy(
         key = normalizedKey,
         label = label?.trim()?.takeIf(String::isNotEmpty) ?: UNNAMED_STATUS_LABEL,
-        state = normalizedState,
-        source = normalizedSource,
+        state = exactState,
+        source = source,
     )
 }
 

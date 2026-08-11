@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.delivery
 
 import com.ga.airdrop.data.model.PackageTimelineEntry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -125,11 +126,52 @@ class TrackJourneyTest {
         assertEquals("Driver Assigned", TrackJourney.rows(ops).single().label)
     }
 
-    /** A row with no label is not renderable, so it is skipped rather than faked. */
+    /**
+     * ⚠️ THIS TEST USED TO EXPECT THE ROW TO BE SKIPPED, AND THAT WAS THE BUG.
+     *
+     * Dropping an unlabelled entry made a real recorded event vanish from the
+     * customer's journey with nothing anywhere to notice it — the same
+     * "absence rendered as fact" class the repository guards close. The
+     * repository now rejects such a payload outright (#95189); rows() fails
+     * closed rather than silently repairing input, so the guard cannot be made
+     * pointless by feeding this from a new source. Corrected after
+     * @Codex-CodexKotlinAudit #95347.
+     */
     @Test
-    fun `a row with no label is skipped rather than invented`() {
-        val rows = TrackJourney.rows(listOf(entry("a", "A"), PackageTimelineEntry(key = "b")))
-        assertEquals(listOf("A"), rows.map { it.label })
+    fun `a row with no label fails closed instead of being skipped`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            // ⚠️ state MUST be valid here. My first version omitted it, so the
+            // STATE guard threw and this test passed for the wrong reason —
+            // relaxing the LABEL guard left it green. Only the label is absent.
+            TrackJourney.rows(
+                listOf(entry("a", "A"), PackageTimelineEntry(key = "b", state = "done")),
+            )
+        }
+    }
+
+    @Test
+    fun `a row with no key fails closed instead of being faked`() {
+        // `entry_<index>` is not an identity: it changes when the list
+        // reorders, so per-row state attaches to the wrong row.
+        assertThrows(IllegalArgumentException::class.java) {
+            TrackJourney.rows(listOf(PackageTimelineEntry(label = "A", state = "done")))
+        }
+    }
+
+    @Test
+    fun `a row with no state fails closed instead of defaulting to done`() {
+        // Defaulting told the customer a step COMPLETED that the server never
+        // reported.
+        assertThrows(IllegalArgumentException::class.java) {
+            TrackJourney.rows(listOf(PackageTimelineEntry(key = "a", label = "A")))
+        }
+    }
+
+    @Test
+    fun `a row whose state is not the exact server vocabulary fails closed`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TrackJourney.rows(listOf(PackageTimelineEntry(key = "a", label = "A", state = "DONE")))
+        }
     }
 
     /**

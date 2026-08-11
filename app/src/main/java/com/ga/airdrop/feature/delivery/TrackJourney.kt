@@ -46,20 +46,48 @@ internal object TrackJourney {
 
     fun needsHelp(statusId: Int?): Boolean = statusId != null && statusId in NEEDS_HELP_STATUSES
 
-    /** Server entries → rendered rows, in the order given. */
+    /**
+     * Server entries → rendered rows, in the order given.
+     *
+     * ⚠️ THIS USED TO PAPER OVER CORRUPTION, AND #95189's COMMIT MESSAGE SAID
+     * IT NO LONGER DID BEFORE THAT WAS TRUE. @Codex-CodexKotlinAudit #95347
+     * caught the inconsistency: the repository guards landed, this did not.
+     *
+     * Three fallbacks are gone:
+     *  - a blank label DROPPED the row, so a real recorded event vanished from
+     *    the customer's journey with nothing to notice it;
+     *  - a missing key was faked as `entry_<index>`, which is not an identity —
+     *    it changes when the list reorders, so per-row state attaches to the
+     *    wrong row;
+     *  - a missing state defaulted to `"done"`, telling the customer a step
+     *    COMPLETED that the server never reported.
+     *
+     * `DeliveryTrackingRepository.packageTimeline` now rejects every one of
+     * those before they reach here, so this is a pure mapper. It stays strict
+     * anyway: a renderer that silently repairs its input is how the repository
+     * guard becomes pointless the day someone feeds this from a new source.
+     */
     fun rows(entries: List<PackageTimelineEntry>): List<TrackRow> =
-        entries.mapIndexedNotNull { index, entry ->
-            val label = entry.label?.trim()?.takeIf(String::isNotEmpty) ?: return@mapIndexedNotNull null
+        entries.map { entry ->
             TrackRow(
-                key = entry.key?.trim()?.takeIf(String::isNotEmpty) ?: "entry_$index",
-                label = label,
-                state = entry.state?.trim()?.takeIf(String::isNotEmpty) ?: "done",
+                key = requireNotNull(entry.key?.trim()?.takeIf(String::isNotEmpty)) {
+                    "timeline entry has no key; the repository must reject this"
+                },
+                label = requireNotNull(entry.label?.trim()?.takeIf(String::isNotEmpty)) {
+                    "timeline entry has no label; the repository must reject this"
+                },
+                state = requireNotNull(entry.state?.takeIf { it in TRACK_ROW_STATES }) {
+                    "timeline entry state is not done|current|pending"
+                },
                 at = entry.at?.trim()?.takeIf(String::isNotEmpty),
                 statusId = entry.status,
                 iconKey = entry.icon?.trim()?.takeIf(String::isNotEmpty),
                 needsHelp = needsHelp(entry.status),
             )
         }
+
+    /** Exact server vocabulary — same literals iOS's DeliveryStageState holds. */
+    private val TRACK_ROW_STATES = setOf("done", "current", "pending")
 
     /**
      * The server's glyph key → a drawable. Keys are `App\Support\StatusIcons`
