@@ -171,7 +171,10 @@ class PaymentsRepository(private val service: AirdropApiService) {
             // to finish issuer authentication for a payment we already know we
             // cannot settle.
             if (data.checkoutId?.trim()?.toLongOrNull()?.takeIf { it > 0L } == null) {
-                error(envelope.message ?: "Payment session is missing its checkout reference. Please try again.")
+                // The envelope already passed its success/data/token guards.
+                // Never present an optional success-context message as this
+                // client-side settlement-contract failure.
+                error("Payment session is missing its checkout reference. Please try again.")
             }
             data
         }

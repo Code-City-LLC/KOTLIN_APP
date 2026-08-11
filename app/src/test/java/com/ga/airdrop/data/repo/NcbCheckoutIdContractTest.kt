@@ -40,7 +40,10 @@ class NcbCheckoutIdContractTest {
 
     private fun parse(raw: String?) = raw?.trim()?.toLongOrNull()?.takeIf { it > 0L }
 
-    private fun createResult(checkoutId: String?): Result<NcbSessionResponse> = runBlocking {
+    private fun createResult(
+        checkoutId: String?,
+        message: String? = null,
+    ): Result<NcbSessionResponse> = runBlocking {
         val service = Proxy.newProxyInstance(
             AirdropApiService::class.java.classLoader,
             arrayOf(AirdropApiService::class.java),
@@ -48,6 +51,7 @@ class NcbCheckoutIdContractTest {
             when (method.name) {
                 "createNcbSession" -> DataEnvelope(
                     success = true,
+                    message = message,
                     data = NcbSessionResponse(
                         spiToken = "spi-test",
                         redirectData = "<html>3DS</html>",
@@ -174,5 +178,19 @@ class NcbCheckoutIdContractTest {
 
         assertTrue("a valid Long checkout id must still open 3DS: $result", result.isSuccess)
         assertEquals(" $big ", result.getOrThrow().checkoutId)
+    }
+
+    @Test
+    fun `success envelope message cannot disguise a broken checkout reference`() {
+        val result = createResult(
+            checkoutId = null,
+            message = "Payment session created successfully",
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals(
+            "Payment session is missing its checkout reference. Please try again.",
+            result.exceptionOrNull()?.message,
+        )
     }
 }
