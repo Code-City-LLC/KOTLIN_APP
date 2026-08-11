@@ -13,6 +13,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
@@ -135,9 +138,11 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("Alabama").performClick()
         assertEquals("Alabama", formSnapshot.get().state)
         compose.onNodeWithTag("checkout-profile-city-card").performScrollTo()
-        val cityField = compose.onNodeWithText("Miami", useUnmergedTree = true)
+        val cityField = compose.onNode(
+            hasSetTextAction() and hasAnyAncestor(hasTestTag("checkout-profile-city-card")),
+            useUnmergedTree = true,
+        )
         cityField.performClick()
-        cityField.performTextClearance()
         cityField.performTextInput("Houston")
         assertEquals("Houston", formSnapshot.get().city)
 
