@@ -337,42 +337,44 @@ internal fun isNcbCallback(
  * throughout: one pins URL/origin recognition, the other the `checkout_id`
  * wire shape. Neither could see ordering, because there was nothing to call.
  *
- * The rule, matching iOS `FigmaCartViewController` 5481-5530:
- *  1. RECORD the callback when the navigation is proposed — the last point we
- *     are guaranteed to see that URL — and ALLOW the load. Never complete here:
- *     Laravel has not processed the POST yet.
- *  2. COMPLETE after a load lands, either on the callback URL itself or on the
- *     page it redirected us to.
+ * THE RULE — two decisions, no state:
+ *  1. EVERY navigation is allowed (`false`). Cancelling is what stopped the
+ *     callback from ever reaching Laravel.
+ *  2. Completion fires ONLY on the EXACT callback URL in `onPageFinished` —
+ *     after the load lands, so Laravel has already processed the POST.
  *
- * ⚠️ STEP 1 DOES NOT RUN ON THE CANONICAL PATH. Android documents that
- * `shouldOverrideUrlLoading` is NOT called for POST requests, and Laravel's
- * callback route is POST-only (`routes/modules/customer.php:322`). So
- * `sawCallback` normally never arms, and the flow completes purely through
- * step 2's `isCallback(url)` arm. Step 1 remains because it is the only place
- * we would see the URL if a non-POST variant ever appears, and because
- * returning false there is what keeps the navigation alive.
+ * ⚠️ THERE IS DELIBERATELY NO LATCH, AND THE ONE I ADDED WAS REMOVED ON
+ * VERIFIER DECISION @Codex-CodexKotlinAudit #95239.
  *
- * ⚠️ THE `sawCallback` ARM IS A NONCANONICAL FALLBACK, AND MY ORIGINAL
- * JUSTIFICATION FOR IT WAS STALE. I wrote that the callback page redirects a
- * top-level WebView to /user/checkout unconditionally, carrying iOS's historical
- * finding (@MagentaReef #89168) forward as current fact. Verified against
- * deployed `origin/pre_staging` (`5705a8cd`,
- * `resources/views/checkout/ncb-callback.blade.php`, `redirectEmbeddedParent`):
+ * My first repair recorded a `sawCallback` flag in `shouldOverrideUrlLoading`
+ * and also completed on any later page once armed. Three things were wrong
+ * with it:
  *
- *     if (window.parent === window) { return false; }
- *     window.parent.location = '/user/checkout';
+ *  - The canonical callback is a POST, and Android does not call
+ *    `shouldOverrideUrlLoading` for POST requests. Laravel's route is POST-only
+ *    (`routes/modules/customer.php:322`), so the flag could never arm on the
+ *    shipping path — my tests "proved" it only by hand-calling a hook Android
+ *    never invokes.
+ *  - Android may call that hook for SUBFRAMES, so the flag could arm from a
+ *    frame that is not the callback at all, giving completion a second trigger
+ *    with no evidence behind it.
+ *  - The redirect it was meant to catch does not happen to us. I claimed
+ *    `ncb-callback.blade.php` redirects a top-level WebView unconditionally,
+ *    carrying iOS's historical finding (@MagentaReef #89168) forward as current
+ *    fact. Verified against deployed `origin/pre_staging` `5705a8cd`,
+ *    `redirectEmbeddedParent`:
  *
- * with Laravel's own comment: "Swift and Android load the same RedirectData as
- * a top-level WebView document and detect this exact callback URL after the
- * POST finishes. Redirecting a top-level WebView here races that native
- * completion signal."
+ *        if (window.parent === window) { return false; }
+ *        window.parent.location = '/user/checkout';
  *
- * So the server deliberately does NOT redirect us — it PRESERVES the callback
- * URL precisely so `onPageFinished(callback)` can fire. The redirect only
- * happens in the iframe/browser integration, which this screen is not. The arm
- * is therefore kept only for that embedded variant, is inert on the shipping
- * path, and must not be described as canonical. Corrected after
- * @Codex-CodexKotlinAudit #95230.
+ *    Laravel's own comment: "Swift and Android load the same RedirectData as a
+ *    top-level WebView document and detect this exact callback URL after the
+ *    POST finishes. Redirecting a top-level WebView here races that native
+ *    completion signal." The server PRESERVES the URL on purpose so exact
+ *    recognition is sufficient.
+ *
+ * If a provider variant ever violates that contract, the user-visible manual
+ * confirmation button on this screen is the fallback — not a stateful guess.
  *
  * Trusting the page for nothing is what makes this safe — completion asks our
  * own authenticated server for the outcome with the server-issued spi_token and
@@ -382,20 +384,31 @@ internal fun isNcbCallback(
 internal class NcbCallbackNavigationGate(
     private val isCallback: (String) -> Boolean,
 ) {
-    /** Set once the callback navigation is seen; never reset. */
-    var sawCallback: Boolean = false
-        private set
+    /**
+     * ALWAYS false — never cancel a navigation.
+     *
+     * `true` here is the original P0: it tells the WebView "I handled it, do
+     * not load it", so the callback URL was never fetched and Laravel's POST
+     * may never have been processed while the client reported success.
+     *
+     * Nothing is recorded here. The canonical callback is a POST and Android
+     * does not call this hook for POST requests, so any state set here would be
+     * dead on the shipping path — and Android may call it for SUBFRAMES, so a
+     * latch could arm from a frame that is not the callback at all.
+     */
+    fun shouldOverrideUrlLoading(url: String): Boolean = false
 
     /**
-     * Always returns false — "WebView, you load it". Returning true is the
-     * defect: it cancels the navigation so the callback is never delivered.
+     * Complete ONLY on the exact callback URL.
+     *
+     * Laravel deliberately preserves that URL for a top-level WebView
+     * (`5705a8cd`, `ncb-callback.blade.php` `redirectEmbeddedParent`:
+     * `if (window.parent === window) return false`), precisely so this fires.
+     * Exact recognition is therefore sufficient, and it is the whole trigger.
+     *
+     * If a provider variant ever violates that contract, the user-visible
+     * manual confirmation button on this screen is the fallback — not a
+     * stateful guess in here.
      */
-    fun shouldOverrideUrlLoading(url: String): Boolean {
-        if (isCallback(url)) sawCallback = true
-        return false
-    }
-
-    /** Complete on the callback URL, or on the page it redirected us to. */
-    fun shouldCompleteOnPageFinished(url: String): Boolean =
-        isCallback(url) || sawCallback
+    fun shouldCompleteOnPageFinished(url: String): Boolean = isCallback(url)
 }
