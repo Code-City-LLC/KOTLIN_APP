@@ -49,10 +49,12 @@ val playUploadSigningConfigured =
 //     all uploaded bundle versionCodes -> [2, 21, 22, 23, 24, 25, 26]
 //
 // A versionCode is burned by being UPLOADED, not by shipping — a cancelled or
-// halted release still consumes it. The Android Publisher API was queried on
-// 2026-08-11 and production already contains v28 (3.2.2); uploaded codes were
-// [2, 22, 24, 25, 26, 27, 28]. Query Play again before every build because a
-// non-production upload also burns its code; this is only the last verified floor.
+// halted release still consumes it. Keep the highest code ever observed: Play's
+// current bundles listing is not a permanent historical ledger and can omit older
+// burned artifacts (the 2026-08-11 query returned [2, 22, 24, 25, 26, 27, 28],
+// omitting 21 and 23 from the 2026-08-02 result). Production contains v28 (3.2.2).
+// Query Play again before every build because a non-production upload also burns
+// its code; this is only the last verified floor.
 //
 // To re-check before any release, do not trust this constant — ask Play:
 //   edits.bundles().list(packageName=..., editId=...)  -> max(versionCode)
