@@ -4,7 +4,6 @@ import com.ga.airdrop.feature.shipments.ShipmentsFormat
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.prefs.ExchangeRateStore
-import com.ga.airdrop.data.model.arrayAt
 import com.ga.airdrop.data.model.flexDouble
 import com.ga.airdrop.data.model.flexInt
 import com.ga.airdrop.data.model.flexString
