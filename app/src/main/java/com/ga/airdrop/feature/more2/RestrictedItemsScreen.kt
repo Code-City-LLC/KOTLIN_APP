@@ -452,8 +452,8 @@ private fun RestrictedItemsInfo(category: RestrictedCategory, onBack: () -> Unit
                     InfoNoteCard(
                         title = "Battery policy (Jamaica + IATA):",
                         body = policy,
-                        footer = "Please note: All packages will be handled as AirDrop " +
-                            "Standard unless identified otherwise in address line 2.",
+                        footer = "Please note: All packages will be handled as Airdrop " +
+                            "unless identified otherwise in address line 2.",
                         testTag = "restricted-note-BATTERY",
                     )
                 }

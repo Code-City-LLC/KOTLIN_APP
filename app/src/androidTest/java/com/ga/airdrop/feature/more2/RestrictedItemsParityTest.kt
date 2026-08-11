@@ -119,6 +119,9 @@ class RestrictedItemsParityTest {
         compose.onNodeWithTag("restricted-note-BATTERY").assertIsDisplayed()
         compose.onNodeWithText("Battery policy (Jamaica + IATA):")
             .assertIsDisplayed()
+        compose.onNodeWithText(
+            "Please note: All packages will be handled as Airdrop unless identified otherwise in address line 2.",
+        ).assertIsDisplayed()
 
         val root = bounds("restricted-detail-root-PERMITTED")
         val note = bounds("restricted-note-BATTERY")

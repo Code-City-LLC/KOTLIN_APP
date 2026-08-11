@@ -22,20 +22,30 @@ import okhttp3.Request
  * `AirdropAPI.DropAlertShippingMethod` raw values, NOT the display labels.
  */
 enum class DropAlertShippingMethod(val apiValue: String, val displayName: String) {
-    AIRDROP_STANDARD("AIR", "Airdrop standard"),
-    SEADROP_STANDARD("SeaDrop", "SeaDrop Standard"),
+    AIRDROP_STANDARD("AIR", "Airdrop"),
+    SEADROP_STANDARD("SeaDrop", "Seadrop"),
     EXPRESS("Express", "Express");
 
     companion object {
-        /** Swift init(displayName:) — substring match, defaults to AIR. */
-        fun fromDisplayName(displayName: String): DropAlertShippingMethod {
-            val normalized = displayName.lowercase()
-            return when {
-                normalized.contains("sea") -> SEADROP_STANDARD
-                normalized.contains("express") -> EXPRESS
-                else -> AIRDROP_STANDARD
+        /** Strict recognition for persisted/display values; unknown values stay unknown. */
+        fun fromDisplayNameOrNull(displayName: String): DropAlertShippingMethod? {
+            val normalized = displayName
+                .trim()
+                .lowercase()
+                .replace(" ", "")
+                .replace("_", "")
+                .replace("-", "")
+            return when (normalized) {
+                "air", "airdrop", "airdropstandard", "standard" -> AIRDROP_STANDARD
+                "seadrop", "seadropstandard" -> SEADROP_STANDARD
+                "express", "airdropexpress" -> EXPRESS
+                else -> null
             }
         }
+
+        /** Swift init(displayName:) compatibility — submission still defaults to AIR. */
+        fun fromDisplayName(displayName: String): DropAlertShippingMethod =
+            fromDisplayNameOrNull(displayName) ?: AIRDROP_STANDARD
     }
 }
 

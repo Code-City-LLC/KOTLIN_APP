@@ -82,8 +82,8 @@ fun CalculatorResultsScreen(
     LaunchedEffect(Unit) { viewModel.loadExchangeRate() }
 
     val title = when (current.method) {
-        ShippingMethod.EXPRESS -> "Express Results"
-        ShippingMethod.SEADROP -> "SeaDrop Results"
+        ShippingMethod.EXPRESS,
+        ShippingMethod.SEADROP -> "${current.method.label} Results"
         ShippingMethod.STANDARD -> "Results"
     }
 

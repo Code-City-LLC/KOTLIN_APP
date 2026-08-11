@@ -74,9 +74,11 @@ class PackagesFilterSheetParityTest {
         compose.onNodeWithText("Sorting by").assertIsDisplayed()
         compose.onNodeWithText("Shipment Method").assertIsDisplayed()
         compose.onNodeWithText("Status of Shipment").assertIsDisplayed()
-        compose.onNodeWithText("AirDrop").assertIsDisplayed()
+        compose.onNodeWithText("Airdrop").assertIsDisplayed()
+        compose.onNodeWithText("Seadrop").assertIsDisplayed()
         assertEquals(0, compose.onAllNodesWithText("All Packages").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithText("AirDrop Standard").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("Standard").fetchSemanticsNodes().size)
 
         val root = compose.onNodeWithTag("packages-filter-root").getUnclippedBoundsInRoot()
         val sheet = compose.onNodeWithTag("packages-filter-sheet").getUnclippedBoundsInRoot()
@@ -119,7 +121,7 @@ class PackagesFilterSheetParityTest {
             assertClose(24f, boundsWidth(icon), "Figma icon $index width")
             assertClose(24f, boundsHeight(icon), "Figma icon $index height")
         }
-        val airDropText = compose.onNodeWithText("AirDrop", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val airDropText = compose.onNodeWithText("Airdrop", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val readyText = compose.onNodeWithText("Ready for Pickup", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertClose(10f, boundsLeft(airDropText) - boundsRight(standardIcon), "Swift method icon/text gap")
         assertClose(10f, boundsLeft(readyText) - boundsRight(readyIcon), "Swift status icon/text gap")

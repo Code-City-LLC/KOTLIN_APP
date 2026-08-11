@@ -16,12 +16,17 @@ import java.util.Locale
 
 /** Client-side shipment-type filter values (FigmaPackagesViewController). */
 enum class ShipmentTypeFilter(val label: String) {
-    All("All"), Standard("Standard"), Seadrop("Seadrop"), Express("Express");
+    All("All"), Standard("Airdrop"), Seadrop("Seadrop"), Express("Express");
 
     fun matches(pkg: ShipmentPackage): Boolean {
         if (this == All) return true
-        val method = pkg.shippingMethod.orEmpty().lowercase(Locale.US).replace(" ", "")
-        return method.contains(name.lowercase(Locale.US))
+        val method = ShipmentMethodUi.fromOrNull(pkg.shippingMethod) ?: return false
+        return when (this) {
+            All -> true
+            Standard -> method == ShipmentMethodUi.Standard
+            Seadrop -> method == ShipmentMethodUi.SeaDrop
+            Express -> method == ShipmentMethodUi.Express
+        }
     }
 }
 

@@ -156,8 +156,8 @@ class HomeActivityTilesScreenshotTest {
         setHomeContent()
 
         listOf(
-            WarehouseGeometryCase(type = "standard", imageDescription = "Standard"),
-            WarehouseGeometryCase(type = "seadrop", imageDescription = "SeaDrop"),
+            WarehouseGeometryCase(type = "standard", imageDescription = "Airdrop"),
+            WarehouseGeometryCase(type = "seadrop", imageDescription = "Seadrop"),
             WarehouseGeometryCase(type = "express", imageDescription = "Express"),
         ).forEach { warehouseCase ->
             compose.onNodeWithTag("home-warehouse-carousel")
@@ -362,7 +362,7 @@ class HomeActivityTilesScreenshotTest {
         assertWarehouseCardOpensFromHomeNavGraph(
             WarehouseNavGraphCase(
                 type = "standard",
-                expectedTitle = "AirDrop (Air Freight)",
+                expectedTitle = "Airdrop (Air Freight)",
                 expectedAddressLine1 = "3505 NW 107th Ave",
                 expectedAddressLine2 = "Unit G36 - AIR – 14823",
                 screenshot = "home_warehouse_standard_after_tap.png",
@@ -375,7 +375,7 @@ class HomeActivityTilesScreenshotTest {
         assertWarehouseCardOpensFromHomeNavGraph(
             WarehouseNavGraphCase(
                 type = "seadrop",
-                expectedTitle = "SeaDrop (Sea Freight)",
+                expectedTitle = "Seadrop (Sea Freight)",
                 expectedAddressLine1 = "2100 NW 129th Ave",
                 expectedAddressLine2 = "Unit G36 - SEA – 14823",
                 screenshot = "home_warehouse_seadrop_after_tap.png",

@@ -13,14 +13,14 @@ package com.ga.airdrop.feature.calculator
 enum class ShippingMethod(val label: String, val apiValue: String, val info: String) {
     // Figma 40001464:29102 info copy — "2 to 3 business days…"
     STANDARD(
-        label = "AirDrop",
+        label = "Airdrop",
         apiValue = "airdrop_standard",
         info = "2 to 3 business days after items are delivered to our warehouse.",
     ),
 
     // Swift FigmaCalculatorViewController.swift:26 — "2 to 4 weeks…" (Swift wins over Figma 40001464:30381)
     SEADROP(
-        label = "SeaDrop",
+        label = "Seadrop",
         apiValue = "seadrop_standard",
         info = "2 to 4 weeks after items are delivered to our warehouse.",
     ),

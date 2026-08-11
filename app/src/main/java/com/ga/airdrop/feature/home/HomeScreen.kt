@@ -286,11 +286,10 @@ private data class WarehouseFloorShadowSpec(
 )
 
 private val warehouseCards = listOf(
-    // Copy matches Swift FigmaHomeViewController.swift:296-303 exactly
-    // (titles without the "AirDrop" prefix; SeaDrop/Express bodies keep
-    // their trailing periods, Standard has none).
+    // Titles use the customer-facing Airdrop/Seadrop/Express vocabulary;
+    // the delivery descriptions preserve their existing punctuation.
     WarehouseCard(
-        title = "Standard",
+        title = "Airdrop",
         subtitle = "Air Freight",
         description = "2 to 3 business days after items are delivered to our warehouse",
         imageRes = R.drawable.img_warehouse_standard,
@@ -308,7 +307,7 @@ private val warehouseCards = listOf(
         ),
     ),
     WarehouseCard(
-        title = "SeaDrop",
+        title = "Seadrop",
         subtitle = "Sea Freight",
         description = "2 to 4 weeks after items are delivered to our warehouse.",
         imageRes = R.drawable.img_warehouse_seadrop,

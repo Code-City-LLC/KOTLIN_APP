@@ -138,7 +138,10 @@ internal fun PaymentPackageDetailsContent(
                 "Drop Number",
                 ShipmentsFormat.trackingCode(detail?.trackingCode ?: payment.trackingCode),
             )
-            ShipmentsListRow("Shipping Method", detail?.shippingMethod ?: "-")
+            ShipmentsListRow(
+                "Shipping Method",
+                shippingMethodDisplayName(detail?.shippingMethod, missingValue = "-"),
+            )
             ShipmentsListRow("Merchant/Shipper", detail?.shipper ?: detail?.store ?: "-")
             ShipmentsListRow("Courier Tracking", detail?.courierNumber ?: "-")
             ShipmentsListRow(

@@ -33,7 +33,10 @@ class DropAlertViewModel(
 
         // RN DropAlertView picker `values` — Express is intentionally omitted
         // from the create-alert flow even though the API supports it.
-        val SHIPPING_METHOD_OPTIONS = listOf("Airdrop standard", "SeaDrop Standard")
+        val SHIPPING_METHOD_OPTIONS = listOf(
+            DropAlertShippingMethod.AIRDROP_STANDARD,
+            DropAlertShippingMethod.SEADROP_STANDARD,
+        ).map { it.displayName }
 
         // RN DropAlertView courierOptions, verbatim.
         val COURIER_COMPANY_OPTIONS = listOf(

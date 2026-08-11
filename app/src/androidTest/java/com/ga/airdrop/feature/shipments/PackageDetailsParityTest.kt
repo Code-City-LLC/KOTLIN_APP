@@ -71,6 +71,19 @@ class PackageDetailsParityTest {
     }
 
     @Test
+    fun unknownShippingMethodUsesNeutralArtworkInsteadOfAirdropBranding() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(shippingMethod = "Freight"),
+        )
+
+        assertEquals(2, compose.onAllNodesWithText("Freight").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("Airdrop").fetchSemanticsNodes().size)
+        compose.onNodeWithTag("package-details-method-hero-placeholder").assertIsDisplayed()
+        compose.onNodeWithTag("package-details-method-hero-image").assertDoesNotExist()
+    }
+
+    @Test
     fun invoiceViewAndCartButtonsKeepSwiftRuntimeRailsAtReadyForPickup() {
         setPackageDetailsContent(ThemeController.Mode.LIGHT)
 
@@ -946,9 +959,12 @@ class PackageDetailsParityTest {
 
     private fun assertSwiftVisualParity() {
         compose.onNodeWithTag("package-details-sheet").assertIsDisplayed()
-        compose.onNodeWithText("AirDrop").assertIsDisplayed()
+        val airdropLabels = compose.onAllNodesWithText("Airdrop")
+        assertEquals(2, airdropLabels.fetchSemanticsNodes().size)
+        airdropLabels[0].assertIsDisplayed()
         assertNodeContainsColor("package-details-hero-icon", 0xFF10BBE9.toInt(), "Standard hero glyph is AirDrop blue")
         assertEquals(0, compose.onAllNodesWithText("AirDrop Standard").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("Standard").fetchSemanticsNodes().size)
 
         compose.onNodeWithTag("package-details-section-summary")
             .performScrollTo()
@@ -1047,6 +1063,7 @@ class PackageDetailsParityTest {
     private fun sampleDetail(
         status: String = "7",
         statusName: String = "Ready for Pickup",
+        shippingMethod: String = "Standard",
         history: List<PackageHistoryItem> = listOf(
             PackageHistoryItem(
                 status = 1,
@@ -1064,7 +1081,7 @@ class PackageDetailsParityTest {
         id = 7,
         status = status,
         statusName = statusName,
-        shippingMethod = "Standard",
+        shippingMethod = shippingMethod,
         trackingCode = "AR000000043525",
         store = "Global HUB",
         shipper = "DHL / Airborne",

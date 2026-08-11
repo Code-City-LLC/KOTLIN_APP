@@ -48,6 +48,9 @@ class CalculatorEntryParityTest {
 
         compose.onNodeWithText("Shipping Calculator").assertIsDisplayed()
         compose.onNodeWithText("Shipping Method").assertIsDisplayed()
+        compose.onNodeWithText("Airdrop").assertIsDisplayed()
+        assertNoText("AirDrop")
+        assertNoText("Standard")
         compose.onNodeWithText("Invoice Amount USD").assertIsDisplayed()
         compose.onNodeWithText("Actual Weight (lbs)").assertIsDisplayed()
         assertNoText("Select Unit")

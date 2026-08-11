@@ -82,7 +82,7 @@ class ShippingRatesParityTest {
         compose.onNodeWithTag("shipping-rates-retry", useUnmergedTree = true).assertIsDisplayed()
 
         // None of the fabricated table may appear.
-        assertNoText("AirDrop Standard Rates")
+        assertNoText("Airdrop Rates")
         assertNoText("\$5.00")
         assertNoText("21 & Up")
 
@@ -108,6 +108,7 @@ class ShippingRatesParityTest {
         setShippingRates(api, ThemeController.Mode.DARK)
 
         assertEquals("Shipping Rates should make one backend request on entry", 1, api.shippingRatesCalls.get())
+        compose.onNodeWithText("Airdrop Rates").assertIsDisplayed()
         compose.onNodeWithText("0.5").assertIsDisplayed()
         // JMD / USD (Kemar 2026-07-26) — published rates were bare "$4.50",
         // which on a JM storefront did not say which dollar. Expectations come
