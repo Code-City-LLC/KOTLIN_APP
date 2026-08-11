@@ -102,9 +102,9 @@ Only `prodRelease` uses the Play upload signing configuration. Staging release
 keeps its local debug signature and repository version. Missing, incomplete, or
 invalid upload-key configuration disables the entire `prodRelease` variant. The
 variant is also disabled when `playVersionCode` (or `PLAY_VERSION_CODE`) is
-missing, non-numeric, not greater than the known Production floor of 21, or over
-Play's limit, so Gradle cannot emit an unsigned, debug-signed, knowingly reused,
-or out-of-range Play candidate.
+missing, non-numeric, not greater than `knownPlayProductionVersionCodeFloor` in
+`app/build.gradle.kts`, or over Play's limit, so Gradle cannot emit an unsigned,
+debug-signed, knowingly reused, or out-of-range Play candidate.
 
 Verify the resulting `app/build/outputs/bundle/prodRelease/app-prod-release.aab`
 with `jarsigner -verify -verbose -certs`, compare its certificate fingerprint to

@@ -101,16 +101,29 @@ next_build_number() {
   echo $(( n + 1 ))
 }
 
+known_play_version_floor() {
+  local gradle_file="$REPO_ROOT/app/build.gradle.kts" floor
+  floor="$(sed -nE \
+    's/^[[:space:]]*val knownPlayProductionVersionCodeFloor[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' \
+    "$gradle_file" | head -1)"
+  [[ "$floor" =~ ^[0-9]+$ ]] || \
+    die "could not read knownPlayProductionVersionCodeFloor from $gradle_file"
+  echo "$floor"
+}
+
 app_version() {
   local variant="${1:-}"
   local gradle_file="$REPO_ROOT/app/build.gradle.kts"
-  local name code
+  local name code floor
   if [ "$variant" = "prod-release" ]; then
     name="${PLAY_VERSION_NAME:-}"
     code="${PLAY_VERSION_CODE:-}"
     [ -n "$name" ] || die "prod-release requires PLAY_VERSION_NAME"
     [[ "$code" =~ ^[1-9][0-9]*$ ]] || \
       die "prod-release requires PLAY_VERSION_CODE as a positive integer"
+    floor="$(known_play_version_floor)"
+    (( code > floor )) || \
+      die "prod-release requires PLAY_VERSION_CODE greater than known Play floor $floor"
     case "$name" in
       *$'\n'*|*$'\r'*|*$'\t'*) die "PLAY_VERSION_NAME must be one line" ;;
     esac
@@ -448,7 +461,8 @@ if [ "${1:-}" = "--bundle" ]; then
   resolve_toolchain
   if [ "$BUNDLE_TASK" = "bundleProdRelease" ]; then
     [ -f "$REPO_ROOT/keystore.properties" ] || die "prodRelease is gated: keystore.properties (Play upload key) is required.
-       Provision it, export PLAY_VERSION_CODE (> 21), then re-run. For a signing-free
+       Provision it, export PLAY_VERSION_CODE above the floor in app/build.gradle.kts,
+       then re-run. For a signing-free
        smoke test of the bundle path use: scripts/build-apk.sh --bundle staging-release"
     app_version "prod-release" >/dev/null
   fi

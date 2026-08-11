@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -518,6 +519,58 @@ class GoldPriorityParityTest {
         assertClose(52f, boundsHeight(done), "Swift Done button height")
         compose.onNodeWithTag("tier-change-done").performClick()
         compose.runOnIdle { assertEquals(1, doneCalls) }
+    }
+
+    @Test
+    fun tierChangeFailureKeepsErrorScrollPositionAcrossModalRecreation() {
+        val phase = mutableStateOf(TierChangePhase.Error)
+        val targetBenefits = (1..8).map {
+            "Gold benefit $it remains visible while a tier request is processed"
+        }
+        val currentBenefits = (1..8).map {
+            "Ruby benefit $it remains visible until the server confirms the change"
+        }
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropThemeProvider {
+                TierChangeSheet(
+                    target = tierPages[goldIndex],
+                    current = tierPages[rubyIndex],
+                    targetBenefits = targetBenefits,
+                    currentBenefits = currentBenefits,
+                    isUpgrade = true,
+                    phase = phase.value,
+                    successName = null,
+                    successMessage = null,
+                    error = "We couldn't confirm the change.",
+                    onConfirm = { phase.value = TierChangePhase.Working },
+                    onDone = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("tier-change-error").performScrollTo()
+        val beforeWorking = compose.onNodeWithTag("tier-change-scroll")
+            .fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+        assertTrue("fixture must begin below the fold", beforeWorking > 0f)
+
+        compose.onNodeWithTag("tier-change-confirm").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("tier-change-spinner").assertIsDisplayed()
+        val whileWorking = compose.onNodeWithTag("tier-change-scroll")
+            .fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+        assertTrue("Working modal recreation reset the scroll", whileWorking > 0f)
+
+        compose.runOnIdle { phase.value = TierChangePhase.Error }
+        compose.waitForIdle()
+        val afterFailure = compose.onNodeWithTag("tier-change-scroll")
+            .fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+        assertTrue("Error modal recreation hid the server failure", afterFailure > 0f)
+        compose.onNodeWithTag("tier-change-error").performScrollTo().assertIsDisplayed()
     }
 
     @Test

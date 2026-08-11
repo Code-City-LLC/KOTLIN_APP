@@ -50,6 +50,10 @@ if PLAY_VERSION_CODE=0 PLAY_VERSION_NAME=3.2.3 \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity accepted a non-positive PLAY_VERSION_CODE"
 fi
+if PLAY_VERSION_CODE=28 PLAY_VERSION_NAME=3.2.3 \
+  "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
+  fail "prod-release identity accepted a burned PLAY_VERSION_CODE"
+fi
 prod_identity="$(
   PLAY_VERSION_CODE=29 PLAY_VERSION_NAME=3.2.3 \
     "$BUILDER" --print-app-version prod-release

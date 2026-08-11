@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.homedetails
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -81,6 +82,10 @@ internal fun TierChangeSheet(
     val latestWorking = rememberUpdatedState(working)
     var confirmationHeightPx by remember(target.id) { mutableIntStateOf(0) }
     val confirmationHeight = with(LocalDensity.current) { confirmationHeightPx.toDp() }
+    // Keep the customer's position while key(working) recreates only the
+    // Android 16 modal window. An in-key rememberScrollState() snapped to the
+    // top when a failed request changed Working -> Error, hiding the error.
+    val confirmationScrollState = rememberScrollState()
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { next ->
@@ -165,6 +170,7 @@ internal fun TierChangeSheet(
                             isUpgrade = isUpgrade,
                             working = working,
                             error = error.takeIf { phase == TierChangePhase.Error },
+                            scrollState = confirmationScrollState,
                             onConfirm = onConfirm,
                             onDismiss = onDismiss,
                             modifier = Modifier
@@ -189,6 +195,7 @@ private fun TierChangeConfirmation(
     isUpgrade: Boolean,
     working: Boolean,
     error: String?,
+    scrollState: ScrollState,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -202,7 +209,7 @@ private fun TierChangeConfirmation(
             Modifier
                 .weight(1f, fill = false)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .testTag("tier-change-scroll"),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

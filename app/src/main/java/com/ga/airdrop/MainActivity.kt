@@ -84,8 +84,13 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        PushDeepLink.capture(intent)
-        PushDeepLink.captureUri(intent)
+        // A configuration recreation keeps Activity.getIntent(). Re-capturing
+        // that stale launch intent would replay an already-consumed push route;
+        // targetSdk 36 makes this reachable on rotating/resizing large screens.
+        if (savedInstanceState == null) {
+            PushDeepLink.capture(intent)
+            PushDeepLink.captureUri(intent)
+        }
         maybeSeedSession()
         // Channels must exist BEFORE the first background (system-posted) push:
         // the manifest meta-data routes those to airdrop_alerts, which only
