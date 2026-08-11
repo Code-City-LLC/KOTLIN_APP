@@ -401,8 +401,32 @@ class DeliveryCenterViewModel(
         var page = 1
         while (true) {
             if (!sessionBoundary.isCurrent(owner)) throw CancellationException("Session replaced")
-            val response = gateway.packageJourneys(page = page, perPage = ACTIVE_PAGE_SIZE)
-                .getOrThrow()
+            // ⚠️ ONLY PAGE 1 IS FATAL. A LATER PAGE FAILING MUST NOT DISCARD
+            // THE PAGES THAT ALREADY LOADED.
+            //
+            // This was `.getOrThrow()` on every page, inside runCatching — so a
+            // blip on page 7 threw away pages 1-6 and blanked Track. The
+            // customer's packages were already in hand and we dropped them to
+            // render an error card.
+            //
+            // iOS fixed exactly this on 2026-08-10 in `AirdropAPI.collectJourneys`
+            // (`catch { break }`, keeping `all`) and told this lane about it in
+            // ORC #95156. Kotlin had the identical defect; ported here.
+            //
+            // Page 1 stays fatal because there is genuinely nothing to show.
+            // Cancellation still propagates — a replaced session must not
+            // publish, and swallowing it here would resurrect that bug.
+            val pageResult = gateway.packageJourneys(page = page, perPage = ACTIVE_PAGE_SIZE)
+            val pageFailure = pageResult.exceptionOrNull()
+            if (pageFailure != null) {
+                if (pageFailure is CancellationException) throw pageFailure
+                if (page == 1) throw pageFailure
+                // `break` here rather than inside a getOrElse lambda:
+                // break-from-inline-lambda needs Kotlin 2.2 and this module
+                // targets older.
+                break
+            }
+            val response = pageResult.getOrThrow()
             response.journeys.forEach { journey ->
                 // ⚠️ A ROW ON TWO PAGES IS NORMAL, NOT CORRUPTION — KEEP THE FIRST.
                 //
@@ -433,7 +457,19 @@ class DeliveryCenterViewModel(
             }
             if (!response.hasNextPage) break
             page += 1
-            if (page > MAX_ACTIVE_PAGES) error(TRACK_UNAVAILABLE)
+            // ⚠️ THE CEILING IS A STOP, NOT AN ERROR.
+            //
+            // This was `error(TRACK_UNAVAILABLE)`, so an account heavy enough to
+            // need more than MAX_ACTIVE_PAGES pages (>5000 packages) got a
+            // "Tracking information is unavailable" card instead of its
+            // packages — punished for having too many.
+            //
+            // Past the cap we render the most relevant set the server already
+            // ordered. iOS bounds the same walk with `maxJourneyPages` and never
+            // throws at the ceiling (`509607a`, relayed in ORC #95156); Kotlin
+            // threw. Both halves of "never an error card" now hold: the ceiling
+            // case and the transient case above.
+            if (page > MAX_ACTIVE_PAGES) break
         }
         all
     }

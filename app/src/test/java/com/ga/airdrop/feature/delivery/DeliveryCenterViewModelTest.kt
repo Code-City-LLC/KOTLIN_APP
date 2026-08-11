@@ -127,18 +127,28 @@ class DeliveryCenterViewModelTest {
     }
 
     @Test
-    fun pageFailurePublishesErrorWithoutLeakingPartialListAndRetryRecovers() = runTest(dispatcher) {
+    fun pageOneFailurePublishesErrorWithoutLeakingPartialListAndRetryRecovers() = runTest(dispatcher) {
+        // ⚠️ THIS TEST USED TO FAIL ON *PAGE 2* AND EXPECT A BLANK ERROR SCREEN.
+        // That contract is gone, deliberately.
+        //
+        // Discarding pages 1..K-1 because page K blipped threw away packages we
+        // already held in order to render an error card. iOS fixed it on
+        // 2026-08-10 (AirdropAPI.collectJourneys) and relayed it in ORC #95156;
+        // aLaterPageFailingKeepsThePagesThatAlreadyLoaded now pins the new
+        // behaviour.
+        //
+        // What this test still guards is the half that did NOT change and must
+        // not be lost in the relaxation: a PAGE-1 failure has nothing to show,
+        // so it is still a hard error, it must not leak a partial list, and
+        // retry must recover.
         var attempt = 0
         val gateway = gateway(
-            journeys = { requestedPage, _ ->
-                when {
-                    attempt == 0 && requestedPage == 1 ->
-                        Result.success(page(listOf(active(11)), hasNext = true))
-                    attempt == 0 -> {
-                        attempt += 1
-                        Result.failure(IllegalStateException("Delivery service unavailable"))
-                    }
-                    else -> Result.success(page(emptyList()))
+            journeys = { _, _ ->
+                if (attempt == 0) {
+                    attempt += 1
+                    Result.failure(IllegalStateException("Delivery service unavailable"))
+                } else {
+                    Result.success(page(emptyList()))
                 }
             },
         )
@@ -365,6 +375,88 @@ class DeliveryCenterViewModelTest {
         advanceUntilIdle()
 
         assertEquals(DeliveryCenterContent.NoDelivery, viewModel.state.value.content)
+    }
+
+    @Test
+    fun aLaterPageFailingKeepsThePagesThatAlreadyLoaded() = runTest(dispatcher) {
+        // ⚠️ ONLY PAGE 1 IS FATAL.
+        //
+        // The loop used `.getOrThrow()` on every page inside runCatching, so a
+        // blip on page 3 discarded pages 1-2 and blanked Track. Those packages
+        // were already in hand; we dropped them to render an error card.
+        //
+        // iOS fixed exactly this on 2026-08-10 (AirdropAPI.collectJourneys,
+        // `catch { break }`) and relayed it to this lane in ORC #95156. Kotlin
+        // had the identical defect.
+        val gateway = gateway(
+            journeys = { requestedPage, _ ->
+                when (requestedPage) {
+                    1 -> Result.success(page(listOf(active(11)), hasNext = true, currentPage = 1))
+                    2 -> Result.success(page(listOf(active(22)), hasNext = true, currentPage = 2))
+                    else -> Result.failure(IllegalStateException("transient blip on page 3"))
+                }
+            },
+        )
+
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertNull(
+            "a later-page blip must not blank Track. Got: ${viewModel.state.value.error}",
+            viewModel.state.value.error,
+        )
+        assertEquals(
+            "pages 1-2 were already loaded and must render",
+            listOf(11, 22),
+            viewModel.state.value.journeys.map(PackageJourney::packageId),
+        )
+    }
+
+    @Test
+    fun aPageOneFailureIsStillFatal() = runTest(dispatcher) {
+        // The relaxation above must not swallow the case where there is
+        // genuinely nothing to show.
+        val gateway = gateway(
+            journeys = { _, _ -> Result.failure(IllegalStateException("Tracking is unavailable")) },
+        )
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertEquals(DeliveryCenterContent.Error, viewModel.state.value.content)
+        assertEquals("Tracking is unavailable", viewModel.state.value.error)
+    }
+
+    @Test
+    fun aHeavyAccountPastThePageCapRendersWhatLoadedInsteadOfErroring() = runTest(dispatcher) {
+        // ⚠️ THE CEILING IS A STOP, NOT AN ERROR.
+        //
+        // `error(TRACK_UNAVAILABLE)` past MAX_ACTIVE_PAGES meant an account with
+        // more than ~5000 packages saw "Tracking information is unavailable" —
+        // punished for having too many. Past the cap we render the most
+        // relevant set the server already ordered. iOS bounds the same walk and
+        // never throws at the ceiling (509607a).
+        //
+        // Every page claims another follows, so only the cap ends this walk.
+        val gateway = gateway(
+            journeys = { requestedPage, _ ->
+                Result.success(
+                    page(listOf(active(requestedPage)), hasNext = true, currentPage = requestedPage),
+                )
+            },
+        )
+
+        val viewModel = DeliveryCenterViewModel(gateway = gateway, sessionBoundary = boundary())
+        advanceUntilIdle()
+
+        assertNull(
+            "hitting the page cap must not blank Track. Got: ${viewModel.state.value.error}",
+            viewModel.state.value.error,
+        )
+        assertEquals(
+            "the walk stops at the cap and keeps every page it read",
+            100,
+            viewModel.state.value.journeys.size,
+        )
     }
 
     @Test
