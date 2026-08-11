@@ -117,9 +117,12 @@ class CartViewModel(
 
     private val _state = MutableStateFlow(
         CartUiState(
-        exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current,
-        exchangeRateVerified = com.ga.airdrop.core.prefs.ExchangeRateStore.verified,
-    ),
+            exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current,
+            // The persisted value is useful for first paint, but it is not
+            // authoritative at settlement time. Only this view model's live
+            // /exchange-rates response may open the JMD payment boundary.
+            exchangeRateVerified = false,
+        ),
     )
     val state: StateFlow<CartUiState> = _state
 
@@ -181,7 +184,7 @@ class CartViewModel(
                     val appleHero = _state.value.appleHero
                     _state.value = CartUiState(
                         exchangeUsdToJmd = com.ga.airdrop.core.prefs.ExchangeRateStore.current,
-                        exchangeRateVerified = com.ga.airdrop.core.prefs.ExchangeRateStore.verified,
+                        exchangeRateVerified = false,
                         loadingCart = changed != null,
                         note = changed?.let(CartNoteStore::note).orEmpty(),
                         appleHero = appleHero,
@@ -191,6 +194,7 @@ class CartViewModel(
                     _state.update { it.copy(note = CartNoteStore.note(changed)) }
                 }
                 if (changed != null) {
+                    if (replaced) loadRate()
                     hydrateServerCart(changed)
                 }
             }
@@ -219,16 +223,12 @@ class CartViewModel(
                     // and nothing recorded that the number was a seed rather than
                     // an answer.
                     //
-                    // We still SHOW the last-known rate — a blank price is worse
-                    // than a slightly stale one, and JMD/USD must both render.
-                    // What changes is that the state now carries whether anyone
-                    // has actually confirmed it, so a caller quoting money can
-                    // tell the difference instead of guessing.
+                    // We still SHOW the last-known rate — a blank first paint is
+                    // worse than a slightly stale one. Settlement is different:
+                    // a persisted response from an earlier session must not be
+                    // relabelled as current after this request failed.
                     _state.update {
-                        it.copy(
-                            exchangeRateVerified =
-                                com.ga.airdrop.core.prefs.ExchangeRateStore.verified,
-                        )
+                        it.copy(exchangeRateVerified = false)
                     }
                 }
         }

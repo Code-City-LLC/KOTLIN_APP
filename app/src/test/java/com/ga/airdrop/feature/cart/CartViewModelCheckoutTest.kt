@@ -1,6 +1,7 @@
 package com.ga.airdrop.feature.cart
 
 import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.core.session.AuthenticatedRequestOwner
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
@@ -40,6 +41,7 @@ class CartViewModelCheckoutTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(StandardTestDispatcher())
+        ExchangeRateStore.clear()
         cartPrefs = TestSharedPreferences()
         checkoutPrefs = TestSharedPreferences()
         notePrefs = TestSharedPreferences()
@@ -50,6 +52,7 @@ class CartViewModelCheckoutTest {
 
     @After
     fun tearDown() {
+        ExchangeRateStore.clear()
         CartStore.dropProcessStateForTests()
         CheckoutFlowStore.dropProcessStateForTests()
         CartNoteStore.dropProcessStateForTests()
@@ -134,6 +137,66 @@ class CartViewModelCheckoutTest {
         viewModel.payOrderSummary()
         advanceUntilIdle()
         assertEquals(1, checkout.calls)
+    }
+
+    @Test
+    fun `persisted rate cannot authorize JMD checkout after current rate request fails`() = runTest {
+        ExchangeRateStore.update(162.0)
+        val line = sale(15, 915)
+        CartStore.add(line)
+        jmdOrderSummaryFlow(line)
+        val rateResponse = CompletableDeferred<Result<Double>>()
+        val checkout = FakeCheckout(
+            exchangeRateResponse = { rateResponse.await() },
+        )
+        val viewModel = viewModel(checkout, FakeBoundary(ownerA), line)
+
+        assertEquals(162.0, viewModel.state.value.exchangeUsdToJmd, 0.0)
+        assertFalse(viewModel.state.value.exchangeRateVerified)
+        runCurrent()
+        viewModel.payOrderSummary()
+        viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
+        runCurrent()
+        assertFalse(viewModel.state.value.navToNcbCardEntry)
+        assertEquals(0, checkout.ncbCalls)
+
+        rateResponse.complete(Result.failure(RuntimeException("rate unavailable")))
+        advanceUntilIdle()
+        assertFalse(viewModel.state.value.exchangeRateVerified)
+
+        viewModel.payOrderSummary()
+        viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
+        advanceUntilIdle()
+
+        assertEquals("Exchange rate unavailable", viewModel.state.value.errorTitle)
+        assertFalse(viewModel.state.value.navToNcbCardEntry)
+        assertEquals(0, checkout.calls)
+        assertEquals(0, checkout.ncbCalls)
+    }
+
+    @Test
+    fun `current server rate alone opens JMD checkout and NCB boundary`() = runTest {
+        ExchangeRateStore.update(162.0)
+        val line = sale(16, 916)
+        CartStore.add(line)
+        jmdOrderSummaryFlow(line)
+        val checkout = FakeCheckout(
+            exchangeRateResponse = { Result.success(163.0) },
+        )
+        val viewModel = viewModel(checkout, FakeBoundary(ownerA), line)
+
+        assertEquals(162.0, viewModel.state.value.exchangeUsdToJmd, 0.0)
+        assertFalse(viewModel.state.value.exchangeRateVerified)
+        advanceUntilIdle()
+        assertEquals(163.0, viewModel.state.value.exchangeUsdToJmd, 0.0)
+        assertTrue(viewModel.state.value.exchangeRateVerified)
+
+        viewModel.payOrderSummary()
+        assertTrue(viewModel.state.value.navToNcbCardEntry)
+        viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
+        advanceUntilIdle()
+
+        assertEquals(1, checkout.ncbCalls)
     }
 
     @Test
@@ -423,6 +486,24 @@ class CartViewModelCheckoutTest {
         )
     }
 
+    private fun jmdOrderSummaryFlow(line: CartStore.CartLine) {
+        val flow = requireNotNull(CheckoutFlowStore.start(ownerA, listOf(line)))
+        val profileFlow = requireNotNull(
+            CheckoutFlowStore.update(ownerA, flow.id) {
+                it.copy(
+                    currency = "JMD",
+                    deliveryMode = "pickup",
+                    phase = CheckoutPhase.PROFILE_INFORMATION,
+                )
+            },
+        )
+        requireNotNull(
+            CheckoutFlowStore.update(ownerA, profileFlow.id) {
+                it.copy(phase = CheckoutPhase.ORDER_SUMMARY)
+            },
+        )
+    }
+
     private fun sale(id: Int, packageId: Int) = CartStore.CartLine(
         id = id,
         packageId = packageId,
@@ -447,8 +528,10 @@ class CartViewModelCheckoutTest {
             checkoutUrl = "https://checkout.airdropja.test/session",
             sessionId = "cs_cart_vm",
         ),
+        private val exchangeRateResponse: suspend () -> Result<Double> = { Result.success(161.0) },
     ) : ShopCheckoutRepository {
         var calls = 0
+        var ncbCalls = 0
         var lastUserNote: String? = null
 
         override suspend fun createCheckout(
@@ -463,12 +546,15 @@ class CartViewModelCheckoutTest {
             return Result.success(response)
         }
 
-        override suspend fun exchangeRate(): Result<Double> = Result.success(161.0)
+        override suspend fun exchangeRate(): Result<Double> = exchangeRateResponse()
         override suspend fun billingProfile(): Result<ShopBillingProfile> = Result.success(ShopBillingProfile())
         override suspend fun createNcbSession(
             request: com.ga.airdrop.data.model.CreateNcbSessionRequest,
             expectedSession: AuthTokenStore.RequestProvenance,
-        ): Result<com.ga.airdrop.data.model.NcbSessionResponse> = Result.failure(RuntimeException("unused"))
+        ): Result<com.ga.airdrop.data.model.NcbSessionResponse> {
+            ncbCalls++
+            return Result.failure(RuntimeException("unused"))
+        }
         override suspend fun ncbCompletePayment(
             spiToken: String,
             checkoutId: Long?,
