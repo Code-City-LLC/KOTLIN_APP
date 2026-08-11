@@ -337,6 +337,7 @@ private fun InvoiceField(value: String, onValueChange: (String) -> Unit, modifie
         placeholder = "e.g. 843",
         required = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        inputTestTag = "calculator-invoice-input",
         trailing = { DollarTrailing() },
         modifier = modifier,
     )
