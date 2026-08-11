@@ -14,9 +14,12 @@ import androidx.navigation.navArgument
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.feature.cart.CartScreen
 import com.ga.airdrop.feature.cart.CartViewModel
+import com.ga.airdrop.feature.cart.CheckoutTotalsResult
 import com.ga.airdrop.feature.cart.OrderSummaryScreen
 import com.ga.airdrop.feature.cart.OrderSummaryUiModel
 import com.ga.airdrop.feature.cart.ProfileInformationScreen
+import com.ga.airdrop.feature.cart.resolveCheckoutTotals
+import com.ga.airdrop.feature.cart.verifiedCheckoutExchangeRate
 import com.ga.airdrop.feature.delivery.DeliveryMethodScreen
 import java.util.Locale
 
@@ -170,15 +173,14 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
         val flow = cartViewModel.currentCheckoutFlow()
         val capturedLines = cartViewModel.capturedCheckoutLines()
         val currency = flow?.currency.orEmpty().uppercase(Locale.US)
-        val subtotalUsd = capturedLines.sumOf { it.priceUsd * it.qty }
         val rate = state.exchangeUsdToJmd
-        val fee = flow?.deliveryFee ?: 0.0
-        val feeCurrency = flow?.deliveryFeeCurrency.orEmpty().uppercase(Locale.US)
-        val totalCharges = if (currency == "JMD") {
-            subtotalUsd * rate + if (feeCurrency == "JMD") fee else fee * rate
-        } else {
-            subtotalUsd + if (feeCurrency == "JMD" && rate > 0.0) fee / rate else fee
-        }
+        val verifiedRate = verifiedCheckoutExchangeRate(rate, state.exchangeRateVerified)
+        val totals = resolveCheckoutTotals(
+            capturedLines,
+            flow,
+            rate,
+            state.exchangeRateVerified,
+        )
         val context = LocalContext.current
         val checkoutUrl = state.checkoutUrl
 
@@ -208,8 +210,8 @@ fun NavGraphBuilder.shopGraph(navController: NavHostController) {
                 lines = capturedLines,
                 note = state.note,
                 currency = currency,
-                exchangeUsdToJmd = rate,
-                totalCharges = totalCharges,
+                verifiedExchangeUsdToJmd = verifiedRate,
+                totals = totals,
                 removingKeys = state.mutatingKeys,
                 removalLocked = cartViewModel.isOrderSummaryRemovalLocked(),
                 paying = state.orderPaying,

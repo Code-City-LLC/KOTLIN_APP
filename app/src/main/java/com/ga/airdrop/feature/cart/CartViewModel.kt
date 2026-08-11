@@ -36,7 +36,7 @@ data class CartBillingForm(
     val address2: String = "",
     val state: String = "",
     val city: String = "",
-    val country: String = "United States",
+    val country: String = CountryCatalog.defaultCountryNameForPaymentCurrency(currency),
     val postal: String = "",
 )
 
@@ -339,7 +339,7 @@ class CartViewModel(
                             parseCheckoutCurrency(it.currency) == CheckoutCurrency.JMD
                     } == true
                     if (!stillExact) return@onSuccess
-                    val loaded = CartBillingForm(
+                    val loaded = sanitizeCheckoutBillingForm(CartBillingForm(
                         firstName = user.firstName.orEmpty(),
                         lastName = user.lastName.orEmpty(),
                         currency = CheckoutCurrency.JMD.wireValue,
@@ -348,7 +348,7 @@ class CartViewModel(
                         state = user.state.orEmpty(),
                         city = user.city.orEmpty(),
                         country = user.country.orEmpty(),
-                    )
+                    ))
                     val label = listOf(user.firstName, user.lastName)
                         .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
                         .joinToString(" ")
@@ -392,7 +392,6 @@ class CartViewModel(
                     selectedProfile = ADD_NEW_CHECKOUT_PROFILE,
                     form = CartBillingForm(
                         currency = CheckoutCurrency.JMD.wireValue,
-                        country = "",
                     ),
                 )
             }
@@ -712,8 +711,32 @@ class CartViewModel(
         if (CartStore.hasPendingPackageMutations()) {
             return orderError("Cart update in progress", "Wait for your cart changes to finish before paying.")
         }
+        val totals = when (
+            val result = resolveCheckoutTotals(
+                lines,
+                flow,
+                _state.value.exchangeUsdToJmd,
+                _state.value.exchangeRateVerified,
+            )
+        ) {
+            is CheckoutTotalsResult.Available -> result.breakdown
+            is CheckoutTotalsResult.Unavailable -> return orderError(
+                if (result.reason == DELIVERY_FEE_UNAVAILABLE_REASON) {
+                    "Delivery fee unavailable"
+                } else {
+                    "Checkout unavailable"
+                },
+                result.reason,
+            )
+        }
         when (checkoutPaymentRail(flow.currency)) {
             CheckoutPaymentRail.NCB_POWERTRANZ -> {
+                if (totals.totalJmd == null) {
+                    return orderError(
+                        "Exchange rate unavailable",
+                        "We couldn't confirm the current JMD exchange rate. Try again before paying. No payment was started.",
+                    )
+                }
                 // JMD → collect the card in the NCB card-entry screen, which calls
                 // createNcbSession. No Stripe session is created here.
                 _state.update {
@@ -888,6 +911,28 @@ class CartViewModel(
             ?: return orderError("Checkout unavailable", "The cart changed. Restart checkout.")
         val requestOwner = sessionBoundary.requestOwner(owner)
             ?: return orderError("Sign in required", "Log in to your Airdropja account before paying.")
+        val totals = when (
+            val result = resolveCheckoutTotals(
+                lines,
+                flow,
+                _state.value.exchangeUsdToJmd,
+                _state.value.exchangeRateVerified,
+            )
+        ) {
+            is CheckoutTotalsResult.Available -> result.breakdown
+            is CheckoutTotalsResult.Unavailable -> return orderError(
+                if (result.reason == DELIVERY_FEE_UNAVAILABLE_REASON) {
+                    "Delivery fee unavailable"
+                } else {
+                    "Checkout unavailable"
+                },
+                result.reason,
+            )
+        }
+        val paidJmd = totals.totalJmd ?: return orderError(
+            "Exchange rate unavailable",
+            "We couldn't confirm the current JMD exchange rate. Try again before paying. No payment was started.",
+        )
         val form = _state.value.form
         val countryCode = ncbCountryCode(form.country) ?: return orderError(
             "Billing country",
@@ -916,25 +961,8 @@ class CartViewModel(
             deliveryChargeTotal = flow.deliveryFee,
             deliveryChargeCurrency = flow.deliveryFeeCurrency,
         )
-        // Capture fulfillment + the JMD total now — the flow is cleared on success,
-        // but the payment-success screen needs both to render the right variant.
-        val rate = _state.value.exchangeUsdToJmd
-        val subtotalJmd = lines.sumOf { it.qty * it.priceUsd } * rate
-        val feeJmd = (flow.deliveryFee ?: 0.0).let { fee ->
-            if (flow.deliveryFeeCurrency?.uppercase(java.util.Locale.US) == "JMD") fee else fee * rate
-        }
-        // ⚠️ WAS "JMD 64,841.58" AND NOTHING ELSE — the payment-success screen,
-        // the very last thing a customer sees after paying, showed one currency.
-        // Kemar 2026-07-26: "How are we just showing JMD alone? ... Our primary
-        // currency is US dollar." Both figures are already in hand here (the JMD
-        // ones are USD * rate two lines up), so this never needed to be a choice.
-        val paidJmd = subtotalJmd + feeJmd
-        val paidAmount = com.ga.airdrop.feature.shop.formatDualMoney(
-            // formatDualMoney takes the USD amount and derives JMD, so divide
-            // back out rather than converting an already-converted figure twice.
-            if (rate > 0) paidJmd / rate else 0.0,
-            rate,
-        )
+        // Capture the exact resolved pair before success clears the flow.
+        val paidAmount = formatCheckoutMoneyPair(totals.totalUsd, paidJmd)
         _state.update {
             it.copy(
                 ncbBusy = true,

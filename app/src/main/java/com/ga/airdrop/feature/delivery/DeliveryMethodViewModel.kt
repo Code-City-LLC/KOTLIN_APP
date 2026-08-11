@@ -240,6 +240,7 @@ class DeliveryMethodViewModel(
                     validatedDistanceKm = null,
                     validatedFee = null,
                     validatedFeeCurrency = null,
+                    validatedFeeUsd = null,
                     ctaState = DeliveryCtaState.Idle,
                 )
             }
@@ -274,6 +275,7 @@ class DeliveryMethodViewModel(
                 validatedDistanceKm = null,
                 validatedFee = null,
                 validatedFeeCurrency = null,
+                validatedFeeUsd = null,
                 // Cancelling an in-flight validate skips BOTH result arms
                 // (apiResult rethrows CancellationException), which would
                 // wedge a Validating CTA forever — Swift never cancels
@@ -418,6 +420,7 @@ class DeliveryMethodViewModel(
                 validatedDistanceKm = null,
                 validatedFee = null,
                 validatedFeeCurrency = null,
+                validatedFeeUsd = null,
             )
         }
         validate(latitude, longitude, fallback)
@@ -488,6 +491,7 @@ class DeliveryMethodViewModel(
                                     validatedDistanceKm = result.distanceKm,
                                     validatedFee = result.deliveryFee,
                                     validatedFeeCurrency = result.feeCurrency,
+                                    validatedFeeUsd = result.deliveryFeeUsd,
                                 )
                             }
                         } else {
@@ -499,6 +503,7 @@ class DeliveryMethodViewModel(
                                     validatedDistanceKm = null,
                                     validatedFee = null,
                                     validatedFeeCurrency = null,
+                                    validatedFeeUsd = null,
                                     errorTitle = "Delivery not available",
                                     errorMessage = result.reason
                                         ?: "This location can't be served by our warehouses. " +
@@ -518,6 +523,7 @@ class DeliveryMethodViewModel(
                                 validatedDistanceKm = null,
                                 validatedFee = null,
                                 validatedFeeCurrency = null,
+                                validatedFeeUsd = null,
                                 errorTitle = "Couldn't validate location",
                                 errorMessage = err.toUserMessage(),
                             )
@@ -579,6 +585,11 @@ class DeliveryMethodViewModel(
         } else {
             null
         }
+        val frozenFeeUsd = if (mode == DeliveryMode.Delivery) {
+            _state.value.validatedFeeUsd
+        } else {
+            null
+        }
         _state.update { it.copy(ctaState = DeliveryCtaState.Saving) }
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
@@ -611,6 +622,7 @@ class DeliveryMethodViewModel(
                                 pickupLocation = if (mode == DeliveryMode.Pickup) address else null,
                                 deliveryFee = frozenFee,
                                 deliveryFeeCurrency = frozenFeeCurrency,
+                                deliveryFeeUsd = frozenFeeUsd,
                             )
                         }
                         if (updated == null) {
@@ -803,6 +815,7 @@ data class DeliveryUiState(
     val validatedDistanceKm: Double? = null,
     val validatedFee: Double? = null,
     val validatedFeeCurrency: String? = null,
+    val validatedFeeUsd: Double? = null,
     val ctaState: DeliveryCtaState = DeliveryCtaState.Idle,
     val showCurrencyPopup: Boolean = false,
     val errorTitle: String? = null,

@@ -101,6 +101,7 @@ fun NcbCardEntryScreen(
             CountryCatalog.displayNameFor("United States"),
         )
     }
+    val ncbStateOptions = CountryCatalog.stateOptions(form.country)
 
     // NCB accepts country in [US, JM] only. Per the Laravel ruling we do NOT
     // coerce a non-JM/US prefill to US (that would send a wrong billing country
@@ -218,7 +219,7 @@ fun NcbCardEntryScreen(
                     value = CountryCatalog.displayNameFor(form.country),
                     options = ncbCountryOptions,
                     onSelect = { selected ->
-                        host.updateNcbForm { it.copy(country = CountryCatalog.canonicalName(selected)) }
+                        host.updateNcbForm { checkoutFormWithCountry(it, selected) }
                     },
                     required = true,
                 )
@@ -228,8 +229,8 @@ fun NcbCardEntryScreen(
                 ShopDropdownField(
                     label = "State",
                     value = form.state,
-                    options = CHECKOUT_STATE_OPTIONS,
-                    onSelect = { v -> host.updateNcbForm { it.copy(state = v) } },
+                    options = ncbStateOptions,
+                    onSelect = { v -> host.updateNcbForm { checkoutFormWithState(it, v) } },
                 )
                 // ZIP only matters for the US (Jamaica + other Caribbean islands don't
                 // use postal codes) — hide it for non-postal countries per the ruling.
