@@ -93,12 +93,28 @@ class PaymentsViewModel(
 
     fun refresh() = load(reset = true)
 
-    /** Swift gap — resolve GET /payments/{id}/invoice then open the viewer. */
+    /** Resolve GET /payments/{invoiceId}/invoice then open the viewer. */
     fun downloadInvoice(payment: ShipmentPayment) {
         if (_state.value.downloadingInvoiceId != null) return
+        // ⚠️ THE PATH PARAMETER IS THE INVOICE ID, NOT THE PAYMENT ID.
+        //
+        // Laravel resolves this route with WHERE p.packages_invoice_id = ?
+        // (InvoiceService.php:111). payment.id is a different sequence, so
+        // sending it returned "Invoice not found" for virtually every payment
+        // — the button looked broken because it was querying the wrong table
+        // key. Swift shipped the identical defect and fixed it in f052e9c.
+        // The title below always displayed the correct id; it was only the
+        // request that used the wrong one.
+        val invoiceId = payment.invoiceId?.trim()?.toIntOrNull()
+        if (invoiceId == null) {
+            // No invoice reference on the payment: nothing the server could
+            // return. Fail closed with a plain answer instead of a 404.
+            _state.update { it.copy(error = "This payment has no invoice to download.") }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(downloadingInvoiceId = payment.id) }
-            repo.paymentInvoiceUrl(payment.id)
+            repo.paymentInvoiceUrl(invoiceId)
                 .onSuccess { url ->
                     _invoiceEvents.value = InvoiceOpenEvent(
                         url = url,
