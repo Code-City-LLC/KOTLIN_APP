@@ -50,10 +50,13 @@ SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 # `knownPlayProductionVersionCodeFloor` in app/build.gradle.kts — keep in step.
 # ⚠️ These two DRIFTED: both sat at 21 while 25 was live, so 22-25 passed both
 # local guards and would have failed only at Google. Bump BOTH every release.
-# Play production v28 (3.2.2) and highest uploaded code 28 were independently
-# queried from the Android Publisher API on 2026-08-11.
+# v29 (internal) and v30 (production review) were uploaded on 2026-08-12 —
+# the "Version code 30 has already been used" rejection was measured live on
+# this tool, which is exactly the failure this floor exists to catch locally.
+# PR #238 raised the Gradle floor to 30 but not this one; that half-bump is
+# the fourth drift incident in this file's history. Bump BOTH every release.
 # Query Play again before building: any upload on any track burns its code.
-VERSION_CODE_FLOOR = 28
+VERSION_CODE_FLOOR = 30
 
 
 def die(msg: str) -> "None":
