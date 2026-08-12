@@ -52,13 +52,15 @@ val playUploadSigningConfigured =
 // halted release still consumes it. Keep the highest code ever observed: Play's
 // current bundles listing is not a permanent historical ledger and can omit older
 // burned artifacts (the 2026-08-11 query returned [2, 22, 24, 25, 26, 27, 28],
-// omitting 21 and 23 from the 2026-08-02 result). Production contains v28 (3.2.2).
+// omitting 21 and 23 from the 2026-08-02 result). Play accepted v29 and v30
+// afterward; the authenticated console showed v30 (3.2.3) in production review
+// on 2026-08-12. Uploaded/in-review codes are burned even before publication.
 // Query Play again before every build because a non-production upload also burns
 // its code; this is only the last verified floor.
 //
 // To re-check before any release, do not trust this constant — ask Play:
 //   edits.bundles().list(packageName=..., editId=...)  -> max(versionCode)
-val knownPlayProductionVersionCodeFloor = 28
+val knownPlayProductionVersionCodeFloor = 30
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
