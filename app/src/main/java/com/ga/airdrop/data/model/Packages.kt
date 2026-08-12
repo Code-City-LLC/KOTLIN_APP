@@ -410,21 +410,16 @@ data class PackageCartMutation(
 
 // ── Drop alerts ──
 
+// Wire values only. Display-name parsing lives in the feature layer
+// (feature/dropalert DropAlertShippingMethod.fromDisplayNameOrNull), which is
+// exact-match. A substring `fromDisplayName` used to sit here with zero
+// callers — `contains("sea")` would have classified "Overseas Freight" as
+// SeaDrop, the exact breadth the shipping-vocabulary work removed everywhere
+// else (ORC #100613). Deleted rather than kept as a loaded gun.
 enum class DropAlertShippingMethod(val wireName: String) {
     AIRDROP_STANDARD("AIR"),
     SEADROP_STANDARD("SeaDrop"),
-    EXPRESS("Express");
-
-    companion object {
-        fun fromDisplayName(displayName: String): DropAlertShippingMethod {
-            val normalized = displayName.lowercase()
-            return when {
-                normalized.contains("sea") -> SEADROP_STANDARD
-                normalized.contains("express") -> EXPRESS
-                else -> AIRDROP_STANDARD
-            }
-        }
-    }
+    EXPRESS("Express"),
 }
 
 @Serializable(with = DropAlertSerializer::class)

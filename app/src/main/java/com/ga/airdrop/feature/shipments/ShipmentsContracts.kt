@@ -32,7 +32,10 @@ data class ShipmentPackage(
     val weightKg: String? = null,
     val status: String? = null,        // numeric status code as string, e.g. "7"
     val statusName: String? = null,    // display name, e.g. "Ready for Pickup"
-    val shippingMethod: String? = null, // "Standard" | "Express" | "SeaDrop"
+    // Laravel emits "Airdrop" | "Express" | "Seadrop" since c804dcd3; legacy
+    // rows can still carry "Standard"/"Airdrop Standard"/"SeaDrop Standard".
+    // Resolve through ShipmentMethodUi.fromOrNull — never compare literally.
+    val shippingMethod: String? = null,
     val trackingCode: String? = null,
     val courierNumber: String? = null,
     val additionalCharges: Map<String, Double> = emptyMap(),
