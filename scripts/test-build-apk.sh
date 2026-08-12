@@ -42,7 +42,7 @@ if env -u PLAY_VERSION_CODE -u PLAY_VERSION_NAME \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity was accepted without Play version inputs"
 fi
-if PLAY_VERSION_CODE=29 env -u PLAY_VERSION_NAME \
+if PLAY_VERSION_CODE=31 env -u PLAY_VERSION_NAME \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity was accepted without PLAY_VERSION_NAME"
 fi
@@ -50,15 +50,15 @@ if PLAY_VERSION_CODE=0 PLAY_VERSION_NAME=3.2.3 \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity accepted a non-positive PLAY_VERSION_CODE"
 fi
-if PLAY_VERSION_CODE=28 PLAY_VERSION_NAME=3.2.3 \
+if PLAY_VERSION_CODE=30 PLAY_VERSION_NAME=3.2.3 \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity accepted a burned PLAY_VERSION_CODE"
 fi
 prod_identity="$(
-  PLAY_VERSION_CODE=29 PLAY_VERSION_NAME=3.2.3 \
+  PLAY_VERSION_CODE=31 PLAY_VERSION_NAME=3.2.3 \
     "$BUILDER" --print-app-version prod-release
 )"
-[ "$prod_identity" = "3.2.3(29)" ] || \
+[ "$prod_identity" = "3.2.3(31)" ] || \
   fail "prod-release validator ignored the owner-supplied Play identity"
 pass "prod-release validator uses the owner-supplied Play identity"
 
