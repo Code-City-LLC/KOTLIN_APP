@@ -13,14 +13,14 @@ package com.ga.airdrop.feature.calculator
 enum class ShippingMethod(val label: String, val apiValue: String, val info: String) {
     // Figma 40001464:29102 info copy — "2 to 3 business days…"
     STANDARD(
-        label = "AirDrop",
+        label = "Airdrop",
         apiValue = "airdrop_standard",
         info = "2 to 3 business days after items are delivered to our warehouse.",
     ),
 
     // Swift FigmaCalculatorViewController.swift:26 — "2 to 4 weeks…" (Swift wins over Figma 40001464:30381)
     SEADROP(
-        label = "SeaDrop",
+        label = "Seadrop",
         apiValue = "seadrop_standard",
         info = "2 to 4 weeks after items are delivered to our warehouse.",
     ),
@@ -35,11 +35,27 @@ enum class ShippingMethod(val label: String, val apiValue: String, val info: Str
 enum class LengthUnit(val label: String) { INCH("Inch"), FT("ft") }
 enum class WeightUnit(val label: String) { LBS("lbs"), KG("kg") }
 
-/** Product row surfaced by the calculator search (Swift AuctionProduct subset). */
-data class CalcProduct(
+/**
+ * A customs duty rate — the catalogue the Shipping Calculator actually needs.
+ *
+ * ⚠️ THIS USED TO BE `CalcProduct`, READ FROM THE AUCTION CATALOGUE, WITH A
+ * PRICE. That was the wrong business object, not a broken query: the field
+ * searched `GET /products?in_stock=1` and rendered a shop price next to each
+ * row, so the customer picked a *product for sale* while the calculator needed
+ * a *duty classification*. The selected id then went nowhere, because
+ * `calculateShipment` had no parameter to carry it.
+ *
+ * There is deliberately NO price here. `/custom-duty-rates` returns
+ * `id, item_name, duty_percentage` and nothing else, and the calculator must
+ * never fabricate or autofill money it was not given.
+ *
+ * Root-caused by @Codex-LavenderGlen (ORC #99765) and @Codex-MobileReleaseQC
+ * (#99763), independently and to the same lines.
+ */
+data class CalcDutyRate(
     val id: Int,
-    val title: String,
-    val displayPrice: String,
+    val itemName: String,
+    val dutyPercentage: Double?,
 )
 
 /**

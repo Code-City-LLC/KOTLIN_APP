@@ -275,11 +275,7 @@ private fun MethodRow(
     showDivider: Boolean,
 ) {
     val colors = AirdropTheme.colors
-    val label = when (method) {
-        ShipmentMethodUi.Standard -> "AirDrop"
-        ShipmentMethodUi.Express -> method.title
-        ShipmentMethodUi.SeaDrop -> method.title
-    }
+    val label = method.title
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier

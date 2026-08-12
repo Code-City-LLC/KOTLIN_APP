@@ -71,6 +71,19 @@ class PackageDetailsParityTest {
     }
 
     @Test
+    fun unknownShippingMethodUsesNeutralArtworkInsteadOfAirdropBranding() {
+        setPackageDetailsContent(
+            ThemeController.Mode.LIGHT,
+            detail = sampleDetail(shippingMethod = "Freight"),
+        )
+
+        assertEquals(2, compose.onAllNodesWithText("Freight").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("Airdrop").fetchSemanticsNodes().size)
+        compose.onNodeWithTag("package-details-method-hero-placeholder").assertIsDisplayed()
+        compose.onNodeWithTag("package-details-method-hero-image").assertDoesNotExist()
+    }
+
+    @Test
     fun invoiceViewAndCartButtonsKeepSwiftRuntimeRailsAtReadyForPickup() {
         setPackageDetailsContent(ThemeController.Mode.LIGHT)
 
@@ -92,6 +105,83 @@ class PackageDetailsParityTest {
             .performClick()
         compose.onNodeWithText("Success").assertIsDisplayed()
         assertEquals(1, CartStore.count)
+    }
+
+    @Test
+    fun trackingReferenceResolvesToNumericIdBeforeDetailAndInvoiceRequests() {
+        val trackingReference = "ADX-240524"
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
+            packageReference = trackingReference,
+            searchResults = listOf(
+                ShipmentPackage(
+                    id = 7,
+                    trackingCode = trackingReference,
+                    courierNumber = "1Z83X5220392160325",
+                ),
+            ),
+        )
+
+        assertEquals(listOf(trackingReference), packagesRepo.searchRequests)
+        assertEquals(listOf("7"), packagesRepo.packageDetailsRequests)
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            packageDetailsViewModel.uploadInvoices(
+                listOf(
+                    InvoiceUploadFile(
+                        fileName = "notification-handoff.pdf",
+                        mimeType = "application/pdf",
+                        bytes = ByteArray(16),
+                    ),
+                ),
+            )
+        }
+        compose.waitUntil(timeoutMillis = 20_000) {
+            packagesRepo.uploadPackageIds.isNotEmpty()
+        }
+
+        assertEquals(listOf("7"), packagesRepo.uploadPackageIds)
+    }
+
+    @Test
+    fun unresolvedTrackingReferenceFailsVisiblyWithoutCallingIntegerDetailEndpoint() {
+        val repo = FakePackagesRepository(sampleDetail(), searchResults = emptyList())
+        val viewModel = PackageDetailsViewModel(
+            packageId = "MISSING-TRACKING",
+            repo = repo,
+            hubRepo = FakeHubRepository(),
+            cartServer = AlwaysOkCartServerGateway(),
+            sessionBoundary = FakeAuthenticatedSessionBoundary(),
+            tracking = FakeTimelineGateway(sampleDetail()),
+        )
+
+        compose.waitUntil(timeoutMillis = 20_000) {
+            viewModel.state.value.error?.contains("No package found") == true
+        }
+
+        assertEquals(emptyList<String>(), repo.packageDetailsRequests)
+        assertEquals(null, viewModel.state.value.detail)
+    }
+
+    @Test
+    fun mismatchedDetailResponseIsRejectedBeforeItCanRender() {
+        val repo = FakePackagesRepository(sampleDetail())
+        val viewModel = PackageDetailsViewModel(
+            packageId = "8",
+            repo = repo,
+            hubRepo = FakeHubRepository(),
+            cartServer = AlwaysOkCartServerGateway(),
+            sessionBoundary = FakeAuthenticatedSessionBoundary(),
+            tracking = FakeTimelineGateway(sampleDetail()),
+        )
+
+        compose.waitUntil(timeoutMillis = 20_000) {
+            viewModel.state.value.error?.contains("did not match") == true
+        }
+
+        assertEquals(listOf("8"), repo.packageDetailsRequests)
+        assertEquals(null, viewModel.state.value.detail)
     }
 
     @Test
@@ -897,6 +987,8 @@ class PackageDetailsParityTest {
         detail: ShipmentPackageDetail = sampleDetail(),
         timelineFails: Boolean = false,
         timelineEntries: List<com.ga.airdrop.data.model.PackageTimelineEntry>? = null,
+        packageReference: String = "7",
+        searchResults: List<ShipmentPackage> = emptyList(),
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -908,9 +1000,9 @@ class PackageDetailsParityTest {
             timelineEntries ?: FakeTimelineGateway.fromHistory(detail),
             fails = timelineFails,
         )
-        packagesRepo = FakePackagesRepository(detail)
+        packagesRepo = FakePackagesRepository(detail, searchResults)
         packageDetailsViewModel = PackageDetailsViewModel(
-            packageId = "7",
+            packageId = packageReference,
             repo = packagesRepo,
             hubRepo = FakeHubRepository(),
             // Add-to-cart is server-backed since #138; without these the VM
@@ -931,7 +1023,7 @@ class PackageDetailsParityTest {
                         .background(AirdropTheme.colors.gray200)
                 ) {
                     PackageDetailsScreen(
-                        packageId = "7",
+                        packageId = packageReference,
                         onBack = {},
                         onNavigate = navigatedRoutes::add,
                         viewModel = packageDetailsViewModel,
@@ -946,9 +1038,12 @@ class PackageDetailsParityTest {
 
     private fun assertSwiftVisualParity() {
         compose.onNodeWithTag("package-details-sheet").assertIsDisplayed()
-        compose.onNodeWithText("AirDrop").assertIsDisplayed()
+        val airdropLabels = compose.onAllNodesWithText("Airdrop")
+        assertEquals(2, airdropLabels.fetchSemanticsNodes().size)
+        airdropLabels[0].assertIsDisplayed()
         assertNodeContainsColor("package-details-hero-icon", 0xFF10BBE9.toInt(), "Standard hero glyph is AirDrop blue")
         assertEquals(0, compose.onAllNodesWithText("AirDrop Standard").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("Standard").fetchSemanticsNodes().size)
 
         compose.onNodeWithTag("package-details-section-summary")
             .performScrollTo()
@@ -1047,6 +1142,7 @@ class PackageDetailsParityTest {
     private fun sampleDetail(
         status: String = "7",
         statusName: String = "Ready for Pickup",
+        shippingMethod: String = "Standard",
         history: List<PackageHistoryItem> = listOf(
             PackageHistoryItem(
                 status = 1,
@@ -1064,7 +1160,7 @@ class PackageDetailsParityTest {
         id = 7,
         status = status,
         statusName = statusName,
-        shippingMethod = "Standard",
+        shippingMethod = shippingMethod,
         trackingCode = "AR000000043525",
         store = "Global HUB",
         shipper = "DHL / Airborne",
@@ -1087,9 +1183,13 @@ class PackageDetailsParityTest {
 
     private class FakePackagesRepository(
         private var detail: ShipmentPackageDetail,
+        private val searchResults: List<ShipmentPackage> = emptyList(),
     ) : ShipmentsPackagesRepository {
         val deletedInvoiceIds = mutableListOf<Int>()
         val damageReports = mutableListOf<DamageReportCall>()
+        val searchRequests = mutableListOf<String>()
+        val packageDetailsRequests = mutableListOf<String>()
+        val uploadPackageIds = mutableListOf<String>()
         var uploadCalls = 0
         var uploadDelayMs = 0L
         var deleteDelayMs = 0L
@@ -1101,9 +1201,13 @@ class PackageDetailsParityTest {
             status: Int?,
             search: String?,
             shippingMethod: String?,
-        ) = Result.success(Paged(emptyList<ShipmentPackage>()))
+        ): Result<Paged<ShipmentPackage>> {
+            search?.let(searchRequests::add)
+            return Result.success(Paged(searchResults))
+        }
 
         override suspend fun packageDetails(packageId: String): Result<ShipmentPackageDetail> {
+            packageDetailsRequests += packageId
             if (packageDetailsDelayMs > 0) delay(packageDetailsDelayMs)
             return Result.success(detail)
         }
@@ -1112,6 +1216,7 @@ class PackageDetailsParityTest {
 
         override suspend fun uploadInvoices(packageId: String, files: List<InvoiceUploadFile>): Result<Unit> {
             uploadCalls += 1
+            uploadPackageIds += packageId
             if (uploadDelayMs > 0) delay(uploadDelayMs)
             detail = detail.copy(
                 invoices = detail.invoices + PackageInvoiceDoc(

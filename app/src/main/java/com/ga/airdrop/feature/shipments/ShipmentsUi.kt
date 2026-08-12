@@ -104,22 +104,40 @@ enum class ShipmentMethodUi(
     val iconRes: Int,
     val heroRes: Int,
 ) {
-    // Titles per Swift PackagePresentation.methodLabel ("AirDrop Standard",
-    // not the bare "AirDrop" an earlier pass used).
-    Standard("AirDrop Standard", Color(0xFF10BBE9), R.drawable.ic_standard_shipping, R.drawable.img_shipments_hero_standard),
+    // Customer-facing names are distinct from the backend's legacy values.
+    Standard("Airdrop", Color(0xFF10BBE9), R.drawable.ic_standard_shipping, R.drawable.img_shipments_hero_standard),
     Express("Express", Color(0xFFF15114), R.drawable.ic_express_shipping, R.drawable.img_shipments_hero_express),
-    SeaDrop("SeaDrop", Color(0xFF0A96D4), R.drawable.ic_sea_drop_shipping, R.drawable.img_shipments_hero_seadrop);
+    SeaDrop("Seadrop", Color(0xFF0A96D4), R.drawable.ic_sea_drop_shipping, R.drawable.img_shipments_hero_seadrop);
 
     companion object {
-        fun from(method: String?): ShipmentMethodUi {
-            val normalized = method.orEmpty().lowercase(Locale.US).replace(" ", "")
-            return when {
-                normalized.contains("express") -> Express
-                normalized.contains("seadrop") || normalized.contains("sea") -> SeaDrop
-                else -> Standard
+        fun from(method: String?): ShipmentMethodUi = fromOrNull(method) ?: Standard
+
+        fun fromOrNull(method: String?): ShipmentMethodUi? {
+            val normalized = method
+                ?.trim()
+                ?.lowercase(Locale.US)
+                ?.replace(" ", "")
+                ?.replace("_", "")
+                ?.replace("-", "")
+                .orEmpty()
+            if (normalized.isBlank()) return null
+            return when (normalized) {
+                "express", "airdropexpress" -> Express
+                "seadrop", "seadropstandard" -> SeaDrop
+                "standard", "airdrop", "airdropstandard", "air" -> Standard
+                else -> null
             }
         }
     }
+}
+
+internal fun shippingMethodDisplayName(
+    method: String?,
+    missingValue: String = "—",
+): String {
+    val raw = method?.trim().orEmpty()
+    if (raw.isBlank()) return missingValue
+    return ShipmentMethodUi.fromOrNull(raw)?.title ?: raw
 }
 
 // ─── Package status catalog (PackageStatusCatalog.swift defaults) ──────────
@@ -841,6 +859,7 @@ fun PackageCard(
 ) {
     val colors = AirdropTheme.colors
     val method = ShipmentMethodUi.from(pkg.shippingMethod)
+    val methodTitle = shippingMethodDisplayName(pkg.shippingMethod)
     // Swift (FigmaPackagesViewController.swift:358) falls back to 0 when there
     // are no additional charges, so the row always shows a money string
     // ("USD 0.00 / JMD 0.00"), never "-". An empty map sums to 0.0.
@@ -880,7 +899,7 @@ fun PackageCard(
                     .size(24.dp)
                     .then(testTag?.let { Modifier.testTag("$it-method-icon") } ?: Modifier),
             )
-            Text(text = method.title, style = AirdropType.title2, color = method.tint)
+            Text(text = methodTitle, style = AirdropType.title2, color = method.tint)
         }
         Column(
             modifier = Modifier

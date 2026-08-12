@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,10 +31,18 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -213,7 +224,27 @@ internal fun CalcInputField(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    var focused by remember { mutableStateOf(false) }
+    val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
+
+    // BasicTextField's built-in relocation covers only its cursor/editor box.
+    // The label and bordered 48dp row live in this outer Column, so on a short
+    // screen the cursor could be visible while the field bottom remained under
+    // the keyboard. Re-request the OUTER bounds after the IME inset changes;
+    // the existing CalculatorScreen verticalScroll remains the single rail.
+    LaunchedEffect(focused, imeBottomPx) {
+        if (focused && imeBottomPx > 0) {
+            // Let imePadding/scroll viewport consume the latest inset first.
+            withFrameNanos { }
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+
+    Column(
+        modifier = modifier.bringIntoViewRequester(bringIntoViewRequester),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         FieldLabel(label, required)
         Row(
             modifier = Modifier
@@ -246,6 +277,7 @@ internal fun CalcInputField(
                     keyboardOptions = keyboardOptions,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .onFocusChanged { focused = it.isFocused }
                         .then(if (inputTestTag != null) Modifier.testTag(inputTestTag) else Modifier),
                 )
             }

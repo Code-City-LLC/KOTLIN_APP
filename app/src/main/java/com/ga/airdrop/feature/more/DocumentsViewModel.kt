@@ -67,14 +67,15 @@ data class DocumentsUiState(
     /** Non-secret owner generation used to discard account-A UI intents. */
     val ownerSessionId: String? = null,
     val files: Map<String, MoreDocumentFile> = emptyMap(),
-    /** Session user id for the legacy server-generated form downloads. */
-    val legacyUserId: Int? = null,
     /**
-     * The user-id fetch failed, as opposed to never having been attempted.
-     * Kept so a failed download can explain itself instead of claiming the
-     * document does not exist.
+     * Session user id discovered from /user/profile.
+     *
+     * Blank-form downloads no longer depend on this value: the authenticated
+     * mobile forms API identifies the customer from the bearer. The identity
+     * fetch remains useful for binding the ViewModel owner to an account and
+     * rejecting late account-A work after an account switch.
      */
-    val legacyUserIdFailed: Boolean = false,
+    val accountUserId: Int? = null,
     /**
      * True when GET /user/documents failed, so [files] is UNKNOWN rather than
      * empty.
@@ -151,7 +152,7 @@ class DocumentsViewModel(
     val state: StateFlow<DocumentsUiState> = _state
 
     private val sessionJobs = AuthenticatedSessionJobs(viewModelScope)
-    private var legacyUserJob: Job? = null
+    private var accountIdentityJob: Job? = null
     private var loadJob: Job? = null
 
     init {
@@ -166,17 +167,17 @@ class DocumentsViewModel(
                     AuthenticatedOwnerChange.SessionReplaced -> Unit
                 }
                 sessionJobs.replaceSession()
-                legacyUserJob = null
+                accountIdentityJob = null
                 loadJob = null
                 sessionOwner = changed
                 resetOwnedState()
                 if (changed != null) {
-                    loadLegacyUserId()
+                    loadAccountIdentity()
                     load()
                 }
             }
         }
-        loadLegacyUserId()
+        loadAccountIdentity()
     }
 
     fun load() {
@@ -185,43 +186,31 @@ class DocumentsViewModel(
 
     fun refresh() {
         fetchDocuments(refreshing = true)
-        // ⚠️ Pull-to-refresh MUST retry this too. It used to run only from init,
-        // so a single failed currentUserId at screen open left legacyUserId null
-        // for the lifetime of the ViewModel — and the only escape was leaving the
-        // screen and coming back. Refreshing is exactly what a customer does when
-        // a download says it is unavailable.
-        loadLegacyUserId()
+        // Keep retrying account-identity binding independently of form
+        // downloads. The mobile forms route derives the customer from the
+        // bearer and must never be disabled by this optional profile lookup.
+        loadAccountIdentity()
     }
 
-    private fun loadLegacyUserId() {
-        if (legacyUserJob?.isActive == true) return
+    private fun loadAccountIdentity() {
+        if (accountIdentityJob?.isActive == true) return
         val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
         val owner = requestOwner.session
-        legacyUserJob = sessionJobs.launch {
+        accountIdentityJob = sessionJobs.launch {
             repository.currentUserId(requestOwner.provenance)
                 .onSuccess { userId ->
                     if (userId != null && !sessionBoundary.bindAccountId(owner, userId)) {
                         return@onSuccess
                     }
                     sessionBoundary.apply(owner) {
-                        _state.update { it.copy(legacyUserId = userId) }
+                        _state.update { it.copy(accountUserId = userId) }
                     }
                 }
-                // Silence here is what made the failure indistinguishable from
-                // "this document does not exist". We do not surface an alert on
-                // load — the customer has not asked for anything yet — but
-                // openDocument now tells the truth when the id is missing.
-                .onFailure { _state.update { it.copy(legacyUserIdFailed = true) } }
+                // The generated-form route does not need a user id. A profile
+                // lookup failure therefore stays silent and cannot disable a
+                // customer download; pull-to-refresh may retry account binding.
         }
     }
-
-    /**
-     * Only these three slots have a server-generated legacy form; ID Card and
-     * TRN legitimately have none. Used to tell "we could not prepare this"
-     * apart from "there is nothing to prepare".
-     */
-    private fun hasLegacyForm(docType: String): Boolean =
-        docType in setOf("airdrop_contract", "file_1583", "authorization_form")
 
     private fun fetchDocuments(refreshing: Boolean) {
         if (loadJob?.isActive == true) return
@@ -383,37 +372,21 @@ class DocumentsViewModel(
 
     fun openDocument(
         slot: DocumentSlot,
-        legacyBase: String,
+        apiBase: String,
         onOpen: (url: String, title: String) -> Unit,
     ) {
         val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
         sessionBoundary.apply(owner) {
             val current = _state.value
             val url = (
-                current.files[slot.docType]?.fileUrl
-                    ?: legacyDownloadUrl(
-                        docType = slot.docType,
-                        userId = current.legacyUserId?.toString(),
-                        legacyBase = legacyBase,
-                    )
+                current.files[slot.docType]?.fileUrl?.takeIf { it.isNotBlank() }
+                    ?: mobileFormDownloadUrl(slot.docType, apiBase)
                 )?.replaceFirst("http://", "https://")
             if (url.isNullOrBlank()) {
-                // "Not available" is a claim about the DOCUMENT. When the slot
-                // does have a legacy form and we simply never got the user id
-                // needed to build its URL, that claim is false — and it sent
-                // the customer away believing a form they are entitled to does
-                // not exist. Say which of the two actually happened.
-                val couldNotPrepare = hasLegacyForm(slot.docType) && current.legacyUserId == null
                 _state.update {
                     it.copy(
-                        alert = if (couldNotPrepare) {
-                            "Couldn't prepare download" to
-                                "We couldn't get your account details for ${slot.title}. " +
-                                "Pull down to refresh and try again."
-                        } else {
-                            "Not available" to
-                                "No download link is available for ${slot.title} yet."
-                        },
+                        alert = "Not available" to
+                            "No download link is available for ${slot.title} yet.",
                     )
                 }
             } else {
@@ -437,18 +410,17 @@ class DocumentsViewModel(
 }
 
 /**
- * Legacy server-generated form download URL — Swift
- * FigmaDocumentsViewController.legacyDownloadURL(for:) (:770). Only the first
- * three slots have server-generated legacy forms; ID Card and TRN return null.
- * A blank/absent user id returns null (download stays disabled).
+ * Authenticated mobile blank-form route. The retired /airdrop/inc PHP files
+ * no longer exist; Laravel serves real PDFs from one bearer-authenticated API
+ * contract instead. The server derives the customer from the token, so no
+ * user id belongs in the URL. ID Card and TRN are uploads only and return null.
  */
-internal fun legacyDownloadUrl(docType: String, userId: String?, legacyBase: String): String? {
-    val id = userId?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
-    val base = legacyBase.trimEnd('/')
+internal fun mobileFormDownloadUrl(docType: String, apiBase: String): String? {
+    val base = apiBase.trimEnd('/')
     return when (docType) {
-        "airdrop_contract" -> "$base/api_download-contract-form.php?user_documenttype=$id"
-        "file_1583" -> "$base/api_download_file_1583.php?user_id=$id"
-        "authorization_form" -> "$base/api_form_authorization.php?user_id=$id"
+        "airdrop_contract" -> "$base/user/forms/contract/download"
+        "file_1583" -> "$base/user/forms/1583/download"
+        "authorization_form" -> "$base/user/forms/authorization/download"
         else -> null
     }
 }

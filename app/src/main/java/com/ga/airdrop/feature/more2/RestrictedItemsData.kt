@@ -119,7 +119,7 @@ internal enum class RestrictedCategory(
                     "Dangerous Goods rules.",
             ),
         ),
-        carrierNote = "All packages will be handled as AirDrop Standard unless identified " +
+        carrierNote = "All packages will be handled as Airdrop unless identified " +
             "otherwise in address line 2.",
         batteryPolicy = null,
     ),

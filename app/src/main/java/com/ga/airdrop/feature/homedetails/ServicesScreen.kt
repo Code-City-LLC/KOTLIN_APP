@@ -56,6 +56,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.feature.homedetails.components.CopiedToastPill
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 import kotlinx.coroutines.delay
+import kotlin.math.truncate
 
 /** Swift FigmaServicesViewController.onCopy (:174-178) — the fixed 3-line
  *  service-info block copied by the header copy button, verbatim. */
@@ -408,24 +409,76 @@ private fun LogoMarqueeRow(
     val displayLogos = remember(logos) { logos + logos + logos }
     val state = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
 
+    // ⚠️ KEMAR REPORTED THIS DEAD: "the bottom line of the words in services
+    // that moves across does not work, does not move." The BOTTOM row, not the
+    // top — and the asymmetry is the clue.
+    //
+    // The old loop was `delay(16)` + `scrollBy(speed * 16 / 1000)`, wrong in
+    // three separate ways. All three are fixed, and @Codex-MobileReleaseQC has
+    // since confirmed on device (A/B) that both rows now move:
+    //
+    //  1. SUB-PIXEL PER STEP — the one that explains the reported asymmetry.
+    //     At xxhdpi the top row asked for 0.523 px/step and the bottom for
+    //     0.451 px, so whatever dropped a sub-pixel request stalled the SLOWER
+    //     row first. `carry` now keeps the remainder and only whole pixels are
+    //     dispatched, so no fraction is lost regardless of how the list treats
+    //     a <1px scroll.
+    //  2. FIXED-INTERVAL TIME. The step assumed exactly MARQUEE_FRAME_MILLIS
+    //     had elapsed; under load it had not, so the logos drifted slower than
+    //     the declared dp/second. Elapsed time is now measured off the
+    //     monotonic clock and integrated, so speed holds on any refresh rate.
+    //  3. STALE INDEX. `firstVisibleItemIndex` was read INSIDE `state.scroll`,
+    //     where it still holds the previous measure pass's value, so the wrap
+    //     could fire against an index that no longer applied. It is now read
+    //     outside the scroll block, after the frame has been laid out.
     LaunchedEffect(logos, movesForward, speedDpPerSecond, density) {
+        if (logos.isEmpty()) return@LaunchedEffect
         val direction = if (movesForward) 1f else -1f
         val speedPxPerSecond = with(density) { speedDpPerSecond.dp.toPx() } * direction
         val singleSetWidthPx = with(density) {
             logos.sumOf { logo -> logo.width + 56 }.dp.toPx()
         }
+        // ⚠️ delay(), NOT withFrameNanos — AND THAT IS DELIBERATE.
+        //
+        // withFrameNanos registers a frame callback every iteration, so an
+        // infinite loop of it never lets the Compose clock go idle and
+        // `waitForIdle` never returns. @Codex-MobileReleaseQC measured exactly
+        // that on my first pass: the ticker moved correctly on device (A/B
+        // confirmed) while ServicesOrangeAccentParityTest went ComposeNotIdle
+        // and took the whole connected gate red with it.
+        //
+        // delay() suspends without holding the frame clock, so the composition
+        // settles between steps and the test suite can reach idle. The three
+        // real defects are still fixed without it:
+        //   - elapsed time is measured from the monotonic clock rather than
+        //     ASSUMED to be exactly MARQUEE_FRAME_MILLIS, so the logos travel
+        //     at the specified dp/second even when a frame runs long;
+        //   - `carry` keeps the sub-pixel remainder, so the slower bottom row
+        //     no longer loses its fraction every step (0.451 px/frame at
+        //     xxhdpi — the reason it stalled while the top row moved);
+        //   - firstVisibleItemIndex is read after the scroll, not inside it.
+        var lastNanos = 0L
+        var carry = 0f
         while (true) {
             delay(MARQUEE_FRAME_MILLIS)
-            state.scroll {
-                scrollBy(speedPxPerSecond * MARQUEE_FRAME_MILLIS / 1_000f)
-                when {
-                    movesForward && state.firstVisibleItemIndex >= logos.size * 2 -> {
-                        scrollBy(-singleSetWidthPx)
-                    }
-                    !movesForward && state.firstVisibleItemIndex <= 0 -> {
-                        scrollBy(singleSetWidthPx)
-                    }
-                }
+            val now = System.nanoTime()
+            if (lastNanos != 0L) {
+                carry += speedPxPerSecond * ((now - lastNanos) / 1_000_000_000f)
+            }
+            lastNanos = now
+            // Dispatch only whole pixels and keep the remainder. truncate()
+            // rounds toward zero, so this stays symmetric for the reverse row.
+            val step = truncate(carry)
+            if (step != 0f) {
+                carry -= step
+                state.scroll { scrollBy(step) }
+            }
+            // Read the index AFTER the scroll settles, not inside it.
+            when {
+                movesForward && state.firstVisibleItemIndex >= logos.size * 2 ->
+                    state.scroll { scrollBy(-singleSetWidthPx) }
+                !movesForward && state.firstVisibleItemIndex <= 0 ->
+                    state.scroll { scrollBy(singleSetWidthPx) }
             }
         }
     }

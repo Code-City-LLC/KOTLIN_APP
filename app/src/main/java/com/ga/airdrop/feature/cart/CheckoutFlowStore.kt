@@ -83,6 +83,7 @@ data class CheckoutFlow(
     val pickupLocation: String? = null,
     val deliveryFee: Double? = null,
     val deliveryFeeCurrency: String? = null,
+    val deliveryFeeUsd: Double? = null,
     val phase: CheckoutPhase = CheckoutPhase.DELIVERY,
 ) {
     fun isOwnedBy(owner: AuthenticatedSessionOwner): Boolean =

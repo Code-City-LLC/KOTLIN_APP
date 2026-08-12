@@ -76,8 +76,8 @@ enum class WarehouseType(
 ) {
     Standard(
         key = "standard",
-        prettyName = "Standard",
-        bigTitle = "AirDrop (Air Freight)",
+        prettyName = "Airdrop",
+        bigTitle = "Airdrop (Air Freight)",
         subtitle = "2 to 3 business days after items are delivered to our warehouse.",
         tint = Color(0xFF6C46C5),
         heroRes = R.drawable.img_homedet_hero_standard,
@@ -85,8 +85,8 @@ enum class WarehouseType(
     ),
     SeaDrop(
         key = "seadrop",
-        prettyName = "SeaDrop",
-        bigTitle = "SeaDrop (Sea Freight)",
+        prettyName = "Seadrop",
+        bigTitle = "Seadrop (Sea Freight)",
         subtitle = "2 to 4 weeks after items are delivered to our warehouse.",
         tint = Color(0xFF0A96D4),
         heroRes = R.drawable.img_homedet_hero_seadrop,
@@ -553,7 +553,7 @@ private fun PleaseNoteCard() {
                 modifier = Modifier.testTag("warehouse-note-title"),
             )
             Text(
-                text = "Please note: All packages will be handled as Airdrop Standard " +
+                text = "Please note: All packages will be handled as Airdrop " +
                     "unless identified otherwise in address line 2.",
                 style = AirdropType.body2,
                 color = colors.textDarkTitle,

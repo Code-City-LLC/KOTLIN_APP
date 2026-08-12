@@ -22,6 +22,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.core.navigation.AppRoot
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.network.ForegroundRefreshCoordinator
 import com.ga.airdrop.core.network.TokenRefresher
 import com.ga.airdrop.core.push.AirdropMessagingService
 import com.ga.airdrop.core.push.PushDeepLink
@@ -57,8 +58,12 @@ class MainActivity : FragmentActivity() {
     override fun attachBaseContext(newBase: Context) {
         val mask = ThemeController.nightMask()
         val base = if (mask != null) {
-            val config = Configuration(newBase.resources.configuration)
-            config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or mask
+            // createConfigurationContext treats non-zero fields as overrides.
+            // Copying the full startup Configuration here pinned orientation,
+            // screen bounds, density and every other qualifier for the lifetime
+            // of this context, so handled large-screen changes never reached
+            // Compose or the live NCB WebView. Override only the night qualifier.
+            val config = Configuration().apply { uiMode = mask }
             newBase.createConfigurationContext(config)
         } else {
             newBase
@@ -69,7 +74,7 @@ class MainActivity : FragmentActivity() {
     }
 
     /**
-     * Android 13+ (targetSdk 35): POST_NOTIFICATIONS defaults to DENIED and
+     * Android 13+ (targetSdk 36): POST_NOTIFICATIONS defaults to DENIED and
      * every notify() silently no-ops until the user grants it. The permission
      * was declared in the manifest but never requested — no push was ever
      * visible on 13+. RN requests on app mount (NotificationService.ts:29-39);
@@ -83,8 +88,13 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        PushDeepLink.capture(intent)
-        PushDeepLink.captureUri(intent)
+        // A configuration recreation keeps Activity.getIntent(). Re-capturing
+        // that stale launch intent would replay an already-consumed push route;
+        // targetSdk 36 makes this reachable on rotating/resizing large screens.
+        if (savedInstanceState == null) {
+            PushDeepLink.capture(intent)
+            PushDeepLink.captureUri(intent)
+        }
         maybeSeedSession()
         // Channels must exist BEFORE the first background (system-posted) push:
         // the manifest meta-data routes those to airdrop_alerts, which only
@@ -193,17 +203,19 @@ class MainActivity : FragmentActivity() {
             return
         }
         lifecycleScope.launch {
-            runCatching { ApiClient.service.refreshToken(EmptyRequest()) }
-                .onSuccess {
-                    TokenRefresher.applyForegroundRefresh(refreshingSession, null, it.token)
-                }
-                .onFailure { e ->
-                    TokenRefresher.applyForegroundRefresh(
-                        refreshingSession,
-                        (e as? HttpException)?.code(),
-                        null,
-                    )
-                }
+            ForegroundRefreshCoordinator.run {
+                runCatching { ApiClient.service.refreshToken(EmptyRequest()) }
+                    .onSuccess {
+                        TokenRefresher.applyForegroundRefresh(refreshingSession, null, it.token)
+                    }
+                    .onFailure { e ->
+                        TokenRefresher.applyForegroundRefresh(
+                            refreshingSession,
+                            (e as? HttpException)?.code(),
+                            null,
+                        )
+                    }
+            }
             // Runs on both arms: a failed refresh leaves the old session intact
             // (only a 401 clears it), and these calls session-gate themselves.
             afterRefresh()

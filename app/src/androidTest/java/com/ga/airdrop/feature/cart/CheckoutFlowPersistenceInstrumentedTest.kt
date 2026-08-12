@@ -107,6 +107,28 @@ class CheckoutFlowPersistenceInstrumentedTest {
         assertTrue(CartStore.items.value.isEmpty())
     }
 
+    @Test
+    fun authoritativeUsdDeliveryQuoteSurvivesRealPreferencesReload() {
+        val flow = requireNotNull(CheckoutFlowStore.start(ownerA, listOf(sale(7, 907))))
+        requireNotNull(
+            CheckoutFlowStore.update(ownerA, flow.id) {
+                it.copy(
+                    deliveryMode = "delivery",
+                    deliveryFee = 800.0,
+                    deliveryFeeCurrency = "JMD",
+                    deliveryFeeUsd = 5.0,
+                )
+            },
+        )
+
+        reload(ownerA)
+
+        val restored = requireNotNull(CheckoutFlowStore.current(ownerA))
+        assertEquals(800.0, restored.deliveryFee ?: -1.0, 0.0)
+        assertEquals("JMD", restored.deliveryFeeCurrency)
+        assertEquals(5.0, restored.deliveryFeeUsd ?: -1.0, 0.0)
+    }
+
     private fun pendingCheckout(line: CartStore.CartLine, sessionId: String) {
         val flow = requireNotNull(CheckoutFlowStore.start(ownerA, listOf(line)))
         requireNotNull(

@@ -5,54 +5,41 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Legacy server-generated form downloads — Swift
- * FigmaDocumentsViewController.legacyDownloadURL(for:) (:770-793) parity:
- * contract keys the id on `user_documenttype`, 1583 + custom-auth on
- * `user_id`; ID Card and TRN have NO legacy form; blank/absent user id
- * disables the fallback entirely.
+ * The deleted /airdrop/inc PHP tier must never return. Blank compliance forms
+ * use Laravel's bearer-authenticated mobile API, with no customer id in the
+ * URL. ID Card and TRN remain upload-only.
  */
-class DocumentsLegacyDownloadTest {
+class DocumentsMobileFormDownloadTest {
 
-    private val base = "https://pre-staging.airdropja.com/airdrop/inc"
+    private val base = "https://pre-staging.airdropja.com/api/v1"
 
     @Test
-    fun `contract keys id on user_documenttype`() {
+    fun `all generated forms use the authenticated mobile routes`() {
         assertEquals(
-            "$base/api_download-contract-form.php?user_documenttype=14172",
-            legacyDownloadUrl("airdrop_contract", "14172", base),
+            "$base/user/forms/contract/download",
+            mobileFormDownloadUrl("airdrop_contract", base),
+        )
+        assertEquals(
+            "$base/user/forms/1583/download",
+            mobileFormDownloadUrl("file_1583", base),
+        )
+        assertEquals(
+            "$base/user/forms/authorization/download",
+            mobileFormDownloadUrl("authorization_form", base),
         )
     }
 
     @Test
-    fun `1583 and custom auth key id on user_id`() {
-        assertEquals(
-            "$base/api_download_file_1583.php?user_id=14172",
-            legacyDownloadUrl("file_1583", "14172", base),
-        )
-        assertEquals(
-            "$base/api_form_authorization.php?user_id=14172",
-            legacyDownloadUrl("authorization_form", "14172", base),
-        )
-    }
-
-    @Test
-    fun `id card and trn have no legacy form`() {
-        assertNull(legacyDownloadUrl("id_card_form", "14172", base))
-        assertNull(legacyDownloadUrl("trn", "14172", base))
-    }
-
-    @Test
-    fun `blank or missing user id disables the fallback`() {
-        assertNull(legacyDownloadUrl("airdrop_contract", null, base))
-        assertNull(legacyDownloadUrl("airdrop_contract", "", base))
-        assertNull(legacyDownloadUrl("airdrop_contract", "   ", base))
+    fun `id card and trn have no generated form`() {
+        assertNull(mobileFormDownloadUrl("id_card_form", base))
+        assertNull(mobileFormDownloadUrl("trn", base))
     }
 
     @Test
     fun `trailing slash on base is normalized`() {
         assertEquals(
-            "$base/api_download_file_1583.php?user_id=7",
-            legacyDownloadUrl("file_1583", "7", "$base/"),
+            "$base/user/forms/1583/download",
+            mobileFormDownloadUrl("file_1583", "$base/"),
         )
     }
 }

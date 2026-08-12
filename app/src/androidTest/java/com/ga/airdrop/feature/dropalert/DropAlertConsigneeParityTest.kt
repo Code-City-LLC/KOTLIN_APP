@@ -88,7 +88,7 @@ class DropAlertConsigneeParityTest {
             TextSizeController.set(TextSizeController.Level.STANDARD)
             ThemeController.set(mode)
             viewModel = DropAlertViewModel(repository)
-            viewModel.onShippingMethodSelected("Airdrop standard")
+            viewModel.onShippingMethodSelected("Airdrop")
             viewModel.onCourierCompanySelected("FedEx")
         }
 

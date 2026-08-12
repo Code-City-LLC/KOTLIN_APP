@@ -337,6 +337,7 @@ private fun InvoiceField(value: String, onValueChange: (String) -> Unit, modifie
         placeholder = "e.g. 843",
         required = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        inputTestTag = "calculator-invoice-input",
         trailing = { DollarTrailing() },
         modifier = modifier,
     )
@@ -399,10 +400,10 @@ private fun PackageDimensionsCard() {
  */
 @Composable
 private fun ProductResultsPanel(
-    searchState: ProductSearchState,
-    onSelect: (CalcProduct) -> Unit,
+    searchState: DutyRateSearchState,
+    onSelect: (CalcDutyRate) -> Unit,
 ) {
-    if (searchState is ProductSearchState.Hidden) return
+    if (searchState is DutyRateSearchState.Hidden) return
     val colors = AirdropTheme.colors
     Column(
         Modifier
@@ -412,7 +413,7 @@ private fun ProductResultsPanel(
             .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs)),
     ) {
         when (searchState) {
-            is ProductSearchState.Loading -> {
+            is DutyRateSearchState.Loading -> {
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -430,7 +431,7 @@ private fun ProductResultsPanel(
                 }
             }
 
-            is ProductSearchState.Results -> {
+            is DutyRateSearchState.Results -> {
                 val products = searchState.products
                 if (products.isEmpty()) {
                     Box(
@@ -471,13 +472,13 @@ private fun ProductResultsPanel(
                 }
             }
 
-            ProductSearchState.Hidden -> Unit
+            DutyRateSearchState.Hidden -> Unit
         }
     }
 }
 
 @Composable
-private fun ProductResultRow(product: CalcProduct, onClick: () -> Unit) {
+private fun ProductResultRow(product: CalcDutyRate, onClick: () -> Unit) {
     val colors = AirdropTheme.colors
     Row(
         Modifier
@@ -503,18 +504,30 @@ private fun ProductResultRow(product: CalcProduct, onClick: () -> Unit) {
         }
         Column {
             Text(
-                text = product.title,
+                text = product.itemName,
                 style = AirdropType.body2,
                 color = colors.textDarkTitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = product.displayPrice,
-                style = AirdropType.subtitle3,
-                color = colors.textDescription,
-                maxLines = 1,
-            )
+            // ⚠️ NO MONEY ON THIS ROW. It used to render `displayPrice` from
+            // the auction catalogue, so a customs classification was presented
+            // to the customer as a thing with a price. /custom-duty-rates has
+            // no price field at all; the duty percentage is the only number
+            // that belongs here, and only when the server actually sent one.
+            product.dutyPercentage?.let { percentage ->
+                val shown = if (percentage % 1.0 == 0.0) {
+                    percentage.toInt().toString()
+                } else {
+                    String.format(Locale.US, "%.2f", percentage).trimEnd('0').trimEnd('.')
+                }
+                Text(
+                    text = "$shown% duty",
+                    style = AirdropType.subtitle3,
+                    color = colors.textDescription,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }

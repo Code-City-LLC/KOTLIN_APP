@@ -84,7 +84,7 @@ class WarehousesScreenParityTest {
 
         assertSwiftHeroGeometry()
         assertSwiftNoteGeometry()
-        compose.onNodeWithText("AirDrop (Air Freight)").assertIsDisplayed()
+        compose.onNodeWithText("Airdrop (Air Freight)").assertIsDisplayed()
         saveRootScreenshot("warehouse_standard_swift_dark.png")
     }
 
@@ -93,7 +93,7 @@ class WarehousesScreenParityTest {
         setWarehouseContent(ThemeController.Mode.LIGHT, initialType = "standard")
 
         compose.onNodeWithTag("warehouse-tab-seadrop").performClick()
-        compose.onNodeWithText("SeaDrop (Sea Freight)").assertIsDisplayed()
+        compose.onNodeWithText("Seadrop (Sea Freight)").assertIsDisplayed()
         assertSwiftHeroGeometry()
 
         compose.onNodeWithTag("warehouse-tab-express").performClick()
@@ -120,7 +120,7 @@ class WarehousesScreenParityTest {
         )
 
         compose.onNodeWithTag("warehouse-tab-seadrop").performClick()
-        compose.onNodeWithText("SeaDrop (Sea Freight)").assertIsDisplayed()
+        compose.onNodeWithText("Seadrop (Sea Freight)").assertIsDisplayed()
         saveRootScreenshot("warehouse_seadrop_swift_dark.png")
 
         val seaDropFill = fillPixel("warehouse-tab-seadrop")

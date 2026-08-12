@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.homedetails
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -80,6 +82,10 @@ internal fun TierChangeSheet(
     val latestWorking = rememberUpdatedState(working)
     var confirmationHeightPx by remember(target.id) { mutableIntStateOf(0) }
     val confirmationHeight = with(LocalDensity.current) { confirmationHeightPx.toDp() }
+    // Keep the customer's position while key(working) recreates only the
+    // Android 16 modal window. An in-key rememberScrollState() snapped to the
+    // top when a failed request changed Working -> Error, hiding the error.
+    val confirmationScrollState = rememberScrollState()
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { next ->
@@ -87,87 +93,93 @@ internal fun TierChangeSheet(
         },
     )
 
-    ModalBottomSheet(
-        onDismissRequest = { if (!working) onDismiss() },
-        sheetState = sheetState,
-        containerColor = target.gradientBottom,
-        scrimColor = Color.Black.copy(alpha = 0.55f),
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        dragHandle = null,
-        properties = ModalBottomSheetProperties(
-            shouldDismissOnBackPress = !working,
-        ),
-        modifier = Modifier.testTag("tier-change-sheet"),
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .testTag("tier-change-sheet-content")
-                .drawBehind {
-                    drawRect(
-                        Brush.linearGradient(
-                            colors = listOf(target.gradientTop, target.gradientBottom),
-                            start = Offset(size.width * 0.64f, 0f),
-                            end = Offset(size.width * 0.36f, size.height),
-                        )
-                    )
-                    drawRect(Color.Black.copy(alpha = 0.30f))
-                },
+    // Android 16 retains the dialog's original predictive-back callback when
+    // this property changes in place. Recreate only the modal window at the
+    // mutation boundary so its back policy is registered from current state.
+    key(working) {
+        ModalBottomSheet(
+            onDismissRequest = { if (!working) onDismiss() },
+            sheetState = sheetState,
+            containerColor = target.gradientBottom,
+            scrimColor = Color.Black.copy(alpha = 0.55f),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            dragHandle = null,
+            properties = ModalBottomSheetProperties(
+                shouldDismissOnBackPress = !working,
+            ),
+            modifier = Modifier.testTag("tier-change-sheet"),
         ) {
-            Column(
+            Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .navigationBarsPadding()
-                    .padding(bottom = 16.dp),
+                    .testTag("tier-change-sheet-content")
+                    .drawBehind {
+                        drawRect(
+                            Brush.linearGradient(
+                                colors = listOf(target.gradientTop, target.gradientBottom),
+                                start = Offset(size.width * 0.64f, 0f),
+                                end = Offset(size.width * 0.36f, size.height),
+                            )
+                        )
+                        drawRect(Color.Black.copy(alpha = 0.30f))
+                    },
             ) {
-                Box(
+                Column(
                     Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(top = 10.dp, bottom = 14.dp)
-                        .size(width = 40.dp, height = 5.dp)
-                        .clip(RoundedCornerShape(2.5.dp))
-                        .background(Color.White.copy(alpha = 0.45f))
-                        .testTag("tier-change-grabber")
-                )
-
-                if (phase == TierChangePhase.Success) {
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .navigationBarsPadding()
+                        .padding(bottom = 16.dp),
+                ) {
                     Box(
                         Modifier
-                            .fillMaxWidth()
-                            .then(
-                                if (confirmationHeightPx > 0) {
-                                    Modifier.height(confirmationHeight)
-                                } else {
-                                    Modifier.heightIn(min = 320.dp, max = 680.dp)
-                                }
+                            .align(Alignment.CenterHorizontally)
+                            .padding(top = 10.dp, bottom = 14.dp)
+                            .size(width = 40.dp, height = 5.dp)
+                            .clip(RoundedCornerShape(2.5.dp))
+                            .background(Color.White.copy(alpha = 0.45f))
+                            .testTag("tier-change-grabber")
+                    )
+
+                    if (phase == TierChangePhase.Success) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .then(
+                                    if (confirmationHeightPx > 0) {
+                                        Modifier.height(confirmationHeight)
+                                    } else {
+                                        Modifier.heightIn(min = 320.dp, max = 680.dp)
+                                    }
+                                )
+                                .testTag("tier-change-success-frame"),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            TierChangeSuccess(
+                                name = successName ?: target.name,
+                                message = successMessage,
+                                onDone = onDone,
                             )
-                            .testTag("tier-change-success-frame"),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        TierChangeSuccess(
-                            name = successName ?: target.name,
-                            message = successMessage,
-                            onDone = onDone,
+                        }
+                    } else {
+                        TierChangeConfirmation(
+                            target = target,
+                            current = current,
+                            targetBenefits = targetBenefits,
+                            currentBenefits = currentBenefits,
+                            isUpgrade = isUpgrade,
+                            working = working,
+                            error = error.takeIf { phase == TierChangePhase.Error },
+                            scrollState = confirmationScrollState,
+                            onConfirm = onConfirm,
+                            onDismiss = onDismiss,
+                            modifier = Modifier
+                                .heightIn(max = 680.dp)
+                                .onSizeChanged {
+                                    confirmationHeightPx = maxOf(confirmationHeightPx, it.height)
+                                },
                         )
                     }
-                } else {
-                    TierChangeConfirmation(
-                        target = target,
-                        current = current,
-                        targetBenefits = targetBenefits,
-                        currentBenefits = currentBenefits,
-                        isUpgrade = isUpgrade,
-                        working = working,
-                        error = error.takeIf { phase == TierChangePhase.Error },
-                        onConfirm = onConfirm,
-                        onDismiss = onDismiss,
-                        modifier = Modifier
-                            .heightIn(max = 680.dp)
-                            .onSizeChanged {
-                                confirmationHeightPx = maxOf(confirmationHeightPx, it.height)
-                            },
-                    )
                 }
             }
         }
@@ -183,6 +195,7 @@ private fun TierChangeConfirmation(
     isUpgrade: Boolean,
     working: Boolean,
     error: String?,
+    scrollState: ScrollState,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -196,7 +209,7 @@ private fun TierChangeConfirmation(
             Modifier
                 .weight(1f, fill = false)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .testTag("tier-change-scroll"),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

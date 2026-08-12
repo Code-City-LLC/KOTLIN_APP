@@ -13,16 +13,16 @@ import kotlinx.coroutines.launch
 /** Simple OK-dialog payload, Android stand-in for Swift presentSimpleAlert. */
 data class CalcAlert(val title: String, val message: String)
 
-sealed interface ProductSearchState {
-    data object Hidden : ProductSearchState
-    data object Loading : ProductSearchState
-    data class Results(val products: List<CalcProduct>) : ProductSearchState
+sealed interface DutyRateSearchState {
+    data object Hidden : DutyRateSearchState
+    data object Loading : DutyRateSearchState
+    data class Results(val products: List<CalcDutyRate>) : DutyRateSearchState
 }
 
 data class CalculatorUiState(
     val method: ShippingMethod = ShippingMethod.STANDARD,
     val product: String = "",
-    val selectedProduct: CalcProduct? = null,
+    val selectedDutyRate: CalcDutyRate? = null,
     val packages: String = "",
     val invoiceUsd: String = "",
     val actualWeight: String = "",
@@ -32,7 +32,7 @@ data class CalculatorUiState(
     val lengthUnit: LengthUnit = LengthUnit.INCH,
     val weightUnit: WeightUnit = WeightUnit.LBS,
     val calculating: Boolean = false,
-    val searchState: ProductSearchState = ProductSearchState.Hidden,
+    val searchState: DutyRateSearchState = DutyRateSearchState.Hidden,
     val alert: CalcAlert? = null,
     /** One-shot: set when a calculation is ready for the results screen. */
     val navigateToResults: Boolean = false,
@@ -79,31 +79,36 @@ class CalculatorViewModel(
     // ─── Product search (Swift: 500ms debounce, ≥3 chars, top 8 rendered) ───
 
     fun onProductChange(value: String) {
-        _state.update { it.copy(product = value, selectedProduct = null) }
+        _state.update { it.copy(product = value, selectedDutyRate = null) }
         searchJob?.cancel()
         val query = value.trim()
         if (query.length < 3) {
-            _state.update { it.copy(searchState = ProductSearchState.Hidden) }
+            _state.update { it.copy(searchState = DutyRateSearchState.Hidden) }
             return
         }
-        _state.update { it.copy(searchState = ProductSearchState.Loading) }
+        _state.update { it.copy(searchState = DutyRateSearchState.Loading) }
         searchJob = viewModelScope.launch {
             delay(500)
-            val products = runCatching { repository.searchProducts(query) }
+            val products = runCatching { repository.searchDutyRates(query) }
                 .getOrDefault(emptyList())
             if (_state.value.product.trim() == query) {
-                _state.update { it.copy(searchState = ProductSearchState.Results(products.take(8))) }
+                _state.update { it.copy(searchState = DutyRateSearchState.Results(products.take(8))) }
             }
         }
     }
 
-    fun onProductSelected(product: CalcProduct) {
+    /**
+     * Retains the selected rate so its id can travel with the quote. Editing
+     * the text clears it again in [onProductChange] — a stale id must never
+     * outlive the name the customer can see.
+     */
+    fun onProductSelected(rate: CalcDutyRate) {
         searchJob?.cancel()
         _state.update {
             it.copy(
-                product = product.title,
-                selectedProduct = product,
-                searchState = ProductSearchState.Hidden,
+                product = rate.itemName,
+                selectedDutyRate = rate,
+                searchState = DutyRateSearchState.Hidden,
             )
         }
     }
@@ -166,6 +171,9 @@ class CalculatorViewModel(
                     lengthInches = dimensions.first,
                     widthInches = dimensions.second,
                     heightInches = dimensions.third,
+                    // The id, never a percentage: the server validates it is
+                    // active and resolves the rate itself.
+                    customDutyRateId = _state.value.selectedDutyRate?.id,
                 )
             }.onSuccess { live ->
                 _state.update { it.copy(calculating = false) }

@@ -68,6 +68,77 @@ object CountryCatalog {
     fun requiresPostalCodeForIso(isoCode: String): Boolean =
         isoCode.trim().uppercase(Locale.US) !in countriesWithoutPostal
 
+    /** Swift billing-region parity: Jamaica parishes, US states, free text elsewhere. */
+    fun stateOptions(country: String): List<String> = when (entry(country)?.isoCode) {
+        "JM" -> jamaicaParishes
+        "US" -> unitedStatesAndDistrict
+        else -> emptyList()
+    }
+
+    /** Jamaica towns are parish-aware; US and other countries intentionally use free text. */
+    fun cityOptions(country: String, state: String = ""): List<String> {
+        if (entry(country)?.isoCode != "JM") return emptyList()
+        if (state.isBlank()) return jamaicaTownsByParish.values.flatten().distinct()
+        val canonical = canonicalState(country, state) ?: return emptyList()
+        return jamaicaTownsByParish[canonical].orEmpty()
+    }
+
+    /** Resolve backend `St James` aliases to the picker row `Saint James`. */
+    fun canonicalState(country: String, state: String): String? {
+        val key = regionKey(state)
+        if (key.isEmpty()) return null
+        return stateOptions(country).firstOrNull { regionKey(it) == key }
+    }
+
+    fun canonicalCity(country: String, state: String, city: String): String? {
+        val key = city.trim().lowercase(Locale.US)
+        if (key.isEmpty()) return null
+        return cityOptions(country, state).firstOrNull {
+            it.lowercase(Locale.US) == key
+        }
+    }
+
+    fun defaultCountryNameForPaymentCurrency(currency: String): String =
+        if (currency.trim().uppercase(Locale.US) == "JMD") "Jamaica" else "United States"
+
+    private fun regionKey(value: String): String = value.trim()
+        .lowercase(Locale.US)
+        .replace(Regex("^st\\.?\\s+"), "saint ")
+
+    private val jamaicaParishes = listOf(
+        "Clarendon", "Hanover", "Kingston", "Manchester", "Portland", "Saint Andrew",
+        "Saint Ann", "Saint Catherine", "Saint Elizabeth", "Saint James", "Saint Mary",
+        "Saint Thomas", "Trelawny", "Westmoreland",
+    )
+
+    private val jamaicaTownsByParish = linkedMapOf(
+        "Clarendon" to listOf("May Pen", "Chapelton", "Frankfield", "Lionel Town"),
+        "Hanover" to listOf("Lucea", "Green Island", "Hopewell", "Sandy Bay"),
+        "Kingston" to listOf("Kingston", "Port Royal"),
+        "Manchester" to listOf("Mandeville", "Christiana", "Porus", "Mile Gully"),
+        "Portland" to listOf("Port Antonio", "Buff Bay", "Hope Bay", "Manchioneal"),
+        "Saint Andrew" to listOf("Half Way Tree", "Papine", "Constant Spring", "Stony Hill", "Bull Bay"),
+        "Saint Ann" to listOf("Ocho Rios", "Saint Ann's Bay", "Brown's Town", "Runaway Bay", "Discovery Bay"),
+        "Saint Catherine" to listOf("Spanish Town", "Portmore", "Old Harbour", "Linstead", "Ewarton", "Bog Walk"),
+        "Saint Elizabeth" to listOf("Black River", "Santa Cruz", "Junction", "Malvern"),
+        "Saint James" to listOf("Montego Bay", "Cambridge", "Anchovy", "Adelphi"),
+        "Saint Mary" to listOf("Port Maria", "Annotto Bay", "Highgate", "Oracabessa"),
+        "Saint Thomas" to listOf("Morant Bay", "Yallahs", "Port Morant", "Golden Grove"),
+        "Trelawny" to listOf("Falmouth", "Duncans", "Clark's Town", "Wakefield"),
+        "Westmoreland" to listOf("Savanna-la-Mar", "Negril", "Grange Hill", "Darliston"),
+    )
+
+    private val unitedStatesAndDistrict = listOf(
+        "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut",
+        "Delaware", "District of Columbia", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois",
+        "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts",
+        "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+        "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota",
+        "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina",
+        "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+        "West Virginia", "Wisconsin", "Wyoming",
+    )
+
     private fun buildAll(): List<CountryEntry> = Locale.getISOCountries()
         .asSequence()
         .map { it.uppercase(Locale.US) }

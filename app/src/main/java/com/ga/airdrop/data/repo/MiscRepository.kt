@@ -94,7 +94,10 @@ class MiscRepository(private val service: AirdropApiService) {
         service.customDutyRates(
             page = page,
             perPage = perPage,
-            activeOnly = if (activeOnly) "true" else "false",
+            // "1"/"0", not "true"/"false". Laravel's boolean validation rejects
+            // the word forms on this rail, so `active_only=true` came back 422
+            // and the caller saw an empty rate list rather than an error.
+            activeOnly = if (activeOnly) "1" else "0",
             search = search?.trim()?.takeIf { it.isNotEmpty() },
         ).items
     }

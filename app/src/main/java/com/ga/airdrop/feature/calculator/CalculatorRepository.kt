@@ -4,7 +4,6 @@ import com.ga.airdrop.feature.shipments.ShipmentsFormat
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.prefs.ExchangeRateStore
-import com.ga.airdrop.data.model.arrayAt
 import com.ga.airdrop.data.model.flexDouble
 import com.ga.airdrop.data.model.flexInt
 import com.ga.airdrop.data.model.flexString
@@ -37,10 +36,16 @@ interface CalculatorRepository {
         lengthInches: Double? = null,
         widthInches: Double? = null,
         heightInches: Double? = null,
+        /**
+         * The customs classification the customer picked, resolved SERVER-side.
+         * Same principle as the deliberately-absent `custom_duty_percentage`
+         * below: the client names the item, the server owns the rate.
+         */
+        customDutyRateId: Int? = null,
     ): ShipmentCalculation
 
-    /** GET /products?search=… — Swift `AirdropAPI.searchProducts` (RN parity). */
-    suspend fun searchProducts(query: String, limit: Int = 20): List<CalcProduct>
+    /** GET /custom-duty-rates?search=… — the customs catalogue. No prices. */
+    suspend fun searchDutyRates(query: String, limit: Int = 20): List<CalcDutyRate>
 
     /** GET /exchange-rates → the live USD→JMD rate; last known rate if unreachable. */
     suspend fun usdToJmdRate(): Double
@@ -59,6 +64,11 @@ private data class ShipmentCalculationRequest(
     // mobile must NOT author it. Omit it so server defaults apply." Kotlin was
     // hardcoding 45.0 — a duty rate the client has no business choosing.
     val incorrect_shipping_info: Boolean = false,
+    // The customs classification id. The server validates it is active and
+    // resolves the percentage itself (CalculateShippingRequest.php:33-37), so
+    // this is the sanctioned way to influence duty — unlike the raw percentage
+    // above, which mobile must never author.
+    val custom_duty_rate_id: Int? = null,
     val weight_lbs: Double? = null,
     val package_length: Double? = null,
     val package_width: Double? = null,
@@ -87,6 +97,7 @@ class RemoteCalculatorRepository(
         lengthInches: Double?,
         widthInches: Double?,
         heightInches: Double?,
+        customDutyRateId: Int?,
     ): ShipmentCalculation = withContext(Dispatchers.IO) {
         val body = json.encodeToString(
             ShipmentCalculationRequest.serializer(),
@@ -94,6 +105,7 @@ class RemoteCalculatorRepository(
                 shipping_method = shippingMethod,
                 number_of_packages = maxOf(1, numberOfPackages),
                 invoice_amount = invoiceAmount,
+                custom_duty_rate_id = customDutyRateId,
                 weight_lbs = weightLbs,
                 package_length = lengthInches,
                 package_width = widthInches,
@@ -153,68 +165,53 @@ class RemoteCalculatorRepository(
         }
     }
 
-    override suspend fun searchProducts(query: String, limit: Int): List<CalcProduct> =
+    /**
+     * The customs catalogue, NOT the shop.
+     *
+     * This used to call `GET /products?in_stock=1` and map rows to a title and
+     * a `displayPrice` — the auction listing. A customer classifying a laptop
+     * for duty was shown laptops for sale with dollar amounts beside them, and
+     * the id they picked was an auction product id that `/shipping/calculate`
+     * had no field to receive. Wrong object, wrong endpoint, dead selection.
+     *
+     * `/custom-duty-rates` returns `id, item_name, duty_percentage` and no
+     * money at all, which is why `CalcDutyRate` has no price to render.
+     */
+    override suspend fun searchDutyRates(query: String, limit: Int): List<CalcDutyRate> =
         withContext(Dispatchers.IO) {
             val trimmed = query.trim()
             if (trimmed.length < 3) return@withContext emptyList()
-            // Swift searchProducts → auctionProducts(filters: search, order:
-            // created_at desc, in_stock).
-            val httpUrl = url("/products").toHttpUrl().newBuilder()
+            val httpUrl = url("/custom-duty-rates").toHttpUrl().newBuilder()
                 .addQueryParameter("page", "1")
                 .addQueryParameter("per_page", limit.toString())
+                // "1", not "true" — Laravel boolean validation 422s on the word.
+                .addQueryParameter("active_only", "1")
                 .addQueryParameter("search", trimmed)
-                .addQueryParameter("order", "created_at")
-                .addQueryParameter("direction", "desc")
-                .addQueryParameter("in_stock", "1")
                 .build()
             val request = Request.Builder().url(httpUrl).get().build()
             client.newCall(request).execute().use { response ->
                 val text = response.body?.string().orEmpty()
-                if (!response.isSuccessful) throw IOException("Product search failed (${response.code}).")
+                if (!response.isSuccessful) throw IOException("Duty rate search failed (${response.code}).")
                 val element = runCatching { json.parseToJsonElement(text) }.getOrNull()
                 val array = when (element) {
                     is kotlinx.serialization.json.JsonArray -> element
-                    is JsonObject -> element.arrayAt("data", "products", "items")
+                    is JsonObject -> element.paginatedArray()
                     else -> null
                 } ?: return@use emptyList()
                 array.mapNotNull { item ->
                     val obj = item as? JsonObject ?: return@mapNotNull null
-                    CalcProduct(
-                        id = obj.flexInt("id") ?: 0,
-                        title = obj.flexString("name") ?: obj.flexString("title") ?: "Product",
-                        displayPrice = obj.displayPrice(),
+                    val id = obj.flexInt("id") ?: return@mapNotNull null
+                    val name = obj.flexString("item_name") ?: return@mapNotNull null
+                    // A row without an id or a name cannot be selected or sent,
+                    // so it is dropped rather than rendered as a dead option.
+                    CalcDutyRate(
+                        id = id,
+                        itemName = name,
+                        dutyPercentage = obj.flexDouble("duty_percentage"),
                     )
                 }
             }
         }
-
-    /**
-     * Swift AuctionProduct.displayPrice — first parseable of the price fields.
-     *
-     * ⚠️ TWO defects fixed here, both customer-visible.
-     *
-     * 1. `?: 0.0` turned "no parseable price" into a confident **$0.00** — a
-     *    product advertised as FREE in the calculator's product search. There is
-     *    no price to show, so it shows an em dash.
-     * 2. A bare `"$"` with a single figure. Kemar, 2026-07-26, twice and
-     *    verbatim: *"once a monetary value is there, we need to see both
-     *    values… Our primary currency is US dollar. So if we're not showing US
-     *    dollar, it is a problem."* A lone `$` in a Jamaican app is exactly the
-     *    ambiguity that rule exists to kill — it reads as JMD to half the users.
-     *
-     * The whole-app renderer is [ShipmentsFormat.dual]; this is a repository, so
-     * it takes the rate from the shared store the same way every other
-     * cold-start money render does.
-     */
-    private fun JsonObject.displayPrice(): String {
-        val value = flexDouble("current_price")
-            ?: flexDouble("sale_price")
-            ?: flexDouble("price")
-            ?: flexDouble("regular_price")
-            ?: flexDouble("price_usd")
-            ?: return "—"
-        return ShipmentsFormat.dual(value, ExchangeRateStore.current)
-    }
 
     /**
      * GET /exchange-rates.
@@ -247,4 +244,36 @@ class RemoteCalculatorRepository(
             }
         }.getOrNull()?.takeIf { it > 0 } ?: ExchangeRateStore.current
     }
+}
+
+/**
+ * ⚠️ `arrayAt` DOES NOT WALK A PATH — it checks each key for a TOP-LEVEL array
+ * and returns the first hit. I used `arrayAt("data", "items", ...)` in
+ * `215903c3` as if it descended, so against Laravel's real
+ * `{"data":{"items":[...]}}` every key missed, the parse fell through to null,
+ * and a VALID duty-rate search rendered empty. Caught by QC before release
+ * (ORC #99841/#99843).
+ *
+ * This mirrors `PaginatedSerializer.deserialize` (Envelopes.kt:67-103), which
+ * is what every Retrofit-backed call in the app already uses. Raw OkHttp here
+ * has to reproduce that order deliberately, in this exact sequence:
+ *
+ *   1. `data` holding an array          -> {"data":[...]}
+ *   2. `data` holding an object         -> {"data":{"items":[...]}}   <- Laravel
+ *   3. a list key at the top level      -> {"items":[...]}
+ *
+ * Keep it in step with LIST_KEYS if that list grows.
+ */
+private fun JsonObject.paginatedArray(): kotlinx.serialization.json.JsonArray? {
+    val listKeys = listOf("items", "data", "custom_duty_rates", "results")
+    (this["data"] as? kotlinx.serialization.json.JsonArray)?.let { return it }
+    (this["data"] as? JsonObject)?.let { data ->
+        for (key in listKeys) {
+            (data[key] as? kotlinx.serialization.json.JsonArray)?.let { return it }
+        }
+    }
+    for (key in listKeys) {
+        (this[key] as? kotlinx.serialization.json.JsonArray)?.let { return it }
+    }
+    return null
 }

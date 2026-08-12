@@ -48,6 +48,9 @@ class CalculatorEntryParityTest {
 
         compose.onNodeWithText("Shipping Calculator").assertIsDisplayed()
         compose.onNodeWithText("Shipping Method").assertIsDisplayed()
+        compose.onNodeWithText("Airdrop").assertIsDisplayed()
+        assertNoText("AirDrop")
+        assertNoText("Standard")
         compose.onNodeWithText("Invoice Amount USD").assertIsDisplayed()
         compose.onNodeWithText("Actual Weight (lbs)").assertIsDisplayed()
         assertNoText("Select Unit")
@@ -189,10 +192,11 @@ class CalculatorEntryParityTest {
             lengthInches: Double?,
             widthInches: Double?,
             heightInches: Double?,
+            customDutyRateId: Int?,
         ): ShipmentCalculation =
             throw AssertionError("Unused in CalculatorEntryParityTest")
 
-        override suspend fun searchProducts(query: String, limit: Int): List<CalcProduct> = emptyList()
+        override suspend fun searchDutyRates(query: String, limit: Int): List<CalcDutyRate> = emptyList()
 
         override suspend fun usdToJmdRate(): Double = 156.0
     }

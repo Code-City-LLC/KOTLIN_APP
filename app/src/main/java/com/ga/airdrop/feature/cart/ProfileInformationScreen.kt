@@ -38,9 +38,6 @@ import com.ga.airdrop.feature.more.MoreRowCard
 import com.ga.airdrop.feature.shop.ShopDropdownField
 import com.ga.airdrop.feature.shop.ShopInnerHeader
 
-internal val CHECKOUT_STATE_OPTIONS = listOf("Florida", "California", "New York", "Texas", "Other")
-internal val CHECKOUT_CITY_OPTIONS = listOf("Miami", "Los Angeles", "New York City", "Houston", "Other")
-
 /**
  * Checkout Profile Information — Figma 40008740:28560. This is deliberately
  * separate from the More-tab profile editor: it edits only the billing fields
@@ -65,6 +62,8 @@ fun ProfileInformationScreen(
     val colors = AirdropTheme.colors
     val showsPostal = CountryCatalog.requiresPostalCode(form.country)
     val requiresPostal = checkoutCountryRequiresPostalCode(form.country)
+    val stateOptions = CountryCatalog.stateOptions(form.country)
+    val cityOptions = CountryCatalog.cityOptions(form.country, form.state)
 
     Column(
         Modifier
@@ -128,38 +127,50 @@ fun ProfileInformationScreen(
                 placeholder = "Enter address line 2 (optional)",
                 testTagPrefix = "checkout-profile-address-2",
             )
-            ShopDropdownField(
-                label = "State",
-                value = form.state,
-                options = CHECKOUT_STATE_OPTIONS,
-                onSelect = { onFormChange(form.copy(state = it)) },
-                required = true,
-                testTagPrefix = "checkout-profile-state",
-            )
-            ShopDropdownField(
-                label = "City",
-                value = form.city,
-                options = CHECKOUT_CITY_OPTIONS,
-                onSelect = { onFormChange(form.copy(city = it)) },
-                required = true,
-                testTagPrefix = "checkout-profile-city",
-            )
+            if (stateOptions.isNotEmpty()) {
+                ShopDropdownField(
+                    label = "State",
+                    value = form.state,
+                    options = stateOptions,
+                    onSelect = { onFormChange(checkoutFormWithState(form, it)) },
+                    required = true,
+                    testTagPrefix = "checkout-profile-state",
+                )
+            } else {
+                TypeInputField(
+                    label = "State",
+                    value = form.state,
+                    onValueChange = { onFormChange(form.copy(state = it)) },
+                    placeholder = "Enter state or region",
+                    required = true,
+                    testTagPrefix = "checkout-profile-state",
+                )
+            }
+            if (cityOptions.isNotEmpty()) {
+                ShopDropdownField(
+                    label = "City",
+                    value = form.city,
+                    options = cityOptions,
+                    onSelect = { onFormChange(form.copy(city = it)) },
+                    required = true,
+                    testTagPrefix = "checkout-profile-city",
+                )
+            } else {
+                TypeInputField(
+                    label = "City",
+                    value = form.city,
+                    onValueChange = { onFormChange(form.copy(city = it)) },
+                    placeholder = "Enter city",
+                    required = true,
+                    testTagPrefix = "checkout-profile-city",
+                )
+            }
             ShopDropdownField(
                 label = "Country",
                 value = CountryCatalog.displayNameFor(form.country),
                 options = countryOptions,
                 onSelect = { selected ->
-                    val canonical = CountryCatalog.canonicalName(selected)
-                    onFormChange(
-                        form.copy(
-                            country = canonical,
-                            postal = if (CountryCatalog.requiresPostalCode(canonical)) {
-                                form.postal
-                            } else {
-                                ""
-                            },
-                        ),
-                    )
+                    onFormChange(checkoutFormWithCountry(form, selected))
                 },
                 required = true,
                 testTagPrefix = "checkout-profile-country",
@@ -220,6 +231,48 @@ fun ProfileInformationScreen(
             },
         )
     }
+}
+
+internal fun sanitizeCheckoutBillingForm(form: CartBillingForm): CartBillingForm {
+    val country = CountryCatalog.canonicalName(form.country).ifBlank {
+        CountryCatalog.defaultCountryNameForPaymentCurrency(form.currency)
+    }
+    val stateOptions = CountryCatalog.stateOptions(country)
+    val state = if (stateOptions.isEmpty()) {
+        form.state.trim()
+    } else {
+        CountryCatalog.canonicalState(country, form.state).orEmpty()
+    }
+    val city = when {
+        stateOptions.isNotEmpty() && state.isEmpty() -> ""
+        CountryCatalog.cityOptions(country, state).isEmpty() -> form.city.trim()
+        else -> CountryCatalog.canonicalCity(country, state, form.city).orEmpty()
+    }
+    return form.copy(
+        country = country,
+        state = state,
+        city = city,
+        postal = form.postal.takeIf { CountryCatalog.requiresPostalCode(country) }.orEmpty(),
+    )
+}
+
+internal fun checkoutFormWithCountry(form: CartBillingForm, selected: String): CartBillingForm {
+    val canonical = CountryCatalog.canonicalName(selected)
+    val current = CountryCatalog.canonicalName(form.country)
+    val candidate = if (canonical.equals(current, ignoreCase = true)) {
+        form.copy(country = canonical)
+    } else {
+        form.copy(country = canonical, state = "", city = "")
+    }
+    return sanitizeCheckoutBillingForm(candidate)
+}
+
+internal fun checkoutFormWithState(form: CartBillingForm, selected: String): CartBillingForm {
+    val state = CountryCatalog.canonicalState(form.country, selected) ?: selected.trim()
+    return form.copy(
+        state = state,
+        city = form.city.takeIf { state.equals(form.state, ignoreCase = true) }.orEmpty(),
+    )
 }
 
 @Composable

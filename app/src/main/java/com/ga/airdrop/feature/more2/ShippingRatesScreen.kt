@@ -93,7 +93,7 @@ fun ShippingRatesScreen(
                     verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
                     Text(
-                        text = "AirDrop Standard Rates",
+                        text = "Airdrop Rates",
                         style = AirdropType.subtitle1,
                         color = colors.textDarkTitle,
                         modifier = Modifier.testTag("shipping-rates-standard-title"),

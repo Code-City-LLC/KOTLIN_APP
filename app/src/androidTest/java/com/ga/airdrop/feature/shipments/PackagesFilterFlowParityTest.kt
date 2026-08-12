@@ -85,7 +85,7 @@ class PackagesFilterFlowParityTest {
         compose.waitForIdle()
 
         compose.onNodeWithText("Express visible").assertIsDisplayed()
-        assertNoText("Standard visible")
+        assertNoText("Airdrop visible")
         assertNoText("SeaDrop visible")
         saveRootScreenshot(filteredScreenshot)
 
@@ -112,6 +112,22 @@ class PackagesFilterFlowParityTest {
             calls.first().shippingMethod,
         )
         assertEquals(null, calls.last().search)
+
+        compose.onNodeWithTag("packages-filter-button").performClick()
+        compose.onNodeWithTag("packages-filter-method-row-standard").performClick()
+        compose.waitUntil(timeoutMillis = 20_000) {
+            packagesRepo.calls.lastOrNull()?.shippingMethod == "Standard"
+        }
+        assertEquals(
+            "The renamed Airdrop display must preserve Laravel's Standard query value",
+            "Standard",
+            packagesRepo.calls.last().shippingMethod,
+        )
+        compose.onNodeWithTag("packages-filter-close").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Airdrop visible").assertIsDisplayed()
+        assertNoText("Express visible")
+        assertNoText("SeaDrop visible")
     }
 
     private fun setPackagesScreen(
@@ -143,7 +159,7 @@ class PackagesFilterFlowParityTest {
         }
         compose.waitUntil(timeoutMillis = 20_000) {
             packagesRepo.calls.isNotEmpty() &&
-                compose.onAllNodesWithText("Standard visible").fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodesWithText("Airdrop visible").fetchSemanticsNodes().isNotEmpty()
         }
         compose.waitForIdle()
     }
@@ -261,10 +277,10 @@ class PackagesFilterFlowParityTest {
         val samplePackages = listOf(
             ShipmentPackage(
                 id = 701,
-                description = "standard visible",
+                description = "airdrop visible",
                 weightLbs = 1.3,
                 statusName = "Ready for Pickup",
-                shippingMethod = "Standard",
+                shippingMethod = "Airdrop",
                 additionalChargesTotal = 50.0,
             ),
             ShipmentPackage(

@@ -11,9 +11,6 @@ import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.widget.Toast
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,7 +49,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import coil.compose.SubcomposeAsyncImage
 import com.ga.airdrop.BuildConfig
@@ -63,13 +59,18 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.network.AuthInterceptor
+import com.ga.airdrop.core.network.StaleAuthSessionException
 import java.io.File
+import java.io.FilterInputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Request
 
 /**
  * Invoice viewer — behavior from FigmaInvoiceViewerScreenViewController
@@ -267,65 +268,6 @@ fun InvoiceViewerScreen(
                         )
                     }
                 }
-                else -> {
-                    val target = secureUrl
-                    AndroidView(
-                        factory = { ctx ->
-                            WebView(ctx).apply {
-                                settings.javaScriptEnabled = true
-                                settings.loadWithOverviewMode = true
-                                settings.useWideViewPort = true
-                                webViewClient = object : WebViewClient() {
-                                    override fun onPageFinished(view: WebView?, url: String?) {
-                                        loading = false
-                                    }
-
-                                    override fun onReceivedError(
-                                        view: WebView?,
-                                        request: WebResourceRequest?,
-                                        error: android.webkit.WebResourceError?,
-                                    ) {
-                                        if (request?.isForMainFrame == true) {
-                                            loading = false
-                                            loadError = error?.description?.toString()
-                                        }
-                                    }
-                                }
-                                loadUrl(target)
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    if (loading && loadError == null) {
-                        Column(
-                            modifier = Modifier.align(Alignment.Center),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(28.dp),
-                                color = BrandPalette.OrangeMain,
-                                strokeWidth = 2.5.dp,
-                            )
-                            Text(
-                                text = "Downloading $fileName...",
-                                style = AirdropType.body1,
-                                color = colors.textDescription,
-                            )
-                        }
-                    }
-                    loadError?.let { message ->
-                        Text(
-                            text = "Couldn't download $fileName.\n$message",
-                            style = AirdropType.body1,
-                            color = colors.textDescription,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .padding(Spacing.md),
-                        )
-                    }
-                }
             }
         }
 
@@ -448,7 +390,12 @@ private fun shareInvoice(context: Context, file: File, title: String) {
 internal suspend fun prepareInvoiceActionFile(context: Context, url: String, fileName: String): File =
     withContext(Dispatchers.IO) {
         val uri = Uri.parse(url)
-        when (uri.scheme?.lowercase(Locale.US)) {
+        val expectedSessionId = if (shouldAttachAirdropAuth(url)) {
+            AuthTokenStore.snapshot().sessionId
+        } else {
+            null
+        }
+        val prepared = when (uri.scheme?.lowercase(Locale.US)) {
             "file" -> File(requireNotNull(uri.path) { "Missing invoice file path" }).also {
                 require(it.exists()) { "Invoice file does not exist" }
             }
@@ -465,16 +412,65 @@ internal suspend fun prepareInvoiceActionFile(context: Context, url: String, fil
             )
             else -> error("Unsupported invoice URL")
         }
+        // Headers can arrive before the body finishes streaming. Re-check the
+        // owner after the complete file is on disk so an account switch during
+        // the body cannot show account A's PDF under account B.
+        if (expectedSessionId != null &&
+            !AuthTokenStore.isCurrentSession(expectedSessionId)
+        ) {
+            prepared.delete()
+            throw StaleAuthSessionException()
+        }
+        prepared
     }
 
 private fun openRemoteInvoiceStream(url: String): InputStream {
+    if (shouldAttachAirdropAuth(url)) {
+        // Same-host documents must use the canonical client, not a second
+        // hand-built bearer path. AuthInterceptor owns token attachment,
+        // single-flight refresh/retry, stale-session rejection and teardown.
+        val request = Request.Builder()
+                .url(url)
+                .header("Accept", "application/pdf, image/*;q=0.9, */*;q=0.8")
+        AuthTokenStore.requestProvenance(AuthTokenStore.snapshot())?.let { provenance ->
+            request
+                .header(
+                    AuthTokenStore.REQUEST_REVISION_HEADER,
+                    provenance.revision.toString(),
+                )
+                .header(AuthTokenStore.REQUEST_SESSION_ID_HEADER, provenance.sessionId)
+                // GET is idempotent. Permit one refresh without surrendering
+                // the request's account/session binding.
+                .header(AuthInterceptor.ALLOW_BOUND_REFRESH_HEADER, "true")
+        }
+        val response = ApiClient.okHttp.newCall(request.build()).execute()
+        if (!response.isSuccessful) {
+            val code = response.code
+            response.close()
+            error("Invoice download failed (HTTP $code)")
+        }
+        val body = response.body
+        if (body == null) {
+            response.close()
+            error("Invoice download returned an empty response")
+        }
+        return object : FilterInputStream(body.byteStream()) {
+            override fun close() {
+                try {
+                    super.close()
+                } finally {
+                    response.close()
+                }
+            }
+        }
+    }
+
+    // Foreign uploaded-file hosts keep the existing unauthenticated stream.
+    // Never leak the Airdrop bearer to an arbitrary document URL.
     val connection = URL(url).openConnection().apply {
         connectTimeout = 30_000
         readTimeout = 60_000
         setRequestProperty("Accept", "*/*")
-        if (shouldAttachAirdropAuth(url)) {
-            AuthTokenStore.token?.let { setRequestProperty("Authorization", "Bearer $it") }
-        }
     }
     val http = connection as? HttpURLConnection
     if (http != null && http.responseCode !in 200..299) {
@@ -510,17 +506,31 @@ internal fun renderPdfFirstPage(file: File, maxWidth: Int = 1200): Bitmap {
     }
 }
 
-private fun copyInvoiceStreamToCache(
+internal fun copyInvoiceStreamToCache(
     context: Context,
     fileName: String,
     input: java.io.InputStream,
 ): File {
     val dir = File(context.cacheDir, "invoices").also { it.mkdirs() }
     val output = File(dir, safeInvoiceFileName(fileName))
-    input.use { source ->
-        output.outputStream().use { sink -> source.copyTo(sink) }
+    val partial = File.createTempFile(".${output.name}.", ".part", dir)
+    try {
+        input.use { source ->
+            partial.outputStream().use { sink -> source.copyTo(sink) }
+        }
+        if (output.exists() && !output.delete()) {
+            error("Unable to replace cached invoice file")
+        }
+        check(partial.renameTo(output)) {
+            "Unable to publish cached invoice file"
+        }
+        return output
+    } catch (failure: Throwable) {
+        // Never leave a partially copied customer document in the shared
+        // cache after an I/O failure or coroutine cancellation.
+        partial.delete()
+        throw failure
     }
-    return output
 }
 
 internal fun invoiceShareIntent(context: Context, file: File, title: String): Intent {

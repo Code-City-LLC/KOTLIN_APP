@@ -221,6 +221,10 @@ object PushDeepLink {
         Routes.FAQ,
         Routes.TERMS,
         Routes.PRIVACY,
+        // Static, account-independent release information. Without this, an
+        // app-update push tapped while logged out was discarded instead of
+        // surviving the login boundary like the other safe destinations.
+        Routes.APP_UPDATE,
     )
 
     private fun isSensitivePreLoginRouteName(route: String): Boolean =

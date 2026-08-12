@@ -45,7 +45,6 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
 import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
 import com.ga.airdrop.feature.shop.ShopInnerHeader
-import com.ga.airdrop.feature.shop.formatDualMoney
 import java.util.Locale
 
 /** Immutable render model supplied by the owned checkout ViewModel. */
@@ -53,12 +52,14 @@ data class OrderSummaryUiModel(
     val lines: List<CartStore.CartLine> = emptyList(),
     val note: String = "",
     val currency: String = "USD",
-    val exchangeUsdToJmd: Double = com.ga.airdrop.feature.shipments.DEFAULT_USD_TO_JMD,
+    val verifiedExchangeUsdToJmd: Double? = null,
     // Tax is shown ONLY when applicable (> 0). Swift's order summary has no tax
     // line; the old flat 5.0 was a placeholder. A real value flows from the
     // backend when it computes one (see Laravel handoff) — 0 hides the row.
     val taxUsd: Double = 0.0,
-    val totalCharges: Double = 0.0,
+    val totals: CheckoutTotalsResult = CheckoutTotalsResult.Unavailable(
+        CHECKOUT_TOTALS_UNAVAILABLE_REASON,
+    ),
     val removingKeys: Set<CartStore.CartLineKey> = emptySet(),
     val removalLocked: Boolean = false,
     val paying: Boolean = false,
@@ -108,7 +109,7 @@ fun OrderSummaryScreen(
                 OrderSummaryGroup(
                     title = "Packages",
                     lines = packageLines,
-                    exchangeUsdToJmd = model.exchangeUsdToJmd,
+                    exchangeUsdToJmd = model.verifiedExchangeUsdToJmd,
                     showInfo = true,
                     removingKeys = model.removingKeys,
                     removalLocked = model.removalLocked,
@@ -119,7 +120,7 @@ fun OrderSummaryScreen(
                 OrderSummaryGroup(
                     title = "Sales",
                     lines = saleLines,
-                    exchangeUsdToJmd = model.exchangeUsdToJmd,
+                    exchangeUsdToJmd = model.verifiedExchangeUsdToJmd,
                     showInfo = false,
                     removingKeys = model.removingKeys,
                     removalLocked = model.removalLocked,
@@ -142,7 +143,9 @@ fun OrderSummaryScreen(
             CheckoutSolidButton(
                 text = "Make Payment",
                 onClick = onMakePayment,
-                enabled = !model.paying && model.lines.isNotEmpty() && model.removingKeys.isEmpty(),
+                enabled = !model.paying && model.lines.isNotEmpty() &&
+                    model.removingKeys.isEmpty() &&
+                    checkoutTotalsPermitPayment(model.currency, model.totals),
                 loading = model.paying,
                 modifier = Modifier.testTag("order-summary-make-payment"),
             )
@@ -201,7 +204,7 @@ fun OrderSummaryScreen(
 private fun OrderSummaryGroup(
     title: String,
     lines: List<CartStore.CartLine>,
-    exchangeUsdToJmd: Double,
+    exchangeUsdToJmd: Double?,
     showInfo: Boolean,
     removingKeys: Set<CartStore.CartLineKey>,
     removalLocked: Boolean,
@@ -248,7 +251,7 @@ private fun OrderSummaryGroup(
 @Composable
 private fun OrderSummaryPackageCard(
     line: CartStore.CartLine,
-    exchangeUsdToJmd: Double,
+    exchangeUsdToJmd: Double?,
     removing: Boolean,
     removalLocked: Boolean,
     onRemove: () -> Unit,
@@ -267,7 +270,12 @@ private fun OrderSummaryPackageCard(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             OrderSummaryValue("Drop Number", String.format(Locale.US, "ARD%010d", line.id))
             OrderSummaryValue("Description", line.title)
-            OrderSummaryValue("Price", formatDualMoney(line.priceUsd * line.qty, exchangeUsdToJmd), price = true)
+            val usd = line.priceUsd * line.qty
+            OrderSummaryValue(
+                "Price",
+                formatCheckoutMoneyPair(usd, exchangeUsdToJmd?.let { usd * it }),
+                price = true,
+            )
         }
         OrderSummaryRemoveButton(
             line = line,
@@ -280,7 +288,7 @@ private fun OrderSummaryPackageCard(
 @Composable
 private fun OrderSummarySaleCard(
     line: CartStore.CartLine,
-    exchangeUsdToJmd: Double,
+    exchangeUsdToJmd: Double?,
     removing: Boolean,
     removalLocked: Boolean,
     onRemove: () -> Unit,
@@ -343,8 +351,9 @@ private fun OrderSummarySaleCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag("order-summary-sale-title-${line.id}"),
             )
+            val usd = line.priceUsd * line.qty
             Text(
-                formatDualMoney(line.priceUsd * line.qty, exchangeUsdToJmd),
+                formatCheckoutMoneyPair(usd, exchangeUsdToJmd?.let { usd * it }),
                 style = AirdropType.subtitle2,
                 color = BrandPalette.OrangeMain,
                 modifier = Modifier.testTag("order-summary-sale-price-${line.id}"),
@@ -427,6 +436,7 @@ private fun SpecialInstructionsCard(note: String, onClick: () -> Unit) {
 @Composable
 private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
     val colors = AirdropTheme.colors
+    val breakdown = (model.totals as? CheckoutTotalsResult.Available)?.breakdown
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             Modifier.fillMaxWidth(),
@@ -455,13 +465,36 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
                 SummaryChargeRow("Payment Currency", model.currency)
                 // Tax only if applicable (Swift parity — no fake placeholder).
                 if (model.taxUsd > 0.0) {
-                    SummaryChargeRow("Tax", formatDualMoney(model.taxUsd, model.exchangeUsdToJmd))
+                    SummaryChargeRow(
+                        "Tax",
+                        formatCheckoutMoneyPair(
+                            model.taxUsd,
+                            model.verifiedExchangeUsdToJmd?.let { model.taxUsd * it },
+                        ),
+                    )
+                }
+                if (breakdown?.showsDeliveryRow == true) {
+                    SummaryChargeRow(
+                        "Delivery Fee",
+                        formatCheckoutMoneyPair(breakdown.deliveryUsd, breakdown.deliveryJmd),
+                        modifier = Modifier.testTag("order-summary-delivery-fee"),
+                    )
                 }
                 SummaryChargeRow(
                     "Exchange Rate (USD)",
-                    String.format(Locale.US, "USD 1 = JMD %.2f", model.exchangeUsdToJmd),
+                    model.verifiedExchangeUsdToJmd?.let {
+                        String.format(Locale.US, "USD 1 = JMD %.2f", it)
+                    } ?: "Unavailable",
                 )
                 SummaryChargeRow("Total Packages and Sales", model.lines.size.toString())
+                if (model.totals is CheckoutTotalsResult.Unavailable) {
+                    Text(
+                        model.totals.reason,
+                        style = AirdropType.body2,
+                        color = AlertPalette.Error,
+                        modifier = Modifier.testTag("order-summary-totals-unavailable"),
+                    )
+                }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.cardHairline))
             Row(
@@ -473,25 +506,17 @@ private fun OrderSummaryChargesCard(model: OrderSummaryUiModel) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Total Charges", style = AirdropType.subtitle1, color = colors.textDarkTitle)
-                // Show BOTH currencies side by side (Kemar) — derive the other
-                // from the exchange rate so the total reads in JMD and USD.
-                val rate = model.exchangeUsdToJmd
-                val jmdTotal = if (model.currency == "JMD") {
-                    model.totalCharges
-                } else {
-                    model.totalCharges * rate
-                }
-                val usdTotal = if (model.currency == "JMD") {
-                    if (rate > 0.0) model.totalCharges / rate else 0.0
-                } else {
-                    model.totalCharges
-                }
                 Text(
-                    text = formatDualMoney(usdTotal, model.exchangeUsdToJmd),
+                    text = breakdown?.let {
+                        formatCheckoutMoneyPair(it.totalUsd, it.totalJmd)
+                    } ?: "JMD — / USD —",
                     style = AirdropType.subtitle1,
                     color = BrandPalette.OrangeMain,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp)
+                        .testTag("order-summary-total-charges"),
                 )
             }
         }
@@ -546,9 +571,9 @@ internal fun OurPromiseCard() {
 }
 
 @Composable
-private fun SummaryChargeRow(label: String, value: String) {
+private fun SummaryChargeRow(label: String, value: String, modifier: Modifier = Modifier) {
     val colors = AirdropTheme.colors
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, style = AirdropType.body2, color = colors.textDescription)
         Text(value, style = AirdropType.subtitle2, color = colors.textDarkTitle)
     }

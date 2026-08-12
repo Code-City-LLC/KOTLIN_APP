@@ -179,12 +179,12 @@ class ShipmentsViewModel(
         _quickTrack.update { it.copy(code = code, loading = true, error = null) }
         quickTrackJob = viewModelScope.launch {
             runCatching {
-                val searchResults = packagesRepo
-                    .packages(page = 1, perPage = 20, status = null, search = code, shippingMethod = null)
-                    .getOrThrow()
-                    .items
-                exactQuickTrackMatch(searchResults, code)
-                    ?: exactQuickTrackMatch(repo.packagesShortlist().getOrDefault(emptyList()), code)
+                resolvePackageReference(
+                    reference = code,
+                    packagesRepo = packagesRepo,
+                    shortlist = repo::packagesShortlist,
+                    numericIdIsCanonical = false,
+                ).getOrThrow().matchedPackage
             }.onSuccess { match ->
                 if (match != null) {
                     _quickTrack.update {
@@ -211,21 +211,16 @@ class ShipmentsViewModel(
                     it.copy(
                         loading = false,
                         error = error.message ?: "Unable to look up tracking code.",
+                        recents = if (error is PackageReferenceNotFoundException) {
+                            it.recents.withRecent(code, null)
+                        } else {
+                            it.recents
+                        },
                     )
                 }
             }
         }
     }
-
-    private fun exactQuickTrackMatch(packages: List<ShipmentPackage>, code: String): ShipmentPackage? =
-        packages.firstOrNull { pkg ->
-            pkg.trackingCode.matchesQuickTrackCode(code) ||
-                pkg.courierNumber.matchesQuickTrackCode(code) ||
-                pkg.id.toString() == code
-        }
-
-    private fun String?.matchesQuickTrackCode(code: String): Boolean =
-        this?.trim()?.uppercase(Locale.US) == code
 
     private fun List<QuickTrackRecent>.withRecent(
         code: String,

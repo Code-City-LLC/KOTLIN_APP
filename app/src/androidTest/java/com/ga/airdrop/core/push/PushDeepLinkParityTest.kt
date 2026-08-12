@@ -1,11 +1,16 @@
 package com.ga.airdrop.core.push
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import androidx.test.core.app.ActivityScenario
+import com.ga.airdrop.MainActivity
 import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.auth.AuthTokenStore
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -45,6 +50,49 @@ class PushDeepLinkParityTest {
         assertRoute("AuctionProductCheckoutView", Routes.AUCTION_CHECKOUT, referenceId = "auction-22")
         assertEquals("auction-22", com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef)
         com.ga.airdrop.feature.shop.ShopCheckoutStore.pendingRef = null
+    }
+
+    @Test
+    fun appUpdatePushTappedLoggedOutSurvivesUntilAuthentication() {
+        AuthTokenStore.clear()
+        PushDeepLink.capture(
+            Intent().putExtra(AirdropMessagingService.EXTRA_ROUTE, "AppUpdateView"),
+        )
+
+        assertNull("a logged-out account cannot consume the route yet", PushDeepLink.consume())
+
+        AuthTokenStore.save("push-route-app-update-token")
+        assertEquals(Routes.APP_UPDATE, PushDeepLink.consume(AuthTokenStore.snapshot()))
+    }
+
+    @Test
+    fun mainActivityRecreationDoesNotReplayConsumedLaunchIntent() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            instrumentation.uiAutomation.grantRuntimePermission(
+                context.packageName,
+                Manifest.permission.POST_NOTIFICATIONS,
+            )
+        }
+        AuthTokenStore.clear()
+        PushDeepLink.clear()
+        val launchIntent = Intent(context, MainActivity::class.java)
+            .putExtra(AirdropMessagingService.EXTRA_ROUTE, "AppUpdateView")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        val scenario = ActivityScenario.launch<MainActivity>(launchIntent)
+        try {
+            assertEquals(Routes.APP_UPDATE, PushDeepLink.pending.value?.route)
+            PushDeepLink.clear()
+
+            scenario.recreate()
+
+            assertNull("configuration recreation replayed the launch route", PushDeepLink.pending.value)
+        } finally {
+            scenario.close()
+            PushDeepLink.clear()
+            AuthTokenStore.save("push-route-test-token")
+        }
     }
 
     @Test

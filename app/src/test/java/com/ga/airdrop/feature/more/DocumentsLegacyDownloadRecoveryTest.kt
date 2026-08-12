@@ -16,87 +16,87 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 /**
- * The three server-generated forms (Contract, 1583, Authorization) build their
- * download URL from the session user id. If `currentUserId` failed, the id
- * stayed null and every one of them reported:
- *
- *     "No download link is available for AirDrop Contract yet."
- *
- * Two separate defects behind one message:
- *
- *  1. `loadLegacyUserId` ran ONLY from init and had no onFailure. `refresh()`
- *     called `fetchDocuments` alone, so pull-to-refresh — the exact gesture a
- *     customer makes when a download says it is unavailable — never retried it.
- *     One flaky call at screen open killed all three downloads until the
- *     customer left the screen and came back.
- *
- *  2. The message is a claim about the DOCUMENT, and it was false. The form
- *     exists and the customer is entitled to it; we merely failed to fetch the
- *     id needed to address it. ID Card and TRN genuinely have no legacy form,
- *     so both cases have to stay tellable apart.
+ * Blank-form routing is independent of the profile-id lookup. Laravel derives
+ * the customer from the bearer, so a transient /user/profile failure must not
+ * disable Contract, 1583 or Authorization downloads.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class DocumentsLegacyDownloadRecoveryTest {
+class DocumentsMobileFormDownloadRecoveryTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val contractSlot = DOCUMENT_SLOTS.first { it.docType == "airdrop_contract" }
-    private val legacyBase = "https://pre-staging.airdropja.com/airdrop/inc"
+    private val apiBase = "https://pre-staging.airdropja.com/api/v1"
 
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
 
     @After fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `pull-to-refresh retries a failed user-id fetch and the download then works`() =
+    fun `a failed user-id fetch cannot disable the authenticated form route`() =
         runTest(dispatcher) {
             val repo = FakeRepo(userIdResults = listOf(Result.failure(RuntimeException("boom"))))
             val vm = DocumentsViewModel(repo, TestSessionBoundary())
             advanceUntilIdle()
 
-            // First attempt failed: no id, so no URL can be built.
-            assertNull(vm.state.value.legacyUserId)
+            assertNull(vm.state.value.accountUserId)
 
             var opened: String? = null
-            vm.openDocument(contractSlot, legacyBase) { url, _ -> opened = url }
-            assertNull("nothing can open without an id", opened)
-
-            // The gesture a customer actually makes.
-            repo.userIdResults = listOf(Result.success(4242))
-            vm.refresh()
-            advanceUntilIdle()
-
-            assertEquals(4242, vm.state.value.legacyUserId)
-            vm.openDocument(contractSlot, legacyBase) { url, _ -> opened = url }
+            vm.openDocument(contractSlot, apiBase) { url, _ -> opened = url }
             assertEquals(
-                "$legacyBase/api_download-contract-form.php?user_documenttype=4242",
+                "$apiBase/user/forms/contract/download",
                 opened,
             )
+            assertNull(vm.state.value.alert)
         }
 
     @Test
-    fun `a failed id fetch says it could not prepare the download, not that it does not exist`() =
+    fun `pull-to-refresh may bind account identity without changing the form URL`() =
         runTest(dispatcher) {
             val repo = FakeRepo(userIdResults = listOf(Result.failure(RuntimeException("boom"))))
             val vm = DocumentsViewModel(repo, TestSessionBoundary())
             advanceUntilIdle()
 
-            vm.openDocument(contractSlot, legacyBase) { _, _ -> }
+            var opened: String? = null
+            vm.openDocument(contractSlot, apiBase) { url, _ -> opened = url }
+            assertEquals("$apiBase/user/forms/contract/download", opened)
 
-            val alert = vm.state.value.alert
-            assertNotNull(alert)
-            assertEquals("Couldn't prepare download", alert!!.first)
-            assertTrue(
-                "must point at the recovery that now exists: ${alert.second}",
-                alert.second.contains("refresh"),
-            )
+            repo.userIdResults = listOf(Result.success(4242))
+            vm.refresh()
+            advanceUntilIdle()
+            assertEquals(4242, vm.state.value.accountUserId)
+
+            opened = null
+            vm.openDocument(contractSlot, apiBase) { url, _ -> opened = url }
+            assertEquals("$apiBase/user/forms/contract/download", opened)
         }
+
+    @Test
+    fun `a blank uploaded-file URL falls back to the generated form`() = runTest(dispatcher) {
+        val blankUploadedFile = MoreDocumentFile(
+            id = 7,
+            fileName = "contract.pdf",
+            fileUrl = "   ",
+            docType = contractSlot.docType,
+            uploadStatus = true,
+        )
+        val repo = FakeRepo(
+            userIdResults = listOf(Result.success(4242)),
+            documents = mapOf(contractSlot.docType to blankUploadedFile),
+        )
+        val vm = DocumentsViewModel(repo, TestSessionBoundary())
+        advanceUntilIdle()
+
+        var opened: String? = null
+        vm.openDocument(contractSlot, apiBase) { url, _ -> opened = url }
+
+        assertEquals("$apiBase/user/forms/contract/download", opened)
+        assertNull(vm.state.value.alert)
+    }
 
     /**
      * The other half: ID Card really has no server-generated form, so it must
@@ -111,13 +111,14 @@ class DocumentsLegacyDownloadRecoveryTest {
         val idCard = DOCUMENT_SLOTS.first { !it.docType.let { t ->
             t == "airdrop_contract" || t == "file_1583" || t == "authorization_form"
         } }
-        vm.openDocument(idCard, legacyBase) { _, _ -> }
+        vm.openDocument(idCard, apiBase) { _, _ -> }
 
         assertEquals("Not available", vm.state.value.alert?.first)
     }
 
     private class FakeRepo(
         var userIdResults: List<Result<Int?>>,
+        private val documents: Map<String, MoreDocumentFile> = emptyMap(),
     ) : DocumentsRepository {
         val userIdCalls = AtomicInteger()
 
@@ -127,7 +128,7 @@ class DocumentsLegacyDownloadRecoveryTest {
         }
 
         override suspend fun userDocuments(expectedSession: AuthTokenStore.RequestProvenance) =
-            Result.success(emptyMap<String, MoreDocumentFile>())
+            Result.success(documents)
 
         override suspend fun uploadUserDocument(
             docType: String,

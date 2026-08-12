@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.cart
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -42,6 +43,39 @@ class PaymentOutcomeParityTest {
     }
 
     @Test
+    fun terminalNotPaidSurvivesSavedStateRestoreWithoutReverification() {
+        val restoration = StateRestorationTester(compose)
+        var verifyCalls = 0
+        restoration.setContent {
+            AirdropTheme {
+                PaymentReturnContent(
+                    sessionId = "cs_expired",
+                    verify = {
+                        verifyCalls += 1
+                        if (verifyCalls == 1) {
+                            PaymentReturnResult.NotPaid("expired", terminal = true)
+                        } else {
+                            PaymentReturnResult.Unconfirmed("pending checkout was already released")
+                        }
+                    },
+                    onPaid = { _, _, _ -> error("not paid") },
+                    onNotPaid = {},
+                    onUnconfirmed = { error("terminal result must not degrade after restore") },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Payment incomplete").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1, verifyCalls) }
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithText("Payment incomplete").assertIsDisplayed()
+        compose.onNodeWithText("Couldn't confirm payment").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(1, verifyCalls) }
+    }
+
+    @Test
     fun nonterminalNotPaidKeepsPendingAndRoutesToShipmentsRail() {
         var terminalRetry = false
         var safeDetail: String? = null
@@ -66,6 +100,43 @@ class PaymentOutcomeParityTest {
             assertFalse(terminalRetry)
             assertTrue(safeDetail?.contains("remains pending") == true)
         }
+    }
+
+    @Test
+    fun nonterminalNotPaidReverifiesAfterRestoreAndCanBecomePaid() {
+        val restoration = StateRestorationTester(compose)
+        var verifyCalls = 0
+        var paidReference: String? = null
+        restoration.setContent {
+            AirdropTheme {
+                PaymentReturnContent(
+                    sessionId = "cs_processing",
+                    verify = {
+                        verifyCalls += 1
+                        if (verifyCalls == 1) {
+                            PaymentReturnResult.NotPaid("processing", terminal = false)
+                        } else {
+                            PaymentReturnResult.Success("cs_processing", "USD 12.00")
+                        }
+                    },
+                    onPaid = { reference, _, _ -> paidReference = reference },
+                    onNotPaid = { error("processing is not terminal") },
+                    onUnconfirmed = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Payment still pending").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, verifyCalls)
+            assertEquals(null, paidReference)
+        }
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.waitUntil(5_000) { paidReference == "cs_processing" }
+        compose.onNodeWithText("Payment still pending").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(2, verifyCalls) }
     }
 
     @Test
@@ -170,6 +241,37 @@ class PaymentOutcomeParityTest {
     }
 
     @Test
+    fun terminalCancellationSurvivesSavedStateRestoreWithoutReverification() {
+        val restoration = StateRestorationTester(compose)
+        var verifyCalls = 0
+        restoration.setContent {
+            AirdropTheme {
+                PaymentCancelledHost(
+                    onTerminalNotPaid = {},
+                    onUnconfirmed = { error("terminal cancellation must not degrade after restore") },
+                    verify = {
+                        verifyCalls += 1
+                        if (verifyCalls == 1) {
+                            PaymentReturnResult.NotPaid("cancelled", terminal = true)
+                        } else {
+                            PaymentReturnResult.Unconfirmed("pending checkout was already released")
+                        }
+                    },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Payment cancelled").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1, verifyCalls) }
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithText("Payment cancelled").assertIsDisplayed()
+        compose.onNodeWithText("Couldn't confirm cancellation").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(1, verifyCalls) }
+    }
+
+    @Test
     fun nonterminalCancellationUsesSafeShipmentsRail() {
         var terminalDone = false
         var safeDone = false
@@ -192,5 +294,41 @@ class PaymentOutcomeParityTest {
             assertFalse(terminalDone)
             assertTrue(safeDone)
         }
+    }
+
+    @Test
+    fun unconfirmedCancellationReverifiesAfterRestoreAndCanBecomePaid() {
+        val restoration = StateRestorationTester(compose)
+        var verifyCalls = 0
+        var paidReference: String? = null
+        restoration.setContent {
+            AirdropTheme {
+                PaymentCancelledHost(
+                    onTerminalNotPaid = { error("not terminal") },
+                    onUnconfirmed = {},
+                    onPaid = { reference, _, _ -> paidReference = reference },
+                    verify = {
+                        verifyCalls += 1
+                        if (verifyCalls == 1) {
+                            PaymentReturnResult.Unconfirmed("network unavailable")
+                        } else {
+                            PaymentReturnResult.Success("cs_recovered", "USD 18.00")
+                        }
+                    },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Couldn't confirm cancellation").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, verifyCalls)
+            assertEquals(null, paidReference)
+        }
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.waitUntil(5_000) { paidReference == "cs_recovered" }
+        compose.onNodeWithText("Couldn't confirm cancellation").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(2, verifyCalls) }
     }
 }

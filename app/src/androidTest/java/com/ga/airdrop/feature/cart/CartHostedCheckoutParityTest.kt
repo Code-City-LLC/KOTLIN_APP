@@ -13,6 +13,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
@@ -82,8 +85,8 @@ class CartHostedCheckoutParityTest {
             currency = "JMD",
             address1 = "22 Paradise Ave",
             address2 = "Suite 2",
-            state = "St James",
-            city = "Montego Bay",
+            state = "Florida",
+            city = "Miami",
             country = "United States",
             postal = "33101",
         )
@@ -128,16 +131,10 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("John Brown").assertIsDisplayed()
         compose.onNodeWithText("Selected Payment Currency").assertIsDisplayed()
         compose.onNodeWithText("JMD").assertIsDisplayed()
-        compose.onNodeWithTag("checkout-profile-postal-card").performScrollTo()
-        compose.onNodeWithText("Postal Code").assertIsDisplayed()
-        compose.onNodeWithTag("checkout-profile-postal-required").assertIsDisplayed()
-        compose.onNodeWithTag("checkout-profile-state-card").performScrollTo().performClick()
-        compose.onNodeWithText("Florida").performClick()
-        assertEquals("Florida", formSnapshot.get().state)
-        compose.onNodeWithTag("checkout-profile-city-card").performScrollTo().performClick()
-        compose.onNodeWithText("Houston").performClick()
-        assertEquals("Houston", formSnapshot.get().city)
 
+        // Measure the frozen field order before scrolling or opening the IME. API 36
+        // may reposition the focused field while the keyboard is visible, making
+        // off-screen root bounds unsuitable as a declaration-order assertion.
         val orderedFieldTops = listOf(
             "checkout-profile-select-card",
             "checkout-profile-first-name-card",
@@ -151,6 +148,21 @@ class CartHostedCheckoutParityTest {
             "checkout-profile-postal-card",
         ).map { tag -> compose.onNodeWithTag(tag).getUnclippedBoundsInRoot().top.value }
         assertEquals("Checkout fields must retain the frozen Swift order", orderedFieldTops.sorted(), orderedFieldTops)
+
+        compose.onNodeWithTag("checkout-profile-postal-card").performScrollTo()
+        compose.onNodeWithText("Postal Code").assertIsDisplayed()
+        compose.onNodeWithTag("checkout-profile-postal-required").assertIsDisplayed()
+        compose.onNodeWithTag("checkout-profile-state-card").performScrollTo().performClick()
+        compose.onNodeWithText("Alabama").performClick()
+        assertEquals("Alabama", formSnapshot.get().state)
+        compose.onNodeWithTag("checkout-profile-city-card").performScrollTo()
+        val cityField = compose.onNode(
+            hasSetTextAction() and hasAnyAncestor(hasTestTag("checkout-profile-city-card")),
+            useUnmergedTree = true,
+        )
+        cityField.performClick()
+        cityField.performTextInput("Houston")
+        assertEquals("Houston", formSnapshot.get().city)
 
         compose.onNodeWithTag("checkout-profile-select-card").performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 20_000) {
@@ -180,6 +192,14 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText(jamaicaDisplay).performClick()
         assertEquals("Decorated picker rows must persist a canonical API value", "Jamaica", formSnapshot.get().country)
         assertEquals("No-postal countries must clear stale postal data", "", formSnapshot.get().postal)
+        assertEquals("Country changes must clear an incompatible US state", "", formSnapshot.get().state)
+        assertEquals("Country changes must clear an incompatible US city", "", formSnapshot.get().city)
+        compose.onNodeWithTag("checkout-profile-state-card").performScrollTo().performClick()
+        compose.onNodeWithText("Saint James").performClick()
+        compose.onNodeWithTag("checkout-profile-city-card").performScrollTo().performClick()
+        compose.onNodeWithText("Montego Bay").performClick()
+        assertEquals("Saint James", formSnapshot.get().state)
+        assertEquals("Montego Bay", formSnapshot.get().city)
         compose.onNodeWithText(jamaicaDisplay).assertIsDisplayed()
         compose.onNodeWithText("Postal Code").assertDoesNotExist()
 
@@ -271,8 +291,13 @@ class CartHostedCheckoutParityTest {
                         lines = lines,
                         note = note,
                         currency = "USD",
-                        exchangeUsdToJmd = 161.0,
-                        totalCharges = 32.0,
+                        verifiedExchangeUsdToJmd = 161.0,
+                        totals = availableTotals(
+                            itemsUsd = 32.0,
+                            rate = 161.0,
+                            deliveryUsd = 5.0,
+                            deliveryJmd = 800.0,
+                        ),
                     ),
                     onBack = {},
                     onNoteChange = {
@@ -290,6 +315,10 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("Sales (1)").assertIsDisplayed()
         compose.onNodeWithText("Special Instructions").assertIsDisplayed()
         compose.onNodeWithText("Charges").assertIsDisplayed()
+        compose.onNodeWithText("Delivery Fee").assertIsDisplayed()
+        compose.onNodeWithText("JMD 800.00 / USD 5.00").assertIsDisplayed()
+        compose.onNodeWithTag("order-summary-total-charges")
+            .assertTextEquals("JMD 5,952.00 / USD 37.00")
         compose.onNodeWithText("Total Packages and Sales").assertIsDisplayed()
         compose.onNodeWithText("Make Payment").assertIsDisplayed()
         compose.onNodeWithContentDescription("Remove Ready package").assertIsDisplayed()
@@ -470,7 +499,8 @@ class CartHostedCheckoutParityTest {
                             model = OrderSummaryUiModel(
                                 lines = saleLines,
                                 currency = "USD",
-                                totalCharges = 50.0,
+                                verifiedExchangeUsdToJmd = 161.0,
+                                totals = availableTotals(itemsUsd = 50.0, rate = 161.0),
                             ),
                             onBack = {},
                             onNoteChange = {},
@@ -719,6 +749,23 @@ class CartHostedCheckoutParityTest {
         }
         return viewModel
     }
+
+    private fun availableTotals(
+        itemsUsd: Double,
+        rate: Double,
+        deliveryUsd: Double = 0.0,
+        deliveryJmd: Double = deliveryUsd * rate,
+    ): CheckoutTotalsResult.Available = CheckoutTotalsResult.Available(
+        CheckoutTotalsBreakdown(
+            itemsUsd = itemsUsd,
+            itemsJmd = itemsUsd * rate,
+            deliveryUsd = deliveryUsd,
+            deliveryJmd = deliveryJmd,
+            totalUsd = itemsUsd + deliveryUsd,
+            totalJmd = itemsUsd * rate + deliveryJmd,
+            showsDeliveryRow = deliveryUsd > 0.0,
+        ),
+    )
 
     private fun setCartContent(
         repo: FakeCartCheckoutRepository,

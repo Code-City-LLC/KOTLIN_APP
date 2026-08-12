@@ -49,12 +49,16 @@ val playUploadSigningConfigured =
 //     all uploaded bundle versionCodes -> [2, 21, 22, 23, 24, 25, 26]
 //
 // A versionCode is burned by being UPLOADED, not by shipping — a cancelled or
-// halted release still consumes it. So the floor must track the highest ever
-// uploaded, which is what that bundles list gives you. Next safe code is 27.
+// halted release still consumes it. Keep the highest code ever observed: Play's
+// current bundles listing is not a permanent historical ledger and can omit older
+// burned artifacts (the 2026-08-11 query returned [2, 22, 24, 25, 26, 27, 28],
+// omitting 21 and 23 from the 2026-08-02 result). Production contains v28 (3.2.2).
+// Query Play again before every build because a non-production upload also burns
+// its code; this is only the last verified floor.
 //
 // To re-check before any release, do not trust this constant — ask Play:
 //   edits.bundles().list(packageName=..., editId=...)  -> max(versionCode)
-val knownPlayProductionVersionCodeFloor = 26
+val knownPlayProductionVersionCodeFloor = 28
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
@@ -77,14 +81,23 @@ val playReleaseConfigured =
 
 android {
     namespace = "com.ga.airdrop"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         // Matches the existing Play Store / Firebase Android identity used by
         // the previous React Native app (AD-REACT_NATIVE_APP-OLD).
         applicationId = "com.ga.airdrop.app"
         minSdk = 26
-        targetSdk = 35
+        // ⚠️ 36 IS A COMPLIANCE FLOOR, NOT A PREFERENCE. Google Play blocks new
+        // releases and updates that target below API 36 after 2026-08-30.
+        //
+        // Bumped once before (032e8af8) and reverted (a0f7f867) over predictive
+        // back, which targetSdk 36 enables BY DEFAULT — a real concern, and one
+        // I originally got backwards by looking for an explicit
+        // enableOnBackInvokedCallback opt-in that the default makes unnecessary.
+        // The remedy is the navigationCompose 2.9.8 bump landed alongside this:
+        // it carries the stable NavHost predictive-back fixes missing from 2.9.0.
+        targetSdk = 36
         // Local builds keep the current repository code. prodRelease gets an
         // owner-verified Play code through androidComponents below.
         versionCode = 8

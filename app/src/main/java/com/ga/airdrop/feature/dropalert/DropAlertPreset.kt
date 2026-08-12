@@ -50,7 +50,12 @@ object DropAlertPreset {
         store.edit().apply {
             if (shipper.isNotBlank()) putString(KEY_SHIPPER, shipper)
             if (courierCompany.isNotBlank()) putString(KEY_COURIER, courierCompany)
-            if (shippingMethod.isNotBlank()) putString(KEY_METHOD, shippingMethod)
+            DropAlertShippingMethod.fromDisplayNameOrNull(shippingMethod)?.let { method ->
+                putString(
+                    KEY_METHOD,
+                    method.displayName,
+                )
+            }
         }.apply()
     }
 }
@@ -65,12 +70,18 @@ fun applyPreset(
     state: DropAlertUiState,
     preset: DropAlertPreset.Preset,
     courierOptions: List<String>,
-): DropAlertUiState = state.copy(
-    shipper = state.shipper.ifBlank { preset.shipper },
-    shippingMethod = state.shippingMethod.ifBlank { preset.shippingMethod },
-    courierCompany = if (state.courierCompany.isBlank() && preset.courierCompany in courierOptions) {
-        preset.courierCompany
-    } else {
-        state.courierCompany
-    },
-)
+): DropAlertUiState {
+    val canonicalMethod = preset.shippingMethod
+        .takeIf { it.isNotBlank() }
+        ?.let { DropAlertShippingMethod.fromDisplayNameOrNull(it)?.displayName }
+        .orEmpty()
+    return state.copy(
+        shipper = state.shipper.ifBlank { preset.shipper },
+        shippingMethod = state.shippingMethod.ifBlank { canonicalMethod },
+        courierCompany = if (state.courierCompany.isBlank() && preset.courierCompany in courierOptions) {
+            preset.courierCompany
+        } else {
+            state.courierCompany
+        },
+    )
+}

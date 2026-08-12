@@ -50,7 +50,10 @@ SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 # `knownPlayProductionVersionCodeFloor` in app/build.gradle.kts — keep in step.
 # ⚠️ These two DRIFTED: both sat at 21 while 25 was live, so 22-25 passed both
 # local guards and would have failed only at Google. Bump BOTH every release.
-VERSION_CODE_FLOOR = 25
+# Play production v28 (3.2.2) and highest uploaded code 28 were independently
+# queried from the Android Publisher API on 2026-08-11.
+# Query Play again before building: any upload on any track burns its code.
+VERSION_CODE_FLOOR = 28
 
 
 def die(msg: str) -> "None":

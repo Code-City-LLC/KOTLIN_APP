@@ -21,7 +21,7 @@ class DropAlertPresetTest {
         )
         assertEquals("Amazon Store", out.shipper)
         assertEquals("FedEx", out.courierCompany)
-        assertEquals("SeaDrop Standard", out.shippingMethod)
+        assertEquals("Seadrop", out.shippingMethod)
     }
 
     @Test
@@ -29,7 +29,7 @@ class DropAlertPresetTest {
         val typed = DropAlertUiState(
             shipper = "My Shipper",
             courierCompany = "UPS",
-            shippingMethod = "Airdrop standard",
+            shippingMethod = "Airdrop",
         )
         val out = applyPreset(typed, DropAlertPreset.Preset("X", "FedEx", "SeaDrop Standard"), options)
         assertEquals(typed, out)
@@ -44,12 +44,24 @@ class DropAlertPresetTest {
         )
         assertEquals("Shop", out.shipper)
         assertEquals("", out.courierCompany) // stale courier dropped
-        assertEquals("Airdrop standard", out.shippingMethod)
+        assertEquals("Airdrop", out.shippingMethod)
     }
 
     @Test
     fun `empty preset leaves the form untouched`() {
         val blank = DropAlertUiState()
         assertEquals(blank, applyPreset(blank, DropAlertPreset.Preset(), options))
+    }
+
+    @Test
+    fun `unknown saved shipping method is ignored instead of relabeled`() {
+        val blank = DropAlertUiState()
+        val out = applyPreset(
+            blank,
+            DropAlertPreset.Preset(shippingMethod = "Overseas Freight"),
+            options,
+        )
+
+        assertEquals("", out.shippingMethod)
     }
 }

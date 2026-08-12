@@ -45,6 +45,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,9 +100,17 @@ fun PackageDetailsScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val detail = state.detail
-    val method = ShipmentMethodUi.from(detail?.shippingMethod)
-    val detailBrandTitle = packageDetailsBrandTitle(method)
-    var showInvoiceSourcePicker by remember { mutableStateOf(false) }
+    val method = ShipmentMethodUi.fromOrNull(detail?.shippingMethod)
+    val methodTint = method?.tint ?: colors.textDescription
+    val detailBrandTitle = shippingMethodDisplayName(
+        detail?.shippingMethod,
+        missingValue = "Shipping Method",
+    )
+    // rememberSaveable, not remember: the upload-source sheet hosts the
+    // camera/document ActivityResult launchers, so an Activity recreation while
+    // the external picker was in front closed the sheet, unregistered the
+    // launchers, and the file the customer chose was silently dropped.
+    var showInvoiceSourcePicker by rememberSaveable { mutableStateOf(false) }
 
     val damagePhotoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -128,15 +137,30 @@ fun PackageDetailsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // Hero — method image, 240dp visible under the glass header.
-            Box(Modifier.fillMaxWidth()) {
-                Image(
-                    painter = painterResource(method.heroRes),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp),
-                )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .background(colors.gray300)
+                    .then(
+                        if (method == null) {
+                            Modifier.testTag("package-details-method-hero-placeholder")
+                        } else {
+                            Modifier
+                        },
+                    ),
+            ) {
+                if (method != null) {
+                    Image(
+                        painter = painterResource(method.heroRes),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                            .testTag("package-details-method-hero-image"),
+                    )
+                }
             }
 
             Box(
@@ -163,7 +187,7 @@ fun PackageDetailsScreen(
                         Text(
                             text = detailBrandTitle,
                             style = AirdropType.h6,
-                            color = method.tint,
+                            color = methodTint,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -208,9 +232,9 @@ fun PackageDetailsScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Image(
-                        painter = painterResource(method.iconRes),
+                        painter = painterResource(method?.iconRes ?: R.drawable.ic_package),
                         contentDescription = detailBrandTitle,
-                        colorFilter = ColorFilter.tint(method.tint),
+                        colorFilter = ColorFilter.tint(methodTint),
                         modifier = Modifier
                             .size(40.dp)
                             .testTag("package-details-hero-icon"),
@@ -384,13 +408,12 @@ private fun PackageDetailsContent(
             titleContentGap = 12.dp,
             contentSpacing = Spacing.sm,
         ) {
-            val method = ShipmentMethodUi.from(detail.shippingMethod)
             val courier = listOfNotNull(
                 detail.shipper?.takeIf { it.isNotBlank() },
                 detail.courierNumber?.takeIf { it.isNotBlank() },
             ).joinToString(" ").ifBlank { "—" }
             DetailRow("Drop Number", detail.trackingCode ?: "—")
-            DetailRow("Shipping Method", detail.shippingMethod ?: method.title)
+            DetailRow("Shipping Method", shippingMethodDisplayName(detail.shippingMethod))
             // Swift orders Status immediately after Shipping Method
             // (FigmaPackageDetailsViewController:1332-1333, and the placeholder
             // table at :566-567). Kotlin omitted it entirely, so the one field
@@ -1399,10 +1422,3 @@ private fun TimelineIconRow(
         }
     }
 }
-
-private fun packageDetailsBrandTitle(method: ShipmentMethodUi): String =
-    when (method) {
-        ShipmentMethodUi.Standard -> "AirDrop"
-        ShipmentMethodUi.Express -> "Express"
-        ShipmentMethodUi.SeaDrop -> "SeaDrop"
-    }
