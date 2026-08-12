@@ -299,8 +299,8 @@ internal class DataShipmentsPaymentsRepository(
             ?: Result.failure(IllegalStateException("Payment #$paymentId not found"))
     }
 
-    override suspend fun paymentInvoiceUrl(paymentId: Int): Result<String> =
-        repo.paymentInvoice(paymentId, cacheDir).map { location ->
+    override suspend fun paymentInvoiceUrl(invoiceId: Int): Result<String> =
+        repo.paymentInvoice(invoiceId, cacheDir).map { location ->
             when (location) {
                 is InvoiceLocation.Remote -> location.url
                 // Uri.fromFile → "file:///..." (java.io.File.toURI() emits a

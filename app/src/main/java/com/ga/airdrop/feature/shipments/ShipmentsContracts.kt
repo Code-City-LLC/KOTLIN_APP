@@ -229,7 +229,8 @@ interface ShipmentsPaymentsRepository {
 
     // RECONCILE: GET /payments/{id}/invoice → invoice URL. Accept envelopes
     // {data:{url}}, {data:{file_url}}, {data:"..."}, {url}, {file_url}; raw bytes → cache file URL.
-    suspend fun paymentInvoiceUrl(paymentId: Int): Result<String>
+    // {invoiceId} = payments.packages_invoice_id — NEVER the payment id.
+    suspend fun paymentInvoiceUrl(invoiceId: Int): Result<String>
 }
 
 interface ShipmentsOrdersRepository {
@@ -283,7 +284,7 @@ object ShipmentsRepoProvider {
             Result.failure<Paged<ShipmentPayment>>(PendingDataLayerException())
         override suspend fun payment(paymentId: Int, refresh: Boolean) =
             Result.failure<ShipmentPayment>(PendingDataLayerException())
-        override suspend fun paymentInvoiceUrl(paymentId: Int) =
+        override suspend fun paymentInvoiceUrl(invoiceId: Int) =
             Result.failure<String>(PendingDataLayerException())
     }
     var orders: ShipmentsOrdersRepository = object : ShipmentsOrdersRepository {

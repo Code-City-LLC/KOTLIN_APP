@@ -136,13 +136,17 @@ class PaymentsOrdersParityTest {
         compose.waitForIdle()
 
         assertEquals(
-            "Swift invoice download should request the tapped payment id",
-            listOf(900),
+            // The endpoint resolves WHERE p.packages_invoice_id = ? — the
+            // INVOICE id the card displays, never the payment id. The fixture
+            // keeps them different (payment 900, invoice 4321) so this line
+            // fails if either id ever leaks into the other's place.
+            "invoice download must request the INVOICE id the card displays",
+            listOf(4321),
             repo.invoiceUrlRequests,
         )
         assertEquals(
             "Successful invoice download should open the shared invoice viewer route",
-            Routes.invoiceViewer(invoiceUrl, "INV-900"),
+            Routes.invoiceViewer(invoiceUrl, "4321"),
             navigatedRoutes.single(),
         )
         assertTextMissing("Download failed")
@@ -230,7 +234,7 @@ class PaymentsOrdersParityTest {
         compose.onNodeWithTag("payments-header-more").assertIsDisplayed()
         compose.onNodeWithText("Search by payment description").assertIsDisplayed()
         assertTrailingSearchIcon("payments-search-field", "payments-search-icon")
-        compose.onNodeWithText("INV-900").assertIsDisplayed()
+        compose.onNodeWithText("4321").assertIsDisplayed()
         compose.onNodeWithContentDescription("Download invoice").assertIsDisplayed()
 
         compose.onNodeWithTag("payments-header-more").performClick()
@@ -287,9 +291,8 @@ class PaymentsOrdersParityTest {
 
         override suspend fun payment(paymentId: Int, refresh: Boolean) = Result.success(payment)
 
-        override suspend fun paymentInvoiceUrl(paymentId: Int): Result<String> {
-            invoiceUrlRequests += paymentId
-            assertEquals(payment.id, paymentId)
+        override suspend fun paymentInvoiceUrl(invoiceId: Int): Result<String> {
+            invoiceUrlRequests += invoiceId
             return invoiceResult
         }
     }
@@ -308,7 +311,7 @@ class PaymentsOrdersParityTest {
     private companion object {
         fun samplePayment() = ShipmentPayment(
             id = 900,
-            invoiceId = "INV-900",
+            invoiceId = "4321",
             paymentType = "package",
             method = "card",
             totalAmount = 42.5,
