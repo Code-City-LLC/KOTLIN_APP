@@ -131,6 +131,24 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("John Brown").assertIsDisplayed()
         compose.onNodeWithText("Selected Payment Currency").assertIsDisplayed()
         compose.onNodeWithText("JMD").assertIsDisplayed()
+
+        // Measure the frozen field order before scrolling or opening the IME. API 36
+        // may reposition the focused field while the keyboard is visible, making
+        // off-screen root bounds unsuitable as a declaration-order assertion.
+        val orderedFieldTops = listOf(
+            "checkout-profile-select-card",
+            "checkout-profile-first-name-card",
+            "checkout-profile-last-name-card",
+            "checkout-profile-currency",
+            "checkout-profile-address-1-card",
+            "checkout-profile-address-2-card",
+            "checkout-profile-state-card",
+            "checkout-profile-city-card",
+            "checkout-profile-country-card",
+            "checkout-profile-postal-card",
+        ).map { tag -> compose.onNodeWithTag(tag).getUnclippedBoundsInRoot().top.value }
+        assertEquals("Checkout fields must retain the frozen Swift order", orderedFieldTops.sorted(), orderedFieldTops)
+
         compose.onNodeWithTag("checkout-profile-postal-card").performScrollTo()
         compose.onNodeWithText("Postal Code").assertIsDisplayed()
         compose.onNodeWithTag("checkout-profile-postal-required").assertIsDisplayed()
@@ -145,20 +163,6 @@ class CartHostedCheckoutParityTest {
         cityField.performClick()
         cityField.performTextInput("Houston")
         assertEquals("Houston", formSnapshot.get().city)
-
-        val orderedFieldTops = listOf(
-            "checkout-profile-select-card",
-            "checkout-profile-first-name-card",
-            "checkout-profile-last-name-card",
-            "checkout-profile-currency",
-            "checkout-profile-address-1-card",
-            "checkout-profile-address-2-card",
-            "checkout-profile-state-card",
-            "checkout-profile-city-card",
-            "checkout-profile-country-card",
-            "checkout-profile-postal-card",
-        ).map { tag -> compose.onNodeWithTag(tag).getUnclippedBoundsInRoot().top.value }
-        assertEquals("Checkout fields must retain the frozen Swift order", orderedFieldTops.sorted(), orderedFieldTops)
 
         compose.onNodeWithTag("checkout-profile-select-card").performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 20_000) {
