@@ -26,6 +26,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Airdrop">
 
+        <!-- Meta SDK: auto-initializes from these + logs installs/app-opens,
+             which is what attributes ad-driven installs (true-conversion
+             app path, Kemar 2026-08-16). -->
+        <meta-data
+            android:name="com.facebook.sdk.ApplicationId"
+            android:value="@string/facebook_app_id" />
+        <meta-data
+            android:name="com.facebook.sdk.ClientToken"
+            android:value="@string/facebook_client_token" />
+
         <activity
             android:name=".MainActivity"
             android:configChanges="screenLayout|orientation|screenSize|keyboard|keyboardHidden|smallestScreenSize"

@@ -77,6 +77,10 @@ fun SignUpScreen(
     // navigating so this can never re-fire (WORK ORDER B1).
     if (state.registered) {
         LaunchedEffect(Unit) {
+            // Meta attribution: report the completed signup to the ad that
+            // drove the install (true-conversion app path, Kemar 2026-08-16).
+            com.ga.airdrop.core.analytics.MetaEvents
+                .logCompletedRegistration(context, state.hearType)
             viewModel.consumeRegistered()
             onRegistered()
         }

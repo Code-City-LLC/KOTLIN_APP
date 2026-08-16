@@ -244,6 +244,9 @@ androidComponents {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // Meta (Facebook) SDK — ad-driven install + signup attribution (Kemar
+    // 2026-08-16, true-conversion app-path). App id/client token in strings.xml.
+    implementation(libs.facebook.android.sdk)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)

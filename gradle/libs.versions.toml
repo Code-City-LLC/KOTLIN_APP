@@ -1,6 +1,7 @@
 [versions]
 agp = "8.10.1"
 kotlin = "2.1.21"
+facebookSdk = "18.0.3"
 coreKtx = "1.16.0"
 activityCompose = "1.10.1"
 composeBom = "2025.05.01"
@@ -30,6 +31,7 @@ uiautomator = "2.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+facebook-android-sdk = { group = "com.facebook.android", name = "facebook-android-sdk", version.ref = "facebookSdk" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }

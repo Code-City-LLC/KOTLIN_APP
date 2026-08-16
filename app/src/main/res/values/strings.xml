@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Airdrop</string>
+    <!-- Meta SDK (Sirius Ops App). The client token is a publishable app
+         identifier by Meta's design — not a secret. -->
+    <string name="facebook_app_id" translatable="false">1287538986557826</string>
+    <string name="facebook_client_token" translatable="false">ec6ea1bc040996a1a56e276363f32cfa</string>
 </resources>

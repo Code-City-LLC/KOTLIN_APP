@@ -68,6 +68,9 @@ val pickupLocationOptions = listOf("Montego Bay", "Kingston", "Savanna-La-Mar")
 
 /** Swift SignUpViewController "channel" options (user_hear_type). */
 val hearAboutUsOptions = listOf(
+    // Paid-ad option first (Kemar 2026-08-16): the cheap stopgap that lets
+    // app-only signups self-report the ad path until SDK attribution matures.
+    "Saw our ad on Facebook/Instagram",
     "Instagram/Facebook",
     "Google/YouTube",
     "Radio",
