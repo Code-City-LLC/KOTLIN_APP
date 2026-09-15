@@ -102,6 +102,48 @@ data class CheckoutResponse(
     @SerialName("package_count") val packageCount: Int? = null,
 )
 
+/**
+ * A payment the fraud rules HELD for staff review (Laravel
+ * `PaymentReviewService::presentForCustomer`, 2026-09-15). Rides both
+ * verification responses as `review` so a held payment reads "under review"
+ * instead of "incomplete" — and so the app never sends the customer back to
+ * pay a second time for it.
+ */
+@Serializable
+data class PaymentReviewStatus(
+    @Serializable(with = FlexibleIntSerializer::class)
+    val id: Int? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    val status: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    val label: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    val message: String? = null,
+    @Serializable(with = FlexibleDoubleSerializer::class)
+    val amount: Double? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    val currency: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    val reference: String? = null,
+    @SerialName("invoice_id")
+    @Serializable(with = FlexibleStringSerializer::class)
+    val invoiceId: String? = null,
+    @SerialName("can_retry")
+    val canRetry: Boolean? = null,
+) {
+    /** Still with the review team: nothing to retry, nothing to pay again. */
+    val isPending: Boolean
+        get() = status?.lowercase() in setOf("pending_review", "info_required", "under_review", "pending")
+
+    /** Staff said no (declined / cancelled / expired): the money was returned. */
+    val isRefused: Boolean
+        get() = status?.lowercase() in setOf("declined", "cancelled", "canceled", "expired")
+
+    val customerMessage: String
+        get() = message?.takeIf { it.isNotBlank() }
+            ?: "Your payment is being reviewed by our team. You will be notified as soon as a decision is made — please do not pay again."
+}
+
 @Serializable
 data class CheckoutSessionStatus(
     @SerialName("session_id")
@@ -133,6 +175,8 @@ data class CheckoutSessionStatus(
      */
     @SerialName("package_ids")
     val packageIds: List<Int> = emptyList(),
+    /** Present when the fraud rules held this payment (2026-09-15). */
+    val review: PaymentReviewStatus? = null,
 )
 
 // POST /payments/create-payment-sheet — Stripe PaymentSheet bundle
@@ -200,6 +244,8 @@ data class PaymentIntentStatus(
      */
     @SerialName("package_ids")
     val packageIds: List<Int> = emptyList(),
+    /** Present when the fraud rules held this payment (2026-09-15). */
+    val review: PaymentReviewStatus? = null,
 )
 
 // GET /payments/{id}/invoice JSON envelope: {data:{url|file_url}},

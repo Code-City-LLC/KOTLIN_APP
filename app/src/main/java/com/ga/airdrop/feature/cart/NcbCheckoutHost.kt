@@ -38,5 +38,7 @@ data class NcbUiModel(
     val invoiceId: String? = null,
     val navTo3DS: Boolean = false,
     val navToSuccess: Boolean = false,
+    /** Set when the message is not a failure — e.g. "Payment under review" (2026-09-15). */
+    val errorTitle: String? = null,
     val errorMessage: String? = null,
 )
