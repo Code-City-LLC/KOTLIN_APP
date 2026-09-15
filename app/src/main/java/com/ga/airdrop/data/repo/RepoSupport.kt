@@ -21,7 +21,8 @@ internal suspend fun <T> apiResult(block: suspend () -> T): Result<T> =
     } catch (e: CancellationException) {
         throw e
     } catch (e: HttpException) {
-        Result.failure(ApiException(friendlyHttpMessage(e), e))
+        val parsed = parseHttpError(e)
+        Result.failure(ApiException(parsed.message, e, parsed.fieldErrors))
     } catch (e: IOException) {
         Result.failure(
             ApiException("Can't reach AirDrop. Check your connection and try again.", e),
@@ -30,23 +31,51 @@ internal suspend fun <T> apiResult(block: suspend () -> T): Result<T> =
         Result.failure(e)
     }
 
-/** Carries a user-facing message; ViewModels display `message` directly. */
-internal class ApiException(message: String, cause: Throwable? = null) :
-    Exception(message, cause)
+/**
+ * Carries a user-facing message; ViewModels display `message` directly.
+ * [fieldErrors] is Laravel's `errors` map flattened to its first message per
+ * field, so a form can put a 422 under the field it names (Kemar 2026-09-15:
+ * an authorized user's mobile number was failing silently).
+ */
+internal class ApiException(
+    message: String,
+    cause: Throwable? = null,
+    val fieldErrors: Map<String, String> = emptyMap(),
+) : Exception(message, cause)
+
+internal data class ParsedHttpError(val message: String, val fieldErrors: Map<String, String>)
+
+/** The body can be read once; read it once and keep both the message and the field map. */
+private fun parseHttpError(e: HttpException): ParsedHttpError {
+    val body = runCatching { e.response()?.errorBody()?.string().orEmpty() }.getOrDefault("")
+    val fieldErrors = linkedMapOf<String, String>()
+    var message = ""
+    runCatching {
+        if (body.isNotBlank()) {
+            val json = JSONObject(body)
+            message = json.optString("message").ifBlank { json.optString("error") }
+            json.optJSONObject("errors")?.let { errors ->
+                for (key in errors.keys()) {
+                    val value = errors.opt(key)
+                    val first = when (value) {
+                        is org.json.JSONArray -> value.optString(0)
+                        else -> value?.toString().orEmpty()
+                    }
+                    if (first.isNotBlank()) fieldErrors[key] = first
+                }
+            }
+        }
+    }
+    if (message.isBlank()) message = fieldErrors.values.firstOrNull().orEmpty()
+    if (message.isBlank()) message = friendlyHttpMessage(e)
+    return ParsedHttpError(message, fieldErrors)
+}
 
 /**
  * Prefer the backend's own `message` (Laravel returns it on 4xx/5xx); fall back
  * to a friendly, status-appropriate line — never the raw "HTTP <code>".
  */
 private fun friendlyHttpMessage(e: HttpException): String {
-    runCatching {
-        val body = e.response()?.errorBody()?.string().orEmpty()
-        if (body.isNotBlank()) {
-            val json = JSONObject(body)
-            val msg = json.optString("message").ifBlank { json.optString("error") }
-            if (msg.isNotBlank()) return msg
-        }
-    }
     return when (e.code()) {
         401, 403 -> "Invalid credentials"
         404 -> "We couldn't find what you were looking for."

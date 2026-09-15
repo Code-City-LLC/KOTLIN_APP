@@ -67,6 +67,13 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          # Google removed the legacy `tools` package from the SDK repository, so the
+          # action's default `packages: tools platform-tools` dies in sdkmanager
+          # (\"Failed to find package 'tools'\") before any Kotlin compiles — every run
+          # since 2026-08-12 failed at this step. platform-tools is all the gate
+          # needs; AGP fetches the platforms and build-tools it declares.
+          packages: platform-tools
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4
