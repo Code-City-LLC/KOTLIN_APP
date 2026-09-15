@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.cart
 
+import com.ga.airdrop.data.repo.isPaymentUnderReview
 import com.ga.airdrop.core.config.AirdropFeatureFlags
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -855,16 +856,22 @@ class CartViewModel(
                     if (CheckoutFlowStore.current(owner)?.id != expectedFlowId) {
                         return@runWhileCurrent false
                     }
+                    val unauthenticated = error.message?.contains("Unauthenticated", ignoreCase = true) == true
+                    // A HELD payment (fraud review, 2026-09-15) is neither unknown
+                    // nor retryable: say so, with the server's text.
                     orderError(
-                        if (error.message?.contains("Unauthenticated", ignoreCase = true) == true) {
-                            "Sign in required"
-                        } else {
-                            "Payment status unknown"
+                        when {
+                            error.isPaymentUnderReview -> "Payment under review"
+                            unauthenticated -> "Sign in required"
+                            else -> "Payment status unknown"
                         },
-                        if (error.message?.contains("Unauthenticated", ignoreCase = true) == true) {
-                            "Your session changed after checkout started. Check Shipments before paying again."
-                        } else {
-                            "The checkout request may have reached Stripe. It cannot be retried safely; check Shipments."
+                        when {
+                            error.isPaymentUnderReview -> error.message
+                                ?: "Your payment is being reviewed by our team. Please do not pay again."
+                            unauthenticated ->
+                                "Your session changed after checkout started. Check Shipments before paying again."
+                            else ->
+                                "The checkout request may have reached Stripe. It cannot be retried safely; check Shipments."
                         },
                     )
                     true
@@ -992,7 +999,8 @@ class CartViewModel(
                         _state.update {
                             it.copy(
                                 ncbBusy = false,
-                                errorTitle = "Payment failed",
+                                // Held by the fraud rules is not a failure (2026-09-15).
+                                errorTitle = if (e.isPaymentUnderReview) "Payment under review" else "Payment failed",
                                 errorMessage = e.message ?: "We couldn't start the payment. Please try again.",
                             )
                         }
@@ -1053,7 +1061,7 @@ class CartViewModel(
                         _state.update {
                             it.copy(
                                 ncbBusy = false,
-                                errorTitle = "Payment not confirmed",
+                                errorTitle = if (e.isPaymentUnderReview) "Payment under review" else "Payment not confirmed",
                                 errorMessage = e.message
                                     ?: "We couldn't confirm your payment. Check Shipments before paying again.",
                             )

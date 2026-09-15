@@ -111,6 +111,12 @@ data class DataEnvelope<T>(
     val success: Boolean? = null,
     val message: String? = null,
     val data: T? = null,
+    /**
+     * Machine-readable failure code when the server sends one: the payment
+     * fraud-review hold answers `{"success":false,"code":"payment_under_review",…}`
+     * (2026-09-15); the tier contract uses `error_code`. Either lands here.
+     */
+    val code: String? = null,
 )
 
 class DataEnvelopeSerializer<T>(private val dataSerializer: KSerializer<T>) : KSerializer<DataEnvelope<T>> {
@@ -137,6 +143,7 @@ class DataEnvelopeSerializer<T>(private val dataSerializer: KSerializer<T>) : KS
             success = obj.flexBool("success"),
             message = obj.flexString("message"),
             data = data,
+            code = obj.flexString("code") ?: obj.flexString("error_code"),
         )
     }
 }

@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.shop
 
+import com.ga.airdrop.data.repo.isPaymentUnderReview
 import com.ga.airdrop.core.config.AirdropFeatureFlags
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -443,18 +444,24 @@ class AuctionCheckoutViewModel(
                 .onFailure { err ->
                     applyCurrentOwner(owner) {
                         val unauthenticated = err.isUnauthenticatedCheckoutFailure()
+                        // A HELD payment (fraud review, 2026-09-15) is neither
+                        // unknown nor retryable: say so, with the server's text.
+                        val underReview = err.isPaymentUnderReview
                         _state.update {
                             it.copy(
                                 paying = false,
-                                errorTitle = if (unauthenticated) {
-                                    "Sign in required"
-                                } else {
-                                    "Payment status unknown"
+                                errorTitle = when {
+                                    underReview -> "Payment under review"
+                                    unauthenticated -> "Sign in required"
+                                    else -> "Payment status unknown"
                                 },
-                                errorMessage = if (unauthenticated) {
-                                    "Your session changed after checkout started. Check Shipments before paying again."
-                                } else {
-                                    "The checkout request may have reached Stripe. It cannot be retried safely; check Shipments."
+                                errorMessage = when {
+                                    underReview -> err.message
+                                        ?: "Your payment is being reviewed by our team. Please do not pay again."
+                                    unauthenticated ->
+                                        "Your session changed after checkout started. Check Shipments before paying again."
+                                    else ->
+                                        "The checkout request may have reached Stripe. It cannot be retried safely; check Shipments."
                                 },
                             )
                         }
@@ -588,6 +595,8 @@ class AuctionCheckoutViewModel(
                         _ncb.update {
                             it.copy(
                                 busy = false,
+                                // Held by the fraud rules is not a failure (2026-09-15).
+                                errorTitle = if (e.isPaymentUnderReview) "Payment under review" else null,
                                 errorMessage = e.message ?: "We couldn't start the payment. Please try again.",
                             )
                         }
@@ -638,6 +647,7 @@ class AuctionCheckoutViewModel(
                         _ncb.update {
                             it.copy(
                                 busy = false,
+                                errorTitle = if (e.isPaymentUnderReview) "Payment under review" else null,
                                 errorMessage = e.message
                                     ?: "We couldn't confirm your payment. Check Shipments before paying again.",
                             )

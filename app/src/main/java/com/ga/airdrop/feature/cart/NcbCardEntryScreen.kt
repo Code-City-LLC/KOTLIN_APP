@@ -40,6 +40,7 @@ import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.AlertPalette
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.location.CountryCatalog
 import com.ga.airdrop.feature.shop.ShopDropdownField
@@ -244,8 +245,14 @@ fun NcbCardEntryScreen(
                     )
                 }
 
-                (localError ?: ui.errorMessage)?.let {
-                    Text(it, style = AirdropType.body2, color = AlertPalette.Error)
+                (localError ?: ui.errorMessage)?.let { text ->
+                    // "Payment under review" is not an error (2026-09-15): the
+                    // title leads in the brand tone, the server's text follows.
+                    val heldTitle = ui.errorTitle?.takeIf { localError == null && it.isNotBlank() }
+                    if (heldTitle != null) {
+                        Text(heldTitle, style = AirdropType.body2, color = BrandPalette.OrangeMain)
+                    }
+                    Text(text, style = AirdropType.body2, color = if (heldTitle != null) BrandPalette.OrangeMain else AlertPalette.Error)
                 }
             }
 
