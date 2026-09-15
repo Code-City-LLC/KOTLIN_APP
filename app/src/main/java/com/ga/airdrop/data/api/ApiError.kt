@@ -43,11 +43,28 @@ object ApiErrors {
         else -> throwable.message ?: "Something went wrong. Please try again."
     }
 
-    fun errorBodyMessage(body: String?): String? {
+    fun errorBodyMessage(body: String?): String? = envelope(body)?.displayMessage
+
+    fun envelope(body: String?): ApiErrorEnvelope? {
         if (body.isNullOrBlank()) return null
         return runCatching {
             AirdropJson.decodeFromString(ApiErrorEnvelope.serializer(), body)
-        }.getOrNull()?.displayMessage
+        }.getOrNull()
+    }
+
+    /** `{"errors": {"field": ["first", ...]}}` -> {field: first}, in the server's order. */
+    fun fieldErrorsOf(envelope: ApiErrorEnvelope?): Map<String, String> {
+        val errors = envelope?.errors as? JsonObject ?: return emptyMap()
+        val out = linkedMapOf<String, String>()
+        for ((key, value) in errors) {
+            val first = when (value) {
+                is JsonArray -> (value.firstOrNull() as? JsonPrimitive)?.contentOrNull
+                is JsonPrimitive -> value.contentOrNull
+                else -> null
+            }
+            if (!first.isNullOrBlank()) out[key] = first
+        }
+        return out
     }
 
     private fun httpMessage(exception: HttpException): String {
@@ -58,3 +75,23 @@ object ApiErrors {
 }
 
 fun Throwable.toUserMessage(): String = ApiErrors.userMessage(this)
+
+/** A failure read ONCE: the server's message and its `errors` map flattened to the first line per field. */
+data class ParsedApiError(val message: String?, val fieldErrors: Map<String, String>)
+
+/**
+ * Field-level errors survive whichever wrapper the call went through.
+ * `More2Repository.apiCall` hands the ViewModel the raw [HttpException];
+ * `RepoSupport.apiResult` hands it an [ApiException] that already kept the map.
+ * The error body can only be read once, so message and map are taken together
+ * (Kemar 2026-09-15: an authorized user's mobile number was failing silently).
+ */
+fun Throwable.parseApiError(): ParsedApiError = when (this) {
+    is com.ga.airdrop.data.repo.ApiException -> ParsedApiError(message, fieldErrors)
+    is HttpException -> {
+        val body = runCatching { response()?.errorBody()?.string() }.getOrNull()
+        val envelope = ApiErrors.envelope(body)
+        ParsedApiError(envelope?.displayMessage, ApiErrors.fieldErrorsOf(envelope))
+    }
+    else -> ParsedApiError(toUserMessage(), emptyMap())
+}

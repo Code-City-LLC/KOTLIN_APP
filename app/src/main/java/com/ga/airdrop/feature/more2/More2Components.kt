@@ -287,6 +287,8 @@ internal fun More2Field(
     readOnly: Boolean = false,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
+    /** Field-level validation: red border and this message under the box (Kemar 2026-09-15). */
+    errorText: String? = null,
 ) {
     val colors = AirdropTheme.colors
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -302,7 +304,11 @@ internal fun More2Field(
                 .defaultMinSize(minHeight = 50.dp)
                 .clip(RoundedCornerShape(Radius.xs))
                 .background(colors.gray150)
-                .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.xs))
+                .border(
+                    1.dp,
+                    if (errorText != null) AlertPalette.Error else colors.iconShape,
+                    RoundedCornerShape(Radius.xs),
+                )
                 .then(
                     if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
                 )
@@ -350,6 +356,14 @@ internal fun More2Field(
                 )
             }
             if (trailing != null) trailing()
+        }
+        if (errorText != null) {
+            Text(
+                text = errorText,
+                style = AirdropType.body2,
+                color = AlertPalette.Error,
+                modifier = if (fieldTag != null) Modifier.testTag("$fieldTag-error") else Modifier,
+            )
         }
     }
 }

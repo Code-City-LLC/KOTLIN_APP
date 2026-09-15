@@ -2,20 +2,31 @@ package com.ga.airdrop.feature.more2
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.testTag
@@ -36,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
+import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
 
 /**
@@ -60,6 +73,15 @@ fun AddAuthorizedUserScreen(
     LaunchedEffect(state.saved) {
         if (state.saved) onBack()
     }
+
+    // Kemar 2026-09-15: a failed save is announced, never silent.
+    val snackbarHost = remember { SnackbarHostState() }
+    LaunchedEffect(state.saveFailure) {
+        val message = state.saveFailure ?: return@LaunchedEffect
+        snackbarHost.showSnackbar(message)
+        viewModel.dismissSaveFailure()
+    }
+    var countrySheetOpen by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -169,16 +191,49 @@ fun AddAuthorizedUserScreen(
                     required = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 )
-                More2Field(
-                    label = "Mobile Number",
-                    value = state.mobileNumber,
-                    onValueChange = viewModel::onMobileNumber,
-                    fieldTag = "add-authorized-user-mobile-input",
-                    cardTag = "add-authorized-user-mobile-card",
-                    placeholder = "+1 876-5290736",
-                    required = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                )
+                // Mobile number: the calling code from a searchable picker on the
+                // left, digits only on the right (Kemar 2026-09-15). The server
+                // wants "+1" plus all ten digits; the picker owns the "+", the
+                // box never does, and a bad number is said under the field.
+                val phoneCountry = AuthorizedUserPhoneInput.country(state.phoneIso)
+                    ?: AuthorizedUserPhoneInput.country(AuthorizedUserPhoneInput.DEFAULT_ISO)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                    modifier = Modifier.testTag("add-authorized-user-phone-row"),
+                ) {
+                    More2Field(
+                        label = "Code",
+                        value = phoneCountry?.pickerLabel ?: "+1",
+                        onValueChange = {},
+                        fieldTag = "add-authorized-user-phone-code-input",
+                        cardTag = "add-authorized-user-phone-code-card",
+                        required = true,
+                        readOnly = true,
+                        onClick = { countrySheetOpen = true },
+                        trailing = {
+                            Image(
+                                painter = painterResource(R.drawable.ic_chevron),
+                                contentDescription = "Choose country code",
+                                colorFilter = ColorFilter.tint(colors.textDarkTitle),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        },
+                        modifier = Modifier.width(132.dp),
+                    )
+                    More2Field(
+                        label = "Mobile Number",
+                        value = state.mobileNumber,
+                        onValueChange = viewModel::onMobileNumber,
+                        fieldTag = "add-authorized-user-mobile-input",
+                        cardTag = "add-authorized-user-mobile-card",
+                        placeholder = if (phoneCountry?.callingCode == "+1") "876 555 1234" else "Mobile number",
+                        required = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        errorText = state.mobileError,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 More2Field(
                     label = "Tax Registration Number",
                     value = state.trn,
@@ -191,6 +246,13 @@ fun AddAuthorizedUserScreen(
             }
 
             if (state.loadingUser) More2Loading()
+
+            SnackbarHost(
+                hostState = snackbarHost,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .testTag("add-authorized-user-snackbar"),
+            )
         }
 
         More2BottomBar {
@@ -212,6 +274,75 @@ fun AddAuthorizedUserScreen(
     }
     state.error?.let { message ->
         More2Alert(title = "Error", message = message, onDismiss = viewModel::dismissError)
+    }
+    if (countrySheetOpen) {
+        AuthorizedUserPhoneCountrySheet(
+            selectedIso = state.phoneIso,
+            onSelect = { country ->
+                viewModel.onPhoneCountry(country.isoCode)
+                countrySheetOpen = false
+            },
+            onDismiss = { countrySheetOpen = false },
+        )
+    }
+}
+
+/** Searchable flag + name + calling-code list: the website's picker, on a phone. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AuthorizedUserPhoneCountrySheet(
+    selectedIso: String,
+    onSelect: (AuthorizedUserPhoneCountry) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    var query by remember { mutableStateOf("") }
+    val results = remember(query) { AuthorizedUserPhoneInput.search(query) }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.gray100) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.md)
+                .testTag("add-authorized-user-country-sheet"),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Text("Country code", style = AirdropType.title2, color = colors.textDarkTitle)
+            More2Field(
+                label = "Search",
+                value = query,
+                onValueChange = { query = it },
+                fieldTag = "add-authorized-user-country-search",
+                placeholder = "Country name or code, e.g. Jamaica or +44",
+            )
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                items(results, key = { it.isoCode }) { country ->
+                    val selected = country.isoCode == selectedIso
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(country) }
+                            .testTag("add-authorized-user-country-${country.isoCode}")
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(country.flagEmoji, style = AirdropType.body1)
+                        Text(
+                            country.name,
+                            style = AirdropType.body1,
+                            color = colors.textDarkTitle,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            country.callingCode,
+                            style = AirdropType.body1,
+                            color = if (selected) BrandPalette.OrangeMain else colors.textDescription,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(Spacing.md))
+        }
     }
 }
 

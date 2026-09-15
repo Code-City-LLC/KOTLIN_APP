@@ -2,8 +2,10 @@ package com.ga.airdrop.feature.more2
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.data.api.parseApiError
 import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.data.model.AuthorizedUserRequest
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -17,7 +19,6 @@ internal val ID_TYPE_OPTIONS = listOf("National ID", "Drivers License", "Passpor
 // customer gets an actionable message instead of a bare 422 from the server.
 internal const val TRN_DIGITS = 9 // trn_no => digits:9
 internal const val ID_NUMBER_MAX = 14 // identification_id_number => max:14
-internal const val MOBILE_MAX = 20 // user_mobile_number => max:20
 
 data class AddAuthorizedUserUiState(
     val firstName: String = "",
@@ -26,7 +27,9 @@ data class AddAuthorizedUserUiState(
     val idType: String = "National ID",
     val idNumber: String = "",
     val email: String = "",
+    /** Digits only — the calling code lives in [phoneIso], never in this box (Kemar 2026-09-15). */
     val mobileNumber: String = "",
+    val phoneIso: String = AuthorizedUserPhoneInput.DEFAULT_ISO,
     val trn: String = "",
     val isEditMode: Boolean = false,
     val loadingUser: Boolean = false,
@@ -34,6 +37,10 @@ data class AddAuthorizedUserUiState(
     val saved: Boolean = false,
     val validationError: String? = null,
     val error: String? = null,
+    /** Under the mobile box: the client rule or the server's own 422 message. */
+    val mobileError: String? = null,
+    /** One-shot toast after a failed save; the screen shows it and dismisses it. */
+    val saveFailure: String? = null,
 )
 
 /**
@@ -43,9 +50,15 @@ data class AddAuthorizedUserUiState(
 class AddAuthorizedUserViewModel(
     private val editId: Int?,
     private val repository: More2Repository = More2Repository(),
+    defaultPhoneIso: String = AuthorizedUserPhoneInput.defaultIso(
+        profileCountryName = null,
+        deviceRegion = Locale.getDefault().country,
+    ),
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(AddAuthorizedUserUiState(isEditMode = editId != null))
+    private val _state = MutableStateFlow(
+        AddAuthorizedUserUiState(isEditMode = editId != null, phoneIso = defaultPhoneIso),
+    )
     val state: StateFlow<AddAuthorizedUserUiState> = _state
 
     init {
@@ -57,7 +70,12 @@ class AddAuthorizedUserViewModel(
     fun onIdType(v: String) = _state.update { it.copy(idType = v) }
     fun onIdNumber(v: String) = _state.update { it.copy(idNumber = v) }
     fun onEmail(v: String) = _state.update { it.copy(email = v) }
-    fun onMobileNumber(v: String) = _state.update { it.copy(mobileNumber = v) }
+    /** Strips everything but digits as the customer types; a pasted "+1 (876) 555-1234" lands as 8765551234. */
+    fun onMobileNumber(v: String) = _state.update {
+        it.copy(mobileNumber = AuthorizedUserPhoneInput.sanitize(v, it.callingCode), mobileError = null)
+    }
+    fun onPhoneCountry(iso: String) = _state.update { it.copy(phoneIso = iso, mobileError = null) }
+    fun dismissSaveFailure() = _state.update { it.copy(saveFailure = null) }
     fun onTrn(v: String) = _state.update { it.copy(trn = v) }
     fun dismissValidation() = _state.update { it.copy(validationError = null) }
     fun dismissError() = _state.update { it.copy(error = null) }
@@ -67,14 +85,11 @@ class AddAuthorizedUserViewModel(
         viewModelScope.launch {
             repository.authorizedUser(id)
                 .onSuccess { user ->
-                    // Recombine country code + mobile into the single "+CC mobile"
-                    // field the form uses, mirroring the Swift prefillForm.
-                    val cc = user.countryCode.orEmpty()
-                    val mn = user.mobileNumber.orEmpty()
-                    val mobile = when {
-                        cc.isNotEmpty() && mn.isNotEmpty() -> "$cc $mn"
-                        else -> mn
-                    }
+                    // A stored row may carry the area code inside the code
+                    // column ("+1876" + 7 digits). Fold it into picker ISO +
+                    // digits, the way the website does, so the box shows all
+                    // ten digits the server will accept on save.
+                    val (phoneIso, mobile) = AuthorizedUserPhoneInput.fold(user.countryCode, user.mobileNumber)
                     _state.update {
                         it.copy(
                             loadingUser = false,
@@ -86,6 +101,7 @@ class AddAuthorizedUserViewModel(
                             idNumber = user.identificationIdNumber.orEmpty(),
                             email = user.email.orEmpty(),
                             mobileNumber = mobile,
+                            phoneIso = phoneIso,
                             trn = user.trnNumber.orEmpty(),
                         )
                     }
@@ -119,24 +135,16 @@ class AddAuthorizedUserViewModel(
         }
         if (email.isEmpty()) return fail("Please enter Email Address")
         if (!isValidEmail(email)) return fail("Please enter a valid Email Address")
-        if (mobile.isEmpty()) return fail("Please enter Mobile Number")
-
-        // RN parses "+CC mobile" out of the single mobile-number field.
-        var countryCode = ""
-        var parsedMobile = mobile.filter { it.isDigit() }
-        if (mobile.startsWith("+")) {
-            val match = Regex("^(\\+\\d{1,4})\\s*(.*)$").find(mobile)
-            if (match != null) {
-                countryCode = match.groupValues[1]
-                parsedMobile = match.groupValues[2].filter { it.isDigit() }
-            }
+        // The calling code comes from the picker and the box holds digits only
+        // (Kemar 2026-09-15). A bad number is said under the field, not in a
+        // dialog: "Please enter a valid phone number."
+        val countryCode = s.callingCode
+        val phoneError = AuthorizedUserPhoneInput.validationError(mobile, countryCode)
+        if (phoneError != null) {
+            _state.update { it.copy(mobileError = phoneError) }
+            return
         }
-        if (countryCode.isEmpty()) return fail("Please add Country Code for Mobile Number")
-        if (parsedMobile.isEmpty()) return fail("Please enter valid Mobile Number")
-        // Laravel: user_mobile_number max:20 (regex ^\d+$ — already digits-only above).
-        if (parsedMobile.length > MOBILE_MAX) {
-            return fail("Mobile Number can be at most $MOBILE_MAX digits")
-        }
+        val parsedMobile = mobile
         if (trn.isEmpty()) return fail("Please enter Tax Registration Number")
         // Laravel: trn_no is `digits:9` — EXACTLY nine numeric digits. This used
         // to be an isEmpty() check only, so "123-456-789" or an 8-digit TRN was
@@ -171,10 +179,34 @@ class AddAuthorizedUserViewModel(
             result
                 .onSuccess { _state.update { it.copy(saving = false, saved = true) } }
                 .onFailure { e ->
-                    _state.update { it.copy(saving = false, error = e.toUserMessage()) }
+                    // A failed add must never be silent (Kemar 2026-09-15). The
+                    // phone's own server message goes under the field; the toast
+                    // carries the standard line, or the server's words when it
+                    // names some other field (a duplicate email is not a phone
+                    // problem and must not be reported as one).
+                    val parsed = e.parseApiError()
+                    val phoneError = AuthorizedUserPhoneInput.serverPhoneError(parsed.fieldErrors)
+                    val otherFieldError = parsed.fieldErrors.entries
+                        .firstOrNull { it.key != "user_mobile_number" && it.key != "user_country_code" }
+                        ?.value
+                    val standard = if (editId != null) {
+                        AuthorizedUserPhoneInput.UPDATE_FAILED
+                    } else {
+                        AuthorizedUserPhoneInput.ADD_FAILED
+                    }
+                    _state.update {
+                        it.copy(
+                            saving = false,
+                            mobileError = phoneError ?: it.mobileError,
+                            saveFailure = if (phoneError == null && otherFieldError != null) otherFieldError else standard,
+                        )
+                    }
                 }
         }
     }
+
+    private val AddAuthorizedUserUiState.callingCode: String
+        get() = AuthorizedUserPhoneInput.country(phoneIso)?.callingCode ?: "+1"
 
     private fun isValidEmail(email: String): Boolean =
         Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(email)
