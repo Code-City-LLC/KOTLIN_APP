@@ -60,7 +60,7 @@ val playUploadSigningConfigured =
 //
 // To re-check before any release, do not trust this constant — ask Play:
 //   edits.bundles().list(packageName=..., editId=...)  -> max(versionCode)
-val knownPlayProductionVersionCodeFloor = 30
+val knownPlayProductionVersionCodeFloor = 31
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))

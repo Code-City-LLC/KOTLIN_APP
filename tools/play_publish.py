@@ -43,7 +43,7 @@ import sys
 import zipfile
 
 PACKAGE_NAME = "com.ga.airdrop.app"
-DEFAULT_KEY_PATH = "/Volumes/MAC PRO /DEV PROJECTS/KEYS/KOTLIN 2026/play-service-account.json"
+DEFAULT_KEY_PATH = "/Volumes/MAC PRO /DEV PROJECTS/KEYS/AIRDROP KOTLIN 2026/play-service-account.json"
 SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 
 # Play rejects a versionCode at or below one already live. Mirrors
@@ -53,10 +53,11 @@ SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 # v29 (internal) and v30 (production review) were uploaded on 2026-08-12 —
 # the "Version code 30 has already been used" rejection was measured live on
 # this tool, which is exactly the failure this floor exists to catch locally.
-# PR #238 raised the Gradle floor to 30 but not this one; that half-bump is
-# the fourth drift incident in this file's history. Bump BOTH every release.
+# PR #238 raised the Gradle floor to 30 but not this one (fourth drift); then
+# v31 was uploaded 2026-08-12 and NEITHER floor was bumped (fifth). Bump BOTH
+# in the SAME commit as every upload — the upload is what burns the code.
 # Query Play again before building: any upload on any track burns its code.
-VERSION_CODE_FLOOR = 30
+VERSION_CODE_FLOOR = 31
 
 
 def die(msg: str) -> "None":
