@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.data.api.parseApiError
 import com.ga.airdrop.data.api.toUserMessage
 import com.ga.airdrop.data.model.AuthorizedUserRequest
+import java.io.IOException
 import java.util.Locale
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 // RN ships these 3 ID-type options verbatim.
 /** Matches Laravel `identification_type` → `in:National ID,Drivers License,Passport`. */
@@ -27,9 +30,15 @@ data class AddAuthorizedUserUiState(
     val idType: String = "National ID",
     val idNumber: String = "",
     val email: String = "",
-    /** Digits only — the calling code lives in [phoneIso], never in this box (Kemar 2026-09-15). */
+    /**
+     * Digits only — the calling code lives in [phoneIso], never in this box
+     * (Kemar 2026-09-15). The one exception is a "+CC" still being typed
+     * ("+4"): it stays until it names a country, then moves into the picker.
+     */
     val mobileNumber: String = "",
     val phoneIso: String = AuthorizedUserPhoneInput.DEFAULT_ISO,
+    /** The customer typed a number or picked a code; the profile default must not move the picker under them. */
+    val phoneTouched: Boolean = false,
     val trn: String = "",
     val isEditMode: Boolean = false,
     val loadingUser: Boolean = false,
@@ -50,10 +59,19 @@ data class AddAuthorizedUserUiState(
 class AddAuthorizedUserViewModel(
     private val editId: Int?,
     private val repository: More2Repository = More2Repository(),
+    // Jamaica unless the device is itself in a +1 region; the profile country,
+    // once [profileCountry] answers, wins over both (verifier 2026-09-22).
     defaultPhoneIso: String = AuthorizedUserPhoneInput.defaultIso(
         profileCountryName = null,
         deviceRegion = Locale.getDefault().country,
     ),
+    /**
+     * The customer's own country (GET /user/profile → address.country). The
+     * profile is not cached anywhere, so it is read once when an ADD form
+     * opens; null skips the lookup (tests, previews). Edit mode never uses it —
+     * the stored row decides the picker there.
+     */
+    private val profileCountry: (suspend () -> String?)? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -62,7 +80,7 @@ class AddAuthorizedUserViewModel(
     val state: StateFlow<AddAuthorizedUserUiState> = _state
 
     init {
-        if (editId != null) prefill(editId)
+        if (editId != null) prefill(editId) else openOnProfileCountry()
     }
 
     fun onFirstName(v: String) = _state.update { it.copy(firstName = v) }
@@ -70,15 +88,52 @@ class AddAuthorizedUserViewModel(
     fun onIdType(v: String) = _state.update { it.copy(idType = v) }
     fun onIdNumber(v: String) = _state.update { it.copy(idNumber = v) }
     fun onEmail(v: String) = _state.update { it.copy(email = v) }
-    /** Strips everything but digits as the customer types; a pasted "+1 (876) 555-1234" lands as 8765551234. */
+
+    /**
+     * Digits only as the customer types; a "+CC" (or "00CC") typed or pasted
+     * in front moves the picker to that country and leaves the national
+     * digits: "+44 7911 123456" → 🇬🇧 +44 / 7911123456, "+1 (876) 555-1234" →
+     * +1 / 8765551234.
+     */
     fun onMobileNumber(v: String) = _state.update {
-        it.copy(mobileNumber = AuthorizedUserPhoneInput.sanitize(v, it.callingCode), mobileError = null)
+        val entry = AuthorizedUserPhoneInput.interpret(v, it.phoneIso)
+        it.copy(
+            mobileNumber = entry.number,
+            phoneIso = entry.isoCode,
+            mobileError = null,
+            phoneTouched = true,
+        )
     }
-    fun onPhoneCountry(iso: String) = _state.update { it.copy(phoneIso = iso, mobileError = null) }
+
+    fun onPhoneCountry(iso: String) = _state.update {
+        val calling = AuthorizedUserPhoneInput.country(iso)?.callingCode ?: "+1"
+        it.copy(
+            phoneIso = iso,
+            mobileNumber = AuthorizedUserPhoneInput.renumber(it.mobileNumber, calling),
+            mobileError = null,
+            phoneTouched = true,
+        )
+    }
     fun dismissSaveFailure() = _state.update { it.copy(saveFailure = null) }
     fun onTrn(v: String) = _state.update { it.copy(trn = v) }
     fun dismissValidation() = _state.update { it.copy(validationError = null) }
     fun dismissError() = _state.update { it.copy(error = null) }
+
+    /** Moves the picker to the customer's own country, unless they already chose. */
+    private fun openOnProfileCountry() {
+        val lookup = profileCountry ?: return
+        viewModelScope.launch {
+            val name = try {
+                lookup()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                null // no profile: the Jamaica / +1-region default stands
+            }
+            val iso = AuthorizedUserPhoneInput.profileIso(name) ?: return@launch
+            _state.update { if (it.phoneTouched) it else it.copy(phoneIso = iso) }
+        }
+    }
 
     private fun prefill(id: Int) {
         _state.update { it.copy(loadingUser = true) }
@@ -179,26 +234,27 @@ class AddAuthorizedUserViewModel(
             result
                 .onSuccess { _state.update { it.copy(saving = false, saved = true) } }
                 .onFailure { e ->
-                    // A failed add must never be silent (Kemar 2026-09-15). The
-                    // phone's own server message goes under the field; the toast
-                    // carries the standard line, or the server's words when it
-                    // names some other field (a duplicate email is not a phone
-                    // problem and must not be reported as one).
+                    // A failed add must never be silent (Kemar 2026-09-15), and
+                    // it must say what actually failed (verifier 2026-09-22): the
+                    // phone sentence only for a 422 that names the phone — whose
+                    // own message goes under the field — the connection when
+                    // offline, the session on a 401, the server's words for a
+                    // JSON client error or another field, else "try again".
                     val parsed = e.parseApiError()
+                    val http = e as? HttpException ?: e.cause as? HttpException
                     val phoneError = AuthorizedUserPhoneInput.serverPhoneError(parsed.fieldErrors)
-                    val otherFieldError = parsed.fieldErrors.entries
-                        .firstOrNull { it.key != "user_mobile_number" && it.key != "user_country_code" }
-                        ?.value
-                    val standard = if (editId != null) {
-                        AuthorizedUserPhoneInput.UPDATE_FAILED
-                    } else {
-                        AuthorizedUserPhoneInput.ADD_FAILED
-                    }
+                    val message = AuthorizedUserPhoneInput.saveFailureMessage(
+                        isEdit = editId != null,
+                        status = http?.code(),
+                        offline = http == null && (e is IOException || e.cause is IOException),
+                        serverMessage = parsed.message.takeIf { http != null },
+                        fieldErrors = parsed.fieldErrors,
+                    )
                     _state.update {
                         it.copy(
                             saving = false,
                             mobileError = phoneError ?: it.mobileError,
-                            saveFailure = if (phoneError == null && otherFieldError != null) otherFieldError else standard,
+                            saveFailure = message,
                         )
                     }
                 }
