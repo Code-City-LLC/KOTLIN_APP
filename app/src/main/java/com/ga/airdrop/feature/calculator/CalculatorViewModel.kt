@@ -3,8 +3,10 @@ package com.ga.airdrop.feature.calculator
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.prefs.ExchangeRateStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -16,6 +18,7 @@ data class CalcAlert(val title: String, val message: String)
 sealed interface DutyRateSearchState {
     data object Hidden : DutyRateSearchState
     data object Loading : DutyRateSearchState
+    data object Failed : DutyRateSearchState
     data class Results(val products: List<CalcDutyRate>) : DutyRateSearchState
 }
 
@@ -89,7 +92,7 @@ class CalculatorViewModel(
     fun dismissAlert() = _state.update { it.copy(alert = null) }
     fun onNavigatedToResults() = _state.update { it.copy(navigateToResults = false) }
 
-    // ─── Product search (Swift: 500ms debounce, ≥3 chars, top 8 rendered) ───
+    // Product search follows Swift: 500ms debounce, at least 3 characters, all matches.
 
     fun onProductChange(value: String) {
         _state.update { it.copy(product = value, selectedDutyRate = null) }
@@ -106,10 +109,19 @@ class CalculatorViewModel(
         _state.update { it.copy(searchState = DutyRateSearchState.Loading) }
         searchJob = viewModelScope.launch {
             delay(500)
-            val products = runCatching { repository.searchDutyRates(query) }
-                .getOrDefault(emptyList())
-            if (_state.value.product.trim() == query) {
-                _state.update { it.copy(searchState = DutyRateSearchState.Results(products.take(8))) }
+            try {
+                val products = repository.searchDutyRates(query)
+                ensureActive()
+                if (_state.value.product.trim() == query) {
+                    _state.update { it.copy(searchState = DutyRateSearchState.Results(products)) }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                ensureActive()
+                if (_state.value.product.trim() == query) {
+                    _state.update { it.copy(searchState = DutyRateSearchState.Failed) }
+                }
             }
         }
     }
@@ -123,7 +135,7 @@ class CalculatorViewModel(
         searchJob?.cancel()
         _state.update {
             it.copy(
-                product = rate.itemName,
+                product = rate.itemName.trim(),
                 selectedDutyRate = rate,
                 searchState = DutyRateSearchState.Hidden,
             )

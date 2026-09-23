@@ -10,6 +10,8 @@ import com.ga.airdrop.data.model.flexInt
 import com.ga.airdrop.data.model.flexString
 import com.ga.airdrop.data.model.objectAt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -50,8 +52,8 @@ interface CalculatorRepository {
         customDutyRateId: Int? = null,
     ): ShipmentCalculation
 
-    /** GET /custom-duty-rates?search=… — the customs catalogue. No prices. */
-    suspend fun searchDutyRates(query: String, limit: Int = 20): List<CalcDutyRate>
+    /** Search the screen's customs catalogue, ranked as in Swift. No prices. */
+    suspend fun searchDutyRates(query: String, limit: Int = 1000): List<CalcDutyRate>
 
     /** GET /exchange-rates → the live USD→JMD rate; last known rate if unreachable. */
     suspend fun usdToJmdRate(): Double
@@ -106,6 +108,9 @@ class RemoteCalculatorRepository(
     private val json: Json = ApiClient.json,
     private val baseUrl: String = BuildConfig.API_BASE_URL,
 ) : CalculatorRepository {
+
+    private val dutyCatalogMutex = Mutex()
+    private var dutyCatalog: List<CalcDutyRate>? = null
 
     // USD→JMD fallback comes from the shared ExchangeRateStore (last-known live
     // rate, server-seeded 160.625) instead of a private 156.0 constant — the
@@ -290,39 +295,53 @@ class RemoteCalculatorRepository(
      */
     override suspend fun searchDutyRates(query: String, limit: Int): List<CalcDutyRate> =
         withContext(Dispatchers.IO) {
-            val trimmed = query.trim()
-            if (trimmed.length < 3) return@withContext emptyList()
-            val httpUrl = url("/custom-duty-rates").toHttpUrl().newBuilder()
-                .addQueryParameter("page", "1")
-                .addQueryParameter("per_page", limit.toString())
-                // "1", not "true" — Laravel boolean validation 422s on the word.
-                .addQueryParameter("active_only", "1")
-                .addQueryParameter("search", trimmed)
-                .build()
-            val request = Request.Builder().url(httpUrl).get().build()
-            client.newCall(request).execute().use { response ->
-                val text = response.body?.string().orEmpty()
-                if (!response.isSuccessful) throw IOException("Duty rate search failed (${response.code}).")
-                val element = runCatching { json.parseToJsonElement(text) }.getOrNull()
-                val array = when (element) {
-                    is kotlinx.serialization.json.JsonArray -> element
-                    is JsonObject -> element.paginatedArray()
-                    else -> null
-                } ?: return@use emptyList()
-                array.mapNotNull { item ->
-                    val obj = item as? JsonObject ?: return@mapNotNull null
-                    val id = obj.flexInt("id") ?: return@mapNotNull null
-                    val name = obj.flexString("item_name") ?: return@mapNotNull null
-                    // A row without an id or a name cannot be selected or sent,
-                    // so it is dropped rather than rendered as a dead option.
-                    CalcDutyRate(
-                        id = id,
-                        itemName = name,
-                        dutyPercentage = obj.flexDouble("duty_percentage"),
-                    )
-                }
+            val normalized = query.trim().lowercase(Locale.ROOT)
+            if (normalized.length < 3) return@withContext emptyList()
+            // One successful catalogue per repository/screen. A failed fetch
+            // leaves no cache, and concurrent keystrokes share the same load.
+            val catalog = dutyCatalogMutex.withLock {
+                dutyCatalog ?: fetchDutyCatalog().also { dutyCatalog = it }
+            }
+            catalog.filter { it.itemName.lowercase(Locale.ROOT).contains(normalized) }
+                .sortedWith(compareBy<CalcDutyRate> {
+                    val name = it.itemName.lowercase(Locale.ROOT)
+                    when {
+                        name == normalized -> 0
+                        name.startsWith(normalized) -> 1
+                        else -> 2
+                    }
+                }.thenBy { it.itemName.lowercase(Locale.ROOT) }.thenBy { it.id })
+                .take(limit.coerceAtLeast(0))
+        }
+
+    private fun fetchDutyCatalog(): List<CalcDutyRate> {
+        val httpUrl = url("/custom-duty-rates").toHttpUrl().newBuilder()
+            .addQueryParameter("page", "1")
+            .addQueryParameter("per_page", "1000")
+            // Laravel accepts "1", not the string "true".
+            .addQueryParameter("active_only", "1")
+            .build()
+        val request = Request.Builder().url(httpUrl).get().build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("Duty rate search failed (${response.code}).")
+            val element = try {
+                json.parseToJsonElement(response.body?.string().orEmpty())
+            } catch (error: IllegalArgumentException) {
+                throw IOException("Invalid customs catalogue response.", error)
+            }
+            val array = when (element) {
+                is JsonArray -> element
+                is JsonObject -> element.paginatedArray()
+                else -> null
+            } ?: throw IOException("Missing customs catalogue in response.")
+            array.mapNotNull { item ->
+                val obj = item as? JsonObject ?: return@mapNotNull null
+                val id = obj.flexInt("id")?.takeIf { it > 0 } ?: return@mapNotNull null
+                val name = obj.flexString("item_name")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                CalcDutyRate(id, name, obj.flexDouble("duty_percentage"))
             }
         }
+    }
 
     /**
      * GET /exchange-rates.

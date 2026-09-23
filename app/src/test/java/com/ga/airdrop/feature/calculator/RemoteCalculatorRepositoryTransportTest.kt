@@ -2,6 +2,9 @@ package com.ga.airdrop.feature.calculator
 
 import com.ga.airdrop.data.api.AirdropJson
 import java.util.ArrayDeque
+import java.io.IOException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -41,7 +44,10 @@ class RemoteCalculatorRepositoryTransportTest {
                       {"id":"42","item_name":"Laptop computer","duty_percentage":"20.0"},
                       {"item_name":"Missing id","duty_percentage":10},
                       {"id":7,"duty_percentage":12.5},
-                      {"id":8,"item_name":"Unrated item","duty_percentage":null}
+                      {"id":8,"item_name":"Unrated laptop","duty_percentage":null},
+                      {"id":0,"item_name":"Laptop ghost"},
+                      {"id":-2,"item_name":"Laptop invalid"},
+                      {"id":9,"item_name":"   "}
                     ]
                   }
                 }
@@ -54,16 +60,84 @@ class RemoteCalculatorRepositoryTransportTest {
 
         assertEquals(2, rates.size)
         assertEquals(CalcDutyRate(42, "Laptop computer", 20.0), rates[0])
-        assertEquals(CalcDutyRate(8, "Unrated item", null), rates[1])
+        assertEquals(CalcDutyRate(8, "Unrated laptop", null), rates[1])
 
         val request = transport.singleRequest()
         assertEquals("GET", request.method)
         assertEquals("/api/v1/custom-duty-rates", request.url.encodedPath)
         assertEquals("1", request.url.queryParameter("page"))
-        assertEquals("8", request.url.queryParameter("per_page"))
+        assertEquals("1000", request.url.queryParameter("per_page"))
         assertEquals("1", request.url.queryParameter("active_only"))
-        assertEquals("laptop", request.url.queryParameter("search"))
+        assertNull("the full catalogue is filtered locally", request.url.queryParameter("search"))
         assertNull("the auction catalogue must not leak into this request", request.url.queryParameter("in_stock"))
+    }
+
+    @Test
+    fun `catalogue ranks exact then prefix then substring matches and reuses the load`() = runBlocking {
+        val transport = RecordingTransport().apply {
+            enqueue("""[{"id":404,"item_name":"NOTEBOOK"},{"id":60,"item_name":"BOOK"},{"id":61,"item_name":"BOOK SHELF"},{"id":126,"item_name":"CHECK BOOK"},{"id":8,"item_name":"BOOK"},{"id":12,"item_name":"LAPTOP"}]""")
+        }
+        val repository = repository(transport)
+        assertEquals(listOf(8, 60, 61, 126, 404), repository.searchDutyRates("  Book  ").map { it.id })
+        assertEquals(listOf(12), repository.searchDutyRates("LAP").map { it.id })
+        assertEquals(listOf(8, 60), repository.searchDutyRates("book", limit = 2).map { it.id })
+        assertTrue(repository.searchDutyRates("unmatched").isEmpty())
+        assertEquals(1, transport.requestCount)
+    }
+
+    @Test
+    fun `default search retains matches beyond the old page and row caps`() = runBlocking {
+        val transport = RecordingTransport().apply {
+            enqueue((1..30).joinToString(prefix = "[", postfix = "]") {
+                """{"id":$it,"item_name":"Book $it"}"""
+            })
+        }
+        val rates = repository(transport).searchDutyRates("book")
+        assertEquals(30, rates.size)
+        assertEquals((1..30).toSet(), rates.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `concurrent queries share one successful catalogue request`() = runBlocking {
+        val transport = RecordingTransport().apply {
+            enqueue("""[{"id":60,"item_name":"BOOK"},{"id":12,"item_name":"LAPTOP"}]""")
+        }
+        val repository = repository(transport)
+        val results = listOf("book", "laptop").map { query ->
+            async { repository.searchDutyRates(query) }
+        }.awaitAll()
+        assertEquals(listOf(listOf(60), listOf(12)), results.map { rows -> rows.map { it.id } })
+        assertEquals(1, transport.requestCount)
+    }
+
+    @Test
+    fun `failed and malformed catalogue loads are errors and can be retried`() = runBlocking {
+        for ((body, code) in listOf("{}" to 503, "not json" to 200, "{}" to 200)) {
+            val transport = RecordingTransport().apply {
+                enqueue(body, code)
+                enqueue("""{"data":{"items":[{"id":60,"item_name":"BOOK"}]}}""")
+            }
+            val repository = repository(transport)
+            val failure = runCatching { repository.searchDutyRates("book") }.exceptionOrNull()
+            assertTrue("failed catalogue must not become empty success", failure is IOException)
+            assertEquals(listOf(60), repository.searchDutyRates("book").map { it.id })
+            assertEquals(2, transport.requestCount)
+        }
+    }
+
+    @Test
+    fun `short queries do not load and separate screen repositories do not share cache`() = runBlocking {
+        val transport = RecordingTransport().apply {
+            enqueue("[]")
+            enqueue("""[{"id":60,"item_name":"BOOK"}]""")
+        }
+        val first = repository(transport)
+        assertTrue(first.searchDutyRates("bo").isEmpty())
+        assertEquals(0, transport.requestCount)
+        assertTrue(first.searchDutyRates("book").isEmpty())
+        assertTrue(first.searchDutyRates("book").isEmpty())
+        assertEquals(listOf(60), repository(transport).searchDutyRates("book").map { it.id })
+        assertEquals(2, transport.requestCount)
     }
 
     @Test
@@ -221,6 +295,7 @@ class RemoteCalculatorRepositoryTransportTest {
 
         private val responses = ArrayDeque<Fixture>()
         private val requests = mutableListOf<CapturedRequest>()
+        val requestCount: Int get() = requests.size
 
         fun enqueue(body: String, code: Int = 200) {
             responses.addLast(Fixture(body, code))
