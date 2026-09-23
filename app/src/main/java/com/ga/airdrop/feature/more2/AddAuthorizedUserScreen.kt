@@ -50,11 +50,13 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.data.repo.UserRepository
 
 /**
  * Add/Edit Authorized User — Figma node 40001541:45296, behavior from
  * FigmaAddAuthorizedUserViewController: name row, ID-type picker, ID number,
- * email, mobile ("+CC number"), TRN; POST /authorized-users, or edit mode via
+ * email, mobile (calling-code picker + digits), TRN; POST /authorized-users, or edit mode via
  * PUT /authorized-users/{editId} when an existing authorized user is supplied.
  */
 @Composable
@@ -295,54 +297,67 @@ private fun AuthorizedUserPhoneCountrySheet(
     onSelect: (AuthorizedUserPhoneCountry) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AirdropTheme.colors.gray100) {
+        AuthorizedUserPhoneCountryPicker(selectedIso = selectedIso, onSelect = onSelect)
+    }
+}
+
+/**
+ * The sheet's content — search box and rows. Separate from the sheet so it can
+ * be rendered and tested without a popup window, which the headless CI
+ * emulator does not reliably show (see #230).
+ */
+@Composable
+internal fun AuthorizedUserPhoneCountryPicker(
+    selectedIso: String,
+    onSelect: (AuthorizedUserPhoneCountry) -> Unit,
+) {
     val colors = AirdropTheme.colors
     var query by remember { mutableStateOf("") }
     val results = remember(query) { AuthorizedUserPhoneInput.search(query) }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.gray100) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.md)
-                .testTag("add-authorized-user-country-sheet"),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Text("Country code", style = AirdropType.title2, color = colors.textDarkTitle)
-            More2Field(
-                label = "Search",
-                value = query,
-                onValueChange = { query = it },
-                fieldTag = "add-authorized-user-country-search",
-                placeholder = "Country name or code, e.g. Jamaica or +44",
-            )
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
-                items(results, key = { it.isoCode }) { country ->
-                    val selected = country.isoCode == selectedIso
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(country) }
-                            .testTag("add-authorized-user-country-${country.isoCode}")
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(country.flagEmoji, style = AirdropType.body1)
-                        Text(
-                            country.name,
-                            style = AirdropType.body1,
-                            color = colors.textDarkTitle,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            country.callingCode,
-                            style = AirdropType.body1,
-                            color = if (selected) BrandPalette.OrangeMain else colors.textDescription,
-                        )
-                    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.md)
+            .testTag("add-authorized-user-country-sheet"),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text("Country code", style = AirdropType.title2, color = colors.textDarkTitle)
+        More2Field(
+            label = "Search",
+            value = query,
+            onValueChange = { query = it },
+            fieldTag = "add-authorized-user-country-search",
+            placeholder = "Country name or code, e.g. Jamaica or +44",
+        )
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+            items(results, key = { it.isoCode }) { country ->
+                val selected = country.isoCode == selectedIso
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(country) }
+                        .testTag("add-authorized-user-country-${country.isoCode}")
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(country.flagEmoji, style = AirdropType.body1)
+                    Text(
+                        country.name,
+                        style = AirdropType.body1,
+                        color = colors.textDarkTitle,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        country.callingCode,
+                        style = AirdropType.body1,
+                        color = if (selected) BrandPalette.OrangeMain else colors.textDescription,
+                    )
                 }
             }
-            Spacer(Modifier.height(Spacing.md))
         }
+        Spacer(Modifier.height(Spacing.md))
     }
 }
 
@@ -350,5 +365,10 @@ private fun addAuthorizedUserFactory(editId: Int?): ViewModelProvider.Factory =
     object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            AddAuthorizedUserViewModel(editId) as T
+            AddAuthorizedUserViewModel(
+                editId = editId,
+                // The picker opens on the customer's own country when the
+                // profile has one (verifier 2026-09-22).
+                profileCountry = { UserRepository(ApiClient.service).currentUser().getOrNull()?.country },
+            ) as T
     }

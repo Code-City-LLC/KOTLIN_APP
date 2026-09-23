@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.more2
 
+import com.ga.airdrop.core.location.CountryEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -42,12 +43,59 @@ class AuthorizedUserPhoneInputTest {
 
     @Test
     fun `the box only ever holds digits, and a pasted full number loses its code`() {
-        assertEquals("5550199821", AuthorizedUserPhoneInput.sanitize("(555) 019-9821", "+1"))
-        assertEquals("8765551234", AuthorizedUserPhoneInput.sanitize("+1 (876) 555-1234", "+1"))
-        assertEquals("8765551234", AuthorizedUserPhoneInput.sanitize("18765551234", "+1"))
-        assertEquals("7911123456", AuthorizedUserPhoneInput.sanitize("+44 7911 123456", "+44"))
-        assertEquals("123456789012345", AuthorizedUserPhoneInput.sanitize("1234567890123456789", "+44"))
-        assertEquals("", AuthorizedUserPhoneInput.sanitize("abc", "+1"))
+        fun box(raw: String, iso: String) = AuthorizedUserPhoneInput.interpret(raw, iso).number
+        assertEquals("5550199821", box("(555) 019-9821", "US"))
+        assertEquals("8765551234", box("+1 (876) 555-1234", "JM"))
+        assertEquals("8765551234", box("18765551234", "JM"))
+        assertEquals("7911123456", box("+44 7911 123456", "GB"))
+        assertEquals("123456789012345", box("1234567890123456789", "GB"))
+        assertEquals("", box("abc", "JM"))
+    }
+
+    @Test
+    fun `a +CC typed one key at a time finishes in the picker, not in the number`() {
+        // What a TextField does: after every key it hands over the whole box.
+        fun typeKeys(text: String, startIso: String): AuthorizedUserPhoneEntry {
+            var entry = AuthorizedUserPhoneEntry(startIso, "")
+            text.forEach { key -> entry = AuthorizedUserPhoneInput.interpret(entry.number + key, entry.isoCode) }
+            return entry
+        }
+        assertEquals(AuthorizedUserPhoneEntry("GB", "7911123456"), typeKeys("+44 7911 123456", "GB"))
+        assertEquals(AuthorizedUserPhoneEntry("GB", "7911123456"), typeKeys("+44 7911 123456", "JM"))
+        assertEquals(AuthorizedUserPhoneEntry("GB", "7911123456"), typeKeys("0044 7911 123456", "JM"))
+        assertEquals(AuthorizedUserPhoneEntry("IE", "871234567"), typeKeys("+353 87 123 4567", "JM"))
+        assertEquals(AuthorizedUserPhoneEntry("JM", "8765551234"), typeKeys("+1 876 555 1234", "GB"))
+        assertEquals(AuthorizedUserPhoneEntry("US", "5550199821"), typeKeys("+1 555 019 9821", "US"))
+        assertEquals(AuthorizedUserPhoneEntry("JM", "8765551234"), typeKeys("18765551234", "JM"))
+        assertEquals(AuthorizedUserPhoneEntry("GB", "7911123456"), typeKeys("447911123456", "GB"))
+        // A code several countries share opens on its main one.
+        assertEquals("RU", typeKeys("+7 916 123 4567", "JM").isoCode)
+        assertEquals("CW", typeKeys("+599 9 123 4567", "JM").isoCode)
+    }
+
+    @Test
+    fun `an unfinished code stays in the box and Save refuses it`() {
+        assertEquals(AuthorizedUserPhoneEntry("JM", "+"), AuthorizedUserPhoneInput.interpret("+", "JM"))
+        assertEquals(AuthorizedUserPhoneEntry("JM", "+4"), AuthorizedUserPhoneInput.interpret("+4", "JM"))
+        assertEquals(AuthorizedUserPhoneEntry("JM", "004"), AuthorizedUserPhoneInput.interpret("004", "JM"))
+        assertEquals(AuthorizedUserPhoneEntry("JM", "+999123"), AuthorizedUserPhoneInput.interpret("+999 123", "JM"))
+        val msg = AuthorizedUserPhoneInput.FIELD_ERROR
+        assertEquals(msg, AuthorizedUserPhoneInput.validationError("+4", "+1"))
+        assertEquals(msg, AuthorizedUserPhoneInput.validationError("+999123", "+44"))
+        assertEquals(msg, AuthorizedUserPhoneInput.validationError("0099912345", "+44"))
+    }
+
+    @Test
+    fun `the selected code repeated in front of a full number is dropped, when the picker moves too`() {
+        assertEquals("7911123456", AuthorizedUserPhoneInput.nationalDigits("447911123456", "+44"))
+        assertEquals("871234567", AuthorizedUserPhoneInput.nationalDigits("353871234567", "+353"))
+        assertEquals("8765551234", AuthorizedUserPhoneInput.nationalDigits("18765551234", "+1"))
+        // Short numbers are never cut: 4479111 is seven digits under +44, not a repeated code.
+        assertEquals("4479111", AuthorizedUserPhoneInput.nationalDigits("4479111", "+44"))
+        assertEquals("8765551234", AuthorizedUserPhoneInput.nationalDigits("8765551234", "+1"))
+        // A UK number typed while Jamaica was selected, then the picker moved to the UK.
+        assertEquals("7911123456", AuthorizedUserPhoneInput.renumber("447911123456", "+44"))
+        assertEquals("+4", AuthorizedUserPhoneInput.renumber("+4", "+44"))
     }
 
     @Test
@@ -73,11 +121,64 @@ class AuthorizedUserPhoneInputTest {
     }
 
     @Test
-    fun `the picker opens on the customer's country, then the device, then Jamaica`() {
+    fun `the picker opens on the customer's country, else Jamaica - the device only when it is a +1 region`() {
         assertEquals("GB", AuthorizedUserPhoneInput.defaultIso("United Kingdom", "US"))
+        assertEquals("JM", AuthorizedUserPhoneInput.defaultIso("jamaica", "GB"))
+        assertEquals("GB", AuthorizedUserPhoneInput.defaultIso("GB", "US"))
         assertEquals("US", AuthorizedUserPhoneInput.defaultIso(null, "us"))
+        assertEquals("CA", AuthorizedUserPhoneInput.defaultIso(null, "CA"))
+        assertEquals("TT", AuthorizedUserPhoneInput.defaultIso(null, "TT")) // +1 868 is still +1
+        assertEquals("JM", AuthorizedUserPhoneInput.defaultIso(null, "GB")) // verifier: en_GB opened on +44
+        assertEquals("JM", AuthorizedUserPhoneInput.defaultIso(null, "ES")) // verifier: es_ES opened on +34
         assertEquals("JM", AuthorizedUserPhoneInput.defaultIso(null, "ZZ"))
+        assertEquals("JM", AuthorizedUserPhoneInput.defaultIso(null, ""))
         assertEquals("JM", AuthorizedUserPhoneInput.defaultIso("Atlantis", null))
+        assertEquals("JM", AuthorizedUserPhoneInput.defaultIso("  ", "DE"))
+        assertNull(AuthorizedUserPhoneInput.profileIso("Atlantis"))
+        assertNull(AuthorizedUserPhoneInput.profileIso(null))
+    }
+
+    @Test
+    fun `territories the catalog lists without a dial code get their calling code`() {
+        val expected = mapOf(
+            "GG" to "+44", "IM" to "+44", "JE" to "+44", "SS" to "+211", "XK" to "+383",
+            "CW" to "+599", "SX" to "+1", "BQ" to "+599", "PS" to "+970", "AX" to "+358",
+            "MF" to "+590", "BL" to "+590", "SH" to "+290",
+        )
+        // The catalog lists these with no dial code. Built from rows shaped like
+        // the catalog's — Kosovo included, which Android lists and the desktop
+        // JVM running this test does not.
+        val rows = expected.keys.map { CountryEntry(it, it, "🏳", null) }
+        val picker = AuthorizedUserPhoneInput.countriesFrom(rows).associate { it.isoCode to it.callingCode }
+        assertEquals(expected, picker)
+        // No invented codes for places with no public numbering of their own.
+        val none = listOf("BV", "GS", "HM", "TF", "UM").map { CountryEntry(it, it, "🏳", null) }
+        assertTrue(AuthorizedUserPhoneInput.countriesFrom(none).isEmpty())
+        // A +44 search lists the Crown Dependencies next to the UK.
+        val plus44 = AuthorizedUserPhoneInput.search("+44").map { it.isoCode }
+        assertTrue(plus44.containsAll(listOf("GB", "GG", "IM", "JE")))
+        assertEquals("GB", AuthorizedUserPhoneInput.isoFor("+44", "7911123456"))
+    }
+
+    @Test
+    fun `a failed save blames the phone only when the server's 422 names it`() {
+        fun msg(status: Int?, offline: Boolean = false, message: String? = null, errors: Map<String, String> = emptyMap(), edit: Boolean = false) =
+            AuthorizedUserPhoneInput.saveFailureMessage(edit, status, offline, message, errors)
+
+        val phone = "Please enter a valid phone number."
+        assertEquals(AuthorizedUserPhoneInput.ADD_FAILED, msg(422, message = phone, errors = mapOf("user_mobile_number" to phone)))
+        assertEquals(AuthorizedUserPhoneInput.ADD_FAILED, msg(422, message = phone, errors = mapOf("user_country_code" to phone)))
+        assertEquals(AuthorizedUserPhoneInput.UPDATE_FAILED, msg(422, errors = mapOf("user_mobile_number" to phone), edit = true))
+        assertEquals("Failed to add authorized user. Check your connection and try again.", msg(null, offline = true))
+        assertEquals("Your session has expired. Please sign in again.", msg(401, message = "Unauthenticated."))
+        assertEquals("Too Many Attempts.", msg(429, message = "Too Many Attempts."))
+        assertEquals("That email is taken.", msg(422, message = "That email is taken.", errors = mapOf("user_email" to "That email is taken.")))
+        assertEquals("Failed to add authorized user. Please try again.", msg(500, message = "Server Error"))
+        assertEquals("Failed to add authorized user. Please try again.", msg(502))
+        assertEquals("Failed to add authorized user. Please try again.", msg(429))
+        assertEquals("Failed to add authorized user. Please try again.", msg(null))
+        assertEquals("Failed to update authorized user. Please try again.", msg(503, edit = true))
+        assertEquals("Failed to update authorized user. Check your connection and try again.", msg(null, offline = true, edit = true))
     }
 
     @Test
