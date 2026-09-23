@@ -5,6 +5,7 @@ import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.prefs.ExchangeRateStore
 import com.ga.airdrop.data.model.flexDouble
+import com.ga.airdrop.data.model.flexBool
 import com.ga.airdrop.data.model.flexInt
 import com.ga.airdrop.data.model.flexString
 import com.ga.airdrop.data.model.objectAt
@@ -12,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -27,6 +29,10 @@ import java.util.Locale
 // delete RemoteCalculatorRepository — the interface below is the seam.
 
 interface CalculatorRepository {
+    /** POST /shipments/quote — final Airdrop pricing from Laravel's tier engine. */
+    suspend fun quoteShipment(request: TierQuoteRequest): TierQuote =
+        throw UnsupportedOperationException("Tier quote is not implemented by this repository.")
+
     /** POST /shipping/calculate — Swift `AirdropAPI.calculateShipment`. */
     suspend fun calculateShipment(
         shippingMethod: String,
@@ -50,6 +56,12 @@ interface CalculatorRepository {
     /** GET /exchange-rates → the live USD→JMD rate; last known rate if unreachable. */
     suspend fun usdToJmdRate(): Double
 }
+
+/** Preserves Laravel's machine-readable quote error code for UI decisions. */
+class TierQuoteException(
+    val errorCode: String?,
+    message: String,
+) : IOException(message)
 
 /** Swift `ShipmentCalculationRequest` — field names/values verbatim. */
 @Serializable
@@ -75,6 +87,20 @@ private data class ShipmentCalculationRequest(
     val package_height: Double? = null,
 )
 
+@Serializable
+private data class TierQuotePayload(
+    val weight: Double,
+    val method: String? = null,
+    val destination: String? = null,
+    val declared_value: Double? = null,
+    val insured_value: Double? = null,
+    val item_name: String? = null,
+    val insurance_declined: Boolean? = null,
+    val return_weight: Double? = null,
+    val storage_charge: Double? = null,
+    val delivery_charge: Double? = null,
+)
+
 class RemoteCalculatorRepository(
     private val client: OkHttpClient = ApiClient.okHttp,
     private val json: Json = ApiClient.json,
@@ -88,6 +114,48 @@ class RemoteCalculatorRepository(
     // store is the app-wide SSOT per the 6f8f8af rate-store work).
 
     private fun url(path: String) = baseUrl.trimEnd('/') + path
+
+    override suspend fun quoteShipment(request: TierQuoteRequest): TierQuote = withContext(Dispatchers.IO) {
+        val body = json.encodeToString(
+            TierQuotePayload.serializer(),
+            TierQuotePayload(
+                weight = request.weightLbs,
+                method = request.method,
+                destination = request.destination,
+                declared_value = request.declaredValue,
+                insured_value = request.insuredValue,
+                item_name = request.itemName,
+                insurance_declined = request.insuranceDeclined,
+                return_weight = request.returnWeight,
+                storage_charge = request.storageCharge,
+                delivery_charge = request.deliveryCharge,
+            ),
+        )
+        val httpRequest = Request.Builder()
+            .url(url("/shipments/quote"))
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .build()
+        client.newCall(httpRequest).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            val root = runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
+            if (!response.isSuccessful) {
+                throw TierQuoteException(
+                    errorCode = root?.flexString("error_code"),
+                    message = root?.flexString("message")
+                        ?: "Quote request failed (${response.code}).",
+                )
+            }
+            root ?: throw IOException("Empty shipment quote response.")
+            if (root.flexBool("success") == false) {
+                throw TierQuoteException(
+                    errorCode = root.flexString("error_code"),
+                    message = root.flexString("message") ?: "Shipment quote request failed.",
+                )
+            }
+            val payload = root.objectAt("data") ?: root
+            payload.decodeTierQuote()
+        }
+    }
 
     override suspend fun calculateShipment(
         shippingMethod: String,
@@ -163,6 +231,49 @@ class RemoteCalculatorRepository(
                 totalWeightLbs = calculations?.flexDouble("total_weight_lbs"),
             )
         }
+    }
+
+    private fun JsonObject.decodeTierQuote(): TierQuote {
+        val rawItems = this["line_items"] as? JsonArray
+            ?: throw IOException(flexString("message") ?: "Malformed shipment quote response.")
+        val lineItems = rawItems.mapNotNull { raw ->
+            val item = raw as? JsonObject ?: return@mapNotNull null
+            TierLineItem(
+                code = item.flexString("code") ?: "",
+                label = item.flexString("label"),
+                amount = item.flexDouble("amount") ?: 0.0,
+            )
+        }
+        val insuranceOptions = objectAt("insurance_options")?.let { options ->
+            TierInsuranceOptions(
+                insuredValue = options.flexDouble("insured_value") ?: 0.0,
+                ratePer100 = options.flexDouble("rate_per_100") ?: 0.0,
+                blockSize = options.flexInt("block_size") ?: 100,
+                blocks = options.flexInt("blocks") ?: 0,
+                premium = options.flexDouble("premium") ?: 0.0,
+                maxCoverage = options.flexDouble("max_coverage"),
+                coveredValue = options.flexDouble("covered_value") ?: 0.0,
+                canDecline = options.flexBool("can_decline") ?: false,
+                mandatory = options.flexBool("mandatory") ?: true,
+                explicitRequired = options.flexBool("explicit_required") ?: false,
+            )
+        }
+        return TierQuote(
+            quoteReference = flexString("quote_reference"),
+            customerTier = flexString("customer_tier"),
+            method = flexString("method"),
+            destination = flexString("destination"),
+            currency = flexString("currency"),
+            lineItems = lineItems,
+            subtotal = flexDouble("subtotal") ?: 0.0,
+            totalDue = flexDouble("total_due") ?: 0.0,
+            status = flexString("status"),
+            isExpired = flexBool("is_expired") ?: false,
+            expiresAt = flexString("expires_at"),
+            insuranceOptions = insuranceOptions,
+            insuranceChoiceRequired = flexBool("insurance_choice_required") ?: false,
+            aircoinsEarned = flexDouble("aircoins_earned") ?: 0.0,
+        )
     }
 
     /**

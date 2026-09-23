@@ -16,6 +16,7 @@ import okio.Buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -111,6 +112,98 @@ class RemoteCalculatorRepositoryTransportTest {
         )
     }
 
+    @Test
+    fun `tier quote uses the published Airdrop contract and preserves server line items`() = runBlocking {
+        val transport = RecordingTransport().apply {
+            enqueue(
+                """
+                {
+                  "success": true,
+                  "data": {
+                    "quote_reference": "Q-7H2K9M4P6R8T",
+                    "customer_tier": "SAVR",
+                    "method": "AIR",
+                    "destination": "JM",
+                    "currency": "USD",
+                    "line_items": [
+                      {"code":"base_shipping","label":"Base shipping","amount":"20.00"},
+                      {"code":"fuel_surcharge","label":"Fuel surcharge","amount":2},
+                      {"code":"insurance","label":"Insurance","amount":1.5}
+                    ],
+                    "subtotal": "23.50",
+                    "total_due": 23.5,
+                    "status": "active",
+                    "is_expired": false,
+                    "expires_at": "2099-01-02T03:04:05Z",
+                    "insurance_options": {
+                      "insured_value": 150,
+                      "rate_per_100": 1,
+                      "block_size": 100,
+                      "blocks": 2,
+                      "premium": 1.5,
+                      "covered_value": 150,
+                      "can_decline": true,
+                      "mandatory": false,
+                      "explicit_required": true
+                    },
+                    "insurance_choice_required": true,
+                    "aircoins_earned": 4
+                  }
+                }
+                """.trimIndent(),
+            )
+        }
+        val repository = repository(transport)
+
+        val quote = repository.quoteShipment(
+            TierQuoteRequest(
+                weightLbs = 5.5,
+                method = "AIR",
+                declaredValue = 150.0,
+                insuredValue = 150.0,
+                itemName = "Laptop",
+            ),
+        )
+
+        assertEquals("Q-7H2K9M4P6R8T", quote.quoteReference)
+        assertEquals(23.5, quote.totalDue, 0.0)
+        assertEquals(listOf("base_shipping", "fuel_surcharge", "insurance"), quote.lineItems.map { it.code })
+        assertTrue(quote.insuranceChoiceRequired)
+        assertTrue(quote.insuranceOptions!!.canDecline)
+
+        val request = transport.singleRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/v1/shipments/quote", request.url.encodedPath)
+        val body = AirdropJson.parseToJsonElement(request.bodyText.orEmpty()) as JsonObject
+        assertEquals("5.5", body["weight"]?.jsonPrimitive?.content)
+        assertEquals("AIR", body["method"]?.jsonPrimitive?.content)
+        assertEquals("150.0", body["declared_value"]?.jsonPrimitive?.content)
+        assertEquals("150.0", body["insured_value"]?.jsonPrimitive?.content)
+        assertEquals("Laptop", body["item_name"]?.jsonPrimitive?.content)
+        assertFalse(body.containsKey("custom_duty_rate_id"))
+        assertFalse(body.containsKey("custom_duty_percentage"))
+        assertFalse(body.containsKey("number_of_packages"))
+    }
+
+    @Test
+    fun `tier quote preserves Laravel's machine-readable failure without legacy fallback`() = runBlocking {
+        val transport = RecordingTransport().apply {
+            enqueue(
+                """{"success":false,"message":"No active rate card for this method/destination","error_code":"NO_RATE_CARD"}""",
+                code = 422,
+            )
+        }
+        val repository = repository(transport)
+
+        val error = runCatching {
+            repository.quoteShipment(TierQuoteRequest(weightLbs = 5.5, method = "AIR"))
+        }.exceptionOrNull()
+
+        assertTrue(error is TierQuoteException)
+        assertEquals("NO_RATE_CARD", (error as TierQuoteException).errorCode)
+        assertEquals("/api/v1/shipments/quote", transport.singleRequest().url.encodedPath)
+    }
+
     private fun repository(transport: RecordingTransport) = RemoteCalculatorRepository(
         client = OkHttpClient.Builder().addInterceptor(transport).build(),
         json = AirdropJson,
@@ -124,11 +217,13 @@ class RemoteCalculatorRepositoryTransportTest {
     )
 
     private class RecordingTransport : Interceptor {
-        private val responses = ArrayDeque<String>()
+        private data class Fixture(val body: String, val code: Int)
+
+        private val responses = ArrayDeque<Fixture>()
         private val requests = mutableListOf<CapturedRequest>()
 
-        fun enqueue(body: String) {
-            responses.addLast(body)
+        fun enqueue(body: String, code: Int = 200) {
+            responses.addLast(Fixture(body, code))
         }
 
         fun singleRequest(): CapturedRequest = requests.single()
@@ -140,13 +235,13 @@ class RemoteCalculatorRepositoryTransportTest {
                 url = request.url,
                 bodyText = request.body?.readUtf8(),
             )
-            val body = checkNotNull(responses.pollFirst()) { "No response fixture queued" }
+            val fixture = checkNotNull(responses.pollFirst()) { "No response fixture queued" }
             return Response.Builder()
                 .request(request)
                 .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(body.toResponseBody("application/json".toMediaType()))
+                .code(fixture.code)
+                .message(if (fixture.code in 200..299) "OK" else "Error")
+                .body(fixture.body.toResponseBody("application/json".toMediaType()))
                 .build()
         }
     }

@@ -32,6 +32,8 @@ data class CalculatorUiState(
     val lengthUnit: LengthUnit = LengthUnit.INCH,
     val weightUnit: WeightUnit = WeightUnit.LBS,
     val calculating: Boolean = false,
+    /** True only while refreshing or changing a persisted TierQuote. */
+    val tierQuoteActionLoading: Boolean = false,
     val searchState: DutyRateSearchState = DutyRateSearchState.Hidden,
     val alert: CalcAlert? = null,
     /** One-shot: set when a calculation is ready for the results screen. */
@@ -64,7 +66,18 @@ class CalculatorViewModel(
 
     // ─── Form updates ───
 
-    fun onMethodSelected(method: ShippingMethod) = _state.update { it.copy(method = method) }
+    fun onMethodSelected(method: ShippingMethod) {
+        searchJob?.cancel()
+        _state.update {
+            it.copy(
+                method = method,
+                // TierQuote deliberately accepts no duty-rate id. Do not keep a
+                // previously selected customs row alive where it cannot apply.
+                selectedDutyRate = if (method.tierQuoteMethod == null) it.selectedDutyRate else null,
+                searchState = DutyRateSearchState.Hidden,
+            )
+        }
+    }
     fun onPackagesChange(value: String) = _state.update { it.copy(packages = value) }
     fun onInvoiceChange(value: String) = _state.update { it.copy(invoiceUsd = value) }
     fun onActualWeightChange(value: String) = _state.update { it.copy(actualWeight = value) }
@@ -81,6 +94,10 @@ class CalculatorViewModel(
     fun onProductChange(value: String) {
         _state.update { it.copy(product = value, selectedDutyRate = null) }
         searchJob?.cancel()
+        if (_state.value.method.tierQuoteMethod != null) {
+            _state.update { it.copy(searchState = DutyRateSearchState.Hidden) }
+            return
+        }
         val query = value.trim()
         if (query.length < 3) {
             _state.update { it.copy(searchState = DutyRateSearchState.Hidden) }
@@ -145,7 +162,7 @@ class CalculatorViewModel(
             return
         }
 
-        // EVERY method now asks the server. AirDrop Standard used to run a
+        // EVERY method asks the server. AirDrop Standard used to run a
         // client-side formula (ShippingCalculator) that under-quoted twice over:
         //   * its rate table was stale — freight `3 + weight*3` with no rounding
         //     against the server's tiered card applied to the weight rounded UP
@@ -162,37 +179,56 @@ class CalculatorViewModel(
         _state.update { it.copy(calculating = true) }
         val dimensions = parseDimensions(form)
         viewModelScope.launch {
-            runCatching {
-                repository.calculateShipment(
-                    shippingMethod = form.method.apiValue,
-                    invoiceAmount = invoice,
-                    weightLbs = weightLbs,
-                    numberOfPackages = packageCount,
-                    lengthInches = dimensions.first,
-                    widthInches = dimensions.second,
-                    heightInches = dimensions.third,
-                    // The id, never a percentage: the server validates it is
-                    // active and resolves the rate itself.
-                    customDutyRateId = _state.value.selectedDutyRate?.id,
+            val tierMethod = form.method.tierQuoteMethod
+            if (tierMethod != null) {
+                val request = TierQuoteRequest(
+                    weightLbs = weightLbs ?: 0.0,
+                    method = tierMethod,
+                    declaredValue = invoice,
+                    insuredValue = invoice,
+                    itemName = form.product.trim().ifEmpty { null },
                 )
-            }.onSuccess { live ->
-                _state.update { it.copy(calculating = false) }
-                publishResult(form, invoice, weightLbs ?: 0.0, live)
-            }.onFailure { e ->
-                // No offline fallback. It used to push the results screen with
-                // the client formula — and for SeaDrop and Express that meant
-                // silently running the AIR formula while the screen still said
-                // "SeaDrop Results". A wrong price shown confidently is worse
-                // than no price.
-                _state.update {
-                    it.copy(
-                        calculating = false,
-                        alert = CalcAlert(
-                            "Couldn't get current rates",
-                            "We couldn't reach our pricing service, so we can't quote this " +
-                                "shipment right now. Please check your connection and try again.",
-                        ),
+                runCatching { repository.quoteShipment(request) }
+                    .onSuccess { quote ->
+                        _state.update { it.copy(calculating = false) }
+                        publishTierQuoteResult(form, invoice, weightLbs ?: 0.0, quote, request)
+                    }
+                    .onFailure { error ->
+                        _state.update { it.copy(calculating = false, alert = tierQuoteAlert(error)) }
+                    }
+            } else {
+                runCatching {
+                    repository.calculateShipment(
+                        shippingMethod = form.method.apiValue,
+                        invoiceAmount = invoice,
+                        weightLbs = weightLbs,
+                        numberOfPackages = packageCount,
+                        lengthInches = dimensions.first,
+                        widthInches = dimensions.second,
+                        heightInches = dimensions.third,
+                        // The id, never a percentage: the server validates it is
+                        // active and resolves the rate itself.
+                        customDutyRateId = form.selectedDutyRate?.id,
                     )
+                }.onSuccess { live ->
+                    _state.update { it.copy(calculating = false) }
+                    publishResult(form, invoice, weightLbs ?: 0.0, live)
+                }.onFailure {
+                    // No offline fallback. It used to push the results screen with
+                    // the client formula — and for SeaDrop and Express that meant
+                    // silently running the AIR formula while the screen still said
+                    // "SeaDrop Results". A wrong price shown confidently is worse
+                    // than no price.
+                    _state.update {
+                        it.copy(
+                            calculating = false,
+                            alert = CalcAlert(
+                                "Couldn't get current rates",
+                                "We couldn't reach our pricing service, so we can't quote this " +
+                                    "shipment right now. Please check your connection and try again.",
+                            ),
+                        )
+                    }
                 }
             }
         }
@@ -240,6 +276,128 @@ class CalculatorViewModel(
             ),
         )
         _state.update { it.copy(navigateToResults = true) }
+    }
+
+    private fun publishTierQuoteResult(
+        form: CalculatorUiState,
+        invoice: Double,
+        weightLbs: Double,
+        quote: TierQuote,
+        request: TierQuoteRequest,
+    ) {
+        _result.value = CalculationResult(
+            method = form.method,
+            productName = form.product.ifBlank { null },
+            weightLbs = weightLbs,
+            weightUnit = form.weightUnit,
+            invoiceUsd = invoice,
+            lengthIn = null,
+            widthIn = null,
+            heightIn = null,
+            tierQuote = quote,
+            tierQuoteRequest = request,
+        )
+        CalculatorHistory.saveLastMethod(form.method)
+        CalculatorHistory.record(
+            CalculatorHistory.Entry(
+                method = form.method.name,
+                weightLbs = weightLbs,
+                invoiceUsd = invoice,
+                totalUsd = quote.totalDue,
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
+        _state.update { it.copy(navigateToResults = true) }
+    }
+
+    /** Re-posts the captured request; totals are always a fresh server result. */
+    fun refreshTierQuote() = rerunTierQuote(_result.value?.insuranceChoice)
+
+    /** SAVR keeps or declines insurance by requesting a fresh quote, never local math. */
+    fun selectTierInsurance(selected: Boolean) = rerunTierQuote(selected)
+
+    private fun rerunTierQuote(insuranceChoice: Boolean?) {
+        val current = _result.value ?: return
+        val originalRequest = current.tierQuoteRequest ?: return
+        if (current.tierQuote == null || _state.value.tierQuoteActionLoading) return
+
+        val request = originalRequest.copy(
+            insuranceDeclined = if (insuranceChoice == false) true else null,
+        )
+        _state.update { it.copy(tierQuoteActionLoading = true) }
+        viewModelScope.launch {
+            runCatching { repository.quoteShipment(request) }
+                .onSuccess { fresh ->
+                    _result.value = current.copy(
+                        tierQuote = fresh,
+                        tierQuoteRequest = request,
+                        insuranceChoice = insuranceChoice,
+                    )
+                    _state.update { it.copy(tierQuoteActionLoading = false) }
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            tierQuoteActionLoading = false,
+                            alert = tierQuoteAlert(error, refreshing = true),
+                        )
+                    }
+                }
+        }
+    }
+
+    /** Matches Swift's calculator checkout gates for persisted tier quotes. */
+    fun canProceedToPayment(): Boolean {
+        val current = _result.value ?: return false
+        val quote = current.tierQuote ?: return true
+        if (quote.isExpiredNow()) {
+            _state.update {
+                it.copy(
+                    alert = CalcAlert(
+                        "Quote expired",
+                        "This quote has expired. Refresh it to get current pricing before payment.",
+                    ),
+                )
+            }
+            return false
+        }
+        val choiceRequired = quote.insuranceChoiceRequired
+            || (quote.insuranceOptions?.explicitRequired ?: false)
+        if (choiceRequired && current.insuranceChoice == null) {
+            _state.update {
+                it.copy(
+                    alert = CalcAlert(
+                        "Insurance choice required",
+                        "Please select or decline insurance before continuing to payment.",
+                    ),
+                )
+            }
+            return false
+        }
+        return true
+    }
+
+    private fun tierQuoteAlert(error: Throwable, refreshing: Boolean = false): CalcAlert {
+        val quoteError = error as? TierQuoteException
+        return when (quoteError?.errorCode) {
+            "NO_RATE_CARD" -> CalcAlert(
+                "Route unavailable",
+                quoteError.message ?: "No active rate card for this method and destination.",
+            )
+            "INSURANCE_MANDATORY" -> CalcAlert(
+                "Insurance is required",
+                quoteError.message ?: "Insurance is mandatory for your tier and cannot be declined.",
+            )
+            else -> CalcAlert(
+                if (refreshing) "Quote refresh failed" else "Couldn't get current rates",
+                if (refreshing) {
+                    error.message ?: "We couldn't refresh this quote. Please try again."
+                } else {
+                    "We couldn't reach our pricing service, so we can't quote this shipment right now. " +
+                        "Please check your connection and try again."
+                },
+            )
+        }
     }
 
     /**

@@ -135,7 +135,9 @@ fun CalculatorScreen(
                     value = state.product,
                     onValueChange = viewModel::onProductChange,
                     placeholder = "Search",
-                    required = true,
+                    // Laravel accepts item_name as optional on the tier quote;
+                    // it is a description, not a required duty selection.
+                    required = false,
                     trailing = {
                         Image(
                             painter = painterResource(R.drawable.ic_search),
@@ -146,10 +148,15 @@ fun CalculatorScreen(
                         )
                     },
                 )
-                ProductResultsPanel(
-                    searchState = state.searchState,
-                    onSelect = viewModel::onProductSelected,
-                )
+                // TierQuote intentionally excludes customs and has no
+                // custom_duty_rate_id. Keep the free-text item description for
+                // Airdrop, but never offer a selector whose choice would be ignored.
+                if (state.method.tierQuoteMethod == null) {
+                    ProductResultsPanel(
+                        searchState = state.searchState,
+                        onSelect = viewModel::onProductSelected,
+                    )
+                }
             }
 
             CalcInputField(
