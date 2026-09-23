@@ -500,13 +500,41 @@ class AuthorizedUserPhoneInputTest {
     }
 
     @Test
+    fun `a plus behind an invisible mark, in brackets or after tel counts, as on the server`() {
+        // Pasted from Contacts or a chat, a number often starts with a
+        // direction mark; the server removes everything but digits and "+"
+        // before it looks for the "+", so the box does too.
+        val marks = listOf(
+            '\u200E', '\u200F', '\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
+            '\u2066', '\u2067', '\u2068', '\u2069', '\uFEFF',
+        )
+        for (mark in marks) {
+            val label = "U+%04X".format(mark.code)
+            assertEquals(label, "GB" to "7911123456", AuthorizedUserPhoneInput.interpret("$mark+44 7911 123456", "JM").shown())
+        }
+        assertEquals("GB" to "7911123456", AuthorizedUserPhoneInput.interpret("(+44) 7911 123456", "JM").shown())
+        assertEquals("JM" to "8765551234", AuthorizedUserPhoneInput.interpret("tel:+1 876 555 1234", "GB").shown())
+        // Typed key by key they land the same way.
+        assertEquals("GB" to "7911123456", typedAndSettled("\u200E+44 7911 123456", "JM"))
+        assertEquals("GB" to "7911123456", typedAndSettled("(+44) 7911 123456", "JM"))
+        assertEquals("JM" to "8765551234", typedAndSettled("tel:+1 876 555 1234", "GB"))
+        // Blur and Save read the "+" the same way.
+        assertEquals(
+            "JM" to "8765551234",
+            AuthorizedUserPhoneInput.resolve(AuthorizedUserPhoneEntry("GB", "\u200E+8765551234")).shown(),
+        )
+        // A "+" after a digit is no calling code: digits only, under the picker.
+        assertEquals("JM" to "8765551234", AuthorizedUserPhoneInput.interpret("876+5551234", "JM").shown())
+        assertEquals("GB" to "8765551234", AuthorizedUserPhoneInput.interpret("876+5551234", "GB").shown())
+    }
+
+    @Test
     fun `the box shows what the server stores for every fixture row a customer can type`() {
         // Each row the server accepts whose code the picker offers: the picker
         // on that code, the number typed or pasted, the box settled, must read
         // as the server's normalized pair. Not modelled by the box: a code the
         // picker cannot show ("+876", "undefined", ""), which only old stored
-        // rows carry; "011", the NANP exit code; and a "+" behind an invisible
-        // mark, which the server finds and the box does not.
+        // rows carry, and "011", the NANP exit code.
         val rows = fixture("authorized-user-phones").jsonArray.map { it.jsonObject }
         var checked = 0
         for (row in rows) {
@@ -514,7 +542,7 @@ class AuthorizedUserPhoneInputTest {
             val code = row.getValue("code").jsonPrimitive.content
             val mobile = row.getValue("mobile").jsonPrimitive.content
             val iso = AuthorizedUserPhoneInput.countries.firstOrNull { it.callingCode == code }?.isoCode ?: continue
-            if (mobile.startsWith("011") || mobile.firstOrNull() == '\u200E') continue
+            if (mobile.startsWith("011")) continue
             val (wantCode, wantNumber) = row.getValue("normalized").jsonArray.map { it.jsonPrimitive.content }
             val start = if (code == "+1") "JM" else AuthorizedUserPhoneInput.isoFor(code, "")
             for ((how, entry) in listOf(
@@ -528,7 +556,7 @@ class AuthorizedUserPhoneInputTest {
             checked++
             assertTrue(iso.isNotEmpty())
         }
-        assertEquals("fixture rows checked", 45, checked)
+        assertEquals("fixture rows checked", 46, checked)
     }
 
     private companion object {

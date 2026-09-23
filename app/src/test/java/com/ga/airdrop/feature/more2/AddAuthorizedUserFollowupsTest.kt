@@ -966,4 +966,24 @@ class AddAuthorizedUserFollowupsTest {
             assertEquals(Triple("55991234567", "+55", "+5555991234567"), typedUnderBrazil("55 55 99123 4567"))
             assertEquals(Triple("1134567890", "+55", "1134567890"), typedUnderBrazil("55 11 3456 7890"))
         }
+
+    @Test
+    fun `a pasted plus behind an invisible mark, in brackets or after tel is read and sent as on the server`() =
+        runTest(dispatcher) {
+            fun pasted(text: String, iso: String): Triple<String, String, Pair<String, String>> {
+                val calls = mutableListOf<AuthorizedUserRequest>()
+                val vm = freshForm(iso, calls)
+                vm.onMobileNumber(text)
+                vm.onMobileBlur()
+                assertNull(text, vm.state.value.mobileError)
+                vm.save()
+                dispatcher.scheduler.advanceUntilIdle()
+                return Triple(vm.state.value.phoneIso, vm.state.value.mobileNumber, calls.sentPhone)
+            }
+            assertEquals(Triple("GB", "7911123456", "+44" to "7911123456"), pasted("\u200E+44 7911 123456", "JM"))
+            assertEquals(Triple("GB", "7911123456", "+44" to "7911123456"), pasted("(+44) 7911 123456", "JM"))
+            assertEquals(Triple("JM", "8765551234", "+1" to "8765551234"), pasted("tel:+1 876 555 1234", "GB"))
+            // A "+" after a digit: the digits, under the picker.
+            assertEquals(Triple("JM", "8765551234", "+1" to "8765551234"), pasted("876+5551234", "JM"))
+        }
 }

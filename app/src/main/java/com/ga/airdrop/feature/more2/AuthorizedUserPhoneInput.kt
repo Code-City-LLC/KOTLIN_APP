@@ -275,8 +275,20 @@ object AuthorizedUserPhoneInput {
         return readInternational(entry.number, digits, entry.isoCode, waitForCaribbean = false)
     }
 
+    /** A "+" ([hasLeadingPlus]) or a "00" in front of the digits: an international number. */
     private fun startsInternational(raw: String, digits: String): Boolean =
-        raw.trimStart().startsWith("+") || digits.startsWith("00")
+        hasLeadingPlus(raw) || digits.startsWith("00")
+
+    /**
+     * Whether [raw] starts with an international "+", read the way the server
+     * reads it (AuthorizedUserPhone::normalize: every character but a digit or
+     * "+" removed, then the first one left): a "+" behind an invisible mark (a
+     * number pasted from Contacts or a chat often starts with U+200E), inside
+     * brackets "(+44)", or after "tel:" counts; one after a digit
+     * ("876+5551234") does not.
+     */
+    private fun hasLeadingPlus(raw: String): Boolean =
+        raw.firstOrNull { it == '+' || it in '0'..'9' } == '+'
 
     /** Steps 1–3 of [interpret]; [waitForCaribbean] false is [resolve]. */
     private fun readInternational(
@@ -285,7 +297,7 @@ object AuthorizedUserPhoneInput {
         currentIso: String,
         waitForCaribbean: Boolean,
     ): AuthorizedUserPhoneEntry {
-        val plus = raw.trimStart().startsWith("+")
+        val plus = hasLeadingPlus(raw)
         val international = if (plus) digits else digits.substring(2)
         // The number is not settled yet (or names no country): keep what was
         // typed so the next key can finish it and Save can refuse it.
