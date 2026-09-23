@@ -293,6 +293,10 @@ dependencies {
     testImplementation(libs.junit)
     // ViewModel request-order/zero-call proofs (tier change flow, gate #22836-4).
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    // Local unit tests run against a stubbed android.jar whose org.json throws;
+    // RepoSupport.parseHttpError reads error bodies with org.json, so the
+    // payment-hold contract test needs the real implementation (2026-09-15).
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     // UiAutomator drives system UI (back key, platform dialogs) WITHOUT

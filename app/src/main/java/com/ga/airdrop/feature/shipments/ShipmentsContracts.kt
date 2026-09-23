@@ -55,6 +55,12 @@ data class PackageInvoiceDoc(
     val fullUrl: String? = null,
 )
 
+data class ShipmentProofOfDelivery(
+    val signatureUrl: String,
+    val deliveredAt: String? = null,
+    val receivedBy: String? = null,
+)
+
 data class ShipmentPackageDetail(
     val id: Int,
     val status: String? = null,
@@ -75,6 +81,7 @@ data class ShipmentPackageDetail(
     val shippingPrice: Double? = null,
     val history: List<PackageHistoryItem> = emptyList(),
     val invoices: List<PackageInvoiceDoc> = emptyList(),
+    val proofOfDelivery: ShipmentProofOfDelivery? = null,
     val additionalCharges: Map<String, Double> = emptyMap(),
     val additionalChargesTotal: Double? = null,
     /** Server-owned storage-fee block; null when the payload predates it. */

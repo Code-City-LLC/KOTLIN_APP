@@ -1,16 +1,20 @@
 package com.ga.airdrop.feature.calculator
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -27,8 +31,9 @@ import org.junit.Test
  * three packages of unknown weight priced as three pounds, a number nobody
  * entered and nothing measured.
  *
- * Both are now the opposite assertions: the count reaches the server, and an
- * absent weight is asked for rather than invented.
+ * Legacy Express/SeaDrop still send package count to their server calculator;
+ * Airdrop now uses TierQuote's separate documented contract. An absent weight
+ * is always asked for rather than invented.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalculatorViewModelTest {
@@ -41,7 +46,8 @@ class CalculatorViewModelTest {
 
     /** Records exactly what the view model asks the server for. */
     private class RecordingRepository(
-        private val answer: ShipmentCalculation? = CALCULATION,
+        private val legacyAnswer: ShipmentCalculation? = CALCULATION,
+        private val tierAnswer: TierQuote? = TIER_QUOTE,
     ) : CalculatorRepository {
         var method: String? = null
         var invoice: Double? = null
@@ -50,7 +56,19 @@ class CalculatorViewModelTest {
         var dutyRateId: Int? = null
         var searchQueries = mutableListOf<String>()
         var searchAnswer: List<CalcDutyRate> = emptyList()
-        var calls = 0
+        var legacyCalls = 0
+        var tierCalls = 0
+        val tierRequests = mutableListOf<TierQuoteRequest>()
+        var nextTierResponse: CompletableDeferred<TierQuote>? = null
+
+        override suspend fun quoteShipment(request: TierQuoteRequest): TierQuote {
+            tierCalls++
+            tierRequests += request
+            val response = nextTierResponse
+            nextTierResponse = null
+            if (response != null) return response.await()
+            return tierAnswer ?: error("tier pricing service unavailable")
+        }
 
         override suspend fun calculateShipment(
             shippingMethod: String,
@@ -62,13 +80,13 @@ class CalculatorViewModelTest {
             heightInches: Double?,
             customDutyRateId: Int?,
         ): ShipmentCalculation {
-            calls++
+            legacyCalls++
             dutyRateId = customDutyRateId
             method = shippingMethod
             invoice = invoiceAmount
             weight = weightLbs
             packages = numberOfPackages
-            return answer ?: error("pricing service unavailable")
+            return legacyAnswer ?: error("pricing service unavailable")
         }
 
         override suspend fun searchDutyRates(query: String, limit: Int): List<CalcDutyRate> {
@@ -79,27 +97,33 @@ class CalculatorViewModelTest {
         override suspend fun usdToJmdRate(): Double = 162.0
     }
 
-    /** AirDrop Standard must reach the server, and carry the package count. */
+    /** AirDrop Standard is a TierQuote and must never fall through to legacy calculate. */
     @Test
-    fun theEnteredPackageCountReachesTheServer() = runTest(dispatcher) {
+    fun airdropUsesTierQuoteWithTheAuthoritativeRequestContract() = runTest(dispatcher) {
         val repo = RecordingRepository()
         val viewModel = CalculatorViewModel(repo)
 
         viewModel.onPackagesChange("3")
         viewModel.onInvoiceChange("150")
         viewModel.onActualWeightChange("5.5")
+        viewModel.onProductChange("Laptop")
         viewModel.calculate()
         advanceUntilIdle()
 
-        assertEquals("the standard quote must be priced by the server", 1, repo.calls)
-        assertEquals(3, repo.packages)
-        assertEquals(5.5, repo.weight!!, 0.001)
-        assertEquals(150.0, repo.invoice!!, 0.001)
+        assertEquals("Airdrop must use the tier endpoint", 1, repo.tierCalls)
+        assertEquals("Airdrop must not silently fall back to legacy calculate", 0, repo.legacyCalls)
+        val request = repo.tierRequests.single()
+        assertEquals("AIR", request.method)
+        assertEquals(5.5, request.weightLbs, 0.001)
+        assertEquals(150.0, request.declaredValue!!, 0.001)
+        assertEquals(150.0, request.insuredValue!!, 0.001)
+        assertEquals("Laptop", request.itemName)
+        assertNull("the app must not infer an insurance decision", request.insuranceDeclined)
     }
 
-    /** The breakdown shown is the server's, not one the client recomputed. */
+    /** The TierQuote total and lines are server-owned, never reconstructed by Android. */
     @Test
-    fun theRenderedChargesAreTheServersOwnBreakdown() = runTest(dispatcher) {
+    fun theRenderedTierQuoteUsesTheServersOwnLinesAndTotal() = runTest(dispatcher) {
         val viewModel = CalculatorViewModel(RecordingRepository())
 
         viewModel.onPackagesChange("3")
@@ -110,11 +134,10 @@ class CalculatorViewModelTest {
 
         val result = viewModel.result.value
         assertNotNull(result)
+        assertEquals(TIER_QUOTE, result!!.tierQuote)
         val charges = resolveCharges(result!!)
-        assertEquals(69.0, charges.freight, 0.001)
-        assertEquals(4.5, charges.fuelSurcharge, 0.001)
-        assertEquals(82.5, charges.airdropCharges, 0.001)
-        assertEquals(16.5, charges.totalWeightLbs, 0.001)
+        assertEquals(TIER_QUOTE.totalDue, charges.totalWithDuty, 0.001)
+        assertEquals(0.0, charges.customsDuty, 0.001)
     }
 
     /**
@@ -123,7 +146,8 @@ class CalculatorViewModelTest {
      */
     @Test
     fun aPricingFailureRaisesAnErrorInsteadOfQuoting() = runTest(dispatcher) {
-        val viewModel = CalculatorViewModel(RecordingRepository(answer = null))
+        val repo = RecordingRepository(tierAnswer = null)
+        val viewModel = CalculatorViewModel(repo)
 
         viewModel.onPackagesChange("1")
         viewModel.onInvoiceChange("150")
@@ -132,6 +156,8 @@ class CalculatorViewModelTest {
         advanceUntilIdle()
 
         assertNull("no quote may be published when pricing failed", viewModel.result.value)
+        assertEquals(1, repo.tierCalls)
+        assertEquals("Airdrop failures must not retry through legacy calculate", 0, repo.legacyCalls)
         val alert = viewModel.state.value.alert
         assertNotNull("the customer must be told", alert)
         assertEquals("Couldn't get current rates", alert!!.title)
@@ -148,9 +174,23 @@ class CalculatorViewModelTest {
         viewModel.calculate()
         advanceUntilIdle()
 
-        assertEquals("nothing may be priced without a weight", 0, repo.calls)
+        assertEquals("nothing may be priced without a weight", 0, repo.tierCalls)
+        assertEquals("nothing may be priced without a weight", 0, repo.legacyCalls)
         assertNull(viewModel.result.value)
         assertEquals("Missing weight", viewModel.state.value.alert?.title)
+    }
+
+    @Test
+    fun airdropKeepsTheProductAsDescriptionWithoutQueryingTheCustomsPicker() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+
+        viewModel.onProductChange("Laptop")
+        advanceUntilIdle()
+
+        assertEquals("Laptop", viewModel.state.value.product)
+        assertTrue(repo.searchQueries.isEmpty())
+        assertEquals(DutyRateSearchState.Hidden, viewModel.state.value.searchState)
     }
 
     /**
@@ -172,7 +212,7 @@ class CalculatorViewModelTest {
     fun `the headline is grand_total, never the duty-only legacy keys`() = runTest(dispatcher) {
         val viewModel = CalculatorViewModel(
             RecordingRepository(
-                answer = CALCULATION.copy(
+                legacyAnswer = CALCULATION.copy(
                     airdropCharges = 55.0,
                     customsDuty = 90.9,
                     // What the server sends for airdrop_standard: grand_total.
@@ -183,6 +223,7 @@ class CalculatorViewModelTest {
         viewModel.onPackagesChange("2")
         viewModel.onInvoiceChange("150")
         viewModel.onActualWeightChange("5.5")
+        viewModel.onMethodSelected(ShippingMethod.EXPRESS)
         viewModel.calculate()
         advanceUntilIdle()
 
@@ -204,7 +245,7 @@ class CalculatorViewModelTest {
         runTest(dispatcher) {
             val viewModel = CalculatorViewModel(
                 RecordingRepository(
-                    answer = CALCULATION.copy(
+                    legacyAnswer = CALCULATION.copy(
                         airdropCharges = 55.0,
                         customsDuty = 90.9,
                         totalWithDuty = 145.9,
@@ -215,6 +256,7 @@ class CalculatorViewModelTest {
             viewModel.onPackagesChange("2")
             viewModel.onInvoiceChange("150")
             viewModel.onActualWeightChange("5.5")
+            viewModel.onMethodSelected(ShippingMethod.EXPRESS)
             viewModel.calculate()
             advanceUntilIdle()
 
@@ -222,6 +264,235 @@ class CalculatorViewModelTest {
             assertEquals(12.0, charges.badAddressFee!!, 0.001)
             assertEquals("the fee must not inflate the headline", 145.9, charges.totalWithDuty, 0.001)
         }
+
+    @Test
+    fun tierQuoteRequiresAnInsuranceChoiceBeforePaymentAndRequotesOnDecline() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+
+        viewModel.onPackagesChange("1")
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.canProceedToPayment())
+        assertEquals("Insurance choice required", viewModel.state.value.alert?.title)
+
+        viewModel.dismissAlert()
+        viewModel.selectTierInsurance(false)
+        advanceUntilIdle()
+
+        assertEquals(2, repo.tierCalls)
+        assertTrue(repo.tierRequests.last().insuranceDeclined == true)
+        assertEquals(false, viewModel.result.value?.insuranceChoice)
+        assertTrue(viewModel.canProceedToPayment())
+    }
+
+    @Test
+    fun supersededTierRefreshSuccessDoesNotReplaceNewerCalculation() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val oldRefresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = oldRefresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+        assertTrue(viewModel.state.value.tierQuoteActionLoading)
+
+        val newerQuote = TIER_QUOTE.copy(quoteReference = "Q-NEWER", totalDue = 42.0)
+        repo.nextTierResponse = CompletableDeferred(newerQuote)
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        val newerResult = viewModel.result.value!!
+        val newerState = viewModel.state.value
+        assertEquals(newerQuote, newerResult.tierQuote)
+        assertEquals(250.0, newerResult.invoiceUsd, 0.001)
+        assertFalse(newerState.tierQuoteActionLoading)
+
+        oldRefresh.complete(TIER_QUOTE.copy(quoteReference = "Q-STALE"))
+        runCurrent()
+
+        assertEquals(newerResult, viewModel.result.value)
+        assertEquals(newerState, viewModel.state.value)
+        assertEquals(3, repo.tierCalls)
+    }
+
+    @Test
+    fun supersededTierRefreshFailureDoesNotAlterNewerCalculation() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val oldRefresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = oldRefresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+        assertTrue(viewModel.state.value.tierQuoteActionLoading)
+
+        val newerQuote = TIER_QUOTE.copy(quoteReference = "Q-NEWER", totalDue = 42.0)
+        repo.nextTierResponse = CompletableDeferred(newerQuote)
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        val newerResult = viewModel.result.value!!
+        val newerState = viewModel.state.value
+        assertEquals(newerQuote, newerResult.tierQuote)
+        assertEquals(250.0, newerResult.invoiceUsd, 0.001)
+        assertFalse(newerState.tierQuoteActionLoading)
+        assertNull(newerState.alert)
+
+        oldRefresh.completeExceptionally(IllegalStateException("old refresh failed"))
+        runCurrent()
+
+        assertEquals(newerResult, viewModel.result.value)
+        assertEquals(newerState, viewModel.state.value)
+        assertEquals(3, repo.tierCalls)
+    }
+
+    @Test
+    fun supersededTierRefreshSuccessPreservesNewerInsuranceChoice() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val oldRefresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = oldRefresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        viewModel.selectTierInsurance(false)
+        runCurrent()
+        val newerResult = viewModel.result.value!!
+        val newerState = viewModel.state.value
+        assertEquals(false, newerResult.insuranceChoice)
+        assertEquals(true, newerResult.tierQuoteRequest?.insuranceDeclined)
+        assertEquals(250.0, newerResult.invoiceUsd, 0.001)
+
+        oldRefresh.complete(TIER_QUOTE.copy(quoteReference = "Q-STALE"))
+        runCurrent()
+
+        assertEquals(newerResult, viewModel.result.value)
+        assertEquals(newerState, viewModel.state.value)
+        assertEquals(4, repo.tierCalls)
+    }
+
+    @Test
+    fun supersededTierRefreshFailurePreservesPendingNewerInsuranceChoice() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val oldRefresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = oldRefresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        val newerChoice = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = newerChoice
+        viewModel.selectTierInsurance(true)
+        runCurrent()
+        val newerResult = viewModel.result.value!!
+        val pendingState = viewModel.state.value
+        assertTrue(pendingState.tierQuoteActionLoading)
+
+        oldRefresh.completeExceptionally(IllegalStateException("old refresh failed"))
+        runCurrent()
+
+        assertEquals(newerResult, viewModel.result.value)
+        assertEquals(pendingState, viewModel.state.value)
+        val newerQuote = TIER_QUOTE.copy(quoteReference = "Q-NEWER-CHOICE")
+        newerChoice.complete(newerQuote)
+        runCurrent()
+
+        assertEquals(newerQuote, viewModel.result.value?.tierQuote)
+        assertEquals(true, viewModel.result.value?.insuranceChoice)
+        assertNull(viewModel.result.value?.tierQuoteRequest?.insuranceDeclined)
+        assertFalse(viewModel.state.value.tierQuoteActionLoading)
+        assertNull(viewModel.state.value.alert)
+        assertEquals(4, repo.tierCalls)
+    }
+
+    @Test
+    fun tierRefreshDoesNotStartWhileNewerCalculationIsPending() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val calculation = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = calculation
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        val pendingState = viewModel.state.value
+        assertTrue(pendingState.calculating)
+
+        viewModel.refreshTierQuote()
+        viewModel.selectTierInsurance(false)
+        runCurrent()
+
+        assertEquals(2, repo.tierCalls)
+        assertEquals(pendingState, viewModel.state.value)
+        val newerQuote = TIER_QUOTE.copy(quoteReference = "Q-NEWER")
+        calculation.complete(newerQuote)
+        runCurrent()
+
+        assertEquals(newerQuote, viewModel.result.value?.tierQuote)
+        assertEquals(250.0, viewModel.result.value!!.invoiceUsd, 0.001)
+        assertNull(viewModel.result.value?.insuranceChoice)
+        assertFalse(viewModel.state.value.calculating)
+        assertFalse(viewModel.state.value.tierQuoteActionLoading)
+    }
+
+    @Test
+    fun currentTierRefreshFailurePreservesValidQuoteAndInsuranceChoice() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+        viewModel.selectTierInsurance(false)
+        runCurrent()
+        val validResult = viewModel.result.value!!
+
+        val refresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = refresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+        assertTrue(viewModel.state.value.tierQuoteActionLoading)
+        assertEquals(true, repo.tierRequests.last().insuranceDeclined)
+        refresh.completeExceptionally(IllegalStateException("current refresh failed"))
+        runCurrent()
+
+        assertEquals(validResult, viewModel.result.value)
+        assertEquals(false, viewModel.result.value?.insuranceChoice)
+        assertFalse(viewModel.state.value.tierQuoteActionLoading)
+        assertEquals("Quote refresh failed", viewModel.state.value.alert?.title)
+    }
 
     private companion object {
         /** The real pre-staging answer for 3 × 5.5 lb, invoice $150. */
@@ -235,6 +506,39 @@ class CalculatorViewModelTest {
             totalWithDuty = 102.6,
             cifValue = 228.0,
             totalWeightLbs = 16.5,
+        )
+
+        val TIER_QUOTE = TierQuote(
+            quoteReference = "Q-7H2K9M4P6R8T",
+            customerTier = "SAVR",
+            method = "AIR",
+            destination = "JM",
+            currency = "USD",
+            lineItems = listOf(
+                TierLineItem("base_shipping", "Base shipping", 20.0),
+                TierLineItem("fuel_surcharge", "Fuel surcharge", 2.0),
+                TierLineItem("insurance", "Insurance", 1.5),
+                TierLineItem("aircoins_credit", "AirCoins credit", 0.0),
+            ),
+            subtotal = 23.5,
+            totalDue = 23.5,
+            status = "active",
+            isExpired = false,
+            expiresAt = "2099-01-02T03:04:05Z",
+            insuranceOptions = TierInsuranceOptions(
+                insuredValue = 150.0,
+                ratePer100 = 1.0,
+                blockSize = 100,
+                blocks = 2,
+                premium = 1.5,
+                maxCoverage = null,
+                coveredValue = 150.0,
+                canDecline = true,
+                mandatory = false,
+                explicitRequired = true,
+            ),
+            insuranceChoiceRequired = true,
+            aircoinsEarned = 4.0,
         )
     }
 }
