@@ -267,6 +267,19 @@ internal fun checkoutFormWithCountry(form: CartBillingForm, selected: String): C
     return sanitizeCheckoutBillingForm(candidate)
 }
 
+/**
+ * Billing country change on the NCB card-entry screen. That screen has no City
+ * field (the city comes from Profile Information), and create-ncb-session
+ * REQUIRES a city, so a change there keeps it. SwiftHawk 2026-09-23: reusing
+ * checkoutFormWithCountry blanked it and the server refused the JMD payment.
+ */
+internal fun ncbCardFormWithCountry(form: CartBillingForm, selected: String): CartBillingForm =
+    checkoutFormWithCountry(form, selected).copy(city = form.city)
+
+/** Billing state change on the NCB card-entry screen; keeps the city (see above). */
+internal fun ncbCardFormWithState(form: CartBillingForm, selected: String): CartBillingForm =
+    checkoutFormWithState(form, selected).copy(city = form.city)
+
 internal fun checkoutFormWithState(form: CartBillingForm, selected: String): CartBillingForm {
     val state = CountryCatalog.canonicalState(form.country, selected) ?: selected.trim()
     return form.copy(

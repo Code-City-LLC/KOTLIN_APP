@@ -39,7 +39,10 @@ data class AddAuthorizedUserUiState(
      */
     val mobileNumber: String = "",
     val phoneIso: String = AuthorizedUserPhoneInput.DEFAULT_ISO,
-    /** [phoneIso]'s code was typed as "+CC" in the box; see [AuthorizedUserPhoneEntry.explicitCode]. */
+    /**
+     * The box is the national number as written (after a typed "+CC" or a
+     * dropped trunk 0); see [AuthorizedUserPhoneEntry.explicitCode].
+     */
     val phoneExplicitCode: Boolean = false,
     /**
      * The customer typed a number or picked a code. The profile default must
@@ -127,17 +130,19 @@ class AddAuthorizedUserViewModel(
 
     fun onPhoneCountry(iso: String) = _state.update {
         val calling = AuthorizedUserPhoneInput.country(iso)?.callingCode ?: "+1"
-        // Digits typed after an explicit "+CC" are that code's national number:
-        // choosing a country with the same code (Brazil again) keeps them whole.
-        val explicit = it.phoneExplicitCode && calling == it.callingCode
+        // A country with the same calling code (Brazil again, or another +1
+        // flag) leaves the box as it is: digits typed after a "+CC" stay whole,
+        // and a stored phone is not re-read. A new code re-reads the digits.
+        val sameCode = calling == it.callingCode
+        val (box, asWritten) = if (sameCode) {
+            it.mobileNumber to it.phoneExplicitCode
+        } else {
+            AuthorizedUserPhoneInput.renumbered(it.mobileNumber, calling)
+        }
         it.copy(
             phoneIso = iso,
-            mobileNumber = if (explicit) {
-                it.mobileNumber
-            } else {
-                AuthorizedUserPhoneInput.renumber(it.mobileNumber, calling)
-            },
-            phoneExplicitCode = explicit,
+            mobileNumber = box,
+            phoneExplicitCode = asWritten,
             mobileError = null,
             phoneTouched = true,
         )
@@ -155,8 +160,11 @@ class AddAuthorizedUserViewModel(
         if (!it.phoneTouched) return@update it
         val settled = it.settledPhone()
         if (settled.mobileNumber.isBlank() || unchangedStoredPhone(settled) != null) return@update settled
-        val digits = AuthorizedUserPhoneInput.submissionDigits(settled.mobileNumber.trim(), settled.callingCode)
-        val error = AuthorizedUserPhoneInput.validationError(digits, settled.callingCode)
+        val box = settled.mobileNumber.trim()
+        val digits = AuthorizedUserPhoneInput.submissionDigits(box, settled.callingCode)
+        // A number the server cannot read either way asks, in its words (v1.29).
+        val error = AuthorizedUserPhoneInput.ambiguityError(box, settled.callingCode, settled.phoneExplicitCode)
+            ?: AuthorizedUserPhoneInput.validationError(digits, settled.callingCode)
         if (error == null) settled else settled.copy(mobileError = error)
     }
     fun dismissSaveFailure() = _state.update { it.copy(saveFailure = null) }
@@ -185,15 +193,20 @@ class AddAuthorizedUserViewModel(
      * An edit's stored phone is untouched while neither the box nor the
      * picker has changed, or while it still shows what the form opened with
      * (the same calling code and digits: a number typed and put back, or
-     * another +1 country). Untouched, it is not judged and goes back exactly
-     * as the API sent it — the row returned here; null when it must be judged.
+     * another +1 country — its one trunk 0 aside, which the box now drops
+     * as the server would: 07700900123 typed back as 7700900123 under 🇬🇧 is
+     * still the stored number). Untouched, it is not judged and goes back
+     * exactly as the API sent it — the row returned here; null when it must
+     * be judged.
      */
     private fun unchangedStoredPhone(state: AddAuthorizedUserUiState): AuthorizedUser? {
         val original = state.openedWith ?: return null
         if (!state.phoneTouched) return original
         val (iso, digits) = AuthorizedUserPhoneInput.fold(original.countryCode, original.mobileNumber)
         val code = AuthorizedUserPhoneInput.country(iso)?.callingCode ?: "+1"
-        if (code != state.callingCode || digits != state.mobileNumber.trim()) return null
+        if (code != state.callingCode) return null
+        val shown = state.mobileNumber.trim()
+        if (shown != digits && shown != AuthorizedUserPhoneInput.submissionDigits(digits, code)) return null
         return original
     }
 
@@ -307,13 +320,16 @@ class AddAuthorizedUserViewModel(
             // The trunk 0 the server drops is left out of the check, never
             // out of the request: Laravel normalizes the wire value once.
             val validationDigits = AuthorizedUserPhoneInput.submissionDigits(digits, countryCode)
-            val phoneError = AuthorizedUserPhoneInput.validationError(validationDigits, countryCode)
+            // A number the server cannot read either way (German 4921 1234567
+            // typed without "+" or 0) is refused here, in the server's words.
+            val phoneError = AuthorizedUserPhoneInput.ambiguityError(digits, countryCode, s.phoneExplicitCode)
+                ?: AuthorizedUserPhoneInput.validationError(validationDigits, countryCode)
             if (phoneError != null) {
                 _state.update { it.copy(mobileError = phoneError) }
                 return
             }
-            // Digits only, unless the server needs the typed "+CC" to keep them whole.
-            mobile = AuthorizedUserPhoneInput.requestNumber(digits, countryCode, s.phoneExplicitCode)
+            // Digits only, unless the server needs "+CC" in front to keep them whole.
+            mobile = AuthorizedUserPhoneInput.requestNumber(digits, countryCode)
         }
         // Laravel: trn_no is `digits:9` — EXACTLY nine numeric digits. This used
         // to be an isEmpty() check only, so "123-456-789" or an 8-digit TRN was

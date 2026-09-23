@@ -193,10 +193,32 @@ class CartViewModelCheckoutTest {
 
         viewModel.payOrderSummary()
         assertTrue(viewModel.state.value.navToNcbCardEntry)
+        // A real customer arrives with Profile Information's city; the server
+        // requires one (create-ncb-session 'city' => 'required').
+        viewModel.updateNcbForm { it.copy(city = "Kingston") }
         viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
         advanceUntilIdle()
 
         assertEquals(1, checkout.ncbCalls)
+    }
+
+    @Test
+    fun `a blank billing city is asked for before any NCB call`() = runTest {
+        ExchangeRateStore.update(162.0)
+        val line = sale(16, 916)
+        CartStore.add(line)
+        jmdOrderSummaryFlow(line)
+        val checkout = FakeCheckout(exchangeRateResponse = { Result.success(163.0) })
+        val viewModel = viewModel(checkout, FakeBoundary(ownerA), line)
+        advanceUntilIdle()
+
+        viewModel.payOrderSummary()
+        viewModel.updateNcbForm { it.copy(city = "") }
+        viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
+        advanceUntilIdle()
+
+        assertEquals("the server would refuse it with 422", 0, checkout.ncbCalls)
+        assertEquals("Billing city", viewModel.state.value.errorTitle)
     }
 
     @Test

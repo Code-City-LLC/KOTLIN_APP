@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -116,5 +117,19 @@ class PaymentsInvoiceIdContractTest {
 
         assertTrue(repo.requestedIds.isEmpty())
         assertEquals("This payment has no invoice to download.", vm.state.value.error)
+    }
+
+    /**
+     * Kemar 2026-09-23 ("Hide it"): a payment with no invoice shows no Download
+     * button, as on iOS (FigmaPaymentsViewController: download.isHidden =
+     * invoiceTag <= 0). The view model's fail-closed guard above stays as a net.
+     */
+    @Test
+    fun `the Download button shows only for a numeric invoice id`() {
+        assertTrue(hasDownloadableInvoice(payment(id = 7, invoiceId = "456")))
+        assertFalse(hasDownloadableInvoice(payment(id = 7, invoiceId = null)))
+        assertFalse(hasDownloadableInvoice(payment(id = 7, invoiceId = " ")))
+        assertFalse(hasDownloadableInvoice(payment(id = 7, invoiceId = "INV-2026-889")))
+        assertFalse(hasDownloadableInvoice(payment(id = 7, invoiceId = "0")))
     }
 }

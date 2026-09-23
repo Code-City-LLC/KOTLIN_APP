@@ -48,7 +48,12 @@ import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 /**
@@ -68,6 +73,7 @@ fun CalculatorResultsScreen(
     onGovernmentCharges: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
+    val state by viewModel.state.collectAsState()
     val result by viewModel.result.collectAsState()
     val usdToJmd by viewModel.usdToJmd.collectAsState()
     val current = result
@@ -77,9 +83,21 @@ fun CalculatorResultsScreen(
         return
     }
     val charges = remember(current) { resolveCharges(current) }
+    val tierQuote = current.tierQuote
     var showCifSheet by remember { mutableStateOf(false) }
+    var quoteClockTick by remember(tierQuote?.expiresAt, tierQuote?.isExpired) { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) { viewModel.loadExchangeRate() }
+    LaunchedEffect(tierQuote) {
+        if (tierQuote == null) {
+            viewModel.loadExchangeRate()
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(60_000)
+            quoteClockTick++
+        }
+    }
+    val tierQuoteExpired = remember(tierQuote, quoteClockTick) { tierQuote?.isExpiredNow() ?: false }
 
     val title = when (current.method) {
         ShippingMethod.EXPRESS,
@@ -103,49 +121,24 @@ fun CalculatorResultsScreen(
             // Swift contentStack — flat 10 (Spacing.sm) between every group.
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                SummaryCard(title = primarySummaryTitle(current), value = primarySummaryValue(current, charges))
-                SummaryCard(
-                    title = "Invoice Amount (Declared Value/Cost)",
-                    value = formatPrice(charges.invoiceAmount),
+            if (tierQuote != null) {
+                TierQuoteResultsContent(
+                    result = current,
+                    quote = tierQuote,
+                    expired = tierQuoteExpired,
+                    actionLoading = state.tierQuoteActionLoading,
+                    onRefresh = viewModel::refreshTierQuote,
+                    onKeepInsurance = { viewModel.selectTierInsurance(true) },
+                    onDeclineInsurance = { viewModel.selectTierInsurance(false) },
                 )
-                SummaryCard(
-                    title = "CIF Value",
-                    value = formatPrice(charges.cifValue),
-                    onInfoClick = { showCifSheet = true },
+            } else {
+                LegacyResultsContent(
+                    result = current,
+                    charges = charges,
+                    onShowCif = { showCifSheet = true },
+                    onGovernmentCharges = onGovernmentCharges,
                 )
             }
-
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                ChargesHeader()
-                ChargesCard {
-                    ChargeRow("Insurance", charges.insurance)
-                    ChargeRow("Freight", charges.freight)
-                    ChargeRow("Fuel", charges.fuelSurcharge)
-                    if (charges.customsDuty > 0) {
-                        ChargeRow("Customs Duty", charges.customsDuty)
-                    }
-                    // Applies only when the address was flagged bad, so it is
-                    // outside the headline total by design (BronzeMountain
-                    // #80146). Shown here so a customer who owes it sees it
-                    // rather than finding it on the invoice.
-                    charges.badAddressFee?.takeIf { it > 0 }?.let {
-                        ChargeRow("Bad Address Fee", it)
-                    }
-                }
-            }
-
-            TotalPill(label = "Total Airdrop Charges", amount = charges.airdropCharges)
-            // The server's own grand_total (airdrop_charges + customs_duty).
-            // Kemar ruled today that the headline EXCLUDES the merchant invoice
-            // — the customer already paid the merchant, and only seadrop's
-            // legacy formula folded it in (BronzeMountain #80146). Shown only
-            // when it differs from the AirDrop charges, i.e. when duty applies.
-            if (charges.totalWithDuty > 0 && abs(charges.totalWithDuty - charges.airdropCharges) > 0.005) {
-                TotalPill(label = "Total with Duty", amount = charges.totalWithDuty)
-            }
-
-            DisclaimerCard(onLinkClick = onGovernmentCharges)
         }
 
         // Footer — Swift buildFooter: Drop Alert (outline) + Make Payment.
@@ -172,19 +165,245 @@ fun CalculatorResultsScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlineButton(text = "Drop Alert", onClick = onDropAlert, modifier = Modifier.weight(1f))
-                GradientButton(text = "Make Payment", onClick = onMakePayment, modifier = Modifier.weight(1f))
+                GradientButton(
+                    text = "Make Payment",
+                    onClick = { if (viewModel.canProceedToPayment()) onMakePayment() },
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
 
-    if (showCifSheet) {
+    if (showCifSheet && tierQuote == null) {
         CifValueSheet(
             rows = charges.cifRows(),
             exchangeRate = usdToJmd,
             onDismiss = { showCifSheet = false },
         )
     }
+
+    state.alert?.let { alert ->
+        SimpleAlertDialog(title = alert.title, message = alert.message, onDismiss = viewModel::dismissAlert)
+    }
 }
+
+@Composable
+private fun LegacyResultsContent(
+    result: CalculationResult,
+    charges: Charges,
+    onShowCif: () -> Unit,
+    onGovernmentCharges: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        SummaryCard(title = primarySummaryTitle(result), value = primarySummaryValue(result, charges))
+        SummaryCard(
+            title = "Invoice Amount (Declared Value/Cost)",
+            value = formatPrice(charges.invoiceAmount),
+        )
+        SummaryCard(
+            title = "CIF Value",
+            value = formatPrice(charges.cifValue),
+            onInfoClick = onShowCif,
+        )
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        ChargesHeader()
+        ChargesCard {
+            ChargeRow("Insurance", charges.insurance)
+            ChargeRow("Freight", charges.freight)
+            ChargeRow("Fuel", charges.fuelSurcharge)
+            if (charges.customsDuty > 0) {
+                ChargeRow("Customs Duty", charges.customsDuty)
+            }
+            charges.badAddressFee?.takeIf { it > 0 }?.let {
+                ChargeRow("Bad Address Fee", it)
+            }
+        }
+    }
+
+    TotalPill(label = "Total Airdrop Charges", amount = charges.airdropCharges)
+    if (charges.totalWithDuty > 0 && abs(charges.totalWithDuty - charges.airdropCharges) > 0.005) {
+        TotalPill(label = "Total with Duty", amount = charges.totalWithDuty)
+    }
+
+    DisclaimerCard(onLinkClick = onGovernmentCharges)
+}
+
+@Composable
+private fun TierQuoteResultsContent(
+    result: CalculationResult,
+    quote: TierQuote,
+    expired: Boolean,
+    actionLoading: Boolean,
+    onRefresh: () -> Unit,
+    onKeepInsurance: () -> Unit,
+    onDeclineInsurance: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        SummaryCard(title = "Total Weight", value = String.format(Locale.US, "%.2f lbs", result.weightLbs))
+        SummaryCard(
+            title = "Invoice Amount (Declared Value/Cost)",
+            value = formatPrice(result.invoiceUsd),
+        )
+        quote.customerTier?.takeIf { it.isNotBlank() }?.let { tier ->
+            SummaryCard(title = "Service Tier", value = tier)
+        }
+    }
+
+    if (expired) {
+        TierQuoteExpiryCard(onRefresh = onRefresh, loading = actionLoading)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        ChargesHeader(title = "Charges", currency = quote.currency ?: "USD")
+        ChargesCard {
+            val cashItems = quote.lineItems.filter { it.code != "aircoins_credit" }
+            if (cashItems.isEmpty()) {
+                Text(
+                    text = "No charges returned for this quote.",
+                    style = AirdropType.subtitle2,
+                    color = AirdropTheme.colors.textDescription,
+                )
+            } else {
+                cashItems.forEach { item ->
+                    ChargeRow(
+                        label = item.label?.takeIf { it.isNotBlank() } ?: item.code.ifBlank { "Charge" },
+                        amount = item.amount,
+                    )
+                }
+            }
+        }
+    }
+
+    TotalPill(label = "Total Due", amount = quote.totalDue)
+
+    if (quote.aircoinsEarned > 0) {
+        SummaryCard(
+            title = "AirCoins earned on this shipment",
+            value = String.format(Locale.US, "%.1f", quote.aircoinsEarned),
+        )
+    }
+
+    quote.insuranceOptions?.takeIf {
+        quote.insuranceChoiceRequired || it.explicitRequired || it.canDecline
+    }?.let { options ->
+        TierInsuranceChoiceCard(
+            options = options,
+            choice = result.insuranceChoice,
+            loading = actionLoading,
+            onKeepInsurance = onKeepInsurance,
+            onDeclineInsurance = onDeclineInsurance,
+        )
+    }
+
+    TierQuoteMeta(quote = quote, expired = expired)
+}
+
+@Composable
+private fun TierQuoteExpiryCard(onRefresh: () -> Unit, loading: Boolean) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(BrandPalette.OrangeTertiary6, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.orangeMain, RoundedCornerShape(Radius.s))
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = "This quote has expired. Refresh to get current pricing before payment.",
+            style = AirdropType.subtitle2,
+            color = colors.orangeMain,
+        )
+        GradientButton(text = "Refresh Quote", onClick = onRefresh, loading = loading)
+    }
+}
+
+@Composable
+private fun TierInsuranceChoiceCard(
+    options: TierInsuranceOptions,
+    choice: Boolean?,
+    loading: Boolean,
+    onKeepInsurance: () -> Unit,
+    onDeclineInsurance: () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(colors.gray150, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text("Insurance (optional for your tier)", style = AirdropType.title2, color = colors.textDarkTitle)
+        Text(
+            text = "Premium ${formatPrice(options.premium)} covers ${formatPrice(options.coveredValue)} of declared value. " +
+                "You must select or decline insurance before payment.",
+            style = AirdropType.body2,
+            color = colors.textDescription,
+        )
+        val stateText = when (choice) {
+            true -> "Insurance selected"
+            false -> "Insurance declined"
+            null -> "Choice required"
+        }
+        Text(
+            text = stateText,
+            style = AirdropType.subtitle2,
+            color = if (choice == null) colors.orangeMain else colors.textDarkTitle,
+        )
+        if (loading) {
+            Text("Updating quote...", style = AirdropType.subtitle3, color = colors.textDescription)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlineButton(
+                text = "Keep Insurance",
+                onClick = onKeepInsurance,
+                modifier = Modifier.weight(1f),
+            )
+            OutlineButton(
+                text = "Decline",
+                onClick = onDeclineInsurance,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TierQuoteMeta(quote: TierQuote, expired: Boolean) {
+    val lines = buildList {
+        quote.quoteReference?.takeIf { it.isNotBlank() }?.let { add("Quote $it") }
+        quote.expiresAt?.let { raw ->
+            val date = formatTierQuoteExpiry(raw) ?: raw
+            add(
+                if (expired) {
+                    "Expired $date - refresh required before payment."
+                } else {
+                    "Valid until $date. Prices are held until then."
+                },
+            )
+        }
+    }
+    if (lines.isNotEmpty()) {
+        Text(
+            text = lines.joinToString("\n"),
+            style = AirdropType.body2,
+            color = AirdropTheme.colors.textDescription,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+private fun formatTierQuoteExpiry(raw: String): String? = runCatching {
+    OffsetDateTime.parse(raw)
+        .toInstant()
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM))
+}.getOrNull()
 
 /** Card 1 title — RN useCalculatorResults switch on `form.action`. */
 private fun primarySummaryTitle(result: CalculationResult): String = when (result.method) {
@@ -263,16 +482,16 @@ internal fun SummaryCard(
 
 /** "Charges" + "(USD)" header row — no card chrome. */
 @Composable
-internal fun ChargesHeader() {
+internal fun ChargesHeader(title: String = "Charges", currency: String = "USD") {
     val colors = AirdropTheme.colors
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = "Charges",
+                text = title,
             style = AirdropType.title2,
             color = colors.textDarkTitle,
             modifier = Modifier.weight(1f),
         )
-        Text(text = "(USD)", style = AirdropType.subtitle2, color = colors.textDescription)
+        Text(text = "($currency)", style = AirdropType.subtitle2, color = colors.textDescription)
     }
 }
 

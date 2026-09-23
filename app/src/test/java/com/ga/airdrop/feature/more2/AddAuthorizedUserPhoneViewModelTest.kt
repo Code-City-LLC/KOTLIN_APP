@@ -117,18 +117,25 @@ class AddAuthorizedUserPhoneViewModelTest {
 
     @Test
     fun `national prefix is normalized for validation but never twice on the wire`() = runTest(dispatcher) {
-        for (digits in listOf("03012345678901", "049112345678")) {
+        // The box drops the trunk 0 once, as the server would (2026-09-23), and
+        // the request is what the server keeps as it is: 3012345678901 bare, and
+        // 49112345678 with "+49" in front, since bare it would read as "+49"
+        // typed twice and lose "49" as well.
+        for ((digits, shown, wire) in listOf(
+            Triple("03012345678901", "3012345678901", "3012345678901"),
+            Triple("049112345678", "49112345678", "+4949112345678"),
+        )) {
             val calls = mutableListOf<AuthorizedUserRequest>()
             val vm = filledForm(failingApi(500, "{}", calls))
             vm.onPhoneCountry("DE")
             vm.onMobileNumber(digits)
             vm.onMobileBlur()
             assertNull(vm.state.value.mobileError)
-            assertEquals(digits, vm.state.value.mobileNumber)
+            assertEquals(shown, vm.state.value.mobileNumber)
             vm.save()
             advanceUntilIdle()
             assertEquals("+49", calls.single().userCountryCode)
-            assertEquals(digits, calls.single().userMobileNumber)
+            assertEquals(wire, calls.single().userMobileNumber)
             printWireProof("add", digits, calls.single())
 
             val edits = mutableListOf<AuthorizedUserRequest>()

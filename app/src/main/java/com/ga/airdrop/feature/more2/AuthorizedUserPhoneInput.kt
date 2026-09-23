@@ -10,8 +10,8 @@ import java.util.Locale
  *
  *     user_country_code  = the CALLING code — "+1" for Jamaica, "+44" for the UK
  *     user_mobile_number = national digits within the API's calling-code limits
- *                          (the typed "+CC" in front only where the server
- *                          would otherwise cut a repeated code: [requestNumber])
+ *                          (with "+CC" in front only where the server would
+ *                          otherwise cut the code from them: [requestNumber])
  *
  * The old form took one free-text box ("+1 876-5290736") and parsed a "+" out
  * of it. Type 15550199 or (555) 019-9821 and the "+" is missing, so the
@@ -38,10 +38,12 @@ data class AuthorizedUserPhoneEntry(
     val isoCode: String,
     val number: String,
     /**
-     * The picker's calling code was typed in the box after a "+" or "00", so
-     * [number] is the national number exactly as typed after it. The server
-     * never cuts a repeated code from such a number ("+55 55 99123 4567" is a
-     * Brazilian mobile in area code 55), so neither does the box.
+     * [number] is the national number as written, so a repeated code is never
+     * cut from it: the picker's calling code was typed in the box after a "+"
+     * or "00" ("+55 55 99123 4567" is a Brazilian mobile in area code 55), or
+     * the box dropped the trunk 0 it followed ("049112345678" under 🇩🇪 is
+     * 49112345678, never 112345678). The server never cuts a repeated code in
+     * either case, so neither does the box.
      */
     val explicitCode: Boolean = false,
 )
@@ -97,6 +99,32 @@ object AuthorizedUserPhoneInput {
         "+63", "+64", "+66", "+81", "+82", "+84", "+86", "+90", "+91", "+92", "+94", "+98", "+233", "+234",
         "+250", "+251", "+254", "+255", "+256", "+260", "+263", "+353", "+358", "+380", "+880", "+966",
         "+971", "+972", "+977",
+    )
+
+    /**
+     * Laravel CallingCodes::LONGEST_NATIONAL_NUMBER (v1.28): a number typed
+     * without "+" that starts with its own calling code loses that code only
+     * when it is longer than the country's longest national number — 10
+     * unless listed, the old "11+ digits" rule. Brazil's national numbers are
+     * 10 or 11 digits (a 2-digit area code), so 55991234567 is area code 55
+     * and stays whole, while 5555991234567 is the code typed again. Germany
+     * is left out on purpose: its numbers run 5 to 13 digits, so length
+     * cannot tell 4921 1234567 from "+49" typed again.
+     */
+    private val LONGEST_NATIONAL_NUMBER = mapOf("+55" to 11)
+
+    /**
+     * Laravel CallingCodes::AMBIGUOUS_REPEATED_CODE_LENGTHS and _HINTS (v1.29,
+     * Kemar: "Ask the customer"): a number that starts with its own calling
+     * code at one of these lengths, typed without "+" or a trunk 0, can be read
+     * neither way. Germany, 11 digits: 4921 1234567 may be Emden (04921) or
+     * "+49" typed before Düsseldorf (0211), and the East Frisian area codes
+     * collide with the big cities', so no area-code rule can tell. The box
+     * keeps it as typed and asks for "+49" or the 0 ([ambiguityError]).
+     */
+    private val AMBIGUOUS_REPEATED_CODE_LENGTHS = mapOf("+49" to setOf(11))
+    private val AMBIGUOUS_REPEATED_CODE_HINTS = mapOf(
+        "+49" to "For a German number, start with +49, or with 0 as dialled in Germany.",
     )
 
     /**
@@ -221,14 +249,18 @@ object AuthorizedUserPhoneInput {
      *     Typed or pasted, "+44 7911 123456" is 🇬🇧 +44 / 7911123456 (typed,
      *     the picker moves at "+447"). A code not finished yet ("+5") stays
      *     in the box for the next key; one that names no country stays for
-     *     Save to refuse.
+     *     Save to refuse. "+1" from a picker with another code waits for its
+     *     area code: "+1 868 555 1234" is 🇹🇹 8685551234.
      *
      * Otherwise the box holds digits only, and a full number that repeats the
      * selected country's own code in front loses it: 447911123456 under +44 is
      * 7911123456; under +1 that is the trunk 1 (18765551234 → 8765551234).
-     * Digits typed after an explicit "+CC" ([explicitCode], the previous
-     * entry's flag) keep a repeated code; only the +1 trunk 1 still goes, as
-     * it does on the server. Emptying the box starts over.
+     * "Full" is longer than the country's longest national number: Brazil's
+     * 55991234567 (area code 55) stays whole. Digits typed after an explicit
+     * "+CC" ([explicitCode], the previous entry's flag) keep a repeated code;
+     * only the +1 trunk 1 still goes, as it does on the server. Either way one
+     * trunk 0 goes where the server drops it: "+44 07911 123456" and 07911
+     * 123456 under 🇬🇧 are both 7911123456. Emptying the box starts over.
      */
     fun interpret(raw: String, currentIso: String, explicitCode: Boolean = false): AuthorizedUserPhoneEntry {
         val digits = raw.filter(Char::isDigit)
@@ -237,7 +269,8 @@ object AuthorizedUserPhoneInput {
         }
         val explicit = explicitCode && raw.isNotEmpty()
         val code = country(currentIso)?.callingCode ?: "+1"
-        return AuthorizedUserPhoneEntry(currentIso, digitsUnder(code, digits, explicit), explicit)
+        val (number, asWritten) = boxDigits(code, digits, explicit)
+        return AuthorizedUserPhoneEntry(currentIso, number, asWritten)
     }
 
     /**
@@ -256,8 +289,20 @@ object AuthorizedUserPhoneInput {
         return readInternational(entry.number, digits, entry.isoCode, waitForCaribbean = false)
     }
 
+    /** A "+" ([hasLeadingPlus]) or a "00" in front of the digits: an international number. */
     private fun startsInternational(raw: String, digits: String): Boolean =
-        raw.trimStart().startsWith("+") || digits.startsWith("00")
+        hasLeadingPlus(raw) || digits.startsWith("00")
+
+    /**
+     * Whether [raw] starts with an international "+", read the way the server
+     * reads it (AuthorizedUserPhone::normalize: every character but a digit or
+     * "+" removed, then the first one left): a "+" behind an invisible mark (a
+     * number pasted from Contacts or a chat often starts with U+200E), inside
+     * brackets "(+44)", or after "tel:" counts; one after a digit
+     * ("876+5551234") does not.
+     */
+    private fun hasLeadingPlus(raw: String): Boolean =
+        raw.firstOrNull { it == '+' || it in '0'..'9' } == '+'
 
     /** Steps 1–3 of [interpret]; [waitForCaribbean] false is [resolve]. */
     private fun readInternational(
@@ -266,7 +311,7 @@ object AuthorizedUserPhoneInput {
         currentIso: String,
         waitForCaribbean: Boolean,
     ): AuthorizedUserPhoneEntry {
-        val plus = raw.trimStart().startsWith("+")
+        val plus = hasLeadingPlus(raw)
         val international = if (plus) digits else digits.substring(2)
         // The number is not settled yet (or names no country): keep what was
         // typed so the next key can finish it and Save can refuse it.
@@ -280,7 +325,7 @@ object AuthorizedUserPhoneInput {
             val national = international.substring(own.length - 1)
             return AuthorizedUserPhoneEntry(
                 isoCode = currentIso,
-                number = digitsUnder(own, national, explicit = true),
+                number = boxDigits(own, national, explicit = true).first,
                 explicitCode = true,
             )
         }
@@ -291,9 +336,13 @@ object AuthorizedUserPhoneInput {
         }
         val code = callingCodes.firstOrNull { international.startsWith(it.substring(1)) } ?: return pending
         val national = international.substring(code.length - 1)
+        // "+1" alone does not say which +1 country. From a picker with another
+        // code it waits for the area code, which then names it — "+1 868…" is
+        // 🇹🇹, "+1 212…" 🇺🇸, as in Swift; a +1 country already picked stays.
+        if (code == "+1" && own != "+1" && national.length < 3) return pending
         return AuthorizedUserPhoneEntry(
             isoCode = isoForTypedCode(code, national, currentIso),
-            number = digitsUnder(code, national, explicit = true),
+            number = boxDigits(code, national, explicit = true).first,
             explicitCode = true,
         )
     }
@@ -314,21 +363,41 @@ object AuthorizedUserPhoneInput {
     }
 
     /**
-     * [digits] as the box keeps them under [callingCode]. After an explicit
-     * "+CC" a repeated code is never cut (the server's $explicit); the +1
-     * trunk 1 is, typed after "+1" or not, because the server drops it either way.
+     * [digits] as the box keeps them under [callingCode] — the national number
+     * the server stores, normalized once as it does (normalize step 7) — and
+     * whether they are now the national number as written
+     * ([AuthorizedUserPhoneEntry.explicitCode]). After an explicit "+CC" a
+     * repeated code is never cut (the server's $explicit); the +1 trunk 1 is,
+     * typed after "+1" or not, because the server drops it either way. Then
+     * one trunk 0 goes for the codes that drop it ([submissionDigits]):
+     * "+44 07911 123456" shows 7911123456. What followed that 0 is the national
+     * number, so the next keys never cut a code from it: the server cuts a
+     * repeated code before it drops the 0, never after.
      */
-    private fun digitsUnder(callingCode: String, digits: String, explicit: Boolean): String =
-        if (explicit && callingCode != "+1") digits.take(MAX_DIGITS) else nationalDigits(digits, callingCode)
+    private fun boxDigits(callingCode: String, digits: String, explicit: Boolean): Pair<String, Boolean> {
+        val national = if (explicit && callingCode != "+1") {
+            digits.take(MAX_DIGITS)
+        } else {
+            nationalDigits(digits, callingCode)
+        }
+        val shown = submissionDigits(national, callingCode)
+        return shown to (explicit || shown != national)
+    }
 
     /**
-     * Digits under [callingCode], capped: a full number (11+ digits) that
-     * starts with the code itself had the code typed in front of it, so the
-     * code goes — the trunk 1 of an 11-digit +1 number included.
+     * Digits under [callingCode], capped: a number longer than the country's
+     * longest national number ([LONGEST_NATIONAL_NUMBER]: 11+ digits, 12+ for
+     * Brazil) that starts with the code itself had the code typed in front of
+     * it, so the code goes — the trunk 1 of an 11-digit +1 number included.
+     * Not at a length where that cannot be told ([isAmbiguousRepeatedCode]:
+     * Germany, 11 digits): those stay as typed, and the customer is asked.
      */
     fun nationalDigits(digits: String, callingCode: String): String {
         val code = callingCode.filter(Char::isDigit)
-        val national = if (code.isNotEmpty() && digits.length >= 11 && digits.startsWith(code)) {
+        val longest = LONGEST_NATIONAL_NUMBER[callingCode] ?: 10
+        // Neither reading can be trusted: kept as typed, for [ambiguityError] to ask.
+        if (isAmbiguousRepeatedCode(digits, callingCode)) return digits.take(MAX_DIGITS)
+        val national = if (code.isNotEmpty() && digits.length > longest && digits.startsWith(code)) {
             digits.substring(code.length)
         } else {
             digits
@@ -337,42 +406,82 @@ object AuthorizedUserPhoneInput {
     }
 
     /**
-     * `user_mobile_number` for a number the customer typed: its digits —
-     * except after a typed "+CC" (not +1) whose national number starts with
-     * that code again and runs to 11+ digits ("+55 55 99123 4567": Brazil,
-     * area code 55). As bare digits the server would take that 55 for the
-     * code typed twice and cut it (AuthorizedUserPhone::normalize step 7), so
-     * it goes as "+" + code + digits ("+5555991234567"): the picker's own code
-     * typed in front, which the server keeps whole. The Laravel handoff's
-     * contract table documents that input; Swift sends the same
-     * (requestNumber, SWIFT_APP #51). Every other number stays digits only.
+     * `user_mobile_number` for the number in the box: its digits — except when
+     * they start with the calling code (not +1) and run to 11+ digits. As bare
+     * digits the server could take that code for one typed twice and cut it
+     * (AuthorizedUserPhone::normalize step 7), storing a number the box never
+     * showed, so they go as "+" + code + digits: the picker's own code typed
+     * in front, which every server version keeps whole. That covers
+     * "+55 55 99123 4567" (Brazil, area code 55: "+5555991234567", the Laravel
+     * handoff's contract row, as Swift sends it since SWIFT_APP #51) and a
+     * number the box already normalized once, such as German 049112345678,
+     * whose trunk 0 the box dropped: 49112345678 goes as "+4949112345678", so
+     * the server does not normalize it a second time. The threshold stays the
+     * pre-v1.28 "11+" on purpose, so it is right against either server.
+     * Every other number stays digits only.
      */
-    fun requestNumber(digits: String, callingCode: String, explicitCode: Boolean): String {
+    fun requestNumber(digits: String, callingCode: String): String {
         val code = callingCode.filter(Char::isDigit)
         val repeatsCode = code.isNotEmpty() && digits.length >= 11 && digits.startsWith(code) &&
             digits.length - code.length >= 7
-        return if (explicitCode && code != "1" && repeatsCode) "+$code$digits" else digits
+        return if (code != "1" && repeatsCode) "+$code$digits" else digits
     }
 
-    /** The box after the picker moves to [callingCode]; a half-typed "+CC" is left for the next key. */
-    fun renumber(box: String, callingCode: String): String =
-        if (box.all(Char::isDigit)) nationalDigits(box, callingCode) else box
+    /**
+     * The box after the picker moves to a different [callingCode], re-read
+     * under it: a repeated code cut, one trunk 0 dropped. A half-typed "+CC"
+     * is left for the next key.
+     */
+    fun renumber(box: String, callingCode: String): String = renumbered(box, callingCode).first
+
+    /** [renumber], and whether the digits are now the national number as written (a trunk 0 went). */
+    internal fun renumbered(box: String, callingCode: String): Pair<String, Boolean> =
+        if (box.all(Char::isDigit)) boxDigits(callingCode, box, explicit = false) else box to false
 
     /** A typed code keeps the picker where it is when it already says that code. */
     private fun isoForTypedCode(code: String, national: String, currentIso: String): String {
         if (country(currentIso)?.callingCode == code) return currentIso
-        // "+1" alone does not say which +1 country; Jamaica until an area code does.
-        if (code == "+1" && national.length < 3) return DEFAULT_ISO
         return isoFor(code, national)
     }
 
-    /** Validation candidate only; Laravel must normalize the original wire value once. */
+    /**
+     * One national trunk 0 dropped, for the codes the server drops it for
+     * (CallingCodes::DROPS_TRUNK_ZERO), as it drops it once: never a lone "0",
+     * never "00" (an international prefix). The box applies it as the digits
+     * come in ([boxDigits], [renumber]), so it shows what the server
+     * stores; validation applies it too, where it finds nothing left to drop.
+     * A stored phone an edit leaves alone is never re-read by it.
+     */
     fun submissionDigits(digits: String, callingCode: String): String =
         if (digits.length > 1 && digits.startsWith("0") && !digits.startsWith("00") && callingCode in DROPS_TRUNK_ZERO) {
             digits.substring(1)
         } else {
             digits
         }
+
+    /**
+     * [digits] under [callingCode] start with the code at a length where that
+     * cannot be told from the national number ([AMBIGUOUS_REPEATED_CODE_LENGTHS]).
+     */
+    fun isAmbiguousRepeatedCode(digits: String, callingCode: String): Boolean {
+        val code = callingCode.filter(Char::isDigit)
+        return digits.length in AMBIGUOUS_REPEATED_CODE_LENGTHS[callingCode].orEmpty() &&
+            code.isNotEmpty() && digits.startsWith(code)
+    }
+
+    /**
+     * The server's refusal (AuthorizedUserPhone::mobileProblem) for a box of
+     * digits typed without "+" or a trunk 0 ([explicitCode] false) that
+     * [isAmbiguousRepeatedCode]: "Please enter a valid phone number. For a
+     * German number, start with +49, or with 0 as dialled in Germany." — said
+     * under the field on blur and Save, which it blocks. null otherwise:
+     * "+49 4921 1234567", "0049 …" and "04921 1234567" read as they are.
+     */
+    fun ambiguityError(digits: String, callingCode: String, explicitCode: Boolean): String? {
+        if (explicitCode || !isAmbiguousRepeatedCode(digits, callingCode)) return null
+        val hint = AMBIGUOUS_REPEATED_CODE_HINTS[callingCode] ?: "Start with + and the country code."
+        return "$FIELD_ERROR $hint"
+    }
 
     /** null when the normalized number is sendable; otherwise the field message. */
     fun validationError(digits: String, callingCode: String): String? {
