@@ -160,7 +160,11 @@ fun PaymentsScreen(
                     PaymentCard(
                         payment = payment,
                         onClick = { openPayment(payment) },
-                        onDownloadInvoice = { viewModel.downloadInvoice(payment) },
+                        onDownloadInvoice = if (hasDownloadableInvoice(payment)) {
+                            { viewModel.downloadInvoice(payment) }
+                        } else {
+                            null
+                        },
                         downloadingInvoice = state.downloadingInvoiceId == payment.id,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -309,3 +313,12 @@ private fun PaymentTypeFilterDialog(
         }
     }
 }
+
+/**
+ * Whether this payment's card offers Download: only with a numeric
+ * packages_invoice_id, the key Laravel's invoice route resolves. Kemar
+ * 2026-09-23 ("Hide it"): no button when there is nothing to download, as on
+ * iOS (FigmaPaymentsViewController: download.isHidden = invoiceTag <= 0).
+ */
+internal fun hasDownloadableInvoice(payment: ShipmentPayment): Boolean =
+    (payment.invoiceId?.trim()?.toIntOrNull() ?: 0) > 0
