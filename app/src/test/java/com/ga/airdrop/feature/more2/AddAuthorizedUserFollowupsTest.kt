@@ -986,4 +986,36 @@ class AddAuthorizedUserFollowupsTest {
             // A "+" after a digit: the digits, under the picker.
             assertEquals(Triple("JM", "8765551234", "+1" to "8765551234"), pasted("876+5551234", "JM"))
         }
+
+    @Test
+    fun `a German number that could be read two ways is refused under the field, and nothing is sent`() =
+        runTest(dispatcher) {
+            val message = "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = freshForm("DE", calls)
+            vm.typeIntoMobile("4921 1234567")
+            assertEquals("kept as typed", "DE" to "49211234567", vm.shown)
+            vm.onMobileBlur()
+            assertEquals(message, vm.state.value.mobileError)
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(message, vm.state.value.mobileError)
+            assertTrue("nothing may be sent", calls.isEmpty())
+
+            // The four shapes the server reads as they are.
+            fun sent(typed: String): Pair<String, String> {
+                val sentCalls = mutableListOf<AuthorizedUserRequest>()
+                val form = freshForm("DE", sentCalls)
+                form.typeIntoMobile(typed)
+                form.onMobileBlur()
+                assertNull(typed, form.state.value.mobileError)
+                form.save()
+                dispatcher.scheduler.advanceUntilIdle()
+                return sentCalls.sentPhone
+            }
+            assertEquals("+49" to "+4949211234567", sent("+49 4921 1234567"))
+            assertEquals("+49" to "2111234567", sent("0049 211 1234567"))
+            assertEquals("+49" to "+4949211234567", sent("04921 1234567"))
+            assertEquals("+49" to "3012345678", sent("49 30 12345678"))
+        }
 }

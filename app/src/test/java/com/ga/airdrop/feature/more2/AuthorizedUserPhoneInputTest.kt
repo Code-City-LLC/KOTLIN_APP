@@ -36,10 +36,10 @@ class AuthorizedUserPhoneInputTest {
 
     @Test
     fun `normalized Laravel phone fixture agrees with the existing validator`() {
-        // The 82-case fixture at AIRDROP-LARAVEL 83978f0c (v1.28: the original
-        // 78 plus three Brazil cases and Germany), not a claim of raw-input parity.
+        // The 87-case fixture at AIRDROP-LARAVEL dd4675c8 (v1.29: the original
+        // 78, v1.28's Brazil and Germany cases, and the ambiguous German shapes).
         val rows = fixture("authorized-user-phones").jsonArray
-        assertEquals(82, rows.size)
+        assertEquals(87, rows.size)
         rows.forEachIndexed { index, element ->
             val row = element.jsonObject
             val pair = row.getValue("normalized").jsonArray
@@ -489,8 +489,10 @@ class AuthorizedUserPhoneInputTest {
         assertEquals("55991234567", national("55991234567", "+55"))
         assertEquals("55991234567", national("5555991234567", "+55"))
         assertEquals("1134567890", national("551134567890", "+55"))
-        // Every other code keeps the 11+ rule, Germany on purpose.
-        assertEquals("211234567", national("49211234567", "+49"))
+        // Every other code keeps the 11+ rule — Germany too, except at exactly
+        // 11 digits, which v1.29 neither cuts nor keeps as a guess: it asks.
+        assertEquals("49211234567", national("49211234567", "+49"))
+        assertEquals("3012345678", national("493012345678", "+49"))
         assertEquals("7911123456", national("447911123456", "+44"))
         assertEquals("8765551234", national("18765551234", "+1"))
         // Typed key by key, the box ends where the server does.
@@ -556,7 +558,47 @@ class AuthorizedUserPhoneInputTest {
             checked++
             assertTrue(iso.isNotEmpty())
         }
-        assertEquals("fixture rows checked", 46, checked)
+        assertEquals("fixture rows checked", 49, checked)
+    }
+
+    @Test
+    fun `an ambiguous German number is kept as typed and refused in the server's words`() {
+        // The fixture's refusals whose number the server left unresolved: the
+        // box keeps what was typed, and asks exactly as the server asks.
+        val rows = fixture("authorized-user-phones").jsonArray.map { it.jsonObject }
+        var checked = 0
+        for (row in rows) {
+            val (code, stored) = row.getValue("normalized").jsonArray.map { it.jsonPrimitive.content }
+            if (!stored.startsWith("+")) continue
+            val mobile = row.getValue("mobile").jsonPrimitive.content
+            val message = row.getValue("problem").jsonArray[1].jsonPrimitive.content
+            val start = AuthorizedUserPhoneInput.isoFor(code, "")
+            for ((how, entry) in listOf(
+                "pasted" to AuthorizedUserPhoneInput.resolve(AuthorizedUserPhoneInput.interpret(mobile, start)),
+                "typed" to AuthorizedUserPhoneInput.resolve(typedSteps(mobile, start).last()),
+            )) {
+                val label = "$how $code \"$mobile\""
+                assertEquals(label, stored.drop(1), entry.number)
+                assertEquals(label, message, AuthorizedUserPhoneInput.ambiguityError(entry.number, code, entry.explicitCode))
+            }
+            checked++
+        }
+        assertEquals("ambiguous fixture rows checked", 2, checked)
+
+        val message = "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+        assertEquals("49211234567", AuthorizedUserPhoneInput.nationalDigits("49211234567", "+49"))
+        assertEquals(message, AuthorizedUserPhoneInput.ambiguityError("49211234567", "+49", explicitCode = false))
+        // Read as they are: after "+49", "0049" or a trunk 0, and at 12 digits.
+        assertNull(AuthorizedUserPhoneInput.ambiguityError("49211234567", "+49", explicitCode = true))
+        assertEquals("DE" to "49211234567", typedAndSettled("+49 4921 1234567", "DE"))
+        assertEquals("DE" to "2111234567", typedAndSettled("0049 211 1234567", "DE"))
+        val emden = typedSteps("04921 1234567", "DE").last()
+        assertEquals("DE" to "49211234567", emden.shown())
+        assertNull(AuthorizedUserPhoneInput.ambiguityError(emden.number, "+49", emden.explicitCode))
+        assertEquals("DE" to "3012345678", typedAndSettled("49 30 12345678", "DE"))
+        // Only Germany, only 11 digits.
+        assertNull(AuthorizedUserPhoneInput.ambiguityError("447911123456", "+44", explicitCode = false))
+        assertNull(AuthorizedUserPhoneInput.ambiguityError("4921123456", "+49", explicitCode = false))
     }
 
     private companion object {

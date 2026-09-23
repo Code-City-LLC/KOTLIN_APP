@@ -114,6 +114,20 @@ object AuthorizedUserPhoneInput {
     private val LONGEST_NATIONAL_NUMBER = mapOf("+55" to 11)
 
     /**
+     * Laravel CallingCodes::AMBIGUOUS_REPEATED_CODE_LENGTHS and _HINTS (v1.29,
+     * Kemar: "Ask the customer"): a number that starts with its own calling
+     * code at one of these lengths, typed without "+" or a trunk 0, can be read
+     * neither way. Germany, 11 digits: 4921 1234567 may be Emden (04921) or
+     * "+49" typed before Düsseldorf (0211), and the East Frisian area codes
+     * collide with the big cities', so no area-code rule can tell. The box
+     * keeps it as typed and asks for "+49" or the 0 ([ambiguityError]).
+     */
+    private val AMBIGUOUS_REPEATED_CODE_LENGTHS = mapOf("+49" to setOf(11))
+    private val AMBIGUOUS_REPEATED_CODE_HINTS = mapOf(
+        "+49" to "For a German number, start with +49, or with 0 as dialled in Germany.",
+    )
+
+    /**
      * The Caribbean (and Pacific) NANP area codes and the country each one
      * dials — CallingCodes::NANP_CARIBBEAN_AREA_CODES and the website's
      * PHONE_NANP_AREA_ISOS. Written the local way with a "+" ("+876 555 1234",
@@ -375,10 +389,14 @@ object AuthorizedUserPhoneInput {
      * longest national number ([LONGEST_NATIONAL_NUMBER]: 11+ digits, 12+ for
      * Brazil) that starts with the code itself had the code typed in front of
      * it, so the code goes — the trunk 1 of an 11-digit +1 number included.
+     * Not at a length where that cannot be told ([isAmbiguousRepeatedCode]:
+     * Germany, 11 digits): those stay as typed, and the customer is asked.
      */
     fun nationalDigits(digits: String, callingCode: String): String {
         val code = callingCode.filter(Char::isDigit)
         val longest = LONGEST_NATIONAL_NUMBER[callingCode] ?: 10
+        // Neither reading can be trusted: kept as typed, for [ambiguityError] to ask.
+        if (isAmbiguousRepeatedCode(digits, callingCode)) return digits.take(MAX_DIGITS)
         val national = if (code.isNotEmpty() && digits.length > longest && digits.startsWith(code)) {
             digits.substring(code.length)
         } else {
@@ -440,6 +458,30 @@ object AuthorizedUserPhoneInput {
         } else {
             digits
         }
+
+    /**
+     * [digits] under [callingCode] start with the code at a length where that
+     * cannot be told from the national number ([AMBIGUOUS_REPEATED_CODE_LENGTHS]).
+     */
+    fun isAmbiguousRepeatedCode(digits: String, callingCode: String): Boolean {
+        val code = callingCode.filter(Char::isDigit)
+        return digits.length in AMBIGUOUS_REPEATED_CODE_LENGTHS[callingCode].orEmpty() &&
+            code.isNotEmpty() && digits.startsWith(code)
+    }
+
+    /**
+     * The server's refusal (AuthorizedUserPhone::mobileProblem) for a box of
+     * digits typed without "+" or a trunk 0 ([explicitCode] false) that
+     * [isAmbiguousRepeatedCode]: "Please enter a valid phone number. For a
+     * German number, start with +49, or with 0 as dialled in Germany." — said
+     * under the field on blur and Save, which it blocks. null otherwise:
+     * "+49 4921 1234567", "0049 …" and "04921 1234567" read as they are.
+     */
+    fun ambiguityError(digits: String, callingCode: String, explicitCode: Boolean): String? {
+        if (explicitCode || !isAmbiguousRepeatedCode(digits, callingCode)) return null
+        val hint = AMBIGUOUS_REPEATED_CODE_HINTS[callingCode] ?: "Start with + and the country code."
+        return "$FIELD_ERROR $hint"
+    }
 
     /** null when the normalized number is sendable; otherwise the field message. */
     fun validationError(digits: String, callingCode: String): String? {

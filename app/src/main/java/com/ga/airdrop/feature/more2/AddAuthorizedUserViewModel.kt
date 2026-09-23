@@ -160,8 +160,11 @@ class AddAuthorizedUserViewModel(
         if (!it.phoneTouched) return@update it
         val settled = it.settledPhone()
         if (settled.mobileNumber.isBlank() || unchangedStoredPhone(settled) != null) return@update settled
-        val digits = AuthorizedUserPhoneInput.submissionDigits(settled.mobileNumber.trim(), settled.callingCode)
-        val error = AuthorizedUserPhoneInput.validationError(digits, settled.callingCode)
+        val box = settled.mobileNumber.trim()
+        val digits = AuthorizedUserPhoneInput.submissionDigits(box, settled.callingCode)
+        // A number the server cannot read either way asks, in its words (v1.29).
+        val error = AuthorizedUserPhoneInput.ambiguityError(box, settled.callingCode, settled.phoneExplicitCode)
+            ?: AuthorizedUserPhoneInput.validationError(digits, settled.callingCode)
         if (error == null) settled else settled.copy(mobileError = error)
     }
     fun dismissSaveFailure() = _state.update { it.copy(saveFailure = null) }
@@ -317,7 +320,10 @@ class AddAuthorizedUserViewModel(
             // The trunk 0 the server drops is left out of the check, never
             // out of the request: Laravel normalizes the wire value once.
             val validationDigits = AuthorizedUserPhoneInput.submissionDigits(digits, countryCode)
-            val phoneError = AuthorizedUserPhoneInput.validationError(validationDigits, countryCode)
+            // A number the server cannot read either way (German 4921 1234567
+            // typed without "+" or 0) is refused here, in the server's words.
+            val phoneError = AuthorizedUserPhoneInput.ambiguityError(digits, countryCode, s.phoneExplicitCode)
+                ?: AuthorizedUserPhoneInput.validationError(validationDigits, countryCode)
             if (phoneError != null) {
                 _state.update { it.copy(mobileError = phoneError) }
                 return
