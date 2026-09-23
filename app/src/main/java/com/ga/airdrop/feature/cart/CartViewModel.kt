@@ -945,6 +945,11 @@ class CartViewModel(
             "Billing country",
             "Select Jamaica or United States as your billing country for JMD payments.",
         )
+        // create-ncb-session requires a city; ask for it here, not after a 422.
+        if (form.city.isBlank()) return orderError(
+            "Billing city",
+            "Add your city in Profile Information before paying. No payment was started.",
+        )
         val request = CreateNcbSessionRequest(
             packageIds = lines.mapNotNull(CartStore.CartLine::packageId),
             currency = "JMD",

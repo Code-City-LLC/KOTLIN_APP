@@ -220,7 +220,7 @@ fun NcbCardEntryScreen(
                     value = CountryCatalog.displayNameFor(form.country),
                     options = ncbCountryOptions,
                     onSelect = { selected ->
-                        host.updateNcbForm { checkoutFormWithCountry(it, selected) }
+                        host.updateNcbForm { ncbCardFormWithCountry(it, selected) }
                     },
                     required = true,
                 )
@@ -231,7 +231,7 @@ fun NcbCardEntryScreen(
                     label = "State",
                     value = form.state,
                     options = ncbStateOptions,
-                    onSelect = { v -> host.updateNcbForm { checkoutFormWithState(it, v) } },
+                    onSelect = { v -> host.updateNcbForm { ncbCardFormWithState(it, v) } },
                 )
                 // ZIP only matters for the US (Jamaica + other Caribbean islands don't
                 // use postal codes) — hide it for non-postal countries per the ruling.
