@@ -66,6 +66,7 @@ class CalculatorViewModel(
 
     private var searchJob: Job? = null
     private var rateLoaded = false
+    private var tierQuoteGeneration = 0L
 
     // ─── Form updates ───
 
@@ -188,7 +189,9 @@ class CalculatorViewModel(
         // returns the whole breakdown. Kemar 2026-07-26: server rates, and an
         // error if they cannot be fetched. Never quote a number no system
         // authored.
-        _state.update { it.copy(calculating = true) }
+        // A new calculation supersedes any refresh of the previous result.
+        tierQuoteGeneration += 1
+        _state.update { it.copy(calculating = true, tierQuoteActionLoading = false) }
         val dimensions = parseDimensions(form)
         viewModelScope.launch {
             val tierMethod = form.method.tierQuoteMethod
@@ -331,15 +334,17 @@ class CalculatorViewModel(
     private fun rerunTierQuote(insuranceChoice: Boolean?) {
         val current = _result.value ?: return
         val originalRequest = current.tierQuoteRequest ?: return
-        if (current.tierQuote == null || _state.value.tierQuoteActionLoading) return
+        if (current.tierQuote == null || _state.value.calculating || _state.value.tierQuoteActionLoading) return
 
         val request = originalRequest.copy(
             insuranceDeclined = if (insuranceChoice == false) true else null,
         )
+        val generation = ++tierQuoteGeneration
         _state.update { it.copy(tierQuoteActionLoading = true) }
         viewModelScope.launch {
             runCatching { repository.quoteShipment(request) }
                 .onSuccess { fresh ->
+                    if (generation != tierQuoteGeneration) return@onSuccess
                     _result.value = current.copy(
                         tierQuote = fresh,
                         tierQuoteRequest = request,
@@ -348,6 +353,7 @@ class CalculatorViewModel(
                     _state.update { it.copy(tierQuoteActionLoading = false) }
                 }
                 .onFailure { error ->
+                    if (generation != tierQuoteGeneration) return@onFailure
                     _state.update {
                         it.copy(
                             tierQuoteActionLoading = false,
