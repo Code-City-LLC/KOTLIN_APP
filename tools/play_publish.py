@@ -59,7 +59,8 @@ SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 # Query Play again before building: any upload on any track burns its code.
 # 2026-09-22: 32 (3.2.5) uploaded to the internal track; floors raised to 32
 # in the same change, per the rule above.
-VERSION_CODE_FLOOR = 32
+# 2026-09-22: 33 (3.2.5) uploaded to the internal track; floors 33.
+VERSION_CODE_FLOOR = 33
 
 
 def die(msg: str) -> "None":

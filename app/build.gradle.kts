@@ -62,7 +62,9 @@ val playUploadSigningConfigured =
 //   edits.bundles().list(packageName=..., editId=...)  -> max(versionCode)
 // 2026-09-22: 32 (3.2.5) uploaded to the INTERNAL track (Claude-BronzeMountain),
 // Play queried first: uploaded codes were [2, 22, 26..31], 31 live on production.
-val knownPlayProductionVersionCodeFloor = 32
+// 2026-09-22: 33 (3.2.5), main 570af5e0 with the blur check (#249), replaced 32
+// on the internal track (Claude-BronzeMountain). Play: codes [2, 26..33].
+val knownPlayProductionVersionCodeFloor = 33
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
