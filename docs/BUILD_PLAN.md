@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 1 | **Figma** "Revamping-AirDrop-App" (`N4k6jzpeLZgeRS5O1xfyIv`) | Figma remote MCP | Pixel-perfect visuals: layout, spacing, colors, type, icons. Screen canvas "UID — App" (node `40000002:83125`); per-screen node map below. |
 | 2 | **Swift iOS app** | `../SWIFT_APP` | Behavior truth: 52-screen inventory, navigation, flows, API wiring, DesignTokens.swift, APIEndpoints.swift, route resolver, known gaps. |
-| 3 | **React Native app** (old) | `../AD-REACT_NATIVE_APP-OLD` | Reference: route structure, Android identity (`com.ga.airdrop.app`), Cairo fonts, assets, behaviors Swift missed (debounce, logout hygiene). |
+| 3 | **React Native app (RETIRED — dead, do not consult)** | `../AD-REACT_NATIVE_APP-OLD` | Reference: route structure, Android identity (`com.ga.airdrop.app`), Cairo fonts, assets, behaviors Swift missed (debounce, logout hygiene). |
 | 4 | **Laravel backend** | `../AIRDROP-LARAVEL` | Contract: `/api/v1` (Sanctum bearer), 60+ endpoints, models, envs (prod `airdropja.com`, pre-staging `pre-staging.airdropja.com`). |
 
 Conflict rule update (2026-07-05): Swift is the precedence guide whenever

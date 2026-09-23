@@ -13,7 +13,7 @@ Build the native Android (Kotlin/Compose) port of the Airdrop product, Play-Stor
 
 1. **Swift iOS app** — `/Users/codecityceo/Documents/GitHub/SWIFT_APP` — behavioral/flow truth AND updated-design truth. Shipped design lives in the `Figma*ViewController.swift` files (`FigmaHomeViewController.swift`, `FigmaTabHeader.swift`, `FigmaPackageDetailsViewController.swift`, …). Cite line numbers in code comments when porting.
 2. **Figma** — file key `N4k6jzpeLZgeRS5O1xfyIv` (app-screens canvas node `40000002:83125`) — visual truth, **and it WINS where Swift is missing a designed element** (Kemar's ruling after the Government Charges episode). Precedents: Government Charges screen (`40001817:20681`), CIF bottom sheet (`40001817:20191`), Help Live Chat row.
-3. **React Native app** — `/Users/codecityceo/Documents/GitHub/AD-REACT_NATIVE_APP-OLD` — structural reference only.
+3. **React Native app (RETIRED — dead, path missing, do not consult)** — `/Users/codecityceo/Documents/GitHub/AD-REACT_NATIVE_APP-OLD` — structural reference only.
 4. **Laravel backend** — `/Users/codecityceo/Documents/GitHub/AIRDROP-LARAVEL` — API contract ONLY. The Kotlin lane never pushes there (that repo is GreenPuma's, `pre_staging` only). Where a Swift↔Android data bug traces to an endpoint, use the **existing** route — e.g. product detail is `GET /products/{product:slug}` at `routes/api.php:188`, NOT the list `?slug=` filter (see §3, the a1768d2 fix).
 
 **Non-negotiables:** no invention (every color/size/copy cites Swift lines or a Figma node); nothing is "done" without on-device verification (light AND dark); never commit credentials; KOTLIN_APP pushes go to its own `origin main`.
