@@ -352,6 +352,22 @@ class AuthorizedUserPhoneInputTest {
     }
 
     @Test
+    fun `a typed code the server would cut as repeated goes in front of the digits`() {
+        fun wire(digits: String, code: String, explicit: Boolean) =
+            AuthorizedUserPhoneInput.requestNumber(digits, code, explicit)
+        // "+55 55 99123 4567": the handoff's contract row, and what Swift sends.
+        assertEquals("+5555991234567", wire("55991234567", "+55", explicit = true))
+        assertEquals("+4949211234567", wire("49211234567", "+49", explicit = true))
+        // Everything else stays digits only.
+        assertEquals("55991234567", wire("55991234567", "+55", explicit = false))
+        assertEquals("5599123456", wire("5599123456", "+55", explicit = true)) // ten digits: never cut
+        assertEquals("11991234567", wire("11991234567", "+55", explicit = true)) // no repeated code
+        assertEquals("18765551234", wire("18765551234", "+1", explicit = true)) // +1 keeps its own rule
+        assertEquals("7911123456", wire("7911123456", "+44", explicit = true))
+        assertEquals("", wire("", "+55", explicit = true))
+    }
+
+    @Test
     fun `resolve settles only a number still waiting`() {
         fun settle(box: String, iso: String) =
             AuthorizedUserPhoneInput.resolve(AuthorizedUserPhoneEntry(iso, box)).shown()

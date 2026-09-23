@@ -303,15 +303,17 @@ class AddAuthorizedUserViewModel(
             mobile = keptPhone.mobileNumber.orEmpty()
         } else {
             countryCode = s.callingCode
-            mobile = s.mobileNumber.trim()
+            val digits = s.mobileNumber.trim()
             // The trunk 0 the server drops is left out of the check, never
             // out of the request: Laravel normalizes the wire value once.
-            val validationDigits = AuthorizedUserPhoneInput.submissionDigits(mobile, countryCode)
+            val validationDigits = AuthorizedUserPhoneInput.submissionDigits(digits, countryCode)
             val phoneError = AuthorizedUserPhoneInput.validationError(validationDigits, countryCode)
             if (phoneError != null) {
                 _state.update { it.copy(mobileError = phoneError) }
                 return
             }
+            // Digits only, unless the server needs the typed "+CC" to keep them whole.
+            mobile = AuthorizedUserPhoneInput.requestNumber(digits, countryCode, s.phoneExplicitCode)
         }
         // Laravel: trn_no is `digits:9` — EXACTLY nine numeric digits. This used
         // to be an isEmpty() check only, so "123-456-789" or an 8-digit TRN was

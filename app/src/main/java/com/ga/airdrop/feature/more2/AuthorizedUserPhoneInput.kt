@@ -10,6 +10,8 @@ import java.util.Locale
  *
  *     user_country_code  = the CALLING code — "+1" for Jamaica, "+44" for the UK
  *     user_mobile_number = national digits within the API's calling-code limits
+ *                          (the typed "+CC" in front only where the server
+ *                          would otherwise cut a repeated code: [requestNumber])
  *
  * The old form took one free-text box ("+1 876-5290736") and parsed a "+" out
  * of it. Type 15550199 or (555) 019-9821 and the "+" is missing, so the
@@ -332,6 +334,24 @@ object AuthorizedUserPhoneInput {
             digits
         }
         return national.take(MAX_DIGITS)
+    }
+
+    /**
+     * `user_mobile_number` for a number the customer typed: its digits —
+     * except after a typed "+CC" (not +1) whose national number starts with
+     * that code again and runs to 11+ digits ("+55 55 99123 4567": Brazil,
+     * area code 55). As bare digits the server would take that 55 for the
+     * code typed twice and cut it (AuthorizedUserPhone::normalize step 7), so
+     * it goes as "+" + code + digits ("+5555991234567"): the picker's own code
+     * typed in front, which the server keeps whole. The Laravel handoff's
+     * contract table documents that input; Swift sends the same
+     * (requestNumber, SWIFT_APP #51). Every other number stays digits only.
+     */
+    fun requestNumber(digits: String, callingCode: String, explicitCode: Boolean): String {
+        val code = callingCode.filter(Char::isDigit)
+        val repeatsCode = code.isNotEmpty() && digits.length >= 11 && digits.startsWith(code) &&
+            digits.length - code.length >= 7
+        return if (explicitCode && code != "1" && repeatsCode) "+$code$digits" else digits
     }
 
     /** The box after the picker moves to [callingCode]; a half-typed "+CC" is left for the next key. */

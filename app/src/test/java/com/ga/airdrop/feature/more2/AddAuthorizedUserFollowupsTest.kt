@@ -592,8 +592,37 @@ class AddAuthorizedUserFollowupsTest {
         assertNull(vm.state.value.mobileError)
         vm.save()
         advanceUntilIdle()
+        // As bare digits the server would cut the 55 as the code typed twice;
+        // with the typed "+55" in front it keeps 55991234567, as Swift sends it.
         assertEquals("+55", calls.single().userCountryCode)
-        assertEquals("55991234567", calls.single().userMobileNumber)
+        assertEquals("+5555991234567", calls.single().userMobileNumber)
+        assertEquals("the box still shows the national number", "55991234567", vm.state.value.mobileNumber)
+    }
+
+    @Test
+    fun `only a typed code the server would cut goes on the wire, and never under +1`() = runTest(dispatcher) {
+        fun sent(typed: String, startIso: String = "JM"): Pair<String, String> {
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = AddAuthorizedUserViewModel(
+                editId = null,
+                repository = More2Repository(api(http(500, "{}"), calls)),
+                defaultPhoneIso = startIso,
+            ).fillEverythingButThePhone()
+            vm.typeIntoMobile(typed)
+            vm.save()
+            dispatcher.scheduler.advanceUntilIdle()
+            return calls.single().let { it.userCountryCode to it.userMobileNumber }
+        }
+        // The Laravel fixture's German twin of the Brazil case.
+        assertEquals("+49" to "+4949211234567", sent("+49 4921 1234567"))
+        // A typed code whose number does not start with it again: digits only.
+        assertEquals("+44" to "7911123456", sent("+44 7911 123456"))
+        assertEquals("+55" to "11991234567", sent("+55 11 99123 4567"))
+        assertEquals("+1" to "8765551234", sent("+1 876 555 1234"))
+        assertEquals("+1" to "8765551234", sent("+876 555 1234"))
+        // No typed code: the digits the box shows, as before.
+        assertEquals("+44" to "7911123456", sent("447911123456", startIso = "GB"))
+        assertEquals("+49" to "049112345678", sent("049112345678", startIso = "DE"))
     }
 
     // ── 2026-09-23 audit: an edit sends back what it did not change ───────────
