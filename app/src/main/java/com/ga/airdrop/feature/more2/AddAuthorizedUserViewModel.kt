@@ -78,6 +78,7 @@ class AddAuthorizedUserViewModel(
         AddAuthorizedUserUiState(isEditMode = editId != null, phoneIso = defaultPhoneIso),
     )
     val state: StateFlow<AddAuthorizedUserUiState> = _state
+    private var storedPhone: Pair<String, String>? = null
 
     init {
         if (editId != null) prefill(editId) else openOnProfileCountry()
@@ -123,7 +124,9 @@ class AddAuthorizedUserViewModel(
      */
     fun onMobileBlur() = _state.update {
         if (!it.phoneTouched || it.mobileNumber.isBlank()) return@update it
-        val error = AuthorizedUserPhoneInput.validationError(it.mobileNumber.trim(), it.callingCode)
+        if (unchangedStoredPhone(it) != null) return@update it
+        val digits = AuthorizedUserPhoneInput.submissionDigits(it.mobileNumber.trim(), it.callingCode)
+        val error = AuthorizedUserPhoneInput.validationError(digits, it.callingCode)
         if (error == null) it else it.copy(mobileError = error)
     }
     fun dismissSaveFailure() = _state.update { it.copy(saveFailure = null) }
@@ -147,6 +150,15 @@ class AddAuthorizedUserViewModel(
         }
     }
 
+    /** Laravel forUpdate preserves every unchanged phone during other edits. */
+    private fun unchangedStoredPhone(state: AddAuthorizedUserUiState): Pair<String, String>? {
+        val original = storedPhone ?: return null
+        val (iso, digits) = AuthorizedUserPhoneInput.fold(original.first, original.second)
+        val code = AuthorizedUserPhoneInput.country(iso)?.callingCode ?: "+1"
+        if (code != state.callingCode || digits != state.mobileNumber.trim()) return null
+        return original
+    }
+
     private fun prefill(id: Int) {
         _state.update { it.copy(loadingUser = true) }
         viewModelScope.launch {
@@ -157,6 +169,7 @@ class AddAuthorizedUserViewModel(
                     // digits, the way the website does, so the box shows all
                     // ten digits the server will accept on save.
                     val (phoneIso, mobile) = AuthorizedUserPhoneInput.fold(user.countryCode, user.mobileNumber)
+                    storedPhone = user.countryCode.orEmpty() to user.mobileNumber.orEmpty()
                     _state.update {
                         it.copy(
                             loadingUser = false,
@@ -205,13 +218,15 @@ class AddAuthorizedUserViewModel(
         // The calling code comes from the picker and the box holds digits only
         // (Kemar 2026-09-15). A bad number is said under the field, not in a
         // dialog: "Please enter a valid phone number."
-        val countryCode = s.callingCode
-        val phoneError = AuthorizedUserPhoneInput.validationError(mobile, countryCode)
+        val unchangedPhone = unchangedStoredPhone(s)
+        val countryCode = unchangedPhone?.first ?: s.callingCode
+        val parsedMobile = unchangedPhone?.second ?: mobile
+        val validationDigits = AuthorizedUserPhoneInput.submissionDigits(mobile, countryCode)
+        val phoneError = if (unchangedPhone == null) AuthorizedUserPhoneInput.validationError(validationDigits, countryCode) else null
         if (phoneError != null) {
             _state.update { it.copy(mobileError = phoneError) }
             return
         }
-        val parsedMobile = mobile
         if (trn.isEmpty()) return fail("Please enter Tax Registration Number")
         // Laravel: trn_no is `digits:9` — EXACTLY nine numeric digits. This used
         // to be an isEmpty() check only, so "123-456-789" or an 8-digit TRN was

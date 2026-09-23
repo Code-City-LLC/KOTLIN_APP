@@ -1,6 +1,14 @@
 package com.ga.airdrop.feature.more2
 
+import com.ga.airdrop.core.location.CountryCatalog
 import com.ga.airdrop.core.location.CountryEntry
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -19,6 +27,77 @@ import org.junit.Test
  * the field for every rule that can fail.
  */
 class AuthorizedUserPhoneInputTest {
+
+    private fun fixture(name: String) = requireNotNull(javaClass.getResourceAsStream("/$name.json")) {
+        "Missing pinned contract fixture $name"
+    }.bufferedReader().use { Json.parseToJsonElement(it.readText()) }
+
+    @Test
+    fun `normalized Laravel phone fixture agrees with the existing validator`() {
+        // Original 78-case fixture at 841015b1, not a claim of raw-input parity.
+        val rows = fixture("authorized-user-phones").jsonArray
+        assertEquals(78, rows.size)
+        rows.forEachIndexed { index, element ->
+            val row = element.jsonObject
+            val pair = row.getValue("normalized").jsonArray
+            assertEquals(2, pair.size)
+            val error = AuthorizedUserPhoneInput.validationError(pair[1].jsonPrimitive.content, pair[0].jsonPrimitive.content)
+            assertEquals("Laravel fixture row $index", row.getValue("problem") == JsonNull, error == null)
+        }
+    }
+
+    @Test
+    fun `all Laravel calling codes obey national length boundaries`() {
+        val contract = fixture("authorized-user-calling-codes").jsonObject
+        val codes = contract.getValue("callingCodes").jsonArray.map { it.jsonPrimitive.content }
+        val minimums = contract.getValue("minimumNationalDigits").jsonObject
+        assertEquals(205, codes.size)
+        // Desktop Java omits Kosovo from Locale; Android includes it. Include
+        // the existing territory fallback when checking the contract itself.
+        val offered = AuthorizedUserPhoneInput.countries.map { it.callingCode }.toSet() +
+            AuthorizedUserPhoneInput.TERRITORY_DIAL_CODES.values.mapNotNull(AuthorizedUserPhoneInput::callingCode)
+        assertEquals(codes.map { "+$it" }.toSet(), offered)
+        codes.forEach { code ->
+            (0..16).forEach { length ->
+                val minimum = minimums[code]?.jsonPrimitive?.int ?: 7
+                val expected = if (code == "1") length == 10 else length in minimum..(15 - code.length)
+                assertEquals("+$code, $length national digits", expected,
+                    AuthorizedUserPhoneInput.validationError("2".repeat(length), "+$code") == null)
+            }
+        }
+        listOf("", "+0", "+99", "+379", "+870", "44", "+044", "+1876", "+44 ").forEach { code ->
+            assertEquals(code, AuthorizedUserPhoneInput.FIELD_ERROR,
+                AuthorizedUserPhoneInput.validationError("2222222222", code))
+        }
+        ('0'..'9').forEach { first ->
+            assertEquals("NANP area code beginning $first", first >= '2',
+                AuthorizedUserPhoneInput.validationError("${first}234567890", "+1") == null)
+        }
+    }
+
+    @Test
+    fun `phone-only calling code corrections preserve the checkout catalogue`() {
+        assertEquals("+39", AuthorizedUserPhoneInput.country("VA")?.callingCode)
+        assertNull(AuthorizedUserPhoneInput.country("PN"))
+        assertEquals("+379", CountryCatalog.all.first { it.isoCode == "VA" }.dialCode)
+        assertEquals("+870", CountryCatalog.all.first { it.isoCode == "PN" }.dialCode)
+    }
+
+    @Test
+    fun `submission normalization uses only the backend trunk zero whitelist`() {
+        val contract = fixture("authorized-user-calling-codes").jsonObject
+        val dropsZero = contract.getValue("dropsTrunkZero").jsonArray.map { it.jsonPrimitive.content }.toSet()
+        contract.getValue("callingCodes").jsonArray.forEach { element ->
+            val code = element.jsonPrimitive.content
+            val expected = if (code in dropsZero) "2222222222" else "02222222222"
+            assertEquals(code, expected, AuthorizedUserPhoneInput.submissionDigits("02222222222", "+$code"))
+            assertEquals("0022222222", AuthorizedUserPhoneInput.submissionDigits("0022222222", "+$code"))
+        }
+        assertEquals("03012345678901", AuthorizedUserPhoneInput.interpret("03012345678901", "DE").number)
+        val submitted = AuthorizedUserPhoneInput.submissionDigits("03012345678901", "+49")
+        assertEquals("3012345678901", submitted)
+        assertNull(AuthorizedUserPhoneInput.validationError(submitted, "+49"))
+    }
 
     @Test
     fun `NANP territories collapse to the calling code the server expects`() {
