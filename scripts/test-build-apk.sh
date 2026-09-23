@@ -36,13 +36,20 @@ test_publish() {
 
 printf 'fake-apk-for-bookkeeping-tests\n' > "$ROOT/fake.apk"
 
+# The Play floor, read the way build-apk.sh reads it. The burned code is the
+# floor itself and the first acceptable code is floor + 1, so raising the floor
+# after an upload never breaks this self-test (it hard-coded 30/31 before).
+FLOOR="$(sed -nE 's/^[[:space:]]*val knownPlayProductionVersionCodeFloor[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' "$SCRIPT_DIR/../app/build.gradle.kts")"
+[[ "$FLOOR" =~ ^[0-9]+$ ]] || fail "could not read knownPlayProductionVersionCodeFloor"
+NEXT=$((FLOOR + 1))
+
 # prodRelease does not use defaultConfig's scaffold version. The same
 # owner-supplied identity must drive Gradle, validation and the ledger.
 if env -u PLAY_VERSION_CODE -u PLAY_VERSION_NAME \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity was accepted without Play version inputs"
 fi
-if PLAY_VERSION_CODE=31 env -u PLAY_VERSION_NAME \
+if PLAY_VERSION_CODE="$NEXT" env -u PLAY_VERSION_NAME \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity was accepted without PLAY_VERSION_NAME"
 fi
@@ -50,15 +57,15 @@ if PLAY_VERSION_CODE=0 PLAY_VERSION_NAME=3.2.3 \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity accepted a non-positive PLAY_VERSION_CODE"
 fi
-if PLAY_VERSION_CODE=30 PLAY_VERSION_NAME=3.2.3 \
+if PLAY_VERSION_CODE="$FLOOR" PLAY_VERSION_NAME=3.2.3 \
   "$BUILDER" --print-app-version prod-release >/dev/null 2>&1; then
   fail "prod-release identity accepted a burned PLAY_VERSION_CODE"
 fi
 prod_identity="$(
-  PLAY_VERSION_CODE=31 PLAY_VERSION_NAME=3.2.3 \
+  PLAY_VERSION_CODE="$NEXT" PLAY_VERSION_NAME=3.2.3 \
     "$BUILDER" --print-app-version prod-release
 )"
-[ "$prod_identity" = "3.2.3(31)" ] || \
+[ "$prod_identity" = "3.2.3($NEXT)" ] || \
   fail "prod-release validator ignored the owner-supplied Play identity"
 pass "prod-release validator uses the owner-supplied Play identity"
 
