@@ -57,7 +57,9 @@ SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 # v31 was uploaded 2026-08-12 and NEITHER floor was bumped (fifth). Bump BOTH
 # in the SAME commit as every upload — the upload is what burns the code.
 # Query Play again before building: any upload on any track burns its code.
-VERSION_CODE_FLOOR = 31
+# 2026-09-22: 32 (3.2.5) uploaded to the internal track; floors raised to 32
+# in the same change, per the rule above.
+VERSION_CODE_FLOOR = 32
 
 
 def die(msg: str) -> "None":

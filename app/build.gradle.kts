@@ -60,7 +60,9 @@ val playUploadSigningConfigured =
 //
 // To re-check before any release, do not trust this constant — ask Play:
 //   edits.bundles().list(packageName=..., editId=...)  -> max(versionCode)
-val knownPlayProductionVersionCodeFloor = 31
+// 2026-09-22: 32 (3.2.5) uploaded to the INTERNAL track (Claude-BronzeMountain),
+// Play queried first: uploaded codes were [2, 22, 26..31], 31 live on production.
+val knownPlayProductionVersionCodeFloor = 32
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
