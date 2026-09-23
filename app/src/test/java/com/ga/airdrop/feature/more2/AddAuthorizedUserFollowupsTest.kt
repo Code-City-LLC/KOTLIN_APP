@@ -503,4 +503,3 @@ class AddAuthorizedUserFollowupsTest {
         assertEquals("8765551234", vm.state.value.mobileNumber)
     }
 }
-
