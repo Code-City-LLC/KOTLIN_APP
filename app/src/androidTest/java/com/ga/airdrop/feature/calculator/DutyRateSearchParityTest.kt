@@ -75,7 +75,8 @@ class DutyRateSearchParityTest {
 
     private fun verifyAllMatches(mode: ThemeController.Mode) {
         val rows = (1..30).map { CalcDutyRate(it, "Book ${it.toString().padStart(2, '0')}", 37.0) }
-        val model = showSearch(mode, SearchRepository { rows })
+        val repository = SearchRepository { rows }
+        val model = showSearch(mode, repository)
         compose.waitUntil(5_000) { model.state.value.searchState is DutyRateSearchState.Results }
         compose.onNodeWithText("Book 30").performScrollTo().assertIsDisplayed()
         capture("last_match_${mode.name.lowercase()}")
@@ -84,11 +85,22 @@ class DutyRateSearchParityTest {
             assertEquals(30, model.state.value.selectedDutyRate?.id)
             assertEquals("Book 30", model.state.value.product)
             assertEquals(DutyRateSearchState.Hidden, model.state.value.searchState)
+            // Kemar 2026-09-23: the customs pick prices Airdrop quotes too
+            // (Laravel's tier quote takes custom_duty_rate_id), so switching to
+            // Airdrop keeps it...
             model.onMethodSelected(ShippingMethod.STANDARD)
+            assertEquals(30, model.state.value.selectedDutyRate?.id)
+            // ...and a new description there searches the catalogue again.
+            repository.search = { query -> if (query == "custom description") emptyList() else rows }
             model.onProductChange("custom description")
         }
+        compose.waitUntil(5_000) { model.state.value.searchState is DutyRateSearchState.Results }
         compose.onNodeWithText("custom description").performScrollTo().assertIsDisplayed()
-        compose.runOnIdle { assertEquals(DutyRateSearchState.Hidden, model.state.value.searchState) }
+        compose.onNodeWithText(EMPTY_TEXT).performScrollTo().assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals("custom description", repository.queries.last())
+            assertEquals(null, model.state.value.selectedDutyRate)
+        }
         assertNoText("Book 01")
     }
 
@@ -123,7 +135,11 @@ class DutyRateSearchParityTest {
     }
 
     private class SearchRepository(var search: suspend (String) -> List<CalcDutyRate>) : CalculatorRepository {
-        override suspend fun searchDutyRates(query: String, limit: Int) = search(query)
+        val queries = mutableListOf<String>()
+        override suspend fun searchDutyRates(query: String, limit: Int): List<CalcDutyRate> {
+            queries += query
+            return search(query)
+        }
         override suspend fun usdToJmdRate() = 162.0
         override suspend fun calculateShipment(
             shippingMethod: String, invoiceAmount: Double, weightLbs: Double?, numberOfPackages: Int,
