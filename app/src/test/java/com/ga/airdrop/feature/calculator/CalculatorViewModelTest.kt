@@ -121,6 +121,44 @@ class CalculatorViewModelTest {
         assertNull("the app must not infer an insurance decision", request.insuranceDeclined)
     }
 
+    /**
+     * Kemar 2026-09-23 on the customs item picker: "fix it, make sure it works".
+     * Airdrop searches the customs catalogue and its tier quote carries the
+     * picked item, which Laravel now prices into the quote.
+     */
+    @Test
+    fun airdropSearchesCustomsAndSendsThePickedItemToTheTierQuote() = runTest(dispatcher) {
+        val laptop = CalcDutyRate(id = 42, itemName = "Laptop computer", dutyPercentage = 20.0)
+        val repo = RecordingRepository().apply { searchAnswer = listOf(laptop) }
+        val viewModel = CalculatorViewModel(repo)
+
+        viewModel.onProductChange("Lapt")
+        advanceUntilIdle()
+        assertEquals("Airdrop must search the customs catalogue", listOf("Lapt"), repo.searchQueries)
+
+        viewModel.onProductSelected(laptop)
+        viewModel.onPackagesChange("1")
+        viewModel.onInvoiceChange("300")
+        viewModel.onActualWeightChange("3")
+        viewModel.calculate()
+        advanceUntilIdle()
+
+        assertEquals(0, repo.legacyCalls)
+        assertEquals(42, repo.tierRequests.single().customDutyRateId)
+    }
+
+    @Test
+    fun switchingToAirdropKeepsTheCustomsPick() = runTest(dispatcher) {
+        val laptop = CalcDutyRate(id = 42, itemName = "Laptop computer", dutyPercentage = 20.0)
+        val viewModel = CalculatorViewModel(RecordingRepository())
+
+        viewModel.onMethodSelected(ShippingMethod.EXPRESS)
+        viewModel.onProductSelected(laptop)
+        viewModel.onMethodSelected(ShippingMethod.STANDARD)
+
+        assertEquals(laptop, viewModel.state.value.selectedDutyRate)
+    }
+
     /** The TierQuote total and lines are server-owned, never reconstructed by Android. */
     @Test
     fun theRenderedTierQuoteUsesTheServersOwnLinesAndTotal() = runTest(dispatcher) {
@@ -180,8 +218,15 @@ class CalculatorViewModelTest {
         assertEquals("Missing weight", viewModel.state.value.alert?.title)
     }
 
+    /**
+     * Was `airdropKeepsTheProductAsDescriptionWithoutQueryingTheCustomsPicker`:
+     * Airdrop used to skip the customs catalogue because the tier quote ignored
+     * the pick. Kemar 2026-09-23 reversed that ("fix it, make sure it works") and
+     * Laravel's tier quote now prices the picked item. The typed text is still
+     * kept and sent as item_name.
+     */
     @Test
-    fun airdropKeepsTheProductAsDescriptionWithoutQueryingTheCustomsPicker() = runTest(dispatcher) {
+    fun airdropKeepsTheProductTextAndQueriesTheCustomsPicker() = runTest(dispatcher) {
         val repo = RecordingRepository()
         val viewModel = CalculatorViewModel(repo)
 
@@ -189,8 +234,7 @@ class CalculatorViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Laptop", viewModel.state.value.product)
-        assertTrue(repo.searchQueries.isEmpty())
-        assertEquals(DutyRateSearchState.Hidden, viewModel.state.value.searchState)
+        assertEquals(listOf("Laptop"), repo.searchQueries)
     }
 
     /**

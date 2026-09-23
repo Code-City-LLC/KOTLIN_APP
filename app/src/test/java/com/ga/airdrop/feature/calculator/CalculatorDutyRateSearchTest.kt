@@ -113,15 +113,16 @@ class CalculatorDutyRateSearchTest {
         assertEquals(DutyRateSearchState.Results(listOf(book)), vm.state.value.searchState)
     }
 
+    // Was "Standard keeps the description free text without querying customs".
+    // Kemar 2026-09-23: the customs pick prices Airdrop too, so Standard searches.
     @Test
-    fun `Standard keeps the description free text without querying customs`() = runTest(dispatcher) {
+    fun `Standard keeps the description text and queries customs like every method`() = runTest(dispatcher) {
         val repository = SearchRepository { listOf(book) }
         val vm = model(repository)
         vm.onMethodSelected(ShippingMethod.STANDARD)
         vm.onProductChange("book")
         advanceUntilIdle()
-        assertEquals(0, repository.calls)
-        assertEquals(DutyRateSearchState.Hidden, vm.state.value.searchState)
+        assertEquals(1, repository.calls)
         assertEquals("book", vm.state.value.product)
     }
 

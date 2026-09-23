@@ -152,6 +152,8 @@ data class TierQuoteRequest(
     val returnWeight: Double? = null,
     val storageCharge: Double? = null,
     val deliveryCharge: Double? = null,
+    /** The picked customs item. Laravel prices its duty into the quote (2026-09-23). */
+    val customDutyRateId: Int? = null,
 )
 
 /**

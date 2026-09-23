@@ -187,6 +187,31 @@ class RemoteCalculatorRepositoryTransportTest {
     }
 
     @Test
+    fun `tier quote carries the picked customs item and shows the server's duty line`() = runBlocking {
+        val transport = RecordingTransport().apply {
+            enqueue(
+                """
+                {"success": true, "data": {"quote_reference": "Q-CUSTOMS", "currency": "USD",
+                  "line_items": [
+                    {"code":"base_shipping","label":"Base shipping","amount":20},
+                    {"code":"customs_duty","label":"Customs duty","amount":58.5}
+                  ],
+                  "subtotal": 78.5, "total_due": 78.5}}
+                """.trimIndent(),
+            )
+        }
+
+        val quote = repository(transport).quoteShipment(
+            TierQuoteRequest(weightLbs = 3.0, method = "AIR", declaredValue = 300.0, insuredValue = 300.0, customDutyRateId = 42),
+        )
+
+        val body = AirdropJson.parseToJsonElement(transport.singleRequest().bodyText.orEmpty()) as JsonObject
+        assertEquals("42", body["custom_duty_rate_id"]?.jsonPrimitive?.content)
+        assertEquals(listOf("base_shipping", "customs_duty"), quote.lineItems.map { it.code })
+        assertEquals(78.5, quote.totalDue, 0.0)
+    }
+
+    @Test
     fun `tier quote uses the published Airdrop contract and preserves server line items`() = runBlocking {
         val transport = RecordingTransport().apply {
             enqueue(

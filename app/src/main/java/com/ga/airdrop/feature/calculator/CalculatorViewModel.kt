@@ -75,9 +75,8 @@ class CalculatorViewModel(
         _state.update {
             it.copy(
                 method = method,
-                // TierQuote deliberately accepts no duty-rate id. Do not keep a
-                // previously selected customs row alive where it cannot apply.
-                selectedDutyRate = if (method.tierQuoteMethod == null) it.selectedDutyRate else null,
+                // Kemar 2026-09-23: the customs pick prices every method, Airdrop
+                // included (Laravel's tier quote now takes custom_duty_rate_id).
                 searchState = DutyRateSearchState.Hidden,
             )
         }
@@ -98,10 +97,6 @@ class CalculatorViewModel(
     fun onProductChange(value: String) {
         _state.update { it.copy(product = value, selectedDutyRate = null) }
         searchJob?.cancel()
-        if (_state.value.method.tierQuoteMethod != null) {
-            _state.update { it.copy(searchState = DutyRateSearchState.Hidden) }
-            return
-        }
         val query = value.trim()
         if (query.length < 3) {
             _state.update { it.copy(searchState = DutyRateSearchState.Hidden) }
@@ -202,6 +197,9 @@ class CalculatorViewModel(
                     declaredValue = invoice,
                     insuredValue = invoice,
                     itemName = form.product.trim().ifEmpty { null },
+                    // The picked customs row: Laravel prices its duty into the
+                    // Airdrop quote. Null when the customer typed free text.
+                    customDutyRateId = form.selectedDutyRate?.id,
                 )
                 runCatching { repository.quoteShipment(request) }
                     .onSuccess { quote ->

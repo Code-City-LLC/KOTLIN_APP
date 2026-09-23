@@ -149,15 +149,12 @@ fun CalculatorScreen(
                         )
                     },
                 )
-                // TierQuote intentionally excludes customs and has no
-                // custom_duty_rate_id. Keep the free-text item description for
-                // Airdrop, but never offer a selector whose choice would be ignored.
-                if (state.method.tierQuoteMethod == null) {
-                    ProductResultsPanel(
-                        searchState = state.searchState,
-                        onSelect = viewModel::onProductSelected,
-                    )
-                }
+                // The customs pick prices every method, Airdrop included:
+                // Laravel's tier quote takes custom_duty_rate_id (2026-09-23).
+                ProductResultsPanel(
+                    searchState = state.searchState,
+                    onSelect = viewModel::onProductSelected,
+                )
             }
 
             CalcInputField(

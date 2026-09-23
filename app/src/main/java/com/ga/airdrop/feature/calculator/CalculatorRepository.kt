@@ -101,6 +101,7 @@ private data class TierQuotePayload(
     val return_weight: Double? = null,
     val storage_charge: Double? = null,
     val delivery_charge: Double? = null,
+    val custom_duty_rate_id: Int? = null,
 )
 
 class RemoteCalculatorRepository(
@@ -134,6 +135,7 @@ class RemoteCalculatorRepository(
                 return_weight = request.returnWeight,
                 storage_charge = request.storageCharge,
                 delivery_charge = request.deliveryCharge,
+                custom_duty_rate_id = request.customDutyRateId,
             ),
         )
         val httpRequest = Request.Builder()
