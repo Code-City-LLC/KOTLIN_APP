@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -84,6 +85,8 @@ fun AddAuthorizedUserScreen(
         viewModel.dismissSaveFailure()
     }
     var countrySheetOpen by remember { mutableStateOf(false) }
+    // Blur = the number box had focus and lost it (Swift validatePhoneOnBlur).
+    var mobileHadFocus by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -233,7 +236,12 @@ fun AddAuthorizedUserScreen(
                         required = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         errorText = state.mobileError,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { focus ->
+                                if (mobileHadFocus && !focus.hasFocus) viewModel.onMobileBlur()
+                                mobileHadFocus = focus.hasFocus
+                            },
                     )
                 }
                 More2Field(

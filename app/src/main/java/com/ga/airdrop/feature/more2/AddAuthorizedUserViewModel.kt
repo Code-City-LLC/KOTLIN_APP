@@ -114,6 +114,18 @@ class AddAuthorizedUserViewModel(
             phoneTouched = true,
         )
     }
+
+    /**
+     * Red when the customer leaves the box, not only on save: Britanya Brown's
+     * report (2026-09-14) asks for "submit/blur", and Swift, the website and the
+     * phone-width site all check on blur. Never for an empty box, and never for
+     * a stored number an edit has not touched (the server keeps it as it is).
+     */
+    fun onMobileBlur() = _state.update {
+        if (!it.phoneTouched || it.mobileNumber.isBlank()) return@update it
+        val error = AuthorizedUserPhoneInput.validationError(it.mobileNumber.trim(), it.callingCode)
+        if (error == null) it else it.copy(mobileError = error)
+    }
     fun dismissSaveFailure() = _state.update { it.copy(saveFailure = null) }
     fun onTrn(v: String) = _state.update { it.copy(trn = v) }
     fun dismissValidation() = _state.update { it.copy(validationError = null) }
