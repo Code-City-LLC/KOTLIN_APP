@@ -211,6 +211,7 @@ android {
         compose = true
         buildConfig = true
     }
+    sourceSets.getByName("test").resources.srcDir(rootProject.file("test-fixtures"))
 }
 
 androidComponents {

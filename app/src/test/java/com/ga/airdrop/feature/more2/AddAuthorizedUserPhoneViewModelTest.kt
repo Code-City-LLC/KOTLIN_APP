@@ -1,6 +1,8 @@
 package com.ga.airdrop.feature.more2
 
 import com.ga.airdrop.data.model.AuthorizedUserRequest
+import com.ga.airdrop.data.model.AuthorizedUser
+import com.ga.airdrop.data.model.AuthorizedUserEnvelope
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -9,6 +11,8 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
@@ -57,6 +61,96 @@ class AddAuthorizedUserPhoneViewModelTest {
             onEmail("jane.smith@example.com")
             onTrn("123456789")
         }
+
+    private fun editingApi(code: String, number: String, calls: MutableList<AuthorizedUserRequest>): More2Api {
+        val user = AuthorizedUser(id = 42, firstName = "Jane", lastName = "Smith", identificationType = "National ID",
+            identificationIdNumber = "194049512", email = "jane.smith@example.com", countryCode = code,
+            mobileNumber = number, trnNumber = "123456789")
+        return Proxy.newProxyInstance(More2Api::class.java.classLoader, arrayOf(More2Api::class.java)) { _, method, args ->
+            when (method.name) {
+                "authorizedUser" -> AuthorizedUserEnvelope(user)
+                "updateAuthorizedUser" -> {
+                    calls += args[1] as AuthorizedUserRequest
+                    AuthorizedUserEnvelope(user)
+                }
+                "toString" -> "RecordingEditApi"
+                else -> throw UnsupportedOperationException("Unexpected call: ${method.name}")
+            }
+        } as More2Api
+    }
+
+    @Test
+    fun `unchanged phone never blocks an email edit or mutates the stored pair`() = runTest(dispatcher) {
+        for ((code, number) in listOf("+1" to "1765551234", "undefined" to "5551234", "+1876" to "5551234",
+                "+1" to "(876) 555-1234", "+1" to "18765551234", "+1" to "8765551234")) {
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = AddAuthorizedUserViewModel(42, More2Repository(editingApi(code, number, calls)))
+            advanceUntilIdle()
+            vm.onEmail("updated@example.com")
+            vm.onMobileBlur()
+            assertNull(vm.state.value.mobileError)
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(code, calls.single().userCountryCode)
+            assertEquals(number, calls.single().userMobileNumber)
+            assertEquals("updated@example.com", calls.single().userEmail)
+        }
+    }
+
+    @Test
+    fun `changed legacy number is validated and a correction sends the new pair`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = AddAuthorizedUserViewModel(42, More2Repository(editingApi("+1", "1765551234", calls)))
+        advanceUntilIdle()
+        vm.onMobileNumber("0123456789")
+        vm.onMobileBlur()
+        assertEquals(AuthorizedUserPhoneInput.FIELD_ERROR, vm.state.value.mobileError)
+        vm.save()
+        advanceUntilIdle()
+        assertEquals(0, calls.size)
+        vm.onMobileNumber("8765551234")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("+1", calls.single().userCountryCode)
+        assertEquals("8765551234", calls.single().userMobileNumber)
+    }
+
+    @Test
+    fun `national prefix is normalized for validation but never twice on the wire`() = runTest(dispatcher) {
+        for (digits in listOf("03012345678901", "049112345678")) {
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = filledForm(failingApi(500, "{}", calls))
+            vm.onPhoneCountry("DE")
+            vm.onMobileNumber(digits)
+            vm.onMobileBlur()
+            assertNull(vm.state.value.mobileError)
+            assertEquals(digits, vm.state.value.mobileNumber)
+            vm.save()
+            advanceUntilIdle()
+            assertEquals("+49", calls.single().userCountryCode)
+            assertEquals(digits, calls.single().userMobileNumber)
+            printWireProof("add", digits, calls.single())
+
+            val edits = mutableListOf<AuthorizedUserRequest>()
+            val editing = AddAuthorizedUserViewModel(42, More2Repository(editingApi("+49", digits, edits)))
+            advanceUntilIdle()
+            editing.onEmail("updated@example.com")
+            editing.save()
+            advanceUntilIdle()
+            assertEquals(digits, edits.single().userMobileNumber)
+            printWireProof("edit", digits, edits.single())
+        }
+    }
+
+    private fun printWireProof(mode: String, input: String, payload: AuthorizedUserRequest) {
+        val proof = buildJsonObject {
+            put("mode", mode)
+            put("input", input)
+            put("code", payload.userCountryCode)
+            put("mobile", payload.userMobileNumber)
+        }
+        println("PHONE_WIRE_PROOF $proof")
+    }
 
     @Test
     fun `the report's number is said under the field and nothing is sent`() = runTest(dispatcher) {

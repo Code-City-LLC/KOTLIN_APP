@@ -133,6 +133,85 @@ class AddAuthorizedUserParityTest {
         assertEquals("leaving the box sends nothing", 0, api.addCalls.get())
     }
 
+    @Test fun saintHelenaPhoneLight() = assertContractCountryThroughForm("SH", "+290", "2222", ThemeController.Mode.LIGHT)
+    @Test fun saintHelenaPhoneDark() = assertContractCountryThroughForm("SH", "+290", "2222", ThemeController.Mode.DARK)
+    @Test fun falklandsPhoneLight() = assertContractCountryThroughForm("FK", "+500", "22222", ThemeController.Mode.LIGHT)
+    @Test fun falklandsPhoneDark() = assertContractCountryThroughForm("FK", "+500", "22222", ThemeController.Mode.DARK)
+    @Test fun faroePhoneLight() = assertContractCountryThroughForm("FO", "+298", "222222", ThemeController.Mode.LIGHT)
+    @Test fun faroePhoneDark() = assertContractCountryThroughForm("FO", "+298", "222222", ThemeController.Mode.DARK)
+    @Test fun jamaicaPhoneLight() = assertContractCountryThroughForm("JM", "+1", "8765551234", ThemeController.Mode.LIGHT)
+    @Test fun jamaicaPhoneDark() = assertContractCountryThroughForm("JM", "+1", "8765551234", ThemeController.Mode.DARK)
+    @Test fun usPhoneLight() = assertContractCountryThroughForm("US", "+1", "2125551234", ThemeController.Mode.LIGHT)
+    @Test fun usPhoneDark() = assertContractCountryThroughForm("US", "+1", "2125551234", ThemeController.Mode.DARK)
+    @Test fun ukPhoneLight() = assertContractCountryThroughForm("GB", "+44", "7700900123", ThemeController.Mode.LIGHT)
+    @Test fun ukPhoneDark() = assertContractCountryThroughForm("GB", "+44", "7700900123", ThemeController.Mode.DARK)
+    @Test fun vaticanPhoneLight() = assertContractCountryThroughForm("VA", "+39", "0669812345", ThemeController.Mode.LIGHT)
+    @Test fun vaticanPhoneDark() = assertContractCountryThroughForm("VA", "+39", "0669812345", ThemeController.Mode.DARK)
+    @Test fun germanyPhoneLight() = assertContractCountryThroughForm("DE", "+49", "03012345678901", ThemeController.Mode.LIGHT)
+    @Test fun germanyPhoneDark() = assertContractCountryThroughForm("DE", "+49", "03012345678901", ThemeController.Mode.DARK)
+    @Test fun germanyRepeatedCodePhoneLight() = assertContractCountryThroughForm("DE", "+49", "049112345678", ThemeController.Mode.LIGHT)
+    @Test fun germanyRepeatedCodePhoneDark() = assertContractCountryThroughForm("DE", "+49", "049112345678", ThemeController.Mode.DARK)
+    @Test fun unchangedLegacyPhoneLight() = assertLegacyPhoneEdit(ThemeController.Mode.LIGHT)
+    @Test fun unchangedLegacyPhoneDark() = assertLegacyPhoneEdit(ThemeController.Mode.DARK)
+    @Test fun unchangedFormattedPhoneLight() = assertFormattedPhoneEdit(ThemeController.Mode.LIGHT)
+    @Test fun unchangedFormattedPhoneDark() = assertFormattedPhoneEdit(ThemeController.Mode.DARK)
+
+    private fun assertContractCountryThroughForm(iso: String, code: String, digits: String, mode: ThemeController.Mode) {
+        val api = FakeMore2Api()
+        setAddUser(api, editId = null, mode = mode)
+        fillEverythingButThePhone()
+        compose.onNodeWithTag("add-authorized-user-phone-code-card").performScrollTo().performClick()
+        compose.onNodeWithTag("add-authorized-user-country-search").performTextInput(iso)
+        compose.onNodeWithTag("add-authorized-user-country-$iso").performScrollTo().performClick()
+        val mobile = compose.onNodeWithTag("add-authorized-user-mobile-input")
+        mobile.performTextInput(digits)
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextClearance()
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123456789")
+        compose.waitForIdle()
+        assertNoText(AuthorizedUserPhoneInput.FIELD_ERROR)
+        mobile.assert(hasText(digits))
+        mobile.performScrollTo()
+        saveRootScreenshot("phone_${iso}_${mode.name.lowercase(Locale.US)}.png")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+        compose.waitUntil(timeoutMillis = 15_000) { api.addCalls.get() == 1 && backClicks == 1 }
+        assertEquals(iso, code, api.lastAddRequest?.userCountryCode)
+        assertEquals(iso, digits, api.lastAddRequest?.userMobileNumber)
+    }
+
+    private fun assertFormattedPhoneEdit(mode: ThemeController.Mode) {
+        val original = "(876) 555-1234"
+        val api = FakeMore2Api("+1" to original)
+        setAddUser(api, editId = 101, mode = mode)
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextClearance()
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextInput("updated@example.com")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+        compose.waitUntil(timeoutMillis = 15_000) { api.updateCalls.get() == 1 && backClicks == 1 }
+        assertEquals("+1", api.lastUpdateRequest?.userCountryCode)
+        assertEquals(original, api.lastUpdateRequest?.userMobileNumber)
+        assertEquals("updated@example.com", api.lastUpdateRequest?.userEmail)
+    }
+
+    private fun assertLegacyPhoneEdit(mode: ThemeController.Mode) {
+        val api = FakeMore2Api("+1" to "1765551234")
+        setAddUser(api, editId = 101, mode = mode)
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextClearance()
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextInput("updated@example.com")
+        val mobile = compose.onNodeWithTag("add-authorized-user-mobile-input")
+        mobile.performTextClearance()
+        mobile.performTextInput("0123456789")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+        compose.waitForIdle()
+        assertEquals(0, api.updateCalls.get())
+        compose.onNodeWithTag("add-authorized-user-mobile-input-error", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+        mobile.performTextClearance()
+        mobile.performTextInput("1765551234")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+        compose.waitUntil(timeoutMillis = 15_000) { api.updateCalls.get() == 1 && backClicks == 1 }
+        assertEquals("+1", api.lastUpdateRequest?.userCountryCode)
+        assertEquals("1765551234", api.lastUpdateRequest?.userMobileNumber)
+        assertEquals("updated@example.com", api.lastUpdateRequest?.userEmail)
+    }
+
     @Test
     fun invalidEmailShowsSwiftValidationAndBlocksAddRequest() {
         val api = FakeMore2Api()
@@ -371,7 +450,7 @@ class AddAuthorizedUserParityTest {
         assertEquals("9849w749r8w04r", payload?.identificationIdNumber)
         assertEquals("Chasec@devcity.com", payload?.userEmail)
         assertEquals("+1", payload?.userCountryCode)
-        assertEquals("8768754850", payload?.userMobileNumber)
+        assertEquals("An unrelated edit preserves the stored phone", "876 87 548 50", payload?.userMobileNumber)
         assertEquals("123456789", payload?.trnNo)
     }
 
@@ -518,7 +597,7 @@ class AddAuthorizedUserParityTest {
         context.contentResolver.update(uri, values, null, null)
     }
 
-    private class FakeMore2Api : More2Api {
+    private class FakeMore2Api(private val storedPhone: Pair<String, String>? = null) : More2Api {
         val authorizedUserCalls = AtomicInteger()
         val addCalls = AtomicInteger()
         val updateCalls = AtomicInteger()
@@ -528,7 +607,7 @@ class AddAuthorizedUserParityTest {
 
         override suspend fun authorizedUser(id: Int): AuthorizedUserEnvelope {
             authorizedUserCalls.incrementAndGet()
-            return AuthorizedUserEnvelope(sampleUser())
+            return AuthorizedUserEnvelope(storedPhone?.let { sampleUser(countryCode = it.first, mobileNumber = it.second) } ?: sampleUser())
         }
 
         override suspend fun addAuthorizedUser(body: AuthorizedUserRequest): AuthorizedUserEnvelope {

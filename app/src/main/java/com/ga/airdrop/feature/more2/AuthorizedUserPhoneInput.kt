@@ -9,7 +9,7 @@ import java.util.Locale
  * speak it (Kemar 2026-09-15; Laravel App\Support\AuthorizedUserPhone):
  *
  *     user_country_code  = the CALLING code — "+1" for Jamaica, "+44" for the UK
- *     user_mobile_number = digits only, 7–15 of them; exactly 10 under "+1"
+ *     user_mobile_number = national digits within the API's calling-code limits
  *
  * The old form took one free-text box ("+1 876-5290736") and parsed a "+" out
  * of it. Type 15550199 or (555) 019-9821 and the "+" is missing, so the
@@ -73,6 +73,20 @@ object AuthorizedUserPhoneInput {
         "XK" to "+383",
     )
 
+    // Laravel CallingCodes::MIN_NATIONAL_DIGITS, pinned by the contract fixture.
+    private val MINIMUM_NATIONAL_DIGITS = mapOf(
+        "+290" to 4, "+683" to 4, "+690" to 4,
+        "+500" to 5, "+676" to 5, "+677" to 5, "+678" to 5, "+682" to 5, "+685" to 5, "+686" to 5, "+688" to 5,
+        "+298" to 6, "+299" to 6, "+376" to 6, "+508" to 6, "+672" to 6, "+681" to 6, "+687" to 6, "+689" to 6,
+    )
+
+    private val DROPS_TRUNK_ZERO = setOf(
+        "+20", "+27", "+31", "+32", "+33", "+41", "+43", "+44", "+46", "+49", "+51", "+60", "+61", "+62",
+        "+63", "+64", "+66", "+81", "+82", "+84", "+86", "+90", "+91", "+92", "+94", "+98", "+233", "+234",
+        "+250", "+251", "+254", "+255", "+256", "+260", "+263", "+353", "+358", "+380", "+880", "+966",
+        "+971", "+972", "+977",
+    )
+
     /**
      * Where a code shared by several countries opens (typed "+7" is Russia,
      * not Kazakhstan, which merely sorts first). "+1" is decided by area code
@@ -98,7 +112,10 @@ object AuthorizedUserPhoneInput {
     /** Picker rows for catalog rows; a territory the catalog leaves without a code gets it from [TERRITORY_DIAL_CODES]. */
     internal fun countriesFrom(entries: List<CountryEntry>): List<AuthorizedUserPhoneCountry> =
         entries.mapNotNull { entry ->
-            val dial = entry.dialCode ?: TERRITORY_DIAL_CODES[entry.isoCode]
+            // Keep checkout's table intact while matching the phone API:
+            // Vatican uses +39; the API phone picker does not offer +870.
+            val dial = if (entry.isoCode == "VA") "+39" else entry.dialCode ?: TERRITORY_DIAL_CODES[entry.isoCode]
+            if (dial == "+870") return@mapNotNull null
             val calling = dial?.let(::callingCode) ?: return@mapNotNull null
             AuthorizedUserPhoneCountry(entry.isoCode, entry.name, entry.flagEmoji, calling)
         }
@@ -106,6 +123,10 @@ object AuthorizedUserPhoneInput {
     /** Distinct calling codes, longest first, for reading a typed "+CC". */
     private val callingCodes: List<String> by lazy {
         countries.map(AuthorizedUserPhoneCountry::callingCode).distinct().sortedByDescending { it.length }
+    }
+
+    private val validCallingCodes: Set<String> by lazy {
+        callingCodes.toSet() + TERRITORY_DIAL_CODES.values.mapNotNull(::callingCode)
     }
 
     fun callingCode(dialCode: String): String? {
@@ -215,15 +236,25 @@ object AuthorizedUserPhoneInput {
         return isoFor(code, national)
     }
 
-    /** null when the number is sendable; otherwise the message that goes under the field. */
+    /** Validation candidate only; Laravel must normalize the original wire value once. */
+    fun submissionDigits(digits: String, callingCode: String): String =
+        if (digits.length > 1 && digits.startsWith("0") && !digits.startsWith("00") && callingCode in DROPS_TRUNK_ZERO) {
+            digits.substring(1)
+        } else {
+            digits
+        }
+
+    /** null when the normalized number is sendable; otherwise the field message. */
     fun validationError(digits: String, callingCode: String): String? {
-        if (digits.isEmpty() || !digits.all(Char::isDigit)) return FIELD_ERROR
+        if (callingCode !in validCallingCodes || digits.isEmpty() || !digits.all { it in '0'..'9' }) return FIELD_ERROR
         // "00" is an international prefix whose country code never resolved.
         if (digits.startsWith("00")) return FIELD_ERROR
         return if (callingCode == "+1") {
-            if (digits.length == 10) null else FIELD_ERROR
+            if (digits.length == 10 && digits.first() in '2'..'9') null else FIELD_ERROR
         } else {
-            if (digits.length in 7..15) null else FIELD_ERROR
+            val minimum = MINIMUM_NATIONAL_DIGITS[callingCode] ?: 7
+            val maximum = MAX_DIGITS - (callingCode.length - 1)
+            if (digits.length in minimum..maximum) null else FIELD_ERROR
         }
     }
 
