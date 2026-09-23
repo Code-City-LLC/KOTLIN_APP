@@ -114,12 +114,14 @@ class AddAuthorizedUserPhoneViewModelTest {
     }
 
     @Test
-    fun `a network failure still announces itself`() = runTest(dispatcher) {
+    fun `a server outage still announces itself, without blaming the phone`() = runTest(dispatcher) {
         val vm = filledForm(failingApi(503, "", mutableListOf()))
         vm.onMobileNumber("8765551234")
         vm.save()
         advanceUntilIdle()
 
-        assertEquals(AuthorizedUserPhoneInput.ADD_FAILED, vm.state.value.saveFailure)
+        // Verifier 2026-09-22: a 503 used to say "check the phone number".
+        assertEquals(AuthorizedUserPhoneInput.ADD_RETRY, vm.state.value.saveFailure)
+        assertNull(vm.state.value.mobileError)
     }
 }

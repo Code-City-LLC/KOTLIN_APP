@@ -9,15 +9,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.DpRect
@@ -25,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import com.ga.airdrop.core.designsystem.theme.AlertPalette
 import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.data.model.AuthorizedUser
 import com.ga.airdrop.data.model.AuthorizedUserEnvelope
@@ -42,6 +47,7 @@ import com.ga.airdrop.data.model.PromotionalBanner
 import com.ga.airdrop.data.model.ShippingRates
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
@@ -187,6 +193,131 @@ class AddAuthorizedUserParityTest {
         assertEquals(0, api.addCalls.get())
     }
 
+    /**
+     * Kemar 2026-09-15, re-checked 2026-09-22: a number the server would refuse
+     * turns the mobile card's border the theme error red (#D92A2A) and says
+     * "Please enter a valid phone number." directly under the field — the next
+     * thing below the card, on its left edge — and nothing is sent.
+     */
+    @Test
+    fun invalidPhoneTurnsTheCardRedWithTheMessageDirectlyUnderIt() {
+        val api = FakeMore2Api()
+        setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+        fillEverythingButThePhone()
+        compose.onNodeWithTag("add-authorized-user-mobile-input").performTextInput("15550199")
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+        compose.waitForIdle()
+
+        // The soft keyboard may still be up and shrink the form; bring the
+        // message into the visible part of the scroll before looking at it.
+        compose.onNodeWithTag("add-authorized-user-mobile-input-error", useUnmergedTree = true).performScrollTo()
+        compose.onNodeWithText("Please enter a valid phone number.").assertIsDisplayed()
+        assertEquals("nothing may reach the server", 0, api.addCalls.get())
+        assertEquals(0, backClicks)
+
+        val card = bounds("add-authorized-user-mobile-card")
+        val message = bounds("add-authorized-user-mobile-input-error")
+        assertClose(5f, message.top.value - card.bottom.value, "message sits 5dp under the mobile card")
+        assertClose(card.left.value, message.left.value, "message starts on the card's left edge")
+
+        val image = compose.onRoot().captureToImage().asAndroidBitmap()
+        val red = AlertPalette.Error.toArgb()
+        val mobileBorder = closestTopBorderPixel(image, card, red)
+        assertTrue(
+            "mobile card border should be #D92A2A, was #${Integer.toHexString(mobileBorder)}",
+            colorDistance(mobileBorder, red) <= 6,
+        )
+        val emailBorder = closestTopBorderPixel(image, bounds("add-authorized-user-email-card"), red)
+        assertTrue(
+            "a valid field keeps its normal border, was #${Integer.toHexString(emailBorder)}",
+            colorDistance(emailBorder, red) > 60,
+        )
+        saveRootScreenshot("add_authorized_user_phone_error_light.png")
+    }
+
+    /**
+     * Verifier 2026-09-22: "+44 7911 123456" typed one key at a time was sent as
+     * +44 / 447911123456. Through the real text field, one input per key: the
+     * code moves into the picker and only the national digits are sent.
+     */
+    @Test
+    fun aPlusCodeTypedOneKeyAtATimeMovesIntoThePicker() {
+        val api = FakeMore2Api()
+        val viewModel = setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+        fillEverythingButThePhone()
+        "+44 7911 123456".forEach { key ->
+            compose.onNodeWithTag("add-authorized-user-mobile-input").performTextInput(key.toString())
+        }
+        compose.waitForIdle()
+
+        assertEquals("GB", viewModel.state.value.phoneIso)
+        assertEquals("7911123456", viewModel.state.value.mobileNumber)
+        // The code box sits inside the clickable card, so it is merged into it.
+        compose.onNodeWithTag("add-authorized-user-phone-code-input", useUnmergedTree = true)
+            .assert(hasText("🇬🇧 +44"))
+        compose.onNodeWithTag("add-authorized-user-mobile-input").assert(hasText("7911123456"))
+        saveRootScreenshot("add_authorized_user_plus44_typed_light.png")
+
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+        compose.waitUntil(timeoutMillis = 15_000) { api.addCalls.get() == 1 }
+        assertEquals("+44", api.lastAddRequest?.userCountryCode)
+        assertEquals("7911123456", api.lastAddRequest?.userMobileNumber)
+    }
+
+    /**
+     * The calling-code picker: searchable by name or code, each row flag + name
+     * + code, and the territories that used to be missing (GG, IM, JE) are
+     * there. Rendered without the ModalBottomSheet window — #230: the headless
+     * CI emulator does not reliably show popup windows.
+     */
+    @Test
+    fun countryPickerIsSearchableAndShowsFlagNameAndCode() {
+        var picked: AuthorizedUserPhoneCountry? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+        }
+        compose.setContent {
+            AirdropTheme {
+                Box(
+                    Modifier
+                        .width(375.dp)
+                        .background(AirdropTheme.colors.gray100)
+                ) {
+                    AuthorizedUserPhoneCountryPicker(selectedIso = "JM", onSelect = { picked = it })
+                }
+            }
+        }
+
+        compose.onNodeWithTag("add-authorized-user-country-search").performTextInput("+44")
+        compose.waitForIdle()
+        for ((iso, name) in listOf(
+            "GB" to "United Kingdom",
+            "GG" to "Guernsey",
+            "IM" to "Isle of Man",
+            "JE" to "Jersey",
+        )) {
+            val row = compose.onNodeWithTag("add-authorized-user-country-$iso")
+            row.assertIsDisplayed()
+            row.assert(hasText(flagOf(iso)))
+            row.assert(hasText(name))
+            row.assert(hasText("+44"))
+        }
+        saveNodeScreenshot("add-authorized-user-country-sheet", "add_authorized_user_country_search_plus44_light.png")
+
+        compose.onNodeWithTag("add-authorized-user-country-search").performTextClearance()
+        compose.onNodeWithTag("add-authorized-user-country-search").performTextInput("jamai")
+        compose.waitForIdle()
+        compose.onNodeWithTag("add-authorized-user-country-JM").assert(hasText("+1"))
+        if ("XK" in Locale.getISOCountries()) {
+            compose.onNodeWithTag("add-authorized-user-country-search").performTextClearance()
+            compose.onNodeWithTag("add-authorized-user-country-search").performTextInput("+383")
+            compose.waitForIdle()
+            compose.onNodeWithTag("add-authorized-user-country-XK").assert(hasText("+383"))
+            compose.onNodeWithTag("add-authorized-user-country-XK").performClick()
+            assertEquals("XK", picked?.isoCode)
+        }
+    }
+
     @Test
     fun editModePrefillsAndUpdatesLikeSwiftDark() {
         val api = FakeMore2Api()
@@ -274,6 +405,43 @@ class AddAuthorizedUserParityTest {
         assertClose(20f, primary.left.value, "Primary CTA left gutter")
         assertClose(boundsWidth(root) - 40f, boundsWidth(primary), "Primary CTA width")
         assertClose(52f, boundsHeight(primary), "Primary CTA height")
+    }
+
+    private fun fillEverythingButThePhone() {
+        compose.onNodeWithTag("add-authorized-user-first-name-input").performTextInput("Ada")
+        compose.onNodeWithTag("add-authorized-user-last-name-input").performTextInput("Lovelace")
+        compose.onNodeWithTag("add-authorized-user-id-number-input").performTextInput("ABC123")
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextInput("ada@example.com")
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123456789")
+    }
+
+    /** The pixel nearest [target] down the middle of a card's top border (1dp, so a few rows). */
+    private fun closestTopBorderPixel(image: Bitmap, card: DpRect, target: Int): Int {
+        val density = compose.density.density
+        val x = (((card.left + card.right) / 2).value * density).toInt()
+        val top = (card.top.value * density).toInt()
+        return (top - 1..top + (2 * density).toInt())
+            .filter { it in 0 until image.height }
+            .map { image.getPixel(x, it) }
+            .minBy { colorDistance(it, target) }
+    }
+
+    private fun colorDistance(a: Int, b: Int): Int = maxOf(
+        kotlin.math.abs(android.graphics.Color.red(a) - android.graphics.Color.red(b)),
+        kotlin.math.abs(android.graphics.Color.green(a) - android.graphics.Color.green(b)),
+        kotlin.math.abs(android.graphics.Color.blue(a) - android.graphics.Color.blue(b)),
+    )
+
+    private fun flagOf(iso: String): String = buildString {
+        iso.forEach { appendCodePoint(0x1F1E6 + (it - 'A')) }
+    }
+
+    private fun saveNodeScreenshot(tag: String, filename: String) {
+        val bitmap = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+        FileOutputStream(File(screenshotDir(), filename)).use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+        saveRootScreenshotToMediaStore(bitmap, filename)
     }
 
     private fun assertNoText(text: String) {
