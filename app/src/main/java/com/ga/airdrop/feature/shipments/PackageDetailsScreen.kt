@@ -40,6 +40,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,7 +66,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.CifValueSheet
 import com.ga.airdrop.core.designsystem.components.GradientButton
@@ -81,8 +84,11 @@ import com.ga.airdrop.feature.common.AirdropUploadSourceSheet
 import com.ga.airdrop.feature.delivery.TrackJourney
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.UUID
 
 /**
  * Package details — Figma node 40001753:15716, behavior from
@@ -617,16 +623,19 @@ private fun PackageDetailsContent(
                 // Reuse the existing authenticated action-file loader. It uses
                 // ApiClient only for an AirDrop-owned host and never sends the
                 // bearer token to a foreign URL.
-                signatureFile = prepareInvoiceActionFile(
+                signatureFile = prepareProofOfDeliveryFile(
                     context = context,
+                    packageId = detail.id,
                     url = presentation.imageUrl,
-                    fileName = "proof-of-delivery-${detail.id}.png",
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {
                 signatureFile = null
             }
+        }
+        DisposableEffect(signaturePresentation?.imageUrl, detail.id) {
+            onDispose { signatureFile?.delete() }
         }
         signatureFile?.let { file ->
             SignedForPanel(
@@ -831,57 +840,80 @@ private fun PackageDetailsContent(
     }
 }
 
+internal suspend fun prepareProofOfDeliveryFile(
+    context: Context,
+    packageId: Int,
+    url: String,
+    download: suspend (String) -> File = { name -> prepareInvoiceActionFile(context, url, name) },
+): File {
+    // A canceled blocking download can finish after its replacement. It must
+    // never publish into the replacement's file or delete it during cleanup.
+    val name = "proof-of-delivery-$packageId-${UUID.randomUUID()}.png"
+    val pendingFile = File(context.cacheDir, "invoices/$name")
+    return try {
+        download(name).also { currentCoroutineContext().ensureActive() }
+    } catch (failure: Throwable) {
+        pendingFile.delete()
+        throw failure
+    }
+}
+
 @Composable
 internal fun SignedForPanel(
     presentation: SignedForPresentation,
     signatureFile: File,
 ) {
     val colors = AirdropTheme.colors
-    SubcomposeAsyncImage(
-        model = signatureFile,
-        contentDescription = null,
+    val context = LocalContext.current
+    val request = remember(context, signatureFile) {
+        ImageRequest.Builder(context)
+            .data(signatureFile)
+            // Decode before any layout node exists to supply measured bounds.
+            .size(coil.size.Size.ORIGINAL)
+            .build()
+    }
+    val painter = rememberAsyncImagePainter(
+        model = request,
         contentScale = ContentScale.Fit,
-        modifier = Modifier.fillMaxWidth(),
-        loading = {},
-        error = {},
-        success = { state ->
-            DetailSectionCard(
-                title = "Signed For",
-                tag = "package-details-section-signed-for",
-                titleContentGap = 12.dp,
-                contentSpacing = 10.dp,
-            ) {
-                // This plate stays white in both themes so dark delivery ink
-                // remains legible on a captured signature image.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .testTag("package-details-signed-for-plate")
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .border(1.dp, Color(0xFFD9D9D9), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = state.painter,
-                        contentDescription = "Signature captured on delivery",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                presentation.meta?.let { meta ->
-                    Text(
-                        text = meta,
-                        style = AirdropType.body3,
-                        color = colors.textDescription,
-                        modifier = Modifier.testTag("package-details-signed-for-meta"),
-                    )
-                }
-            }
-        },
     )
+    // Even a zero-height image node adds a gap in the parent spaced Column.
+    if (painter.state !is AsyncImagePainter.State.Success) return
+
+    DetailSectionCard(
+        title = "Signed For",
+        tag = "package-details-section-signed-for",
+        titleContentGap = 12.dp,
+        contentSpacing = 10.dp,
+    ) {
+        // This plate stays white in both themes so dark delivery ink
+        // remains legible on a captured signature image.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .testTag("package-details-signed-for-plate")
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .border(1.dp, Color(0xFFD9D9D9), RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painter,
+                contentDescription = "Signature captured on delivery",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        presentation.meta?.let { meta ->
+            Text(
+                text = meta,
+                style = AirdropType.body3,
+                color = colors.textDescription,
+                modifier = Modifier.testTag("package-details-signed-for-meta"),
+            )
+        }
+    }
 }
 
 private data class PickedPackageFile(
