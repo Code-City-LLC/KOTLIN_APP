@@ -10,6 +10,8 @@ import java.util.Locale
  *
  *     user_country_code  = the CALLING code — "+1" for Jamaica, "+44" for the UK
  *     user_mobile_number = national digits within the API's calling-code limits
+ *                          (the typed "+CC" in front only where the server
+ *                          would otherwise cut a repeated code: [requestNumber])
  *
  * The old form took one free-text box ("+1 876-5290736") and parsed a "+" out
  * of it. Type 15550199 or (555) 019-9821 and the "+" is missing, so the
@@ -32,7 +34,17 @@ data class AuthorizedUserPhoneCountry(
 }
 
 /** The mobile box after one edit, and the picker country that edit implies. */
-data class AuthorizedUserPhoneEntry(val isoCode: String, val number: String)
+data class AuthorizedUserPhoneEntry(
+    val isoCode: String,
+    val number: String,
+    /**
+     * The picker's calling code was typed in the box after a "+" or "00", so
+     * [number] is the national number exactly as typed after it. The server
+     * never cuts a repeated code from such a number ("+55 55 99123 4567" is a
+     * Brazilian mobile in area code 55), so neither does the box.
+     */
+    val explicitCode: Boolean = false,
+)
 
 object AuthorizedUserPhoneInput {
     const val FIELD_ERROR = "Please enter a valid phone number."
@@ -88,12 +100,30 @@ object AuthorizedUserPhoneInput {
     )
 
     /**
+     * The Caribbean (and Pacific) NANP area codes and the country each one
+     * dials — CallingCodes::NANP_CARIBBEAN_AREA_CODES and the website's
+     * PHONE_NANP_AREA_ISOS. Written the local way with a "+" ("+876 555 1234",
+     * "+868 555 1234") they look like calling codes, and 65, 86, 44, 34, 242
+     * and 7 really are, so the server reads "+" and exactly one of these
+     * ten-digit numbers as +1. The box reads them the same way.
+     */
+    internal val NANP_CARIBBEAN_AREA_ISOS = mapOf(
+        "242" to "BS", "246" to "BB", "264" to "AI", "268" to "AG", "284" to "VG",
+        "340" to "VI", "345" to "KY", "441" to "BM", "473" to "GD", "649" to "TC",
+        "658" to "JM", "664" to "MS", "670" to "MP", "671" to "GU", "684" to "AS",
+        "721" to "SX", "758" to "LC", "767" to "DM", "784" to "VC", "787" to "PR",
+        "809" to "DO", "829" to "DO", "849" to "DO", "868" to "TT", "869" to "KN",
+        "876" to "JM", "939" to "PR",
+    )
+
+    /**
      * Where a code shared by several countries opens (typed "+7" is Russia,
      * not Kazakhstan, which merely sorts first). "+1" is decided by area code
      * in [isoFor].
      */
     private val PRIMARY_ISO_BY_CODE = mapOf(
         "+7" to "RU",
+        "+39" to "IT",
         "+44" to "GB",
         "+262" to "RE",
         "+358" to "FI",
@@ -174,40 +204,122 @@ object AuthorizedUserPhoneInput {
      * sent as +44 / 447911123456 — the "+" was stripped before the code after
      * it had arrived, so the code stayed in the number).
      *
-     *  - A leading "+" or "00" starts a country code. While that code is still
-     *    being typed the box keeps it ("+4"), so the next key can finish it;
-     *    the moment it names a calling code the picker moves to that country
-     *    and only the national digits stay. Typed or pasted, "+44 7911 123456"
-     *    is 🇬🇧 +44 / 7911123456.
-     *  - Otherwise the box holds digits only, and a full number that repeats the
-     *    selected country's own code in front loses it: 447911123456 under +44
-     *    is 7911123456; under +1 that is the trunk 1 (18765551234 → 8765551234).
+     * A leading "+" or "00" starts an international number, read in the
+     * server's order (App\Support\AuthorizedUserPhone::normalize, step 1):
+     *
+     *  1. The picker's own calling code (not +1) typed in front wins: with
+     *     Singapore picked, "+65 8555 1234" is 🇸🇬 85551234.
+     *  2. While the digits can still be a Caribbean number written the local
+     *     way ("+876 555 1234", "+658…", "+868…", "+441…"), the box keeps them
+     *     as typed and the picker stays put (2026-09-23 audit: "+658" became
+     *     Singapore at "+65", and "+876 555 1234" could never be saved). An
+     *     11th digit, or a first three that are no Caribbean area code, ends
+     *     the wait; [resolve] settles a number still waiting on blur and Save.
+     *  3. Otherwise the calling code the digits start with moves the picker
+     *     and the digits after it stay as typed — never cut for a repeated
+     *     code: "+55 55 99123 4567" is 🇧🇷 55991234567, area code 55 kept.
+     *     Typed or pasted, "+44 7911 123456" is 🇬🇧 +44 / 7911123456 (typed,
+     *     the picker moves at "+447"). A code not finished yet ("+5") stays
+     *     in the box for the next key; one that names no country stays for
+     *     Save to refuse.
+     *
+     * Otherwise the box holds digits only, and a full number that repeats the
+     * selected country's own code in front loses it: 447911123456 under +44 is
+     * 7911123456; under +1 that is the trunk 1 (18765551234 → 8765551234).
+     * Digits typed after an explicit "+CC" ([explicitCode], the previous
+     * entry's flag) keep a repeated code; only the +1 trunk 1 still goes, as
+     * it does on the server. Emptying the box starts over.
      */
-    fun interpret(raw: String, currentIso: String): AuthorizedUserPhoneEntry {
+    fun interpret(raw: String, currentIso: String, explicitCode: Boolean = false): AuthorizedUserPhoneEntry {
         val digits = raw.filter(Char::isDigit)
-        val plus = raw.trimStart().startsWith("+")
-        val international = when {
-            plus -> digits
-            digits.startsWith("00") -> digits.substring(2)
-            else -> null
+        if (startsInternational(raw, digits)) {
+            return readInternational(raw, digits, currentIso, waitForCaribbean = true)
         }
-        if (international != null) {
-            val code = callingCodes.firstOrNull { international.startsWith(it.substring(1)) }
-            if (code != null) {
-                val national = international.substring(code.length - 1)
-                return AuthorizedUserPhoneEntry(
-                    isoCode = isoForTypedCode(code, national, currentIso),
-                    number = nationalDigits(national, code),
-                )
-            }
-            // The code is not finished (or names no country): keep what was
-            // typed so the next key can complete it and Save can refuse it.
-            val pending = if (plus) "+" + international.take(MAX_DIGITS) else digits.take(MAX_DIGITS)
-            return AuthorizedUserPhoneEntry(currentIso, pending)
-        }
+        val explicit = explicitCode && raw.isNotEmpty()
         val code = country(currentIso)?.callingCode ?: "+1"
-        return AuthorizedUserPhoneEntry(currentIso, nationalDigits(digits, code))
+        return AuthorizedUserPhoneEntry(currentIso, digitsUnder(code, digits, explicit), explicit)
     }
+
+    /**
+     * The box settled for good — when the customer leaves it, and before Save
+     * judges or sends it. An international number [interpret] was still
+     * waiting on is read the rest of the way, as the server reads it: exactly
+     * ten digits after the "+" that start with a Caribbean area code are that
+     * area's +1 number ("+876 555 1234" → 🇯🇲 8765551234, "+868…" → 🇹🇹,
+     * "+441…" → 🇧🇲); anything else by the calling code it starts with.
+     * What names no country stays as typed, for validation to refuse. A box
+     * of digits is already settled and comes back unchanged.
+     */
+    fun resolve(entry: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
+        val digits = entry.number.filter(Char::isDigit)
+        if (!startsInternational(entry.number, digits)) return entry
+        return readInternational(entry.number, digits, entry.isoCode, waitForCaribbean = false)
+    }
+
+    private fun startsInternational(raw: String, digits: String): Boolean =
+        raw.trimStart().startsWith("+") || digits.startsWith("00")
+
+    /** Steps 1–3 of [interpret]; [waitForCaribbean] false is [resolve]. */
+    private fun readInternational(
+        raw: String,
+        digits: String,
+        currentIso: String,
+        waitForCaribbean: Boolean,
+    ): AuthorizedUserPhoneEntry {
+        val plus = raw.trimStart().startsWith("+")
+        val international = if (plus) digits else digits.substring(2)
+        // The number is not settled yet (or names no country): keep what was
+        // typed so the next key can finish it and Save can refuse it.
+        val pending = AuthorizedUserPhoneEntry(
+            currentIso,
+            if (plus) "+" + international.take(MAX_DIGITS) else digits.take(MAX_DIGITS),
+        )
+
+        val own = country(currentIso)?.callingCode
+        if (own != null && own != "+1" && international.startsWith(own.substring(1))) {
+            val national = international.substring(own.length - 1)
+            return AuthorizedUserPhoneEntry(
+                isoCode = currentIso,
+                number = digitsUnder(own, national, explicit = true),
+                explicitCode = true,
+            )
+        }
+        if (waitForCaribbean) {
+            if (couldBeCaribbeanNumber(international)) return pending
+        } else if (isCaribbeanNumber(international)) {
+            return AuthorizedUserPhoneEntry(isoFor("+1", international), international, explicitCode = true)
+        }
+        val code = callingCodes.firstOrNull { international.startsWith(it.substring(1)) } ?: return pending
+        val national = international.substring(code.length - 1)
+        return AuthorizedUserPhoneEntry(
+            isoCode = isoForTypedCode(code, national, currentIso),
+            number = digitsUnder(code, national, explicit = true),
+            explicitCode = true,
+        )
+    }
+
+    /** CallingCodes::isCaribbeanNanpNumber: ten digits whose area code is a Caribbean one. */
+    private fun isCaribbeanNumber(digits: String): Boolean =
+        digits.length == 10 && digits.take(3) in NANP_CARIBBEAN_AREA_ISOS
+
+    /**
+     * Digits after a "+" that can still grow into [isCaribbeanNumber]: at most
+     * ten, starting with a Caribbean area code — or, under three digits, with
+     * the start of one.
+     */
+    private fun couldBeCaribbeanNumber(digits: String): Boolean = when {
+        digits.length > 10 -> false
+        digits.length < 3 -> NANP_CARIBBEAN_AREA_ISOS.keys.any { it.startsWith(digits) }
+        else -> digits.take(3) in NANP_CARIBBEAN_AREA_ISOS
+    }
+
+    /**
+     * [digits] as the box keeps them under [callingCode]. After an explicit
+     * "+CC" a repeated code is never cut (the server's $explicit); the +1
+     * trunk 1 is, typed after "+1" or not, because the server drops it either way.
+     */
+    private fun digitsUnder(callingCode: String, digits: String, explicit: Boolean): String =
+        if (explicit && callingCode != "+1") digits.take(MAX_DIGITS) else nationalDigits(digits, callingCode)
 
     /**
      * Digits under [callingCode], capped: a full number (11+ digits) that
@@ -222,6 +334,24 @@ object AuthorizedUserPhoneInput {
             digits
         }
         return national.take(MAX_DIGITS)
+    }
+
+    /**
+     * `user_mobile_number` for a number the customer typed: its digits —
+     * except after a typed "+CC" (not +1) whose national number starts with
+     * that code again and runs to 11+ digits ("+55 55 99123 4567": Brazil,
+     * area code 55). As bare digits the server would take that 55 for the
+     * code typed twice and cut it (AuthorizedUserPhone::normalize step 7), so
+     * it goes as "+" + code + digits ("+5555991234567"): the picker's own code
+     * typed in front, which the server keeps whole. The Laravel handoff's
+     * contract table documents that input; Swift sends the same
+     * (requestNumber, SWIFT_APP #51). Every other number stays digits only.
+     */
+    fun requestNumber(digits: String, callingCode: String, explicitCode: Boolean): String {
+        val code = callingCode.filter(Char::isDigit)
+        val repeatsCode = code.isNotEmpty() && digits.length >= 11 && digits.startsWith(code) &&
+            digits.length - code.length >= 7
+        return if (explicitCode && code != "1" && repeatsCode) "+$code$digits" else digits
     }
 
     /** The box after the picker moves to [callingCode]; a half-typed "+CC" is left for the next key. */
@@ -286,16 +416,17 @@ object AuthorizedUserPhoneInput {
     }
 
     /**
-     * "+1" is many countries: a Jamaican area code picks Jamaica, anything
-     * else under +1 picks the United States. A code several countries share
-     * opens on its main one ([PRIMARY_ISO_BY_CODE]); otherwise the first
-     * catalog match.
+     * "+1" is many countries: a Caribbean area code picks its own country
+     * ([NANP_CARIBBEAN_AREA_ISOS]: 876 and 658 Jamaica, 868 Trinidad and
+     * Tobago, 441 Bermuda, …), anything else under +1 the United States — the
+     * website's rule. A code several countries share opens on its main one
+     * ([PRIMARY_ISO_BY_CODE]); otherwise the first catalog match.
      */
     fun isoFor(callingCode: String?, digits: String): String {
         if (callingCode == null) return DEFAULT_ISO
         if (callingCode == "+1") {
-            return if (digits.startsWith("876") || digits.startsWith("658")) "JM"
-            else if (country("US") != null) "US" else DEFAULT_ISO
+            NANP_CARIBBEAN_AREA_ISOS[digits.take(3)]?.takeIf { country(it) != null }?.let { return it }
+            return if (country("US") != null) "US" else DEFAULT_ISO
         }
         PRIMARY_ISO_BY_CODE[callingCode]?.takeIf { country(it) != null }?.let { return it }
         return countries.firstOrNull { it.callingCode == callingCode }?.isoCode ?: DEFAULT_ISO

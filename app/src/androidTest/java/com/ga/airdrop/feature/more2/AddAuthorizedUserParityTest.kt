@@ -366,6 +366,42 @@ class AddAuthorizedUserParityTest {
     }
 
     /**
+     * 2026-09-23 audit: "+658 555 1234" — a Jamaican number written the local
+     * way — became Singapore at "+65". Through the real text field, one input
+     * per key: the picker never moves, the box keeps what was typed, and
+     * leaving the box settles it on Jamaica, sent as +1 / 6585551234.
+     */
+    @Test
+    fun aCaribbeanNumberTypedWithAPlusSettlesOnItsIslandWhenTheBoxIsLeft() {
+        val api = FakeMore2Api()
+        val viewModel = setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+        compose.onNodeWithTag("add-authorized-user-first-name-input").performTextInput("Ada")
+        compose.onNodeWithTag("add-authorized-user-last-name-input").performTextInput("Lovelace")
+        compose.onNodeWithTag("add-authorized-user-id-number-input").performTextInput("ABC123")
+        compose.onNodeWithTag("add-authorized-user-email-input").performTextInput("ada@example.com")
+        // A +1 country either way: Jamaica, or the device's own +1 region (US on the emulator).
+        val opened = viewModel.state.value.phoneIso
+        "+658 555 1234".forEach { key ->
+            compose.onNodeWithTag("add-authorized-user-mobile-input").performTextInput(key.toString())
+            compose.waitForIdle()
+            assertEquals("the picker moved at '$key'", opened, viewModel.state.value.phoneIso)
+        }
+        compose.onNodeWithTag("add-authorized-user-mobile-input").assert(hasText("+6585551234"))
+
+        // Typing the TRN moves focus off the number box, which settles it.
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123456789")
+        compose.waitUntil(timeoutMillis = 15_000) { viewModel.state.value.mobileNumber == "6585551234" }
+        assertEquals("JM", viewModel.state.value.phoneIso)
+        compose.onNodeWithTag("add-authorized-user-mobile-input").assert(hasText("6585551234"))
+        assertNoText("Please enter a valid phone number.")
+
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+        compose.waitUntil(timeoutMillis = 15_000) { api.addCalls.get() == 1 }
+        assertEquals("+1", api.lastAddRequest?.userCountryCode)
+        assertEquals("6585551234", api.lastAddRequest?.userMobileNumber)
+    }
+
+    /**
      * The calling-code picker: searchable by name or code, each row flag + name
      * + code, and the territories that used to be missing (GG, IM, JE) are
      * there. Rendered without the ModalBottomSheet window — #230: the headless
