@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.SubcomposeAsyncImage
 import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.CifValueSheet
 import com.ga.airdrop.core.designsystem.components.GradientButton
@@ -78,7 +80,9 @@ import com.ga.airdrop.feature.common.AirdropUploadSourceConfig
 import com.ga.airdrop.feature.common.AirdropUploadSourceSheet
 import com.ga.airdrop.feature.delivery.TrackJourney
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Package details — Figma node 40001753:15716, behavior from
@@ -392,6 +396,7 @@ private fun PackageDetailsContent(
     onRetryTimeline: () -> Unit,
 ) {
     val colors = AirdropTheme.colors
+    val context = LocalContext.current
     Column(
         Modifier
             .fillMaxWidth()
@@ -595,6 +600,41 @@ private fun PackageDetailsContent(
             }
         }
 
+        // This panel is intentionally absent until both the owner-scoped
+        // signature fetch and local image decode have succeeded. A stale,
+        // expired, malformed, or non-image response must not leave an empty
+        // signature frame in the package details flow.
+        val signaturePresentation = remember(detail.proofOfDelivery) {
+            signedForPresentation(detail.proofOfDelivery)
+        }
+        var signatureFile by remember(signaturePresentation?.imageUrl, detail.id) {
+            mutableStateOf<File?>(null)
+        }
+        LaunchedEffect(signaturePresentation?.imageUrl, detail.id) {
+            signatureFile = null
+            val presentation = signaturePresentation ?: return@LaunchedEffect
+            try {
+                // Reuse the existing authenticated action-file loader. It uses
+                // ApiClient only for an AirDrop-owned host and never sends the
+                // bearer token to a foreign URL.
+                signatureFile = prepareInvoiceActionFile(
+                    context = context,
+                    url = presentation.imageUrl,
+                    fileName = "proof-of-delivery-${detail.id}.png",
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                signatureFile = null
+            }
+        }
+        signatureFile?.let { file ->
+            SignedForPanel(
+                presentation = signaturePresentation ?: return@let,
+                signatureFile = file,
+            )
+        }
+
         // Upload Your Invoice
         //
         // ⚠️ THIS WAS RENDERED UNCONDITIONALLY, SO A DELIVERED PACKAGE STILL
@@ -789,6 +829,59 @@ private fun PackageDetailsContent(
 
         Spacer(Modifier.height(Spacing.md))
     }
+}
+
+@Composable
+internal fun SignedForPanel(
+    presentation: SignedForPresentation,
+    signatureFile: File,
+) {
+    val colors = AirdropTheme.colors
+    SubcomposeAsyncImage(
+        model = signatureFile,
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.fillMaxWidth(),
+        loading = {},
+        error = {},
+        success = { state ->
+            DetailSectionCard(
+                title = "Signed For",
+                tag = "package-details-section-signed-for",
+                titleContentGap = 12.dp,
+                contentSpacing = 10.dp,
+            ) {
+                // This plate stays white in both themes so dark delivery ink
+                // remains legible on a captured signature image.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .testTag("package-details-signed-for-plate")
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFD9D9D9), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = state.painter,
+                        contentDescription = "Signature captured on delivery",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                presentation.meta?.let { meta ->
+                    Text(
+                        text = meta,
+                        style = AirdropType.body3,
+                        color = colors.textDescription,
+                        modifier = Modifier.testTag("package-details-signed-for-meta"),
+                    )
+                }
+            }
+        },
+    )
 }
 
 private data class PickedPackageFile(

@@ -89,6 +89,13 @@ private fun PackageDetail.toShipmentDetail() = ShipmentPackageDetail(
     invoices = invoices.map {
         PackageInvoiceDoc(id = it.id ?: 0, fileName = it.fileName, fullUrl = it.fullUrl)
     },
+    proofOfDelivery = proofOfDelivery?.let {
+        ShipmentProofOfDelivery(
+            signatureUrl = it.signatureUrl,
+            deliveredAt = it.deliveredAt,
+            receivedBy = it.receivedBy,
+        )
+    },
     additionalCharges = additionalCharges,
     additionalChargesTotal = additionalChargesTotal,
     storage = storage,
