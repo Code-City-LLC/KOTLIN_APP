@@ -1,10 +1,12 @@
 package com.ga.airdrop.feature.calculator
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -57,10 +59,14 @@ class CalculatorViewModelTest {
         var legacyCalls = 0
         var tierCalls = 0
         val tierRequests = mutableListOf<TierQuoteRequest>()
+        var nextTierResponse: CompletableDeferred<TierQuote>? = null
 
         override suspend fun quoteShipment(request: TierQuoteRequest): TierQuote {
             tierCalls++
             tierRequests += request
+            val response = nextTierResponse
+            nextTierResponse = null
+            if (response != null) return response.await()
             return tierAnswer ?: error("tier pricing service unavailable")
         }
 
@@ -281,6 +287,211 @@ class CalculatorViewModelTest {
         assertTrue(repo.tierRequests.last().insuranceDeclined == true)
         assertEquals(false, viewModel.result.value?.insuranceChoice)
         assertTrue(viewModel.canProceedToPayment())
+    }
+
+    @Test
+    fun supersededTierRefreshSuccessDoesNotReplaceNewerCalculation() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val oldRefresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = oldRefresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+        assertTrue(viewModel.state.value.tierQuoteActionLoading)
+
+        val newerQuote = TIER_QUOTE.copy(quoteReference = "Q-NEWER", totalDue = 42.0)
+        repo.nextTierResponse = CompletableDeferred(newerQuote)
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        val newerResult = viewModel.result.value!!
+        val newerState = viewModel.state.value
+        assertEquals(newerQuote, newerResult.tierQuote)
+        assertEquals(250.0, newerResult.invoiceUsd, 0.001)
+        assertFalse(newerState.tierQuoteActionLoading)
+
+        oldRefresh.complete(TIER_QUOTE.copy(quoteReference = "Q-STALE"))
+        runCurrent()
+
+        assertEquals(newerResult, viewModel.result.value)
+        assertEquals(newerState, viewModel.state.value)
+        assertEquals(3, repo.tierCalls)
+    }
+
+    @Test
+    fun supersededTierRefreshFailureDoesNotAlterNewerCalculation() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val oldRefresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = oldRefresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+        assertTrue(viewModel.state.value.tierQuoteActionLoading)
+
+        val newerQuote = TIER_QUOTE.copy(quoteReference = "Q-NEWER", totalDue = 42.0)
+        repo.nextTierResponse = CompletableDeferred(newerQuote)
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        val newerResult = viewModel.result.value!!
+        val newerState = viewModel.state.value
+        assertEquals(newerQuote, newerResult.tierQuote)
+        assertEquals(250.0, newerResult.invoiceUsd, 0.001)
+        assertFalse(newerState.tierQuoteActionLoading)
+        assertNull(newerState.alert)
+
+        oldRefresh.completeExceptionally(IllegalStateException("old refresh failed"))
+        runCurrent()
+
+        assertEquals(newerResult, viewModel.result.value)
+        assertEquals(newerState, viewModel.state.value)
+        assertEquals(3, repo.tierCalls)
+    }
+
+    @Test
+    fun supersededTierRefreshSuccessPreservesNewerInsuranceChoice() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val oldRefresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = oldRefresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        viewModel.selectTierInsurance(false)
+        runCurrent()
+        val newerResult = viewModel.result.value!!
+        val newerState = viewModel.state.value
+        assertEquals(false, newerResult.insuranceChoice)
+        assertEquals(true, newerResult.tierQuoteRequest?.insuranceDeclined)
+        assertEquals(250.0, newerResult.invoiceUsd, 0.001)
+
+        oldRefresh.complete(TIER_QUOTE.copy(quoteReference = "Q-STALE"))
+        runCurrent()
+
+        assertEquals(newerResult, viewModel.result.value)
+        assertEquals(newerState, viewModel.state.value)
+        assertEquals(4, repo.tierCalls)
+    }
+
+    @Test
+    fun supersededTierRefreshFailurePreservesPendingNewerInsuranceChoice() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val oldRefresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = oldRefresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        val newerChoice = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = newerChoice
+        viewModel.selectTierInsurance(true)
+        runCurrent()
+        val newerResult = viewModel.result.value!!
+        val pendingState = viewModel.state.value
+        assertTrue(pendingState.tierQuoteActionLoading)
+
+        oldRefresh.completeExceptionally(IllegalStateException("old refresh failed"))
+        runCurrent()
+
+        assertEquals(newerResult, viewModel.result.value)
+        assertEquals(pendingState, viewModel.state.value)
+        val newerQuote = TIER_QUOTE.copy(quoteReference = "Q-NEWER-CHOICE")
+        newerChoice.complete(newerQuote)
+        runCurrent()
+
+        assertEquals(newerQuote, viewModel.result.value?.tierQuote)
+        assertEquals(true, viewModel.result.value?.insuranceChoice)
+        assertNull(viewModel.result.value?.tierQuoteRequest?.insuranceDeclined)
+        assertFalse(viewModel.state.value.tierQuoteActionLoading)
+        assertNull(viewModel.state.value.alert)
+        assertEquals(4, repo.tierCalls)
+    }
+
+    @Test
+    fun tierRefreshDoesNotStartWhileNewerCalculationIsPending() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+
+        val calculation = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = calculation
+        viewModel.onInvoiceChange("250")
+        viewModel.calculate()
+        runCurrent()
+        val pendingState = viewModel.state.value
+        assertTrue(pendingState.calculating)
+
+        viewModel.refreshTierQuote()
+        viewModel.selectTierInsurance(false)
+        runCurrent()
+
+        assertEquals(2, repo.tierCalls)
+        assertEquals(pendingState, viewModel.state.value)
+        val newerQuote = TIER_QUOTE.copy(quoteReference = "Q-NEWER")
+        calculation.complete(newerQuote)
+        runCurrent()
+
+        assertEquals(newerQuote, viewModel.result.value?.tierQuote)
+        assertEquals(250.0, viewModel.result.value!!.invoiceUsd, 0.001)
+        assertNull(viewModel.result.value?.insuranceChoice)
+        assertFalse(viewModel.state.value.calculating)
+        assertFalse(viewModel.state.value.tierQuoteActionLoading)
+    }
+
+    @Test
+    fun currentTierRefreshFailurePreservesValidQuoteAndInsuranceChoice() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        runCurrent()
+        viewModel.selectTierInsurance(false)
+        runCurrent()
+        val validResult = viewModel.result.value!!
+
+        val refresh = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = refresh
+        viewModel.refreshTierQuote()
+        runCurrent()
+        assertTrue(viewModel.state.value.tierQuoteActionLoading)
+        assertEquals(true, repo.tierRequests.last().insuranceDeclined)
+        refresh.completeExceptionally(IllegalStateException("current refresh failed"))
+        runCurrent()
+
+        assertEquals(validResult, viewModel.result.value)
+        assertEquals(false, viewModel.result.value?.insuranceChoice)
+        assertFalse(viewModel.state.value.tierQuoteActionLoading)
+        assertEquals("Quote refresh failed", viewModel.state.value.alert?.title)
     }
 
     private companion object {
