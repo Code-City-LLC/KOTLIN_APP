@@ -36,9 +36,10 @@ class AuthorizedUserPhoneInputTest {
 
     @Test
     fun `normalized Laravel phone fixture agrees with the existing validator`() {
-        // Original 78-case fixture at 841015b1, not a claim of raw-input parity.
+        // The 87-case fixture at AIRDROP-LARAVEL dd4675c8 (v1.29: the original
+        // 78, v1.28's Brazil and Germany cases, and the ambiguous German shapes).
         val rows = fixture("authorized-user-phones").jsonArray
-        assertEquals(78, rows.size)
+        assertEquals(87, rows.size)
         rows.forEachIndexed { index, element ->
             val row = element.jsonObject
             val pair = row.getValue("normalized").jsonArray
@@ -95,7 +96,8 @@ class AuthorizedUserPhoneInputTest {
             assertEquals(code, expected, AuthorizedUserPhoneInput.submissionDigits("02222222222", "+$code"))
             assertEquals("0022222222", AuthorizedUserPhoneInput.submissionDigits("0022222222", "+$code"))
         }
-        assertEquals("03012345678901", AuthorizedUserPhoneInput.interpret("03012345678901", "DE").number)
+        // The box drops that trunk 0 itself now, once (2026-09-23).
+        assertEquals("3012345678901", AuthorizedUserPhoneInput.interpret("03012345678901", "DE").number)
         val submitted = AuthorizedUserPhoneInput.submissionDigits("03012345678901", "+49")
         assertEquals("3012345678901", submitted)
         assertNull(AuthorizedUserPhoneInput.validationError(submitted, "+49"))
@@ -352,19 +354,21 @@ class AuthorizedUserPhoneInputTest {
     }
 
     @Test
-    fun `a typed code the server would cut as repeated goes in front of the digits`() {
-        fun wire(digits: String, code: String, explicit: Boolean) =
-            AuthorizedUserPhoneInput.requestNumber(digits, code, explicit)
+    fun `a box the server would cut as a repeated code goes with the code in front`() {
+        fun wire(digits: String, code: String) = AuthorizedUserPhoneInput.requestNumber(digits, code)
         // "+55 55 99123 4567": the handoff's contract row, and what Swift sends.
-        assertEquals("+5555991234567", wire("55991234567", "+55", explicit = true))
-        assertEquals("+4949211234567", wire("49211234567", "+49", explicit = true))
+        assertEquals("+5555991234567", wire("55991234567", "+55"))
+        assertEquals("+4949211234567", wire("49211234567", "+49"))
+        // German 049112345678 with its trunk 0 dropped by the box: sent bare,
+        // the server would cut "49" as well and store 112345678.
+        assertEquals("+4949112345678", wire("49112345678", "+49"))
         // Everything else stays digits only.
-        assertEquals("55991234567", wire("55991234567", "+55", explicit = false))
-        assertEquals("5599123456", wire("5599123456", "+55", explicit = true)) // ten digits: never cut
-        assertEquals("11991234567", wire("11991234567", "+55", explicit = true)) // no repeated code
-        assertEquals("18765551234", wire("18765551234", "+1", explicit = true)) // +1 keeps its own rule
-        assertEquals("7911123456", wire("7911123456", "+44", explicit = true))
-        assertEquals("", wire("", "+55", explicit = true))
+        assertEquals("5599123456", wire("5599123456", "+55")) // ten digits: never cut
+        assertEquals("11991234567", wire("11991234567", "+55")) // no repeated code
+        assertEquals("18765551234", wire("18765551234", "+1")) // +1 keeps its own rule
+        assertEquals("7911123456", wire("7911123456", "+44"))
+        assertEquals("3012345678901", wire("3012345678901", "+49"))
+        assertEquals("", wire("", "+55"))
     }
 
     @Test
@@ -435,6 +439,166 @@ class AuthorizedUserPhoneInputTest {
             listOf("VA" to "+39"),
             AuthorizedUserPhoneInput.countriesFrom(catalogRows).map { it.isoCode to it.callingCode },
         )
+    }
+
+    // ── 2026-09-23 display gaps: the box shows the number the server stores ────
+
+    @Test
+    fun `one trunk 0 after a typed or picked code goes, as the server drops it once`() {
+        // Typed with the code, key by key or pasted: 🇬🇧 7911123456.
+        assertEquals("GB" to "7911123456", typedAndSettled("+44 07911 123456", "JM"))
+        assertEquals("GB" to "7911123456", AuthorizedUserPhoneInput.interpret("+44 07911 123456", "JM").shown())
+        // The UK already picked, the number written the national way.
+        assertEquals("GB" to "7911123456", typedAndSettled("07911 123456", "GB"))
+        // A lone 0 stays until the next digit (the server keeps a lone 0 too).
+        assertEquals("GB" to "0", typedAndSettled("0", "GB"))
+        // Only for the codes the server drops it for: Italy keeps its 0.
+        assertEquals("IT" to "0612345678", typedAndSettled("+39 06 1234 5678", "JM"))
+        // A country picked after the digits: re-read under its code.
+        assertEquals("7911123456", AuthorizedUserPhoneInput.renumber("07911123456", "+44"))
+        assertEquals("0612345678", AuthorizedUserPhoneInput.renumber("0612345678", "+39"))
+        // Once only, however the digits arrive: after the 0 the digits are the
+        // national number, so "49" in front of them is never cut as well
+        // (the server keeps 49112345678 for 049112345678 under +49).
+        val german = typedSteps("049112345678", "DE").last()
+        assertEquals("DE" to "49112345678", german.shown())
+        assertTrue(german.explicitCode)
+        assertEquals("49112345678", AuthorizedUserPhoneInput.renumber("049112345678", "+49"))
+    }
+
+    @Test
+    fun `+1 from a picker with another code waits for the area code, which names the country`() {
+        val trinidad = typedSteps("+1 868 555 1234", "GB")
+        assertEquals("+1 waits", "GB" to "+1", trinidad[1].shown())
+        assertEquals("GB" to "+186", trinidad[4].shown())
+        assertEquals("the area code names it", "TT" to "868", trinidad[5].shown())
+        assertEquals("TT" to "8685551234", trinidad.last().shown())
+        assertEquals("US" to "2125551234", typedAndSettled("+1 212 555 1234", "GB"))
+        assertEquals("JM" to "8765551234", typedAndSettled("+1 876 555 1234", "GB"))
+        // A +1 country the customer already picked stays as it is.
+        assertEquals("JM" to "8685551234", typedAndSettled("+1 868 555 1234", "JM"))
+        assertEquals("US" to "8765551234", typedAndSettled("+1 876 555 1234", "US"))
+        // Left before the area code: still waiting, and refused, not guessed.
+        assertEquals("GB" to "+18", typedAndSettled("+18", "GB"))
+    }
+
+    @Test
+    fun `a repeated code is cut only above the country's longest national number`() {
+        fun national(digits: String, code: String) = AuthorizedUserPhoneInput.nationalDigits(digits, code)
+        // Brazil: 10 or 11 digits, so an 11-digit number starting 55 is area code 55.
+        assertEquals("55991234567", national("55991234567", "+55"))
+        assertEquals("55991234567", national("5555991234567", "+55"))
+        assertEquals("1134567890", national("551134567890", "+55"))
+        // Every other code keeps the 11+ rule — Germany too, except at exactly
+        // 11 digits, which v1.29 neither cuts nor keeps as a guess: it asks.
+        assertEquals("49211234567", national("49211234567", "+49"))
+        assertEquals("3012345678", national("493012345678", "+49"))
+        assertEquals("7911123456", national("447911123456", "+44"))
+        assertEquals("8765551234", national("18765551234", "+1"))
+        // Typed key by key, the box ends where the server does.
+        assertEquals("BR" to "55991234567", typedAndSettled("55 99123 4567", "BR"))
+        assertEquals("BR" to "55991234567", typedAndSettled("55 55 99123 4567", "BR"))
+        assertEquals("BR" to "1134567890", typedAndSettled("55 11 3456 7890", "BR"))
+    }
+
+    @Test
+    fun `a plus behind an invisible mark, in brackets or after tel counts, as on the server`() {
+        // Pasted from Contacts or a chat, a number often starts with a
+        // direction mark; the server removes everything but digits and "+"
+        // before it looks for the "+", so the box does too.
+        val marks = listOf(
+            '\u200E', '\u200F', '\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
+            '\u2066', '\u2067', '\u2068', '\u2069', '\uFEFF',
+        )
+        for (mark in marks) {
+            val label = "U+%04X".format(mark.code)
+            assertEquals(label, "GB" to "7911123456", AuthorizedUserPhoneInput.interpret("$mark+44 7911 123456", "JM").shown())
+        }
+        assertEquals("GB" to "7911123456", AuthorizedUserPhoneInput.interpret("(+44) 7911 123456", "JM").shown())
+        assertEquals("JM" to "8765551234", AuthorizedUserPhoneInput.interpret("tel:+1 876 555 1234", "GB").shown())
+        // Typed key by key they land the same way.
+        assertEquals("GB" to "7911123456", typedAndSettled("\u200E+44 7911 123456", "JM"))
+        assertEquals("GB" to "7911123456", typedAndSettled("(+44) 7911 123456", "JM"))
+        assertEquals("JM" to "8765551234", typedAndSettled("tel:+1 876 555 1234", "GB"))
+        // Blur and Save read the "+" the same way.
+        assertEquals(
+            "JM" to "8765551234",
+            AuthorizedUserPhoneInput.resolve(AuthorizedUserPhoneEntry("GB", "\u200E+8765551234")).shown(),
+        )
+        // A "+" after a digit is no calling code: digits only, under the picker.
+        assertEquals("JM" to "8765551234", AuthorizedUserPhoneInput.interpret("876+5551234", "JM").shown())
+        assertEquals("GB" to "8765551234", AuthorizedUserPhoneInput.interpret("876+5551234", "GB").shown())
+    }
+
+    @Test
+    fun `the box shows what the server stores for every fixture row a customer can type`() {
+        // Each row the server accepts whose code the picker offers: the picker
+        // on that code, the number typed or pasted, the box settled, must read
+        // as the server's normalized pair. Not modelled by the box: a code the
+        // picker cannot show ("+876", "undefined", ""), which only old stored
+        // rows carry, and "011", the NANP exit code.
+        val rows = fixture("authorized-user-phones").jsonArray.map { it.jsonObject }
+        var checked = 0
+        for (row in rows) {
+            if (row.getValue("problem") != JsonNull) continue
+            val code = row.getValue("code").jsonPrimitive.content
+            val mobile = row.getValue("mobile").jsonPrimitive.content
+            val iso = AuthorizedUserPhoneInput.countries.firstOrNull { it.callingCode == code }?.isoCode ?: continue
+            if (mobile.startsWith("011")) continue
+            val (wantCode, wantNumber) = row.getValue("normalized").jsonArray.map { it.jsonPrimitive.content }
+            val start = if (code == "+1") "JM" else AuthorizedUserPhoneInput.isoFor(code, "")
+            for ((how, entry) in listOf(
+                "pasted" to AuthorizedUserPhoneInput.resolve(AuthorizedUserPhoneInput.interpret(mobile, start)),
+                "typed" to AuthorizedUserPhoneInput.resolve(typedSteps(mobile, start).last()),
+            )) {
+                val label = "$how $code \"$mobile\""
+                assertEquals(label, wantNumber, entry.number)
+                assertEquals(label, wantCode, AuthorizedUserPhoneInput.country(entry.isoCode)?.callingCode)
+            }
+            checked++
+            assertTrue(iso.isNotEmpty())
+        }
+        assertEquals("fixture rows checked", 49, checked)
+    }
+
+    @Test
+    fun `an ambiguous German number is kept as typed and refused in the server's words`() {
+        // The fixture's refusals whose number the server left unresolved: the
+        // box keeps what was typed, and asks exactly as the server asks.
+        val rows = fixture("authorized-user-phones").jsonArray.map { it.jsonObject }
+        var checked = 0
+        for (row in rows) {
+            val (code, stored) = row.getValue("normalized").jsonArray.map { it.jsonPrimitive.content }
+            if (!stored.startsWith("+")) continue
+            val mobile = row.getValue("mobile").jsonPrimitive.content
+            val message = row.getValue("problem").jsonArray[1].jsonPrimitive.content
+            val start = AuthorizedUserPhoneInput.isoFor(code, "")
+            for ((how, entry) in listOf(
+                "pasted" to AuthorizedUserPhoneInput.resolve(AuthorizedUserPhoneInput.interpret(mobile, start)),
+                "typed" to AuthorizedUserPhoneInput.resolve(typedSteps(mobile, start).last()),
+            )) {
+                val label = "$how $code \"$mobile\""
+                assertEquals(label, stored.drop(1), entry.number)
+                assertEquals(label, message, AuthorizedUserPhoneInput.ambiguityError(entry.number, code, entry.explicitCode))
+            }
+            checked++
+        }
+        assertEquals("ambiguous fixture rows checked", 2, checked)
+
+        val message = "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+        assertEquals("49211234567", AuthorizedUserPhoneInput.nationalDigits("49211234567", "+49"))
+        assertEquals(message, AuthorizedUserPhoneInput.ambiguityError("49211234567", "+49", explicitCode = false))
+        // Read as they are: after "+49", "0049" or a trunk 0, and at 12 digits.
+        assertNull(AuthorizedUserPhoneInput.ambiguityError("49211234567", "+49", explicitCode = true))
+        assertEquals("DE" to "49211234567", typedAndSettled("+49 4921 1234567", "DE"))
+        assertEquals("DE" to "2111234567", typedAndSettled("0049 211 1234567", "DE"))
+        val emden = typedSteps("04921 1234567", "DE").last()
+        assertEquals("DE" to "49211234567", emden.shown())
+        assertNull(AuthorizedUserPhoneInput.ambiguityError(emden.number, "+49", emden.explicitCode))
+        assertEquals("DE" to "3012345678", typedAndSettled("49 30 12345678", "DE"))
+        // Only Germany, only 11 digits.
+        assertNull(AuthorizedUserPhoneInput.ambiguityError("447911123456", "+44", explicitCode = false))
+        assertNull(AuthorizedUserPhoneInput.ambiguityError("4921123456", "+49", explicitCode = false))
     }
 
     private companion object {

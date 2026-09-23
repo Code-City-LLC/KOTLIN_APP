@@ -147,16 +147,25 @@ class AddAuthorizedUserParityTest {
     @Test fun ukPhoneDark() = assertContractCountryThroughForm("GB", "+44", "7700900123", ThemeController.Mode.DARK)
     @Test fun vaticanPhoneLight() = assertContractCountryThroughForm("VA", "+39", "0669812345", ThemeController.Mode.LIGHT)
     @Test fun vaticanPhoneDark() = assertContractCountryThroughForm("VA", "+39", "0669812345", ThemeController.Mode.DARK)
-    @Test fun germanyPhoneLight() = assertContractCountryThroughForm("DE", "+49", "03012345678901", ThemeController.Mode.LIGHT)
-    @Test fun germanyPhoneDark() = assertContractCountryThroughForm("DE", "+49", "03012345678901", ThemeController.Mode.DARK)
-    @Test fun germanyRepeatedCodePhoneLight() = assertContractCountryThroughForm("DE", "+49", "049112345678", ThemeController.Mode.LIGHT)
-    @Test fun germanyRepeatedCodePhoneDark() = assertContractCountryThroughForm("DE", "+49", "049112345678", ThemeController.Mode.DARK)
+    // The box drops Germany's trunk 0 once, as the server does (2026-09-23);
+    // 49112345678 goes with "+49" in front so the server does not cut "49" too.
+    @Test fun germanyPhoneLight() = assertContractCountryThroughForm("DE", "+49", "03012345678901", ThemeController.Mode.LIGHT, shown = "3012345678901")
+    @Test fun germanyPhoneDark() = assertContractCountryThroughForm("DE", "+49", "03012345678901", ThemeController.Mode.DARK, shown = "3012345678901")
+    @Test fun germanyRepeatedCodePhoneLight() = assertContractCountryThroughForm("DE", "+49", "049112345678", ThemeController.Mode.LIGHT, shown = "49112345678", sent = "+4949112345678")
+    @Test fun germanyRepeatedCodePhoneDark() = assertContractCountryThroughForm("DE", "+49", "049112345678", ThemeController.Mode.DARK, shown = "49112345678", sent = "+4949112345678")
     @Test fun unchangedLegacyPhoneLight() = assertLegacyPhoneEdit(ThemeController.Mode.LIGHT)
     @Test fun unchangedLegacyPhoneDark() = assertLegacyPhoneEdit(ThemeController.Mode.DARK)
     @Test fun unchangedFormattedPhoneLight() = assertFormattedPhoneEdit(ThemeController.Mode.LIGHT)
     @Test fun unchangedFormattedPhoneDark() = assertFormattedPhoneEdit(ThemeController.Mode.DARK)
 
-    private fun assertContractCountryThroughForm(iso: String, code: String, digits: String, mode: ThemeController.Mode) {
+    private fun assertContractCountryThroughForm(
+        iso: String,
+        code: String,
+        digits: String,
+        mode: ThemeController.Mode,
+        shown: String = digits,
+        sent: String = shown,
+    ) {
         val api = FakeMore2Api()
         setAddUser(api, editId = null, mode = mode)
         fillEverythingButThePhone()
@@ -169,13 +178,13 @@ class AddAuthorizedUserParityTest {
         compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("123456789")
         compose.waitForIdle()
         assertNoText(AuthorizedUserPhoneInput.FIELD_ERROR)
-        mobile.assert(hasText(digits))
+        mobile.assert(hasText(shown))
         mobile.performScrollTo()
         saveRootScreenshot("phone_${iso}_${mode.name.lowercase(Locale.US)}.png")
         compose.onNodeWithTag("add-authorized-user-primary").performClick()
         compose.waitUntil(timeoutMillis = 15_000) { api.addCalls.get() == 1 && backClicks == 1 }
         assertEquals(iso, code, api.lastAddRequest?.userCountryCode)
-        assertEquals(iso, digits, api.lastAddRequest?.userMobileNumber)
+        assertEquals(iso, sent, api.lastAddRequest?.userMobileNumber)
     }
 
     private fun assertFormattedPhoneEdit(mode: ThemeController.Mode) {
@@ -399,6 +408,40 @@ class AddAuthorizedUserParityTest {
         compose.waitUntil(timeoutMillis = 15_000) { api.addCalls.get() == 1 }
         assertEquals("+1", api.lastAddRequest?.userCountryCode)
         assertEquals("6585551234", api.lastAddRequest?.userMobileNumber)
+    }
+
+    /**
+     * 2026-09-23 display gaps, through the real field one key at a time: the
+     * UK's trunk 0 after "+44" goes once, as the server drops it, and "+1"
+     * typed from the UK waits for its area code, which names the country.
+     */
+    @Test
+    fun aTrunkZeroGoesOnceAndPlusOneWaitsForItsAreaCode() {
+        val api = FakeMore2Api()
+        val viewModel = setAddUser(api, editId = null, mode = ThemeController.Mode.LIGHT)
+        fillEverythingButThePhone()
+        val mobile = compose.onNodeWithTag("add-authorized-user-mobile-input")
+        "+44 07911 123456".forEach { key -> mobile.performTextInput(key.toString()) }
+        compose.waitForIdle()
+        assertEquals("GB", viewModel.state.value.phoneIso)
+        mobile.assert(hasText("7911123456"))
+
+        mobile.performTextClearance()
+        "+1 86".forEach { key -> mobile.performTextInput(key.toString()) }
+        compose.waitForIdle()
+        assertEquals("+1 waits for its area code", "GB", viewModel.state.value.phoneIso)
+        mobile.assert(hasText("+186"))
+        "8 555 1234".forEach { key -> mobile.performTextInput(key.toString()) }
+        compose.waitForIdle()
+        assertEquals("TT", viewModel.state.value.phoneIso)
+        mobile.assert(hasText("8685551234"))
+        compose.onNodeWithTag("add-authorized-user-phone-code-input", useUnmergedTree = true)
+            .assert(hasText("🇹🇹 +1"))
+
+        compose.onNodeWithTag("add-authorized-user-primary").performClick()
+        compose.waitUntil(timeoutMillis = 15_000) { api.addCalls.get() == 1 }
+        assertEquals("+1", api.lastAddRequest?.userCountryCode)
+        assertEquals("8685551234", api.lastAddRequest?.userMobileNumber)
     }
 
     /**

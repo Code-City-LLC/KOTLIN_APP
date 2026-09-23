@@ -751,5 +751,92 @@
             "user_mobile_number",
             "Please enter a valid phone number. A +1 number has 10 digits, for example 876 555 1234."
         ]
+    },
+    {
+        "code": "+55",
+        "mobile": "55 99123 4567",
+        "normalized": [
+            "+55",
+            "55991234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+55",
+        "mobile": "55 55 99123 4567",
+        "normalized": [
+            "+55",
+            "55991234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+55",
+        "mobile": "55 11 3456 7890",
+        "normalized": [
+            "+55",
+            "1134567890"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "4921 1234567",
+        "normalized": [
+            "+49",
+            "+49211234567"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+        ]
+    },
+    {
+        "code": "+49",
+        "mobile": "04921 1234567",
+        "normalized": [
+            "+49",
+            "49211234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "+49 4921 1234567",
+        "normalized": [
+            "+49",
+            "49211234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "49 30 12345678",
+        "normalized": [
+            "+49",
+            "3012345678"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "4930 1234567",
+        "normalized": [
+            "+49",
+            "+49301234567"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+        ]
+    },
+    {
+        "code": "+49",
+        "mobile": "0049 211 1234567",
+        "normalized": [
+            "+49",
+            "2111234567"
+        ],
+        "problem": null
     }
 ]
