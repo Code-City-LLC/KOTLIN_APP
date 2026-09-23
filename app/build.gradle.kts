@@ -66,7 +66,10 @@ val playUploadSigningConfigured =
 // on the internal track (Claude-BronzeMountain). Play: codes [2, 26..33].
 // 2026-09-23: 34 (3.2.5), main a09d1010 with the phone audit (#254 + #255),
 // replaced 33 on the internal track (Claude-BronzeMountain). Play: codes [2, 26..34].
-val knownPlayProductionVersionCodeFloor = 34
+// 2026-09-23: 35 (3.2.6), the mobile merge (SwiftHawk) — tier quote + customs,
+// NCB city, invoice button, proof of delivery, payment review, phone audit — on the
+// INTERNAL track (Claude-SwiftHawk). Play queried first: codes [2, 26..34].
+val knownPlayProductionVersionCodeFloor = 35
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
