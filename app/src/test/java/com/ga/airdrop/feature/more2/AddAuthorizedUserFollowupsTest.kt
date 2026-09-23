@@ -460,4 +460,46 @@ class AddAuthorizedUserFollowupsTest {
         assertTrue(AuthorizedUserPhoneInput.search("jersey").any { it.isoCode == "JE" })
         assertTrue(AuthorizedUserPhoneInput.search("+599").map { it.isoCode }.containsAll(listOf("CW", "BQ")))
     }
+
+    // ── Red on blur, not only on save (Britanya Brown 2026-09-14) ──────────────
+    // Swift (validatePhoneOnBlur), the website and the phone-width site already
+    // judge the number when the customer leaves the box; Android only did on save.
+
+    private fun freshForm() = AddAuthorizedUserViewModel(editId = null, repository = More2Repository(api(http(500, "{}"))))
+
+    @Test
+    fun `leaving a short +1 number says why under the field`() {
+        Locale.setDefault(Locale.forLanguageTag("en-JM"))
+        val vm = freshForm()
+        vm.typeIntoMobile("555")
+        assertNull("typing never nags", vm.state.value.mobileError)
+        vm.onMobileBlur()
+        assertEquals(AuthorizedUserPhoneInput.FIELD_ERROR, vm.state.value.mobileError)
+    }
+
+    @Test
+    fun `leaving an empty or untouched box says nothing`() {
+        val vm = freshForm()
+        vm.onMobileBlur()
+        assertNull("an untouched box is not judged", vm.state.value.mobileError)
+        vm.typeIntoMobile("8")
+        vm.onMobileNumber("")
+        vm.onMobileBlur()
+        assertNull("an emptied box is not judged", vm.state.value.mobileError)
+    }
+
+    @Test
+    fun `a valid number passes on blur and typing clears a blur error`() {
+        Locale.setDefault(Locale.forLanguageTag("en-JM"))
+        val vm = freshForm()
+        vm.typeIntoMobile("8765551234")
+        vm.onMobileBlur()
+        assertNull(vm.state.value.mobileError)
+        vm.onMobileNumber("876")
+        vm.onMobileBlur()
+        assertEquals(AuthorizedUserPhoneInput.FIELD_ERROR, vm.state.value.mobileError)
+        vm.typeIntoMobile("5551234")
+        assertNull("the next key clears it", vm.state.value.mobileError)
+        assertEquals("8765551234", vm.state.value.mobileNumber)
+    }
 }
