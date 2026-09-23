@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.more2
 
 import com.ga.airdrop.core.location.CountryCatalog
 import com.ga.airdrop.core.location.CountryEntry
+import java.util.Locale
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.int
@@ -10,6 +11,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -267,5 +269,201 @@ class AuthorizedUserPhoneInputTest {
             AuthorizedUserPhoneInput.serverPhoneError(mapOf("user_mobile_number" to "Enter all 10 digits of the mobile number, for example 876 555 1234.")),
         )
         assertNull(AuthorizedUserPhoneInput.serverPhoneError(mapOf("user_email" to "taken")))
+    }
+
+    // ── 2026-09-23 audit: a "+" number is read in the server's order ──────────
+    // App\Support\AuthorizedUserPhone::normalize: the picker's own code typed in
+    // front, else exactly ten digits of a Caribbean number written the local
+    // way, else the calling code the digits start with — and never a repeated
+    // code cut after an explicit "+CC".
+
+    /** What a TextField does: after every key it hands over the whole box. Every step, in order. */
+    private fun typedSteps(text: String, startIso: String): List<AuthorizedUserPhoneEntry> {
+        var entry = AuthorizedUserPhoneEntry(startIso, "")
+        return text.map { key ->
+            entry = AuthorizedUserPhoneInput.interpret(entry.number + key, entry.isoCode, entry.explicitCode)
+            entry
+        }
+    }
+
+    /** Typed key by key, then settled the way leaving the box or Save settles it: picker ISO to box. */
+    private fun typedAndSettled(text: String, startIso: String): Pair<String, String> =
+        AuthorizedUserPhoneInput.resolve(typedSteps(text, startIso).last()).let { it.isoCode to it.number }
+
+    private fun AuthorizedUserPhoneEntry.shown(): Pair<String, String> = isoCode to number
+
+    @Test
+    fun `a Caribbean number typed with a plus waits in the box and settles on its own island`() {
+        val expected = mapOf(
+            "+876 555 1234" to ("JM" to "8765551234"),
+            "+658 555 1234" to ("JM" to "6585551234"), // never Singapore at "+65"
+            "+868 555 1234" to ("TT" to "8685551234"), // never China at "+86"
+            "+441 555 1234" to ("BM" to "4415551234"), // never the UK at "+44"
+        )
+        for ((typed, settled) in expected) {
+            val steps = typedSteps(typed, "JM")
+            assertEquals("$typed moved the picker while it was typed", listOf("JM"), steps.map { it.isoCode }.distinct())
+            assertEquals("$typed stays as typed until it is settled", "+" + settled.second, steps.last().number)
+            assertEquals(typed, settled, typedAndSettled(typed, "JM"))
+        }
+        // It names its own country from a picker with another code as well.
+        assertEquals("JM" to "8765551234", typedAndSettled("+876 555 1234", "GB"))
+    }
+
+    @Test
+    fun `a plus code that cannot be Caribbean moves the picker at the key that rules it out`() {
+        val uk = typedSteps("+44 7911 123456", "JM")
+        assertEquals("+44 waits: +441 is Bermuda", "JM" to "+44", uk[2].shown())
+        assertEquals("+447: 447 is no Caribbean area code", "GB" to "7", uk[4].shown())
+        assertEquals("GB" to "7911123456", typedAndSettled("+44 7911 123456", "JM"))
+
+        val singapore = typedSteps("+65 9123 4567", "JM")
+        assertEquals("+65 waits: +658 is Jamaica", "JM" to "+65", singapore[2].shown())
+        assertEquals("SG" to "9", singapore[4].shown())
+        assertEquals("SG" to "91234567", typedAndSettled("+65 9123 4567", "JM"))
+
+        // Ten digits that start like Bermuda's still could be; an eleventh cannot.
+        val london = typedSteps("+44 1632 960000", "JM")
+        assertEquals("JM" to "+4416329600", london[12].shown())
+        assertEquals("GB" to "163296000", london[13].shown())
+        assertEquals("GB" to "1632960000", typedAndSettled("+44 1632 960000", "JM"))
+    }
+
+    @Test
+    fun `the picker's own code typed in front keeps the picker`() {
+        assertEquals("SG" to "85551234", typedAndSettled("+65 8555 1234", "SG"))
+        assertEquals("SG" to "85551234", AuthorizedUserPhoneInput.interpret("+65 8555 1234", "SG").shown())
+        assertEquals("GB" to "15551234", typedAndSettled("+441 555 1234", "GB"))
+    }
+
+    @Test
+    fun `nothing typed after a plus code is cut for repeating it`() {
+        // Area code 55 of a Brazilian mobile is not "+55" typed twice.
+        assertEquals("BR" to "55991234567", typedAndSettled("+55 55 99123 4567", "JM"))
+        assertEquals("BR" to "55991234567", AuthorizedUserPhoneInput.interpret("+55 55 99123 4567", "JM").shown())
+        assertEquals("BR" to "55991234567", AuthorizedUserPhoneInput.interpret("+55 55 99123 4567", "BR").shown())
+        assertEquals("DE" to "49211234567", AuthorizedUserPhoneInput.interpret("+49 4921 1234567", "JM").shown())
+        // Without a "+" a repeated code still goes, and under +1 the trunk 1 always does.
+        assertEquals("7911123456", AuthorizedUserPhoneInput.interpret("447911123456", "GB").number)
+        assertEquals("8765551234", AuthorizedUserPhoneInput.interpret("+1 1 876 555 1234", "JM").number)
+        assertEquals("8765551234", typedAndSettled("+1 1876 555 1234", "JM").second)
+        // Emptying the box starts over.
+        assertFalse(AuthorizedUserPhoneInput.interpret("", "BR", explicitCode = true).explicitCode)
+    }
+
+    @Test
+    fun `resolve settles only a number still waiting`() {
+        fun settle(box: String, iso: String) =
+            AuthorizedUserPhoneInput.resolve(AuthorizedUserPhoneEntry(iso, box)).shown()
+        assertEquals("JM" to "8765551234", settle("+8765551234", "JM"))
+        assertEquals("JM" to "6585551234", settle("+6585551234", "JM"))
+        assertEquals("TT" to "8685551234", settle("+8685551234", "US"))
+        assertEquals("BM" to "4415551234", settle("+4415551234", "JM"))
+        // A code on its own: the picker moves and the box empties.
+        assertEquals("GB" to "", settle("+44", "JM"))
+        assertEquals("GB" to "", settle("0044", "JM"))
+        // Not a whole number, or no country at all: left as typed, and refused.
+        assertEquals("JM" to "+876555", settle("+876555", "JM"))
+        assertEquals("JM" to "+999123", settle("+999123", "JM"))
+        assertEquals(AuthorizedUserPhoneInput.FIELD_ERROR, AuthorizedUserPhoneInput.validationError("+876555", "+1"))
+        // A box of digits is already settled.
+        assertEquals("JM" to "8765551234", settle("8765551234", "JM"))
+        assertEquals("US" to "5551234", settle("5551234", "US"))
+    }
+
+    @Test
+    fun `every Caribbean area code opens its own country under +1`() {
+        // The website's PHONE_NANP_AREA_ISOS (phoneCountries.js), verbatim.
+        val website = mapOf(
+            "242" to "BS", "246" to "BB", "264" to "AI", "268" to "AG", "284" to "VG", "340" to "VI",
+            "345" to "KY", "441" to "BM", "473" to "GD", "649" to "TC", "658" to "JM", "664" to "MS",
+            "670" to "MP", "671" to "GU", "684" to "AS", "721" to "SX", "758" to "LC", "767" to "DM",
+            "784" to "VC", "787" to "PR", "809" to "DO", "829" to "DO", "849" to "DO", "868" to "TT",
+            "869" to "KN", "876" to "JM", "939" to "PR",
+        )
+        for ((area, iso) in website) {
+            assertEquals(area, iso, AuthorizedUserPhoneInput.isoFor("+1", "${area}5551234"))
+        }
+        assertEquals(website, AuthorizedUserPhoneInput.NANP_CARIBBEAN_AREA_ISOS)
+        // Any other +1 number opens on the United States, as on the website.
+        assertEquals("US", AuthorizedUserPhoneInput.isoFor("+1", "5550199821"))
+        assertEquals("US", AuthorizedUserPhoneInput.isoFor("+1", "4165551234"))
+        // A stored row opens on its island too.
+        assertEquals("TT" to "8685551234", AuthorizedUserPhoneInput.fold("+1868", "5551234"))
+        assertEquals("BB" to "2465551234", AuthorizedUserPhoneInput.fold("+1", "2465551234"))
+    }
+
+    @Test
+    fun `the picker offers only calling codes the server accepts`() {
+        val refused = AuthorizedUserPhoneInput.countries
+            .filter { it.callingCode !in WEBSITE_DIAL_CODES.values }
+            .map { "${it.isoCode} ${it.callingCode}" }
+        assertEquals("picker codes the server refuses", emptyList<String>(), refused)
+        // Every country the website offers is here with the same code.
+        val listed = Locale.getISOCountries().toSet()
+        for ((iso, code) in WEBSITE_DIAL_CODES) {
+            if (iso !in listed) continue // the desktop JVM has no Kosovo; Android does
+            assertEquals(iso, code, AuthorizedUserPhoneInput.country(iso)?.callingCode)
+        }
+        assertEquals("+39", AuthorizedUserPhoneInput.country("VA")?.callingCode)
+        assertNull("Pitcairn has no calling code of its own", AuthorizedUserPhoneInput.country("PN"))
+        assertEquals("IT", AuthorizedUserPhoneInput.isoFor("+39", "0612345678"))
+        assertTrue(AuthorizedUserPhoneInput.search("+379").isEmpty())
+        // The catalog's own rows, whichever regions this runtime lists; the
+        // correction lives in the picker, not in the shared catalog.
+        val catalogRows = listOf(
+            CountryEntry("VA", "Vatican City", "🇻🇦", "+379"),
+            CountryEntry("PN", "Pitcairn Islands", "🇵🇳", "+870"),
+        )
+        assertEquals(
+            listOf("VA" to "+39"),
+            AuthorizedUserPhoneInput.countriesFrom(catalogRows).map { it.isoCode to it.callingCode },
+        )
+    }
+
+    private companion object {
+        /** The website's PHONE_COUNTRIES (phoneCountries.js): the codes the server accepts, and nothing else. */
+        val WEBSITE_DIAL_CODES = mapOf(
+            "JM" to "+1", "US" to "+1", "CA" to "+1", "GB" to "+44", "TT" to "+1", "BB" to "+1", "BS" to "+1",
+            "KY" to "+1", "BM" to "+1", "GD" to "+1", "LC" to "+1", "VC" to "+1", "AG" to "+1", "DM" to "+1",
+            "VG" to "+1", "AI" to "+1", "TC" to "+1", "MS" to "+1", "KN" to "+1", "DO" to "+1", "PR" to "+1",
+            "VI" to "+1", "SX" to "+1", "HT" to "+509", "CU" to "+53", "GY" to "+592", "SR" to "+597",
+            "BZ" to "+501", "AW" to "+297", "CW" to "+599", "BQ" to "+599", "GP" to "+590", "MQ" to "+596",
+            "BL" to "+590", "MF" to "+590", "AF" to "+93", "AX" to "+358", "AL" to "+355", "DZ" to "+213",
+            "AS" to "+1", "AD" to "+376", "AO" to "+244", "AR" to "+54", "AM" to "+374", "AU" to "+61",
+            "AT" to "+43", "AZ" to "+994", "BH" to "+973", "BD" to "+880", "BY" to "+375", "BE" to "+32",
+            "BJ" to "+229", "BT" to "+975", "BO" to "+591", "BA" to "+387", "BW" to "+267", "BR" to "+55",
+            "IO" to "+246", "BN" to "+673", "BG" to "+359", "BF" to "+226", "BI" to "+257", "CV" to "+238",
+            "KH" to "+855", "CM" to "+237", "CF" to "+236", "TD" to "+235", "CL" to "+56", "CN" to "+86",
+            "CX" to "+61", "CC" to "+61", "CO" to "+57", "KM" to "+269", "CG" to "+242", "CD" to "+243",
+            "CK" to "+682", "CR" to "+506", "CI" to "+225", "HR" to "+385", "CY" to "+357", "CZ" to "+420",
+            "DK" to "+45", "DJ" to "+253", "EC" to "+593", "EG" to "+20", "SV" to "+503", "GQ" to "+240",
+            "ER" to "+291", "EE" to "+372", "SZ" to "+268", "ET" to "+251", "FK" to "+500", "FO" to "+298",
+            "FJ" to "+679", "FI" to "+358", "FR" to "+33", "GF" to "+594", "PF" to "+689", "GA" to "+241",
+            "GM" to "+220", "GE" to "+995", "DE" to "+49", "GH" to "+233", "GI" to "+350", "GR" to "+30",
+            "GL" to "+299", "GU" to "+1", "GT" to "+502", "GG" to "+44", "GN" to "+224", "GW" to "+245",
+            "HN" to "+504", "HK" to "+852", "HU" to "+36", "IS" to "+354", "IN" to "+91", "ID" to "+62",
+            "IR" to "+98", "IQ" to "+964", "IE" to "+353", "IM" to "+44", "IL" to "+972", "IT" to "+39",
+            "JP" to "+81", "JE" to "+44", "JO" to "+962", "KZ" to "+7", "KE" to "+254", "KI" to "+686",
+            "XK" to "+383", "KW" to "+965", "KG" to "+996", "LA" to "+856", "LV" to "+371", "LB" to "+961",
+            "LS" to "+266", "LR" to "+231", "LY" to "+218", "LI" to "+423", "LT" to "+370", "LU" to "+352",
+            "MO" to "+853", "MG" to "+261", "MW" to "+265", "MY" to "+60", "MV" to "+960", "ML" to "+223",
+            "MT" to "+356", "MH" to "+692", "MR" to "+222", "MU" to "+230", "YT" to "+262", "MX" to "+52",
+            "FM" to "+691", "MD" to "+373", "MC" to "+377", "MN" to "+976", "ME" to "+382", "MA" to "+212",
+            "MZ" to "+258", "MM" to "+95", "NA" to "+264", "NR" to "+674", "NP" to "+977", "NL" to "+31",
+            "NC" to "+687", "NZ" to "+64", "NI" to "+505", "NE" to "+227", "NG" to "+234", "NU" to "+683",
+            "NF" to "+672", "KP" to "+850", "MK" to "+389", "MP" to "+1", "NO" to "+47", "OM" to "+968",
+            "PK" to "+92", "PW" to "+680", "PS" to "+970", "PA" to "+507", "PG" to "+675", "PY" to "+595",
+            "PE" to "+51", "PH" to "+63", "PL" to "+48", "PT" to "+351", "QA" to "+974", "RE" to "+262",
+            "RO" to "+40", "RU" to "+7", "RW" to "+250", "SH" to "+290", "PM" to "+508", "WS" to "+685",
+            "SM" to "+378", "ST" to "+239", "SA" to "+966", "SN" to "+221", "RS" to "+381", "SC" to "+248",
+            "SL" to "+232", "SG" to "+65", "SK" to "+421", "SI" to "+386", "SB" to "+677", "SO" to "+252",
+            "ZA" to "+27", "KR" to "+82", "SS" to "+211", "ES" to "+34", "LK" to "+94", "SD" to "+249",
+            "SJ" to "+47", "SE" to "+46", "CH" to "+41", "SY" to "+963", "TW" to "+886", "TJ" to "+992",
+            "TZ" to "+255", "TH" to "+66", "TL" to "+670", "TG" to "+228", "TK" to "+690", "TO" to "+676",
+            "TN" to "+216", "TR" to "+90", "TM" to "+993", "TV" to "+688", "UG" to "+256", "UA" to "+380",
+            "AE" to "+971", "UY" to "+598", "UZ" to "+998", "VU" to "+678", "VA" to "+39", "VE" to "+58",
+            "VN" to "+84", "WF" to "+681", "EH" to "+212", "YE" to "+967", "ZM" to "+260", "ZW" to "+263",
+        )
     }
 }
