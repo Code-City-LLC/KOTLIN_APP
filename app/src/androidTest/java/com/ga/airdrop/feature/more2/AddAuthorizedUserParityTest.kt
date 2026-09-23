@@ -122,8 +122,10 @@ class AddAuthorizedUserParityTest {
         compose.waitForIdle()
         assertNoText("Please enter a valid phone number.")
 
-        // Focus moves to the next field: the number box has been left.
-        compose.onNodeWithTag("add-authorized-user-trn-input").performClick()
+        // Focus moves to the next field: the number box has been left. Typing
+        // there focuses it through semantics, so it works even when the field
+        // is below the fold on a small emulator (a click at its centre did not).
+        compose.onNodeWithTag("add-authorized-user-trn-input").performTextInput("1")
         compose.waitUntil(timeoutMillis = 15_000) {
             compose.onAllNodesWithText("Please enter a valid phone number.", substring = true)
                 .fetchSemanticsNodes().isNotEmpty()
