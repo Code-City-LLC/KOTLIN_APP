@@ -1137,4 +1137,28 @@ class AddAuthorizedUserFollowupsTest {
         assertEquals("JM" to "01144791112", short.shown)
         assertEquals("GB" to "11447911123456", freshForm("GB").apply { typeIntoMobile("011 44 7911 123456") }.shown)
     }
+
+    @Test
+    fun `digits from another script are read as the digits they are`() = runTest(dispatcher) {
+        // A keypad or a paste in Arabic-Indic, Persian or Devanagari digits: the
+        // box showed them, and Save refused them (the server's \d is ASCII).
+        // Swift reads each as its value (asciiDigits); so does the box now.
+        fun sent(iso: String, text: String, pasted: Boolean): Triple<String, String, Pair<String, String>> {
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = freshForm(iso, calls)
+            if (pasted) vm.onMobileNumber(text) else vm.typeIntoMobile(text)
+            vm.save()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertNull(text, vm.state.value.mobileError)
+            return Triple(vm.state.value.phoneIso, vm.state.value.mobileNumber, calls.sentPhone)
+        }
+        for (pasted in listOf(true, false)) {
+            assertEquals(Triple("JM", "8765551234", "+1" to "8765551234"), sent("JM", "٨٧٦٥٥٥١٢٣٤", pasted))
+            assertEquals(Triple("GB", "7911123456", "+44" to "7911123456"), sent("GB", "۰۷۹۱۱ ۱۲۳۴۵۶", pasted))
+            assertEquals(Triple("IN", "9876543210", "+91" to "9876543210"), sent("IN", "९८७६५४३२१०", pasted))
+            assertEquals(Triple("GB", "7911123456", "+44" to "7911123456"), sent("JM", "+٤٤ ٧٩١١ ١٢٣٤٥٦", pasted))
+        }
+        // A "+" after such a digit is no calling code, as after 0-9.
+        assertEquals(Triple("US", "2125551234", "+1" to "2125551234"), sent("US", "٢١٢+٥٥٥١٢٣٤", pasted = true))
+    }
 }

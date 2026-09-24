@@ -281,7 +281,7 @@ object AuthorizedUserPhoneInput {
      */
     fun interpret(raw: String, previous: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
         val currentIso = previous.isoCode
-        val digits = raw.filter(Char::isDigit)
+        val digits = asciiDigits(raw)
         val code = country(currentIso)?.callingCode ?: "+1"
         internationalDigits(raw, digits, code)?.let { international ->
             return readInternational(raw, digits, international, currentIso, waitForCaribbean = true)
@@ -330,7 +330,7 @@ object AuthorizedUserPhoneInput {
      * of digits is already settled and comes back unchanged.
      */
     fun resolve(entry: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
-        val digits = entry.number.filter(Char::isDigit)
+        val digits = asciiDigits(entry.number)
         val code = country(entry.isoCode)?.callingCode ?: "+1"
         val international = internationalDigits(entry.number, digits, code) ?: return entry
         return readInternational(entry.number, digits, international, entry.isoCode, waitForCaribbean = false)
@@ -357,10 +357,23 @@ object AuthorizedUserPhoneInput {
      * "+" removed, then the first one left): a "+" behind an invisible mark (a
      * number pasted from Contacts or a chat often starts with U+200E), inside
      * brackets "(+44)", or after "tel:" counts; one after a digit
-     * ("876+5551234") does not.
+     * ("876+5551234", or "٨٧٦+…" in another script: [asciiDigits]) does not.
      */
     private fun hasLeadingPlus(raw: String): Boolean =
-        raw.firstOrNull { it == '+' || it in '0'..'9' } == '+'
+        raw.firstOrNull { it == '+' || it.isDigit() } == '+'
+
+    /**
+     * The digits in [raw] as 0-9, whatever script they were typed or pasted
+     * in: Arabic-Indic ٨٧٦٥٥٥١٢٣٤ is 8765551234, as Swift reads it
+     * (asciiDigits). Kept as they were, the box showed them and Save refused
+     * them (2026-09-24 audit; the server's \d is ASCII).
+     */
+    private fun asciiDigits(raw: String): String = buildString {
+        for (char in raw) {
+            val value = Character.digit(char, 10)
+            if (value >= 0) append('0' + value)
+        }
+    }
 
     /** Steps 1–3 of [interpret]; [waitForCaribbean] false is [resolve]. */
     private fun readInternational(
