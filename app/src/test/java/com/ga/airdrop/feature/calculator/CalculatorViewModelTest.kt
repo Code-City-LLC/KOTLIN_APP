@@ -611,6 +611,38 @@ class CalculatorViewModelTest {
         assertEquals(WeightUnit.KG, viewModel.result.value!!.weightUnit)
     }
 
+    /** A retired customs item also leaves the suggestions on screen, and their count. */
+    @Test
+    fun aRetiredCustomsItemLeavesTheSuggestionsOnScreen() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        val laptop = CalcDutyRate(42, "Laptop computer", 20.0)
+        val bag = CalcDutyRate(43, "Laptop bag", 20.0)
+        viewModel.onProductSelected(laptop)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        val pending = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = pending
+        viewModel.calculate()
+        runCurrent()
+
+        // The customer searches again while the quote is in flight.
+        repo.searchAnswer = listOf(laptop, bag)
+        viewModel.onProductChange("Laptop")
+        advanceUntilIdle()
+        assertEquals(DutyRateSearchState.Results(listOf(laptop, bag)), viewModel.state.value.searchState)
+
+        pending.completeExceptionally(
+            TierQuoteException(
+                errorCode = "DUTY_RATE_UNAVAILABLE",
+                message = "The selected customs item is no longer available. Pick another item.",
+            ),
+        )
+        runCurrent()
+
+        assertEquals(DutyRateSearchState.Results(listOf(bag), totalMatches = 1), viewModel.state.value.searchState)
+    }
+
     /**
      * A refused customs item is unpicked — but only if it is still the pick.
      * One chosen while the refused quote was in flight is the customer's new

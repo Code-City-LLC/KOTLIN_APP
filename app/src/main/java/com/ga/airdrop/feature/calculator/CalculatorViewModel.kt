@@ -19,8 +19,22 @@ sealed interface DutyRateSearchState {
     data object Hidden : DutyRateSearchState
     data object Loading : DutyRateSearchState
     data object Failed : DutyRateSearchState
-    data class Results(val products: List<CalcDutyRate>) : DutyRateSearchState
+    data class Results(
+        /** The best [MAX_DUTY_SUGGESTIONS] matches, in the repository's ranking. */
+        val products: List<CalcDutyRate>,
+        /** Every match in the catalogue, drawn or not. */
+        val totalMatches: Int = products.size,
+    ) : DutyRateSearchState
 }
+
+/**
+ * Release audit 2026-09-24: every match was drawn, in a non-lazy Column, so a
+ * three-letter query could render hundreds of rows. The whole catalogue is
+ * still searched and ranked; only the best 20 are drawn. iOS draws every match
+ * (8931c06 dropped its prefix(8) on the grounds that "the API and RN search
+ * both return up to 20"); the Android build before 51180983 drew 8.
+ */
+internal const val MAX_DUTY_SUGGESTIONS = 20
 
 data class CalculatorUiState(
     val method: ShippingMethod = ShippingMethod.STANDARD,
@@ -100,7 +114,8 @@ class CalculatorViewModel(
     fun dismissAlert() = _state.update { it.copy(alert = null) }
     fun onNavigatedToResults() = _state.update { it.copy(navigateToResults = false) }
 
-    // Product search follows Swift: 500ms debounce, at least 3 characters, all matches.
+    // Product search follows Swift: 500ms debounce, at least 3 characters. The
+    // best MAX_DUTY_SUGGESTIONS matches are drawn; the rest are only counted.
 
     fun onProductChange(value: String) {
         _state.update { it.copy(product = value, selectedDutyRate = null) }
@@ -114,10 +129,11 @@ class CalculatorViewModel(
         searchJob = viewModelScope.launch {
             delay(500)
             try {
-                val products = repository.searchDutyRates(query)
+                val matches = repository.searchDutyRates(query)
                 ensureActive()
                 if (_state.value.product.trim() == query) {
-                    _state.update { it.copy(searchState = DutyRateSearchState.Results(products)) }
+                    val results = DutyRateSearchState.Results(matches.take(MAX_DUTY_SUGGESTIONS), matches.size)
+                    _state.update { it.copy(searchState = results) }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -474,7 +490,10 @@ class CalculatorViewModel(
         val results = searchState as? DutyRateSearchState.Results
         return copy(
             selectedDutyRate = selectedDutyRate?.takeUnless { it.id == id },
-            searchState = results?.copy(products = results.products.filterNot { it.id == id }) ?: searchState,
+            searchState = results?.let { shown ->
+                val kept = shown.products.filterNot { it.id == id }
+                shown.copy(products = kept, totalMatches = shown.totalMatches - (shown.products.size - kept.size))
+            } ?: searchState,
         )
     }
 

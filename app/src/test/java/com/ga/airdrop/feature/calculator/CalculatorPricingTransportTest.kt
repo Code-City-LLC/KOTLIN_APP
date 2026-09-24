@@ -268,6 +268,29 @@ class CalculatorPricingTransportTest {
         }
     }
 
+    // ─── Customs suggestions (release audit 2026-09-24, LOW) ─────────────────
+
+    /** The whole catalogue is searched and ranked; only the best 20 render. */
+    @Test
+    fun `customs suggestions are the best of the whole catalogue, capped at twenty`() = runTest(dispatcher) {
+        val books = (1..30).joinToString(",") {
+            """{"id": $it, "item_name": "Book ${it.toString().padStart(2, '0')}", "duty_percentage": "37.00"}"""
+        }
+        val transport = ScriptedTransport().apply {
+            // The exact match is the catalogue's LAST row.
+            respond(200, """{"success": true, "data": {"items": [$books,
+                {"id": 99, "item_name": "BOOK", "duty_percentage": "37.00"}]}}""")
+        }
+        val vm = viewModel(transport)
+        vm.onProductChange("book")
+        val shown = vm.awaitSearch()
+
+        assertEquals(20, shown.size)
+        assertEquals("the exact match ranks first", 99, shown.first().id)
+        assertEquals((1..19).toList(), shown.drop(1).map { it.id })
+        assertEquals(31, (vm.state.value.searchState as DutyRateSearchState.Results).totalMatches)
+    }
+
     // ─── harness ────────────────────────────────────────────────────────────
 
     private fun CalculatorViewModel.fillForm() {
