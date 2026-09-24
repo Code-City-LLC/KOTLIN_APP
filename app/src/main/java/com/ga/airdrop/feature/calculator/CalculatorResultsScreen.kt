@@ -124,6 +124,7 @@ fun CalculatorResultsScreen(
             if (tierQuote != null) {
                 TierQuoteResultsContent(
                     result = current,
+                    totalWeightLbs = charges.totalWeightLbs,
                     quote = tierQuote,
                     expired = tierQuoteExpired,
                     actionLoading = state.tierQuoteActionLoading,
@@ -233,6 +234,8 @@ private fun LegacyResultsContent(
 @Composable
 private fun TierQuoteResultsContent(
     result: CalculationResult,
+    /** Every package ([resolveCharges]); [CalculationResult.weightLbs] is one package's. */
+    totalWeightLbs: Double,
     quote: TierQuote,
     expired: Boolean,
     actionLoading: Boolean,
@@ -241,7 +244,7 @@ private fun TierQuoteResultsContent(
     onDeclineInsurance: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        SummaryCard(title = "Total Weight", value = String.format(Locale.US, "%.2f lbs", result.weightLbs))
+        SummaryCard(title = "Total Weight", value = String.format(Locale.US, "%.2f lbs", totalWeightLbs))
         SummaryCard(
             title = "Invoice Amount (Declared Value/Cost)",
             value = formatPrice(result.invoiceUsd),

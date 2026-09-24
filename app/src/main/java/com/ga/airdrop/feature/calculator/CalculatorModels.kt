@@ -209,7 +209,10 @@ data class Charges(
 fun resolveCharges(result: CalculationResult): Charges {
     result.tierQuote?.let { quote ->
         return Charges(
-            totalWeightLbs = result.weightLbs,
+            // "Total Weight" is every package, as on the customer web calculator
+            // (packages x actual weight) and /shipping/calculate's
+            // total_weight_lbs. [CalculationResult.weightLbs] is one package's.
+            totalWeightLbs = result.weightLbs * maxOf(1, result.tierQuoteRequest?.numberOfPackages ?: 1),
             invoiceAmount = result.invoiceUsd,
             totalWithDuty = quote.totalDue,
         )

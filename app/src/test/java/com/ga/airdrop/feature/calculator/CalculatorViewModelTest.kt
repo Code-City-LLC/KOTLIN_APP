@@ -183,6 +183,27 @@ class CalculatorViewModelTest {
     }
 
     /**
+     * The Airdrop results card says "Total Weight" but showed ONE package's
+     * weight: 3 x 5.5 lb read "5.50 lbs" beside a price for all three. The
+     * customer web calculator's "Total Weight LBS" is packages x actual weight,
+     * and /shipping/calculate's total_weight_lbs is weight per package x count.
+     */
+    @Test
+    fun theAirdropTotalWeightCoversEveryPackage() = runTest(dispatcher) {
+        val viewModel = CalculatorViewModel(RecordingRepository())
+
+        viewModel.onPackagesChange("3")
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        advanceUntilIdle()
+
+        val result = viewModel.result.value!!
+        assertEquals("the request weight stays per package", 5.5, result.weightLbs, 0.001)
+        assertEquals("Total Weight is every package", 16.5, resolveCharges(result).totalWeightLbs, 0.001)
+    }
+
+    /**
      * Kemar: never quote a number no system authored. A failed pricing call
      * must raise an error, not fall through to a client-side estimate.
      */
