@@ -192,7 +192,9 @@ class CalculatorViewModel(
             val tierMethod = form.method.tierQuoteMethod
             if (tierMethod != null) {
                 val request = TierQuoteRequest(
+                    // Per package; Laravel prices it once per package.
                     weightLbs = weightLbs ?: 0.0,
+                    numberOfPackages = packageCount,
                     method = tierMethod,
                     declaredValue = invoice,
                     insuredValue = invoice,

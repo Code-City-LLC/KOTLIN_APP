@@ -114,7 +114,11 @@ class CalculatorViewModelTest {
         assertEquals("Airdrop must not silently fall back to legacy calculate", 0, repo.legacyCalls)
         val request = repo.tierRequests.single()
         assertEquals("AIR", request.method)
+        // The weight is PER PACKAGE and the count travels beside it (Laravel
+        // 9515a2997 multiplies freight and fuel by it). It used to be dropped,
+        // so 3 packages were quoted as one.
         assertEquals(5.5, request.weightLbs, 0.001)
+        assertEquals("the quote must cover every package", 3, request.numberOfPackages)
         assertEquals(150.0, request.declaredValue!!, 0.001)
         assertEquals(150.0, request.insuredValue!!, 0.001)
         assertEquals("Laptop", request.itemName)

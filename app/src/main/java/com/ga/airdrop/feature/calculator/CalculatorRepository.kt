@@ -92,6 +92,10 @@ private data class ShipmentCalculationRequest(
 @Serializable
 private data class TierQuotePayload(
     val weight: Double,
+    // Always sent, like ShipmentCalculationRequest's. A server older than
+    // Laravel 9515a2997 drops it (validate() keeps only the keys it lists) and
+    // prices one package, exactly as before.
+    val number_of_packages: Int,
     val method: String? = null,
     val destination: String? = null,
     val declared_value: Double? = null,
@@ -126,6 +130,7 @@ class RemoteCalculatorRepository(
             TierQuotePayload.serializer(),
             TierQuotePayload(
                 weight = request.weightLbs,
+                number_of_packages = maxOf(1, request.numberOfPackages),
                 method = request.method,
                 destination = request.destination,
                 declared_value = request.declaredValue,

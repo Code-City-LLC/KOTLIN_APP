@@ -142,7 +142,14 @@ data class TierInsuranceOptions(
 
 /** Request contract for POST /shipments/quote. */
 data class TierQuoteRequest(
+    /** One package's weight — Laravel prices it [numberOfPackages] times. */
     val weightLbs: Double,
+    /**
+     * The form's "Number of Packages". Laravel 9515a2997 multiplies freight and
+     * fuel by it and puts every package in the duty CIF; without it three
+     * packages were quoted as one (release audit 2026-09-24).
+     */
+    val numberOfPackages: Int = 1,
     val method: String? = null,
     val destination: String? = null,
     val declaredValue: Double? = null,

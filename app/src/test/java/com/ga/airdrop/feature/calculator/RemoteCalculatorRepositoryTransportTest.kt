@@ -281,7 +281,25 @@ class RemoteCalculatorRepositoryTransportTest {
         assertEquals("Laptop", body["item_name"]?.jsonPrimitive?.content)
         assertFalse(body.containsKey("custom_duty_rate_id"))
         assertFalse(body.containsKey("custom_duty_percentage"))
-        assertFalse(body.containsKey("number_of_packages"))
+        // Was assertFalse(containsKey("number_of_packages")): that pinned the
+        // under-quote (audit 2026-09-24). The count is always sent now; a request
+        // that names none is one package, Laravel's own default.
+        assertEquals("1", body["number_of_packages"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `tier quote sends the package count and never less than one`() = runBlocking {
+        for ((asked, sent) in listOf(3 to "3", 1 to "1", 0 to "1", -2 to "1")) {
+            val transport = RecordingTransport().apply {
+                enqueue("""{"success":true,"data":{"line_items":[],"subtotal":0,"total_due":0}}""")
+            }
+            repository(transport).quoteShipment(
+                TierQuoteRequest(weightLbs = 5.5, numberOfPackages = asked, method = "AIR"),
+            )
+            val body = AirdropJson.parseToJsonElement(transport.singleRequest().bodyText.orEmpty()) as JsonObject
+            assertEquals("asked for $asked", sent, body["number_of_packages"]?.jsonPrimitive?.content)
+            assertEquals("the weight stays per package", "5.5", body["weight"]?.jsonPrimitive?.content)
+        }
     }
 
     @Test
