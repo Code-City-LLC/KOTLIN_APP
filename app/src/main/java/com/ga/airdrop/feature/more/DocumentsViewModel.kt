@@ -73,17 +73,22 @@ val DOCUMENT_SLOTS = listOf(
     ),
 )
 
+/** StoreUserDocumentsRequest: `max:10240` (KB) on every document slot. */
+internal const val DOCUMENT_MAX_BYTES = 10 * 1024 * 1024
+
 /** What the upload sheet may hand back for [slot]: only what Laravel accepts. */
 internal fun documentUploadConfig(slot: DocumentSlot) = AirdropUploadSourceConfig(
     sheetTitle = "Upload ${slot.title}",
     allowedFileExtensions = AirdropUploadSourceConfig.userDocumentFileExtensions,
     allowsMultipleFileSelection = false,
     maxSelectionCount = 1,
+    maxFileBytes = DOCUMENT_MAX_BYTES,
     imagesAsPdf = slot.pdfOnly,
 )
 
 /** Why Laravel would refuse this file for [slot], or null when it is acceptable. */
-internal fun documentUploadRefusal(slot: DocumentSlot, mimeType: String): String? = when {
+internal fun documentUploadRefusal(slot: DocumentSlot, mimeType: String, byteCount: Int): String? = when {
+    byteCount > DOCUMENT_MAX_BYTES -> "${slot.title} must be 10 MB or smaller. Choose a smaller file."
     slot.pdfOnly && !mimeType.equals("application/pdf", ignoreCase = true) ->
         "${slot.title} must be a PDF. Choose a PDF, or a photo to upload as a PDF."
     else -> null
@@ -287,7 +292,7 @@ class DocumentsViewModel(
     ) {
         // A file the server is certain to refuse is refused here, with the
         // reason, rather than after the upload.
-        documentUploadRefusal(claim.slot, mimeType)?.let { reason ->
+        documentUploadRefusal(claim.slot, mimeType, bytes.size)?.let { reason ->
             showUploadFailure(claim, reason)
             return
         }

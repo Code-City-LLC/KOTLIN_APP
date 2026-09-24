@@ -81,6 +81,30 @@ class DocumentUploadRulesTest {
         )
     }
 
+    @Test
+    fun `a file over 10 MB is refused before upload and one at the limit is not`() = runTest(dispatcher) {
+        val repo = RecordingRepo()
+        val vm = DocumentsViewModel(repo, TestSessionBoundary())
+        advanceUntilIdle()
+
+        stageAndCommit(vm, "airdrop_contract", "big.pdf", "application/pdf", ByteArray(10 * 1024 * 1024 + 1))
+        val alert = vm.state.value.alert
+        assertEquals("Upload failed", alert?.first)
+        assertTrue(alert?.second, alert?.second.orEmpty().contains("10 MB"))
+        assertEquals(emptyList<Pair<String, String>>(), repo.uploads)
+        vm.dismissAlert()
+
+        stageAndCommit(vm, "trn", "trn.pdf", "application/pdf", ByteArray(10 * 1024 * 1024))
+        assertEquals(listOf("trn" to "application/pdf"), repo.uploads)
+    }
+
+    @Test
+    fun `every slot's upload sheet refuses files over 10 MB`() {
+        for (slot in DOCUMENT_SLOTS) {
+            assertEquals(slot.docType, 10 * 1024 * 1024, documentUploadConfig(slot).maxFileBytes)
+        }
+    }
+
     private fun TestScope.stageAndCommit(
         vm: DocumentsViewModel,
         docType: String,
