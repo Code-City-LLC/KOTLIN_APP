@@ -246,7 +246,9 @@ class AddAuthorizedUserViewModel(
                             email = user.email.orEmpty(),
                             mobileNumber = mobile,
                             phoneIso = phoneIso,
-                            phoneExplicitCode = false,
+                            // Stored as the server stores a number, the box
+                            // is that national number as written.
+                            phoneExplicitCode = AuthorizedUserPhoneInput.storedAsWritten(user.countryCode, user.mobileNumber),
                             phoneDroppedTrunkZero = false,
                             // The box holds the stored phone: untouched until
                             // the customer types in it or picks a code.

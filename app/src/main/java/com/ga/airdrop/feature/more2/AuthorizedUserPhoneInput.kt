@@ -580,6 +580,22 @@ object AuthorizedUserPhoneInput {
     }
 
     /**
+     * A stored phone already in the server's normalized form — a calling code,
+     * then digits the box would show as they are — is the national number as
+     * written ([AuthorizedUserPhoneEntry.explicitCode]): +49 / 49211234567,
+     * stored from "+49 4921 1234567", is Emden, so a corrected last digit is
+     * not "+49" typed again (2026-09-24 audit: the edit form asked "start with
+     * +49, or with 0"). One the box would re-read (+44 / 447911123456, +44 /
+     * 07700900123) or refuse, or any older shape, is not.
+     */
+    fun storedAsWritten(storedCode: String?, number: String?): Boolean {
+        val code = storedCode.orEmpty()
+        val digits = number.orEmpty()
+        if (code !in validCallingCodes || validationError(digits, code) != null) return false
+        return boxDigits(code, digits, explicit = false).first == digits
+    }
+
+    /**
      * A stored row may carry the area code inside the code column ("+1876" +
      * 7 digits) — the shape the website folds too. Returns the picker ISO and
      * the digits the box should show.

@@ -1161,4 +1161,32 @@ class AddAuthorizedUserFollowupsTest {
         // A "+" after such a digit is no calling code, as after 0-9.
         assertEquals(Triple("US", "2125551234", "+1" to "2125551234"), sent("US", "٢١٢+٥٥٥١٢٣٤", pasted = true))
     }
+
+    @Test
+    fun `a stored German number that starts with 49 can be corrected without being asked about`() =
+        runTest(dispatcher) {
+            // +49 / 49211234567 is Emden as the server stored it ("+49 4921
+            // 1234567"). The form opened it as typed without a code, so a
+            // corrected last digit was asked about as "+49" typed again.
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = editing(storedRow(countryCode = "+49", mobileNumber = "49211234567"), calls)
+            advanceUntilIdle()
+            assertEquals("DE" to "49211234567", vm.shown)
+            vm.onMobileNumber("49211234568")
+            vm.onMobileBlur()
+            assertNull(vm.state.value.mobileError)
+            vm.save()
+            advanceUntilIdle()
+            assertEquals("+49" to "+4949211234568", calls.sentPhone)
+
+            // A stored pair the server would read differently is re-read as before:
+            // +44 / 447911123456 carries the code typed again.
+            val legacy = mutableListOf<AuthorizedUserRequest>()
+            val uk = editing(storedRow(countryCode = "+44", mobileNumber = "447911123456"), legacy)
+            advanceUntilIdle()
+            uk.onMobileNumber("447911123457")
+            uk.save()
+            advanceUntilIdle()
+            assertEquals("+44" to "7911123457", legacy.sentPhone)
+        }
 }
