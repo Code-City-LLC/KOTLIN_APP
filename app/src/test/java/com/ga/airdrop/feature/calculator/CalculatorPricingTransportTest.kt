@@ -21,6 +21,9 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -76,7 +79,213 @@ class CalculatorPricingTransportTest {
         assertEquals("3", requote.field("number_of_packages"))
     }
 
+    // ─── A refused quote says why (release audit 2026-09-24, MEDIUM) ────────
+    //
+    // Every refusal used to read "We couldn't reach our pricing service ...
+    // check your connection", and the server's answer was dropped. A customs
+    // item retired after the catalogue loaded failed EVERY retry, because the
+    // screen kept sending it: Laravel rejects an inactive custom_duty_rate_id up
+    // front (422 VALIDATION_ERROR, Rule::exists ... where is_active), or with
+    // 422 DUTY_RATE_UNAVAILABLE if it is retired between validation and pricing.
+
+    @Test
+    fun `a retired customs item is named, dropped and never resent by the Airdrop quote`() = runTest(dispatcher) {
+        val transport = ScriptedTransport().apply {
+            respond(200, CATALOGUE_JSON)
+            respond(422, RETIRED_ITEM_JSON)
+            respond(200, TIER_QUOTE_JSON)
+        }
+        val vm = viewModel(transport)
+        vm.onMethodSelected(ShippingMethod.STANDARD)
+        vm.onProductChange("Lapt")
+        vm.awaitSearch()
+        vm.onProductSelected(LAPTOP)
+        vm.fillForm()
+
+        vm.calculate()
+        vm.awaitCalculated()
+
+        assertEquals("42", transport.requests[1].field("custom_duty_rate_id"))
+        val alert = vm.state.value.alert
+        assertEquals("Customs item unavailable", alert?.title)
+        assertEquals(CUSTOMS_ITEM_UNAVAILABLE, alert?.message)
+        assertNull("the retired pick must be cleared", vm.state.value.selectedDutyRate)
+
+        // Calculating again must not send the retired item again.
+        vm.dismissAlert()
+        vm.calculate()
+        vm.awaitCalculated()
+        assertFalse(transport.requests[2].has("custom_duty_rate_id"))
+        assertNull(vm.state.value.alert)
+        assertNotNull(vm.result.value?.tierQuote)
+
+        // The screen's cached catalogue no longer offers it either.
+        vm.onProductChange("Laptop")
+        assertEquals(listOf(43), vm.awaitSearch().map { it.id })
+        assertEquals("the cached catalogue is filtered, not refetched", 3, transport.requests.size)
+    }
+
+    @Test
+    fun `a customs item retired while pricing shows Laravel's own sentence`() = runTest(dispatcher) {
+        val sentence = "Laptop computer was retired a moment ago. Pick another item."
+        val transport = ScriptedTransport().apply {
+            respond(200, CATALOGUE_JSON)
+            respond(422, dutyRateUnavailable(sentence))
+        }
+        val vm = viewModel(transport)
+        vm.onMethodSelected(ShippingMethod.STANDARD)
+        vm.onProductChange("Lapt")
+        vm.awaitSearch()
+        vm.onProductSelected(LAPTOP)
+        vm.fillForm()
+
+        vm.calculate()
+        vm.awaitCalculated()
+
+        assertEquals(CalcAlert("Customs item unavailable", sentence), vm.state.value.alert)
+        assertNull(vm.state.value.selectedDutyRate)
+    }
+
+    @Test
+    fun `Express names a retired customs item too and does not resend it`() = runTest(dispatcher) {
+        val transport = ScriptedTransport().apply {
+            respond(200, CATALOGUE_JSON)
+            respond(422, RETIRED_ITEM_JSON)
+            respond(200, EXPRESS_JSON)
+        }
+        val vm = viewModel(transport)
+        vm.onMethodSelected(ShippingMethod.EXPRESS)
+        vm.onProductChange("Lapt")
+        vm.awaitSearch()
+        vm.onProductSelected(LAPTOP)
+        vm.fillForm()
+
+        vm.calculate()
+        vm.awaitCalculated()
+
+        assertEquals("/api/v1/shipping/calculate", transport.requests[1].path)
+        assertEquals("42", transport.requests[1].field("custom_duty_rate_id"))
+        assertEquals(CalcAlert("Customs item unavailable", CUSTOMS_ITEM_UNAVAILABLE), vm.state.value.alert)
+        assertNull(vm.state.value.selectedDutyRate)
+
+        vm.dismissAlert()
+        vm.calculate()
+        vm.awaitCalculated()
+        assertFalse(transport.requests[2].has("custom_duty_rate_id"))
+        assertNotNull(vm.result.value?.live)
+    }
+
+    /**
+     * /shipping/calculate's twin of DUTY_RATE_UNAVAILABLE: an item retired
+     * between validation and pricing makes ShippingCalculatorService throw
+     * InvalidArgumentException, which the controller answers 400.
+     */
+    @Test
+    fun `Express names a customs item retired while pricing`() = runTest(dispatcher) {
+        val transport = ScriptedTransport().apply {
+            respond(200, CATALOGUE_JSON)
+            respond(400, RETIRED_WHILE_CALCULATING_JSON)
+        }
+        val vm = viewModel(transport)
+        vm.onMethodSelected(ShippingMethod.EXPRESS)
+        vm.onProductChange("Lapt")
+        vm.awaitSearch()
+        vm.onProductSelected(LAPTOP)
+        vm.fillForm()
+
+        vm.calculate()
+        vm.awaitCalculated()
+
+        assertEquals(CalcAlert("Customs item unavailable", CUSTOMS_ITEM_UNAVAILABLE), vm.state.value.alert)
+        assertNull(vm.state.value.selectedDutyRate)
+    }
+
+    /** A re-quote (SAVR insurance choice) re-posts the item, so it can be refused too. */
+    @Test
+    fun `a re-quote refused for a retired customs item names it and unpicks it`() = runTest(dispatcher) {
+        val transport = ScriptedTransport().apply {
+            respond(200, CATALOGUE_JSON)
+            respond(200, TIER_QUOTE_JSON)
+            respond(422, dutyRateUnavailable(CUSTOMS_ITEM_UNAVAILABLE))
+        }
+        val vm = viewModel(transport)
+        vm.onMethodSelected(ShippingMethod.STANDARD)
+        vm.onProductChange("Lapt")
+        vm.awaitSearch()
+        vm.onProductSelected(LAPTOP)
+        vm.fillForm()
+        vm.calculate()
+        vm.awaitCalculated()
+        assertNotNull(vm.result.value?.tierQuote)
+
+        vm.selectTierInsurance(false)
+        vm.state.first { !it.tierQuoteActionLoading }
+
+        assertEquals("42", transport.requests[2].field("custom_duty_rate_id"))
+        assertEquals(CalcAlert("Customs item unavailable", CUSTOMS_ITEM_UNAVAILABLE), vm.state.value.alert)
+        assertNull(vm.state.value.selectedDutyRate)
+    }
+
+    @Test
+    fun `a refused quote shows Laravel's validation message, not a connection problem`() = runTest(dispatcher) {
+        for ((method, body, expected) in listOf(
+            Triple(ShippingMethod.STANDARD, TOO_MANY_PACKAGES_JSON, "The number of packages field must not be greater than 1000."),
+            Triple(ShippingMethod.EXPRESS, TOO_LONG_JSON, "The package length must not exceed 1000."),
+        )) {
+            val transport = ScriptedTransport().apply { respond(422, body) }
+            val vm = viewModel(transport)
+            vm.onMethodSelected(method)
+            vm.fillForm()
+            if (method == ShippingMethod.STANDARD) vm.onPackagesChange("1500") else vm.onLengthChange("1200")
+
+            vm.calculate()
+            vm.awaitCalculated()
+
+            val alert = vm.state.value.alert
+            assertEquals("$method", CalcAlert("Couldn't get current rates", expected), alert)
+            assertNull(vm.result.value)
+        }
+    }
+
+    @Test
+    fun `only a network failure or a server fault says check your connection`() = runTest(dispatcher) {
+        for (method in listOf(ShippingMethod.STANDARD, ShippingMethod.EXPRESS)) {
+            for (script in listOf<ScriptedTransport.() -> Unit>(
+                { failConnection() },
+                { respond(500, SERVER_FAULT_JSON) },
+                { respond(503, "<html>Service Unavailable</html>") },
+            )) {
+                val transport = ScriptedTransport().apply(script)
+                val vm = viewModel(transport)
+                vm.onMethodSelected(method)
+                vm.fillForm()
+
+                vm.calculate()
+                vm.awaitCalculated()
+
+                assertEquals("$method", CalcAlert("Couldn't get current rates", CONNECTIVITY), vm.state.value.alert)
+            }
+        }
+    }
+
     // ─── harness ────────────────────────────────────────────────────────────
+
+    private fun CalculatorViewModel.fillForm() {
+        onPackagesChange("1")
+        onInvoiceChange("150")
+        onActualWeightChange("5.5")
+        onLengthChange("10")
+        onWidthChange("8")
+        onHeightChange("6")
+    }
+
+    /** The search also hops to the IO dispatcher; wait for its answer. */
+    private suspend fun CalculatorViewModel.awaitSearch(): List<CalcDutyRate> {
+        val settled = state.first {
+            it.searchState is DutyRateSearchState.Results || it.searchState is DutyRateSearchState.Failed
+        }
+        return (settled.searchState as DutyRateSearchState.Results).products
+    }
 
     private fun viewModel(transport: ScriptedTransport) = CalculatorViewModel(
         RemoteCalculatorRepository(
@@ -97,6 +306,7 @@ class CalculatorPricingTransportTest {
 
     private class CapturedRequest(val path: String, val body: JsonObject?) {
         fun field(name: String): String? = body?.get(name)?.jsonPrimitive?.content
+        fun has(name: String): Boolean = body?.containsKey(name) == true
     }
 
     private class ScriptedTransport : Interceptor {
@@ -133,6 +343,67 @@ class CalculatorPricingTransportTest {
     }
 
     private companion object {
+        val LAPTOP = CalcDutyRate(id = 42, itemName = "Laptop computer", dutyPercentage = 20.0)
+
+        const val CUSTOMS_ITEM_UNAVAILABLE = "The selected customs item is no longer available. Pick another item."
+        const val CONNECTIVITY = "We couldn't reach our pricing service, so we can't quote this shipment " +
+            "right now. Please check your connection and try again."
+
+        /** GET /custom-duty-rates?active_only=1, as loaded before the item was retired. */
+        const val CATALOGUE_JSON = """
+            {"success": true, "data": {"items": [
+              {"id": 42, "item_name": "Laptop computer", "duty_percentage": "20.00"},
+              {"id": 43, "item_name": "Laptop bag", "duty_percentage": "20.00"}]}}
+        """
+
+        /** bootstrap/app.php's ValidationException renderer for Rule::exists(...)->where(is_active). */
+        const val RETIRED_ITEM_JSON = """
+            {"success": false, "message": "Validation failed",
+             "errors": {"custom_duty_rate_id": ["The selected custom duty rate id is invalid."]},
+             "error_code": "VALIDATION_ERROR", "meta": {"timestamp": "2026-09-24T12:00:00+00:00"}}
+        """
+
+        /** QuoteController's DUTY_RATE_UNAVAILABLE (ApiResponse::errorResponse shape). */
+        fun dutyRateUnavailable(message: String) = """
+            {"success": false, "message": "$message", "error_code": "DUTY_RATE_UNAVAILABLE",
+             "meta": {"timestamp": "2026-09-24T12:00:00+00:00"}}
+        """
+
+        /** ShippingCalculatorController's INVALID_ARGUMENT for withResolvedDutyRate's refusal. */
+        const val RETIRED_WHILE_CALCULATING_JSON = """
+            {"success": false, "message": "The selected package duty rate is unavailable.",
+             "error_code": "INVALID_ARGUMENT", "meta": {"timestamp": "2026-09-24T12:00:00+00:00"}}
+        """
+
+        /** QuoteController: number_of_packages max:1000 (Laravel's default message). */
+        const val TOO_MANY_PACKAGES_JSON = """
+            {"success": false, "message": "Validation failed",
+             "errors": {"number_of_packages": ["The number of packages field must not be greater than 1000."]},
+             "error_code": "VALIDATION_ERROR", "meta": {"timestamp": "2026-09-24T12:00:00+00:00"}}
+        """
+
+        /** CalculateShippingRequest: package_length max:1000 (its own message). */
+        const val TOO_LONG_JSON = """
+            {"success": false, "message": "Validation failed",
+             "errors": {"package_length": ["The package length must not exceed 1000."]},
+             "error_code": "VALIDATION_ERROR", "meta": {"timestamp": "2026-09-24T12:00:00+00:00"}}
+        """
+
+        const val SERVER_FAULT_JSON = """
+            {"success": false, "message": "Failed to build quote", "meta": {"timestamp": "2026-09-24T12:00:00+00:00"}}
+        """
+
+        /** POST /shipping/calculate for airdrop_express (ShippingCalculatorService shape). */
+        const val EXPRESS_JSON = """
+            {"success": true, "message": "Shipping cost calculated successfully", "data": {
+              "shipping_method": "airdrop_express",
+              "breakdown": {"freight": 16.5, "insurance": 15, "fuel_surcharge": 1.5, "customs_duty": 0,
+                "bad_address_fee": 0, "subtotal": 33, "total_charges": 0, "airdrop_charges": 33,
+                "grand_total": 33},
+              "calculations": {"total_chargeable_weight_lbs": 5.5, "number_of_packages": 1,
+                "cif_value": 181.5, "invoice_amount": 150}}}
+        """
+
         /** A real /shipments/quote envelope (pre-staging shape). */
         const val TIER_QUOTE_JSON = """
             {"success": true, "message": "Quote created", "data": {

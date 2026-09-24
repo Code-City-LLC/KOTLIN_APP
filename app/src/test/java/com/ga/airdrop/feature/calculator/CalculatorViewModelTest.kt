@@ -563,6 +563,39 @@ class CalculatorViewModelTest {
         assertEquals("Quote refresh failed", viewModel.state.value.alert?.title)
     }
 
+    /**
+     * A refused customs item is unpicked — but only if it is still the pick.
+     * One chosen while the refused quote was in flight is the customer's new
+     * choice and must survive.
+     */
+    @Test
+    fun aCustomsItemRefusedMidFlightDoesNotUnpickTheNewChoice() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        val laptop = CalcDutyRate(42, "Laptop computer", 20.0)
+        val bag = CalcDutyRate(43, "Laptop bag", 20.0)
+        viewModel.onProductSelected(laptop)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+
+        val pending = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = pending
+        viewModel.calculate()
+        runCurrent()
+        assertEquals(42, repo.tierRequests.last().customDutyRateId)
+        viewModel.onProductSelected(bag)
+        pending.completeExceptionally(
+            TierQuoteException(
+                errorCode = "DUTY_RATE_UNAVAILABLE",
+                message = "The selected customs item is no longer available. Pick another item.",
+            ),
+        )
+        runCurrent()
+
+        assertEquals("Customs item unavailable", viewModel.state.value.alert?.title)
+        assertEquals(bag, viewModel.state.value.selectedDutyRate)
+    }
+
     private companion object {
         /** The real pre-staging answer for 3 × 5.5 lb, invoice $150. */
         val CALCULATION = ShipmentCalculation(

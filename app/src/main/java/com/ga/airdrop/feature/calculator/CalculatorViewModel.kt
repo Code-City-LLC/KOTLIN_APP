@@ -209,9 +209,14 @@ class CalculatorViewModel(
                         publishTierQuoteResult(form, invoice, weightLbs ?: 0.0, quote, request)
                     }
                     .onFailure { error ->
-                        _state.update { it.copy(calculating = false, alert = tierQuoteAlert(error)) }
+                        val retiredId = request.customDutyRateId?.takeIf { error.refusesDutyRate }
+                        _state.update {
+                            it.copy(calculating = false, alert = pricingAlert(error)).withoutDutyRate(retiredId)
+                        }
+                        retiredId?.let { repository.dropDutyRate(it) }
                     }
             } else {
+                val dutyRateId = form.selectedDutyRate?.id
                 runCatching {
                     repository.calculateShipment(
                         shippingMethod = form.method.apiValue,
@@ -223,27 +228,22 @@ class CalculatorViewModel(
                         heightInches = dimensions.third,
                         // The id, never a percentage: the server validates it is
                         // active and resolves the rate itself.
-                        customDutyRateId = form.selectedDutyRate?.id,
+                        customDutyRateId = dutyRateId,
                     )
                 }.onSuccess { live ->
                     _state.update { it.copy(calculating = false) }
                     publishResult(form, invoice, weightLbs ?: 0.0, live)
-                }.onFailure {
+                }.onFailure { error ->
                     // No offline fallback. It used to push the results screen with
                     // the client formula — and for SeaDrop and Express that meant
                     // silently running the AIR formula while the screen still said
                     // "SeaDrop Results". A wrong price shown confidently is worse
                     // than no price.
+                    val retiredId = dutyRateId?.takeIf { error.refusesDutyRate }
                     _state.update {
-                        it.copy(
-                            calculating = false,
-                            alert = CalcAlert(
-                                "Couldn't get current rates",
-                                "We couldn't reach our pricing service, so we can't quote this " +
-                                    "shipment right now. Please check your connection and try again.",
-                            ),
-                        )
+                        it.copy(calculating = false, alert = pricingAlert(error)).withoutDutyRate(retiredId)
                     }
+                    retiredId?.let { repository.dropDutyRate(it) }
                 }
             }
         }
@@ -354,12 +354,14 @@ class CalculatorViewModel(
                 }
                 .onFailure { error ->
                     if (generation != tierQuoteGeneration) return@onFailure
+                    val retiredId = request.customDutyRateId?.takeIf { error.refusesDutyRate }
                     _state.update {
                         it.copy(
                             tierQuoteActionLoading = false,
-                            alert = tierQuoteAlert(error, refreshing = true),
-                        )
+                            alert = pricingAlert(error, refreshing = true),
+                        ).withoutDutyRate(retiredId)
                     }
+                    retiredId?.let { repository.dropDutyRate(it) }
                 }
         }
     }
@@ -395,27 +397,77 @@ class CalculatorViewModel(
         return true
     }
 
-    private fun tierQuoteAlert(error: Throwable, refreshing: Boolean = false): CalcAlert {
-        val quoteError = error as? TierQuoteException
-        return when (quoteError?.errorCode) {
-            "NO_RATE_CARD" -> CalcAlert(
+    /**
+     * Release audit 2026-09-24: every refusal used to read "check your
+     * connection" and the server's answer was dropped, so a customer could not
+     * tell a network fault from a form Laravel rejected. Only a failure to
+     * reach Laravel, or a fault on its side (5xx), says so now.
+     */
+    private fun pricingAlert(error: Throwable, refreshing: Boolean = false): CalcAlert {
+        val apiError = error as? PricingApiException
+        return when {
+            apiError?.errorCode == "NO_RATE_CARD" -> CalcAlert(
                 "Route unavailable",
-                quoteError.message ?: "No active rate card for this method and destination.",
+                apiError.message ?: "No active rate card for this method and destination.",
             )
-            "INSURANCE_MANDATORY" -> CalcAlert(
+            apiError?.errorCode == "INSURANCE_MANDATORY" -> CalcAlert(
                 "Insurance is required",
-                quoteError.message ?: "Insurance is mandatory for your tier and cannot be declined.",
+                apiError.message ?: "Insurance is mandatory for your tier and cannot be declined.",
+            )
+            error.refusesDutyRate -> CalcAlert(
+                "Customs item unavailable",
+                // DUTY_RATE_UNAVAILABLE's message is written for customers; a
+                // validation or INVALID_ARGUMENT one names internal fields.
+                apiError?.takeIf { it.errorCode == "DUTY_RATE_UNAVAILABLE" }?.message?.takeIf { it.isNotBlank() }
+                    ?: "The selected customs item is no longer available. Pick another item.",
+            )
+            apiError != null && (apiError.httpStatus ?: 0) in 400..499 -> CalcAlert(
+                if (refreshing) "Quote refresh failed" else "Couldn't get current rates",
+                // A validation refusal's message is just "Validation failed";
+                // the field's own message says what to change.
+                apiError.fieldErrors.values.firstOrNull() ?: apiError.message.orEmpty(),
+            )
+            refreshing -> CalcAlert(
+                "Quote refresh failed",
+                error.message ?: "We couldn't refresh this quote. Please try again.",
             )
             else -> CalcAlert(
-                if (refreshing) "Quote refresh failed" else "Couldn't get current rates",
-                if (refreshing) {
-                    error.message ?: "We couldn't refresh this quote. Please try again."
-                } else {
-                    "We couldn't reach our pricing service, so we can't quote this shipment right now. " +
-                        "Please check your connection and try again."
-                },
+                "Couldn't get current rates",
+                "We couldn't reach our pricing service, so we can't quote this shipment right now. " +
+                    "Please check your connection and try again.",
             )
         }
+    }
+
+    /**
+     * Laravel refused the customs item the request named, because it was
+     * retired after the catalogue loaded. Before validation both endpoints
+     * answer 422 VALIDATION_ERROR on custom_duty_rate_id (Rule::exists ...
+     * is_active). Between validation and pricing, the tier quote answers 422
+     * DUTY_RATE_UNAVAILABLE and /shipping/calculate 400 INVALID_ARGUMENT "The
+     * selected package duty rate is unavailable."
+     */
+    private val Throwable.refusesDutyRate: Boolean
+        get() {
+            val apiError = this as? PricingApiException ?: return false
+            return apiError.errorCode == "DUTY_RATE_UNAVAILABLE" ||
+                "custom_duty_rate_id" in apiError.fieldErrors ||
+                (apiError.errorCode == "INVALID_ARGUMENT" &&
+                    apiError.message.orEmpty().contains("duty rate", ignoreCase = true))
+        }
+
+    /**
+     * Unpicks retired customs item [id] and drops it from the suggestions on
+     * screen, so the next Calculate does not send it again. A different item
+     * picked while the request was in flight is the customer's new choice.
+     */
+    private fun CalculatorUiState.withoutDutyRate(id: Int?): CalculatorUiState {
+        if (id == null) return this
+        val results = searchState as? DutyRateSearchState.Results
+        return copy(
+            selectedDutyRate = selectedDutyRate?.takeUnless { it.id == id },
+            searchState = results?.copy(products = results.products.filterNot { it.id == id }) ?: searchState,
+        )
     }
 
     /**

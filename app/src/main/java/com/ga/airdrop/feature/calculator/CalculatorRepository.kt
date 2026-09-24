@@ -4,6 +4,7 @@ import com.ga.airdrop.feature.shipments.ShipmentsFormat
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.network.ApiClient
 import com.ga.airdrop.core.prefs.ExchangeRateStore
+import com.ga.airdrop.data.api.ApiErrors
 import com.ga.airdrop.data.model.flexDouble
 import com.ga.airdrop.data.model.flexBool
 import com.ga.airdrop.data.model.flexInt
@@ -55,15 +56,35 @@ interface CalculatorRepository {
     /** Search the screen's customs catalogue, ranked as in Swift. No prices. */
     suspend fun searchDutyRates(query: String, limit: Int = 1000): List<CalcDutyRate>
 
+    /**
+     * Laravel refused customs item [id] as retired: stop offering it on this
+     * screen. The catalogue is cached per screen, so it would be offered again.
+     */
+    suspend fun dropDutyRate(id: Int) = Unit
+
     /** GET /exchange-rates → the live USD→JMD rate; last known rate if unreachable. */
     suspend fun usdToJmdRate(): Double
 }
 
-/** Preserves Laravel's machine-readable quote error code for UI decisions. */
-class TierQuoteException(
+/**
+ * Laravel answered a pricing call with an error envelope. [httpStatus] tells a
+ * refusal the customer can act on (4xx) from a server fault (5xx);
+ * [fieldErrors] is the envelope's `errors`, first message per field.
+ */
+open class PricingApiException(
+    val httpStatus: Int?,
     val errorCode: String?,
     message: String,
+    val fieldErrors: Map<String, String> = emptyMap(),
 ) : IOException(message)
+
+/** Preserves Laravel's machine-readable quote error code for UI decisions. */
+class TierQuoteException(
+    errorCode: String?,
+    message: String,
+    httpStatus: Int? = null,
+    fieldErrors: Map<String, String> = emptyMap(),
+) : PricingApiException(httpStatus, errorCode, message, fieldErrors)
 
 /** Swift `ShipmentCalculationRequest` — field names/values verbatim. */
 @Serializable
@@ -151,10 +172,13 @@ class RemoteCalculatorRepository(
             val text = response.body?.string().orEmpty()
             val root = runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
             if (!response.isSuccessful) {
+                val envelope = ApiErrors.envelope(text)
                 throw TierQuoteException(
                     errorCode = root?.flexString("error_code"),
-                    message = root?.flexString("message")
+                    message = envelope?.displayMessage
                         ?: "Quote request failed (${response.code}).",
+                    httpStatus = response.code,
+                    fieldErrors = ApiErrors.fieldErrorsOf(envelope),
                 )
             }
             root ?: throw IOException("Empty shipment quote response.")
@@ -200,7 +224,13 @@ class RemoteCalculatorRepository(
             val text = response.body?.string().orEmpty()
             val root = runCatching { json.parseToJsonElement(text) as? JsonObject }.getOrNull()
             if (!response.isSuccessful) {
-                throw IOException(root?.flexString("message") ?: "Calculation failed (${response.code}).")
+                val envelope = ApiErrors.envelope(text)
+                throw PricingApiException(
+                    httpStatus = response.code,
+                    errorCode = root?.flexString("error_code"),
+                    message = envelope?.displayMessage ?: "Calculation failed (${response.code}).",
+                    fieldErrors = ApiErrors.fieldErrorsOf(envelope),
+                )
             }
             root ?: throw IOException("Empty calculation response.")
             // Payload lives under `data` when present — Swift ShipmentCalculation decoder.
@@ -320,6 +350,10 @@ class RemoteCalculatorRepository(
                 }.thenBy { it.itemName.lowercase(Locale.ROOT) }.thenBy { it.id })
                 .take(limit.coerceAtLeast(0))
         }
+
+    override suspend fun dropDutyRate(id: Int) {
+        dutyCatalogMutex.withLock { dutyCatalog = dutyCatalog?.filterNot { it.id == id } }
+    }
 
     private fun fetchDutyCatalog(): List<CalcDutyRate> {
         val httpUrl = url("/custom-duty-rates").toHttpUrl().newBuilder()
