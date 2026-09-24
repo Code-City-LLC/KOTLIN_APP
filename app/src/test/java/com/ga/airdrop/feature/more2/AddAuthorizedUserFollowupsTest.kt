@@ -1083,4 +1083,34 @@ class AddAuthorizedUserFollowupsTest {
         // Leer, typed the German way with its trunk 0, then one more digit.
         assertEquals("+49" to "+49491123456789", sentAfter("0491 12345678", "491123456789"))
     }
+
+    @Test
+    fun `a trunk 0 the box dropped goes back when a country that keeps it is picked`() = runTest(dispatcher) {
+        // UK picked, 06 1234 5678 typed: the box drops the 0 and shows
+        // 612345678. Then Italy: re-read from 612345678, the app sent
+        // +39 612345678, while the server — and the same keys under Italy —
+        // keep 0612345678.
+        fun picked(typed: String, from: String, vararg to: String): Triple<String, String, Pair<String, String>> {
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = freshForm(from, calls)
+            vm.typeIntoMobile(typed)
+            to.forEach(vm::onPhoneCountry)
+            vm.save()
+            dispatcher.scheduler.advanceUntilIdle()
+            return Triple(vm.state.value.phoneIso, vm.state.value.mobileNumber, calls.sentPhone)
+        }
+        assertEquals(Triple("IT", "0612345678", "+39" to "0612345678"), picked("06 1234 5678", "GB", "IT"))
+        // Every country whose numbers keep that 0 after the code.
+        for ((iso, code) in listOf("CI" to "+225", "SM" to "+378", "VA" to "+39", "GA" to "+241", "CG" to "+242", "BJ" to "+229")) {
+            assertEquals(iso, code to "0612345678", picked("06 1234 5678", "GB", iso).third)
+        }
+        // Dropped after a typed "+44" as well; and through Germany, which drops it too.
+        assertEquals("+39" to "0612345678", picked("+44 06 1234 5678", "JM", "IT").third)
+        assertEquals(Triple("IT", "0612345678", "+39" to "0612345678"), picked("06 1234 5678", "GB", "DE", "IT"))
+        // Back to the UK it goes again.
+        assertEquals(Triple("GB", "612345678", "+44" to "612345678"), picked("06 1234 5678", "GB", "IT", "GB"))
+        // No 0 typed, none added.
+        assertEquals("+39" to "612345678", picked("6 1234 5678", "GB", "IT").third)
+        assertEquals("+39" to "612345678", picked("+44 6 1234 5678", "JM", "IT").third)
+    }
 }

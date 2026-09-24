@@ -46,6 +46,12 @@ data class AuthorizedUserPhoneEntry(
      * either case, so neither does the box.
      */
     val explicitCode: Boolean = false,
+    /**
+     * [number] follows a trunk 0 the box dropped (07911 123456 under 🇬🇧 shows
+     * 7911123456). It is still part of the number as typed, so a newly picked
+     * country re-reads the digits with it: Italy keeps it ([renumbered]).
+     */
+    val droppedTrunkZero: Boolean = false,
 )
 
 object AuthorizedUserPhoneInput {
@@ -278,10 +284,15 @@ object AuthorizedUserPhoneInput {
             return readInternational(raw, digits, currentIso, waitForCaribbean = true)
         }
         val code = country(currentIso)?.callingCode ?: "+1"
-        val explicit = previous.explicitCode && raw.isNotEmpty() &&
-            keepsStart(previous.number.filter(Char::isDigit), digits, code)
-        val (number, asWritten) = boxDigits(code, digits, explicit)
-        return AuthorizedUserPhoneEntry(currentIso, number, asWritten)
+        val continues = raw.isNotEmpty() && keepsStart(previous.number.filter(Char::isDigit), digits, code)
+        val explicit = previous.explicitCode && continues
+        val (number, dropped) = boxDigits(code, digits, explicit)
+        return AuthorizedUserPhoneEntry(
+            currentIso,
+            number,
+            explicitCode = explicit || dropped,
+            droppedTrunkZero = dropped || previous.droppedTrunkZero && continues,
+        )
     }
 
     /**
@@ -355,12 +366,8 @@ object AuthorizedUserPhoneInput {
 
         val own = country(currentIso)?.callingCode
         if (own != null && own != "+1" && international.startsWith(own.substring(1))) {
-            val national = international.substring(own.length - 1)
-            return AuthorizedUserPhoneEntry(
-                isoCode = currentIso,
-                number = boxDigits(own, national, explicit = true).first,
-                explicitCode = true,
-            )
+            val (number, dropped) = boxDigits(own, international.substring(own.length - 1), explicit = true)
+            return AuthorizedUserPhoneEntry(currentIso, number, explicitCode = true, droppedTrunkZero = dropped)
         }
         if (waitForCaribbean) {
             if (couldBeCaribbeanNumber(international)) return pending
@@ -373,10 +380,12 @@ object AuthorizedUserPhoneInput {
         // code it waits for the area code, which then names it — "+1 868…" is
         // 🇹🇹, "+1 212…" 🇺🇸, as in Swift; a +1 country already picked stays.
         if (code == "+1" && own != "+1" && national.length < 3) return pending
+        val (number, dropped) = boxDigits(code, national, explicit = true)
         return AuthorizedUserPhoneEntry(
             isoCode = isoForTypedCode(code, national, currentIso),
-            number = boxDigits(code, national, explicit = true).first,
+            number = number,
             explicitCode = true,
+            droppedTrunkZero = dropped,
         )
     }
 
@@ -398,14 +407,15 @@ object AuthorizedUserPhoneInput {
     /**
      * [digits] as the box keeps them under [callingCode] — the national number
      * the server stores, normalized once as it does (normalize step 7) — and
-     * whether they are now the national number as written
-     * ([AuthorizedUserPhoneEntry.explicitCode]). After an explicit "+CC" a
-     * repeated code is never cut (the server's $explicit); the +1 trunk 1 is,
-     * typed after "+1" or not, because the server drops it either way. Then
-     * one trunk 0 goes for the codes that drop it ([submissionDigits]):
-     * "+44 07911 123456" shows 7911123456. What followed that 0 is the national
-     * number, so the next keys never cut a code from it: the server cuts a
-     * repeated code before it drops the 0, never after.
+     * whether a trunk 0 went ([AuthorizedUserPhoneEntry.droppedTrunkZero]).
+     * After an explicit "+CC" a repeated code is never cut (the server's
+     * $explicit); the +1 trunk 1 is, typed after "+1" or not, because the
+     * server drops it either way. Then one trunk 0 goes for the codes that
+     * drop it ([submissionDigits]): "+44 07911 123456" shows 7911123456. What
+     * followed that 0 is the national number as written
+     * ([AuthorizedUserPhoneEntry.explicitCode]), so the next keys never cut a
+     * code from it: the server cuts a repeated code before it drops the 0,
+     * never after.
      */
     private fun boxDigits(callingCode: String, digits: String, explicit: Boolean): Pair<String, Boolean> {
         val national = if (explicit && callingCode != "+1") {
@@ -414,7 +424,7 @@ object AuthorizedUserPhoneInput {
             nationalDigits(digits, callingCode)
         }
         val shown = submissionDigits(national, callingCode)
-        return shown to (explicit || shown != national)
+        return shown to (shown != national)
     }
 
     /**
@@ -467,9 +477,21 @@ object AuthorizedUserPhoneInput {
      */
     fun renumber(box: String, callingCode: String): String = renumbered(box, callingCode).first
 
-    /** [renumber], and whether the digits are now the national number as written (a trunk 0 went). */
-    internal fun renumbered(box: String, callingCode: String): Pair<String, Boolean> =
-        if (box.all(Char::isDigit)) boxDigits(callingCode, box, explicit = false) else box to false
+    /**
+     * [renumber], and whether a trunk 0 went under [callingCode] (the digits
+     * are then the national number as written). [droppedTrunkZero]: the box
+     * had dropped one in front of its digits under the old code; it goes back
+     * first, so the digits are read as typed (2026-09-24 audit: 🇬🇧 06 1234
+     * 5678 shows 612345678, and picking Italy then sent +39 612345678 where
+     * the server, and the same keys under Italy, keep 0612345678).
+     */
+    internal fun renumbered(box: String, callingCode: String, droppedTrunkZero: Boolean = false): Pair<String, Boolean> =
+        if (box.all(Char::isDigit)) {
+            val typed = if (droppedTrunkZero && box.isNotEmpty()) "0$box" else box
+            boxDigits(callingCode, typed, explicit = false)
+        } else {
+            box to false
+        }
 
     /** A typed code keeps the picker where it is when it already says that code. */
     private fun isoForTypedCode(code: String, national: String, currentIso: String): String {
