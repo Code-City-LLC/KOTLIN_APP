@@ -95,6 +95,18 @@ internal fun Charges.cifRows(): List<CifRow> = listOf(
     CifRow("Freight", freight),
 )
 
+/** The Express/SeaDrop charges card, label to amount, in order. */
+internal fun Charges.chargeRows(): List<Pair<String, Double>> = buildList {
+    add("Insurance" to insurance)
+    add("Freight" to freight)
+    add("Fuel" to fuelSurcharge)
+    // SeaDrop's fixed bill-of-lading fee is inside airdrop_charges; without its
+    // line the card did not add up. Label per the web calculator (RateResult.jsx).
+    billOfLadingProcessing?.takeIf { it > 0 }?.let { add("Processing Fees" to it) }
+    if (customsDuty > 0) add("Customs Duty" to customsDuty)
+    badAddressFee?.takeIf { it > 0 }?.let { add("Bad Address Fee" to it) }
+}
+
 /**
  * Inner detail header — Swift FigmaCalculatorViewController.swift:149-168:
  * 56dp bar, 32dp back rail with 24dp rotated chevron, centered Title1,

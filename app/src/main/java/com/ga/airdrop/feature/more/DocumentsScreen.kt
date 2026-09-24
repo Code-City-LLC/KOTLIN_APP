@@ -56,7 +56,6 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.navigation.Routes
-import com.ga.airdrop.feature.common.AirdropUploadSourceConfig
 import com.ga.airdrop.feature.common.AirdropUploadSourceSheet
 import java.util.Locale
 
@@ -165,12 +164,7 @@ fun DocumentsScreen(
 
     uploadClaim?.let { claim ->
         AirdropUploadSourceSheet(
-            config = AirdropUploadSourceConfig(
-                sheetTitle = "Upload ${claim.slot.title}",
-                allowedFileExtensions = AirdropUploadSourceConfig.userDocumentFileExtensions,
-                allowsMultipleFileSelection = false,
-                maxSelectionCount = 1,
-            ),
+            config = documentUploadConfig(claim.slot),
             onPicked = { files ->
                 files.firstOrNull()?.let { file ->
                     viewModel.stageUpload(

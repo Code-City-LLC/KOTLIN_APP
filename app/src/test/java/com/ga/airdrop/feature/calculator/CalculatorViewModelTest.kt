@@ -114,7 +114,11 @@ class CalculatorViewModelTest {
         assertEquals("Airdrop must not silently fall back to legacy calculate", 0, repo.legacyCalls)
         val request = repo.tierRequests.single()
         assertEquals("AIR", request.method)
+        // The weight is PER PACKAGE and the count travels beside it (Laravel
+        // 9515a2997 multiplies freight and fuel by it). It used to be dropped,
+        // so 3 packages were quoted as one.
         assertEquals(5.5, request.weightLbs, 0.001)
+        assertEquals("the quote must cover every package", 3, request.numberOfPackages)
         assertEquals(150.0, request.declaredValue!!, 0.001)
         assertEquals(150.0, request.insuredValue!!, 0.001)
         assertEquals("Laptop", request.itemName)
@@ -176,6 +180,27 @@ class CalculatorViewModelTest {
         val charges = resolveCharges(result!!)
         assertEquals(TIER_QUOTE.totalDue, charges.totalWithDuty, 0.001)
         assertEquals(0.0, charges.customsDuty, 0.001)
+    }
+
+    /**
+     * The Airdrop results card says "Total Weight" but showed ONE package's
+     * weight: 3 x 5.5 lb read "5.50 lbs" beside a price for all three. The
+     * customer web calculator's "Total Weight LBS" is packages x actual weight,
+     * and /shipping/calculate's total_weight_lbs is weight per package x count.
+     */
+    @Test
+    fun theAirdropTotalWeightCoversEveryPackage() = runTest(dispatcher) {
+        val viewModel = CalculatorViewModel(RecordingRepository())
+
+        viewModel.onPackagesChange("3")
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        viewModel.calculate()
+        advanceUntilIdle()
+
+        val result = viewModel.result.value!!
+        assertEquals("the request weight stays per package", 5.5, result.weightLbs, 0.001)
+        assertEquals("Total Weight is every package", 16.5, resolveCharges(result).totalWeightLbs, 0.001)
     }
 
     /**
@@ -536,6 +561,119 @@ class CalculatorViewModelTest {
         assertEquals(false, viewModel.result.value?.insuranceChoice)
         assertFalse(viewModel.state.value.tierQuoteActionLoading)
         assertEquals("Quote refresh failed", viewModel.state.value.alert?.title)
+    }
+
+    /**
+     * Release audit 2026-09-24: only Express shows the lbs/kg picker, but its
+     * unit converted every method's weight. Kg picked on Express, then 10 typed
+     * into Airdrop's "Actual Weight (lbs)", was priced as 22.05 lb. Neither
+     * switching method nor setting the unit on Airdrop may convert it.
+     */
+    @Test
+    fun aKgUnitNeverConvertsAirdropsPoundField() = runTest(dispatcher) {
+        for (pickKg in listOf<CalculatorViewModel.() -> Unit>(
+            {
+                onMethodSelected(ShippingMethod.EXPRESS)
+                onWeightUnitSelected(WeightUnit.KG)
+                onMethodSelected(ShippingMethod.STANDARD)
+            },
+            {
+                onMethodSelected(ShippingMethod.STANDARD)
+                onWeightUnitSelected(WeightUnit.KG)
+            },
+        )) {
+            val repo = RecordingRepository()
+            val viewModel = CalculatorViewModel(repo)
+            viewModel.pickKg()
+            viewModel.onInvoiceChange("150")
+            viewModel.onActualWeightChange("10")
+            viewModel.calculate()
+            advanceUntilIdle()
+
+            assertEquals("Airdrop's field is pounds", 10.0, repo.tierRequests.single().weightLbs, 0.001)
+            assertEquals(WeightUnit.LBS, viewModel.result.value!!.weightUnit)
+        }
+    }
+
+    /** Express shows the picker, so its kg weight is still converted. */
+    @Test
+    fun expressStillConvertsAKgWeight() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onMethodSelected(ShippingMethod.EXPRESS)
+        viewModel.onWeightUnitSelected(WeightUnit.KG)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("10")
+        viewModel.calculate()
+        advanceUntilIdle()
+
+        assertEquals(10.0 / 0.453592, repo.weight!!, 0.001)
+        assertEquals(WeightUnit.KG, viewModel.result.value!!.weightUnit)
+    }
+
+    /** A retired customs item also leaves the suggestions on screen, and their count. */
+    @Test
+    fun aRetiredCustomsItemLeavesTheSuggestionsOnScreen() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        val laptop = CalcDutyRate(42, "Laptop computer", 20.0)
+        val bag = CalcDutyRate(43, "Laptop bag", 20.0)
+        viewModel.onProductSelected(laptop)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+        val pending = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = pending
+        viewModel.calculate()
+        runCurrent()
+
+        // The customer searches again while the quote is in flight.
+        repo.searchAnswer = listOf(laptop, bag)
+        viewModel.onProductChange("Laptop")
+        advanceUntilIdle()
+        assertEquals(DutyRateSearchState.Results(listOf(laptop, bag)), viewModel.state.value.searchState)
+
+        pending.completeExceptionally(
+            TierQuoteException(
+                errorCode = "DUTY_RATE_UNAVAILABLE",
+                message = "The selected customs item is no longer available. Pick another item.",
+            ),
+        )
+        runCurrent()
+
+        assertEquals(DutyRateSearchState.Results(listOf(bag), totalMatches = 1), viewModel.state.value.searchState)
+    }
+
+    /**
+     * A refused customs item is unpicked — but only if it is still the pick.
+     * One chosen while the refused quote was in flight is the customer's new
+     * choice and must survive.
+     */
+    @Test
+    fun aCustomsItemRefusedMidFlightDoesNotUnpickTheNewChoice() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        val laptop = CalcDutyRate(42, "Laptop computer", 20.0)
+        val bag = CalcDutyRate(43, "Laptop bag", 20.0)
+        viewModel.onProductSelected(laptop)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("5.5")
+
+        val pending = CompletableDeferred<TierQuote>()
+        repo.nextTierResponse = pending
+        viewModel.calculate()
+        runCurrent()
+        assertEquals(42, repo.tierRequests.last().customDutyRateId)
+        viewModel.onProductSelected(bag)
+        pending.completeExceptionally(
+            TierQuoteException(
+                errorCode = "DUTY_RATE_UNAVAILABLE",
+                message = "The selected customs item is no longer available. Pick another item.",
+            ),
+        )
+        runCurrent()
+
+        assertEquals("Customs item unavailable", viewModel.state.value.alert?.title)
+        assertEquals(bag, viewModel.state.value.selectedDutyRate)
     }
 
     private companion object {

@@ -6,6 +6,8 @@ import com.ga.airdrop.core.session.AuthenticatedRequestOwner
 import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.data.model.CheckoutResponse
+import com.ga.airdrop.data.model.NcbSessionResponse
+import com.ga.airdrop.data.repo.PaymentUnderReviewException
 import com.ga.airdrop.feature.more.MoreProfileRepository
 import com.ga.airdrop.feature.more.MoreUser
 import com.ga.airdrop.feature.more.ProfileAsset
@@ -219,6 +221,76 @@ class CartViewModelCheckoutTest {
 
         assertEquals("the server would refuse it with 422", 0, checkout.ncbCalls)
         assertEquals("Billing city", viewModel.state.value.errorTitle)
+    }
+
+    /**
+     * The card screen's orange "Payment under review" state belongs to the
+     * fraud-review HOLD alone (2026-09-15): a new attempt clears it, and so
+     * does any other error that replaces it.
+     */
+    @Test
+    fun `a held NCB payment alone is the card screen's under-review state`() = runTest {
+        ExchangeRateStore.update(162.0)
+        val line = sale(17, 917)
+        CartStore.add(line)
+        jmdOrderSummaryFlow(line)
+        val retry = CompletableDeferred<Result<NcbSessionResponse>>()
+        val checkout = FakeCheckout(
+            exchangeRateResponse = { Result.success(163.0) },
+            ncbResponse = { call ->
+                if (call == 1) Result.failure(PaymentUnderReviewException("Your payment is being reviewed."))
+                else retry.await()
+            },
+        )
+        val viewModel = viewModel(checkout, FakeBoundary(ownerA), line)
+        advanceUntilIdle()
+        viewModel.payOrderSummary()
+        viewModel.updateNcbForm { it.copy(city = "Kingston") }
+
+        viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
+        advanceUntilIdle()
+        assertTrue("the hold is the under-review state", viewModel.ncbUi.value.underReview)
+        assertEquals("Your payment is being reviewed.", viewModel.ncbUi.value.errorMessage)
+
+        viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
+        runCurrent()
+        assertTrue(viewModel.ncbUi.value.busy)
+        assertFalse("a new attempt clears it", viewModel.ncbUi.value.underReview)
+
+        retry.complete(Result.failure(RuntimeException("Card declined.")))
+        advanceUntilIdle()
+        assertFalse("an ordinary failure is not a hold", viewModel.ncbUi.value.underReview)
+        assertEquals("Card declined.", viewModel.ncbUi.value.errorMessage)
+    }
+
+    @Test
+    fun `another error after a hold is not drawn as under review`() = runTest {
+        ExchangeRateStore.update(162.0)
+        val line = sale(18, 918)
+        CartStore.add(line)
+        jmdOrderSummaryFlow(line)
+        val checkout = FakeCheckout(
+            exchangeRateResponse = { Result.success(163.0) },
+            ncbResponse = { Result.failure(PaymentUnderReviewException("Your payment is being reviewed.")) },
+        )
+        val viewModel = viewModel(checkout, FakeBoundary(ownerA), line)
+        advanceUntilIdle()
+        viewModel.payOrderSummary()
+        viewModel.updateNcbForm { it.copy(city = "Kingston") }
+        viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
+        advanceUntilIdle()
+        assertTrue(viewModel.ncbUi.value.underReview)
+
+        viewModel.updateNcbForm { it.copy(city = "") }
+        viewModel.createNcbSession("Test User", "4111111111111111", "12", "30", "123")
+        advanceUntilIdle()
+
+        assertEquals("Billing city", viewModel.state.value.errorTitle)
+        assertFalse(viewModel.ncbUi.value.underReview)
+        assertEquals(
+            "Add your city in Profile Information before paying. No payment was started.",
+            viewModel.ncbUi.value.errorMessage,
+        )
     }
 
     @Test
@@ -551,6 +623,9 @@ class CartViewModelCheckoutTest {
             sessionId = "cs_cart_vm",
         ),
         private val exchangeRateResponse: suspend () -> Result<Double> = { Result.success(161.0) },
+        private val ncbResponse: suspend (call: Int) -> Result<NcbSessionResponse> = {
+            Result.failure(RuntimeException("unused"))
+        },
     ) : ShopCheckoutRepository {
         var calls = 0
         var ncbCalls = 0
@@ -575,7 +650,7 @@ class CartViewModelCheckoutTest {
             expectedSession: AuthTokenStore.RequestProvenance,
         ): Result<com.ga.airdrop.data.model.NcbSessionResponse> {
             ncbCalls++
-            return Result.failure(RuntimeException("unused"))
+            return ncbResponse(ncbCalls)
         }
         override suspend fun ncbCompletePayment(
             spiToken: String,

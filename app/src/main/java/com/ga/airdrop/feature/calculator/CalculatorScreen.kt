@@ -399,8 +399,21 @@ private fun PackageDimensionsCard() {
 }
 
 /**
+ * The suggestions header: Swift's "N results found", or "Top N of M results"
+ * when only the best [MAX_DUTY_SUGGESTIONS] are drawn, so the customer knows
+ * more matched and can type on to narrow them.
+ */
+internal fun DutyRateSearchState.Results.header(): String =
+    if (totalMatches > products.size) {
+        "Top ${products.size} of $totalMatches results"
+    } else {
+        "${products.size} result${if (products.size == 1) "" else "s"} found"
+    }
+
+/**
  * Product search dropdown — Swift renderProductResults: bordered panel,
- * "N results found" header on gray150, 62dp customs rows, and dividers.
+ * "N results found" header on gray150, 62dp customs rows, and dividers. At
+ * most [MAX_DUTY_SUGGESTIONS] rows.
  */
 @Composable
 private fun ProductResultsPanel(
@@ -475,7 +488,7 @@ private fun ProductResultsPanel(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = "${products.size} result${if (products.size == 1) "" else "s"} found",
+                            text = searchState.header(),
                             style = AirdropType.subtitle3,
                             color = colors.textDescription,
                             textAlign = TextAlign.Center,

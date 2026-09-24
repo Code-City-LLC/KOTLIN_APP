@@ -3,6 +3,9 @@ package com.ga.airdrop.feature.common
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -65,6 +68,12 @@ data class AirdropUploadSourceConfig(
     val maxFileBytes: Int? = null,
     val imageMaxDimension: Int = 2_000,
     val imageCompressionQuality: Int = 80,
+    /**
+     * The destination accepts only PDF (Laravel `mimes:pdf` reads the content,
+     * so a renamed JPEG is refused): a photo, camera shot or image file is
+     * handed back as a one-page PDF instead.
+     */
+    val imagesAsPdf: Boolean = false,
 ) {
     companion object {
         val invoiceFileExtensions = setOf("pdf", "jpg", "jpeg", "png", "gif", "bmp", "webp")
@@ -237,7 +246,6 @@ private suspend fun readUploadFile(
     val resolver = context.contentResolver
     val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
         ?: throw UploadPickerError("Could not read the selected file.")
-    validateSize(bytes, config)
 
     val resolverMime = resolver.getType(uri)
     val displayName = displayName(context, uri) ?: fallbackName
@@ -248,6 +256,13 @@ private suspend fun readUploadFile(
     if (extension !in config.allowedFileExtensions || mimeType == null) {
         throw UploadPickerError("Please select a supported PDF or image file.")
     }
+    // An image becomes a PDF here, so the size that counts is the PDF's.
+    if (config.imagesAsPdf && mimeType.startsWith("image/")) {
+        val bitmap = decodeImageForPdf(bytes)
+            ?: throw UploadPickerError("The selected image could not be prepared for upload.")
+        return@withContext imagePdfUploadFile(bitmap, config)
+    }
+    validateSize(bytes, config)
     val fileName = if (displayName.contains('.')) displayName else "$displayName.$extension"
     AirdropPickedUploadFile(fileName = fileName, mimeType = mimeType, bytes = bytes)
 }
@@ -262,10 +277,11 @@ private suspend fun readImageUpload(
     imageUploadFile(bitmap, config)
 }
 
-private fun imageUploadFile(
+internal fun imageUploadFile(
     bitmap: Bitmap,
     config: AirdropUploadSourceConfig,
 ): AirdropPickedUploadFile {
+    if (config.imagesAsPdf) return imagePdfUploadFile(bitmap, config)
     val scaled = resizeBitmap(bitmap, config.imageMaxDimension)
     var quality = config.imageCompressionQuality.coerceIn(35, 100)
     var bytes = compressJpeg(scaled, quality)
@@ -281,6 +297,68 @@ private fun imageUploadFile(
         bytes = bytes,
     )
 }
+
+/**
+ * The image as the only page of an A4 PDF, fitted to the page in its own
+ * orientation. PdfDocument stores pixels losslessly, so the image is capped at
+ * [PDF_IMAGE_MAX_DIMENSION]: even an incompressible 1600 x 1600 image is
+ * 7.7 MB of pixels, inside the 10 MB document limit (about 190 dpi on A4).
+ */
+private fun imagePdfUploadFile(
+    bitmap: Bitmap,
+    config: AirdropUploadSourceConfig,
+): AirdropPickedUploadFile {
+    val image = resizeBitmap(bitmap, minOf(config.imageMaxDimension, PDF_IMAGE_MAX_DIMENSION))
+    val landscape = image.width > image.height
+    val pageWidth = if (landscape) A4_LONG_SIDE_PT else A4_SHORT_SIDE_PT
+    val pageHeight = if (landscape) A4_SHORT_SIDE_PT else A4_LONG_SIDE_PT
+    val scale = minOf(pageWidth.toFloat() / image.width, pageHeight.toFloat() / image.height)
+    val left = (pageWidth - image.width * scale) / 2f
+    val top = (pageHeight - image.height * scale) / 2f
+    val document = PdfDocument()
+    val bytes = try {
+        val page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create())
+        page.canvas.drawColor(android.graphics.Color.WHITE)
+        page.canvas.drawBitmap(
+            image,
+            null,
+            RectF(left, top, left + image.width * scale, top + image.height * scale),
+            Paint(Paint.FILTER_BITMAP_FLAG),
+        )
+        document.finishPage(page)
+        ByteArrayOutputStream().use { out ->
+            document.writeTo(out)
+            out.toByteArray()
+        }
+    } finally {
+        document.close()
+    }
+    validateSize(bytes, config)
+    val timestamp = System.currentTimeMillis() / 1000L
+    return AirdropPickedUploadFile(
+        fileName = "photo-$timestamp.pdf",
+        mimeType = "application/pdf",
+        bytes = bytes,
+    )
+}
+
+/** Decodes at the smallest power-of-two sample that still covers the PDF cap. */
+internal fun decodeImageForPdf(bytes: ByteArray): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= PDF_IMAGE_MAX_DIMENSION) sample *= 2
+    return BitmapFactory.decodeByteArray(
+        bytes,
+        0,
+        bytes.size,
+        BitmapFactory.Options().apply { inSampleSize = sample },
+    )
+}
+
+private const val PDF_IMAGE_MAX_DIMENSION = 1_600
+private const val A4_SHORT_SIDE_PT = 595
+private const val A4_LONG_SIDE_PT = 842
 
 private fun resizeBitmap(bitmap: Bitmap, maxDimension: Int): Bitmap {
     val longest = maxOf(bitmap.width, bitmap.height)

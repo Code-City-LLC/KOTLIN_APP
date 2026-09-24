@@ -46,6 +46,12 @@ data class AuthorizedUserPhoneEntry(
      * either case, so neither does the box.
      */
     val explicitCode: Boolean = false,
+    /**
+     * [number] follows a trunk 0 the box dropped (07911 123456 under 🇬🇧 shows
+     * 7911123456). It is still part of the number as typed, so a newly picked
+     * country re-reads the digits with it: Italy keeps it ([renumbered]).
+     */
+    val droppedTrunkZero: Boolean = false,
 )
 
 object AuthorizedUserPhoneInput {
@@ -232,8 +238,10 @@ object AuthorizedUserPhoneInput {
      * sent as +44 / 447911123456 — the "+" was stripped before the code after
      * it had arrived, so the code stayed in the number).
      *
-     * A leading "+" or "00" starts an international number, read in the
-     * server's order (App\Support\AuthorizedUserPhone::normalize, step 1):
+     * A leading "+" or "00" — or under +1 the exit code 011 before more than
+     * eleven digits ([internationalDigits]) — starts an international number,
+     * read in the server's order (App\Support\AuthorizedUserPhone::normalize,
+     * step 1):
      *
      *  1. The picker's own calling code (not +1) typed in front wins: with
      *     Singapore picked, "+65 8555 1234" is 🇸🇬 85551234.
@@ -257,20 +265,63 @@ object AuthorizedUserPhoneInput {
      * 7911123456; under +1 that is the trunk 1 (18765551234 → 8765551234).
      * "Full" is longer than the country's longest national number: Brazil's
      * 55991234567 (area code 55) stays whole. Digits typed after an explicit
-     * "+CC" ([explicitCode], the previous entry's flag) keep a repeated code;
+     * "+CC" ([AuthorizedUserPhoneEntry.explicitCode] of [previous]) keep a repeated code;
      * only the +1 trunk 1 still goes, as it does on the server. Either way one
      * trunk 0 goes where the server drops it: "+44 07911 123456" and 07911
-     * 123456 under 🇬🇧 are both 7911123456. Emptying the box starts over.
+     * 123456 under 🇬🇧 are both 7911123456.
+     *
+     * [previous] is the entry before this edit — its picker country, its box,
+     * and its flag. The flag belongs to the digits it was set for, so it holds
+     * only while the edit keeps how they start ([keepsStart]): typed on,
+     * deleted back, a digit further along corrected. Select all and paste, or
+     * digits typed in front, is a new number read afresh (2026-09-24 audit:
+     * 447911123456 pasted over 🇬🇧 7911123456, whose trunk 0 had set the flag,
+     * went as +44447911123456 and was stored 447911123456). Emptying the box
+     * starts over. A "+" put in front of the digits already in the box, and
+     * nothing else, is no calling code: the box and the picker stay as they
+     * are (2026-09-24 audit: 🇺🇸 2125551234 became 🇲🇦 +212 5551234). Pasted
+     * into an empty box, or over other digits, "+2125551234" is still Morocco.
      */
-    fun interpret(raw: String, currentIso: String, explicitCode: Boolean = false): AuthorizedUserPhoneEntry {
-        val digits = raw.filter(Char::isDigit)
-        if (startsInternational(raw, digits)) {
-            return readInternational(raw, digits, currentIso, waitForCaribbean = true)
-        }
-        val explicit = explicitCode && raw.isNotEmpty()
+    fun interpret(raw: String, previous: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
+        val box = previous.number
+        if (box.isNotEmpty() && box.all { it in '0'..'9' } && raw == "+$box") return previous
+        val currentIso = previous.isoCode
+        val digits = asciiDigits(raw)
         val code = country(currentIso)?.callingCode ?: "+1"
-        val (number, asWritten) = boxDigits(code, digits, explicit)
-        return AuthorizedUserPhoneEntry(currentIso, number, asWritten)
+        internationalDigits(raw, digits, code)?.let { international ->
+            return readInternational(raw, digits, international, currentIso, waitForCaribbean = true)
+        }
+        val continues = raw.isNotEmpty() && keepsStart(previous.number.filter(Char::isDigit), digits, code)
+        val explicit = previous.explicitCode && continues
+        val (number, dropped) = boxDigits(code, digits, explicit)
+        return AuthorizedUserPhoneEntry(
+            currentIso,
+            number,
+            explicitCode = explicit || dropped,
+            droppedTrunkZero = dropped || previous.droppedTrunkZero && continues,
+        )
+    }
+
+    /**
+     * [raw] read on its own, as if typed into an empty box under [currentIso];
+     * [explicitCode]: a "+CC" was read just before it (see [interpret]).
+     */
+    fun interpret(raw: String, currentIso: String, explicitCode: Boolean = false): AuthorizedUserPhoneEntry =
+        interpret(raw, AuthorizedUserPhoneEntry(currentIso, "", explicitCode))
+
+    /**
+     * [after] starts the way [before] did, digits both: as far as the shorter
+     * of them goes, and no further than the calling code's length and one
+     * digit more — the part that decides whether a code typed again is read
+     * in front of the number. One digit is not enough: India's 919876543210
+     * pasted over 9876543210 shares its first digit, as does Hamburg's
+     * 494012345678 pasted over 4012345678. Nothing before (the digits after a
+     * "+CC") is always continued; nothing after, only then.
+     */
+    private fun keepsStart(before: String, after: String, callingCode: String): Boolean {
+        if (after.isEmpty()) return before.isEmpty()
+        val start = minOf(before.length, after.length, callingCode.count(Char::isDigit) + 1)
+        return before.regionMatches(0, after, 0, start)
     }
 
     /**
@@ -284,14 +335,26 @@ object AuthorizedUserPhoneInput {
      * of digits is already settled and comes back unchanged.
      */
     fun resolve(entry: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
-        val digits = entry.number.filter(Char::isDigit)
-        if (!startsInternational(entry.number, digits)) return entry
-        return readInternational(entry.number, digits, entry.isoCode, waitForCaribbean = false)
+        val digits = asciiDigits(entry.number)
+        val code = country(entry.isoCode)?.callingCode ?: "+1"
+        val international = internationalDigits(entry.number, digits, code) ?: return entry
+        return readInternational(entry.number, digits, international, entry.isoCode, waitForCaribbean = false)
     }
 
-    /** A "+" ([hasLeadingPlus]) or a "00" in front of the digits: an international number. */
-    private fun startsInternational(raw: String, digits: String): Boolean =
-        hasLeadingPlus(raw) || digits.startsWith("00")
+    /**
+     * The digits after an international prefix in front of [digits], read as
+     * the server reads one (AuthorizedUserPhone::normalize, step 1): a "+"
+     * ([hasLeadingPlus]), a "00", or under +1 the NANP exit code 011 in front
+     * of more than eleven digits — "011 44 7911 123456" from Jamaica is 🇬🇧
+     * 7911123456 (2026-09-24 audit: the box refused it). Eleven digits or
+     * fewer are read as a +1 number, as the server reads them. null: none.
+     */
+    private fun internationalDigits(raw: String, digits: String, callingCode: String): String? = when {
+        hasLeadingPlus(raw) -> digits
+        digits.startsWith("00") -> digits.substring(2)
+        callingCode == "+1" && digits.startsWith("011") && digits.length > 11 -> digits.substring(3)
+        else -> null
+    }
 
     /**
      * Whether [raw] starts with an international "+", read the way the server
@@ -299,20 +362,33 @@ object AuthorizedUserPhoneInput {
      * "+" removed, then the first one left): a "+" behind an invisible mark (a
      * number pasted from Contacts or a chat often starts with U+200E), inside
      * brackets "(+44)", or after "tel:" counts; one after a digit
-     * ("876+5551234") does not.
+     * ("876+5551234", or "٨٧٦+…" in another script: [asciiDigits]) does not.
      */
     private fun hasLeadingPlus(raw: String): Boolean =
-        raw.firstOrNull { it == '+' || it in '0'..'9' } == '+'
+        raw.firstOrNull { it == '+' || it.isDigit() } == '+'
+
+    /**
+     * The digits in [raw] as 0-9, whatever script they were typed or pasted
+     * in: Arabic-Indic ٨٧٦٥٥٥١٢٣٤ is 8765551234, as Swift reads it
+     * (asciiDigits). Kept as they were, the box showed them and Save refused
+     * them (2026-09-24 audit; the server's \d is ASCII).
+     */
+    private fun asciiDigits(raw: String): String = buildString {
+        for (char in raw) {
+            val value = Character.digit(char, 10)
+            if (value >= 0) append('0' + value)
+        }
+    }
 
     /** Steps 1–3 of [interpret]; [waitForCaribbean] false is [resolve]. */
     private fun readInternational(
         raw: String,
         digits: String,
+        international: String,
         currentIso: String,
         waitForCaribbean: Boolean,
     ): AuthorizedUserPhoneEntry {
         val plus = hasLeadingPlus(raw)
-        val international = if (plus) digits else digits.substring(2)
         // The number is not settled yet (or names no country): keep what was
         // typed so the next key can finish it and Save can refuse it.
         val pending = AuthorizedUserPhoneEntry(
@@ -322,12 +398,8 @@ object AuthorizedUserPhoneInput {
 
         val own = country(currentIso)?.callingCode
         if (own != null && own != "+1" && international.startsWith(own.substring(1))) {
-            val national = international.substring(own.length - 1)
-            return AuthorizedUserPhoneEntry(
-                isoCode = currentIso,
-                number = boxDigits(own, national, explicit = true).first,
-                explicitCode = true,
-            )
+            val (number, dropped) = boxDigits(own, international.substring(own.length - 1), explicit = true)
+            return AuthorizedUserPhoneEntry(currentIso, number, explicitCode = true, droppedTrunkZero = dropped)
         }
         if (waitForCaribbean) {
             if (couldBeCaribbeanNumber(international)) return pending
@@ -340,10 +412,12 @@ object AuthorizedUserPhoneInput {
         // code it waits for the area code, which then names it — "+1 868…" is
         // 🇹🇹, "+1 212…" 🇺🇸, as in Swift; a +1 country already picked stays.
         if (code == "+1" && own != "+1" && national.length < 3) return pending
+        val (number, dropped) = boxDigits(code, national, explicit = true)
         return AuthorizedUserPhoneEntry(
             isoCode = isoForTypedCode(code, national, currentIso),
-            number = boxDigits(code, national, explicit = true).first,
+            number = number,
             explicitCode = true,
+            droppedTrunkZero = dropped,
         )
     }
 
@@ -365,14 +439,15 @@ object AuthorizedUserPhoneInput {
     /**
      * [digits] as the box keeps them under [callingCode] — the national number
      * the server stores, normalized once as it does (normalize step 7) — and
-     * whether they are now the national number as written
-     * ([AuthorizedUserPhoneEntry.explicitCode]). After an explicit "+CC" a
-     * repeated code is never cut (the server's $explicit); the +1 trunk 1 is,
-     * typed after "+1" or not, because the server drops it either way. Then
-     * one trunk 0 goes for the codes that drop it ([submissionDigits]):
-     * "+44 07911 123456" shows 7911123456. What followed that 0 is the national
-     * number, so the next keys never cut a code from it: the server cuts a
-     * repeated code before it drops the 0, never after.
+     * whether a trunk 0 went ([AuthorizedUserPhoneEntry.droppedTrunkZero]).
+     * After an explicit "+CC" a repeated code is never cut (the server's
+     * $explicit); the +1 trunk 1 is, typed after "+1" or not, because the
+     * server drops it either way. Then one trunk 0 goes for the codes that
+     * drop it ([submissionDigits]): "+44 07911 123456" shows 7911123456. What
+     * followed that 0 is the national number as written
+     * ([AuthorizedUserPhoneEntry.explicitCode]), so the next keys never cut a
+     * code from it: the server cuts a repeated code before it drops the 0,
+     * never after.
      */
     private fun boxDigits(callingCode: String, digits: String, explicit: Boolean): Pair<String, Boolean> {
         val national = if (explicit && callingCode != "+1") {
@@ -381,7 +456,7 @@ object AuthorizedUserPhoneInput {
             nationalDigits(digits, callingCode)
         }
         val shown = submissionDigits(national, callingCode)
-        return shown to (explicit || shown != national)
+        return shown to (shown != national)
     }
 
     /**
@@ -434,9 +509,21 @@ object AuthorizedUserPhoneInput {
      */
     fun renumber(box: String, callingCode: String): String = renumbered(box, callingCode).first
 
-    /** [renumber], and whether the digits are now the national number as written (a trunk 0 went). */
-    internal fun renumbered(box: String, callingCode: String): Pair<String, Boolean> =
-        if (box.all(Char::isDigit)) boxDigits(callingCode, box, explicit = false) else box to false
+    /**
+     * [renumber], and whether a trunk 0 went under [callingCode] (the digits
+     * are then the national number as written). [droppedTrunkZero]: the box
+     * had dropped one in front of its digits under the old code; it goes back
+     * first, so the digits are read as typed (2026-09-24 audit: 🇬🇧 06 1234
+     * 5678 shows 612345678, and picking Italy then sent +39 612345678 where
+     * the server, and the same keys under Italy, keep 0612345678).
+     */
+    internal fun renumbered(box: String, callingCode: String, droppedTrunkZero: Boolean = false): Pair<String, Boolean> =
+        if (box.all(Char::isDigit)) {
+            val typed = if (droppedTrunkZero && box.isNotEmpty()) "0$box" else box
+            boxDigits(callingCode, typed, explicit = false)
+        } else {
+            box to false
+        }
 
     /** A typed code keeps the picker where it is when it already says that code. */
     private fun isoForTypedCode(code: String, national: String, currentIso: String): String {
@@ -498,6 +585,22 @@ object AuthorizedUserPhoneInput {
     }
 
     /**
+     * A stored phone already in the server's normalized form — a calling code,
+     * then digits the box would show as they are — is the national number as
+     * written ([AuthorizedUserPhoneEntry.explicitCode]): +49 / 49211234567,
+     * stored from "+49 4921 1234567", is Emden, so a corrected last digit is
+     * not "+49" typed again (2026-09-24 audit: the edit form asked "start with
+     * +49, or with 0"). One the box would re-read (+44 / 447911123456, +44 /
+     * 07700900123) or refuse, or any older shape, is not.
+     */
+    fun storedAsWritten(storedCode: String?, number: String?): Boolean {
+        val code = storedCode.orEmpty()
+        val digits = number.orEmpty()
+        if (code !in validCallingCodes || validationError(digits, code) != null) return false
+        return boxDigits(code, digits, explicit = false).first == digits
+    }
+
+    /**
      * A stored row may carry the area code inside the code column ("+1876" +
      * 7 digits) — the shape the website folds too. Returns the picker ISO and
      * the digits the box should show.
@@ -521,7 +624,127 @@ object AuthorizedUserPhoneInput {
             }
             else -> calling = callingCode("+$codeDigits")
         }
+        // A code column that cannot say the country — an old app split "+CC…"
+        // four digits wide ("+4479" / "11123456"), kept a Caribbean area code
+        // as the code ("+876" / "5290736"), or left the code in the number —
+        // is read as the server reads it, when the server can (2026-09-24
+        // audit: "+4479" opened on Jamaica with 11123456, and the flag put
+        // right saved +44 11123456, "79" gone). The website does the same
+        // (storedPhoneForPicker). Anything else is shown as received.
+        val (readCode, readNumber) = serverReading(storedCode, number)
+        if (readCode != calling && validationError(readNumber, readCode) == null) {
+            return isoFor(readCode, readNumber) to readNumber
+        }
         return isoFor(calling, numberDigits) to numberDigits.take(MAX_DIGITS)
+    }
+
+    /**
+     * App\Support\AuthorizedUserPhone::normalize, step for step: the code and
+     * national number the server reads a stored pair as — "+4479" /
+     * "11123456" is "+44" / "7911123456", "+876" / "5290736" is "+1" /
+     * "8765290736". A number it cannot read either way comes back as it
+     * does there, "+" in front. For stored rows ([fold]); what the customer
+     * types is read by [interpret].
+     */
+    internal fun serverReading(storedCode: String?, storedNumber: String?): Pair<String, String> {
+        // AuthorizedUserPhone::digits: ASCII digits; "undefined", "null", "NaN" are empty.
+        fun digits(value: String?): String {
+            val text = value.orEmpty().trim()
+            return if (text.lowercase(Locale.US) in setOf("undefined", "null", "nan")) "" else text.filter { it in '0'..'9' }
+        }
+        fun isCode(code: String) = code.isNotEmpty() && "+$code" in validCallingCodes
+        fun minimum(code: String) = MINIMUM_NATIONAL_DIGITS["+$code"] ?: 7
+        // CallingCodes::split: the first calling code the digits start with, if a whole number follows.
+        fun split(all: String): Pair<String, String>? {
+            for (length in 1..3) {
+                val code = all.take(length)
+                if (all.length > length && isCode(code)) {
+                    val national = all.substring(length)
+                    return if (national.length >= minimum(code)) code to national else null
+                }
+            }
+            return null
+        }
+        fun isNanp(all: String) = all.length == 10 && all[0] in '2'..'9'
+
+        var code = digits(storedCode)
+        var number = digits(storedNumber)
+        // 1. The number carries its own international prefix.
+        val plus = storedNumber.orEmpty().firstOrNull { it == '+' || it in '0'..'9' } == '+'
+        val international = when {
+            plus -> number
+            number.startsWith("00") -> number.substring(2)
+            number.startsWith("011") && (code == "" || code == "1") && number.length > 11 -> number.substring(3)
+            else -> null
+        }
+        var explicit = false
+        if (international != null) {
+            val typed = split(international)
+            if (code != "1" && isCode(code) && international.startsWith(code) &&
+                international.length - code.length >= minimum(code)
+            ) {
+                number = international.substring(code.length)
+                explicit = true
+            } else if (isCaribbeanNumber(international)) {
+                code = "1"
+                number = international
+                explicit = true
+            } else if (typed != null) {
+                code = typed.first
+                number = typed.second
+                explicit = true
+            }
+        }
+        // 2. A Caribbean area code used as the country code.
+        if (code in NANP_CARIBBEAN_AREA_ISOS && !isCode(code)) code = "1$code"
+        // 3. A NANP area code stored inside the code ("+1876").
+        if (code.length == 4 && code[0] == '1') {
+            val area = code.substring(1)
+            code = "1"
+            if (number.length == 11 && number[0] == '1') {
+                number = number.substring(1)
+            } else if (number.length != 10) {
+                number = area + number
+            }
+        }
+        // 4. A code that is no calling code: re-read the digits it came from.
+        if (code.isNotEmpty() && !isCode(code)) {
+            val joined = code + number
+            val again = split(joined)
+            if (isCaribbeanNumber(joined)) {
+                code = "1"
+                number = joined
+            } else if (again != null) {
+                code = again.first
+                number = again.second
+            } else if (isNanp(joined)) {
+                code = "1"
+                number = joined
+            }
+        }
+        // 5. No code at all.
+        if (code.isEmpty()) {
+            if (number.length == 11 && number[0] == '1') {
+                code = "1"
+                number = number.substring(1)
+            } else if (number.length == 10) {
+                code = "1"
+            }
+        }
+        // 6. "+1" with the trunk 1 typed again.
+        if (code == "1" && number.length == 11 && number[0] == '1') number = number.substring(1)
+        // 7. Outside NANP: the code typed again (never after "+CC"), or the trunk 0.
+        if (code.isNotEmpty() && code != "1") {
+            if (!explicit && isAmbiguousRepeatedCode(number, "+$code")) return "+$code" to "+$number"
+            val longest = LONGEST_NATIONAL_NUMBER["+$code"] ?: 10
+            if (!explicit && number.length > longest && number.startsWith(code) &&
+                number.length - code.length >= minimum(code)
+            ) {
+                number = number.substring(code.length)
+            }
+            if (number.startsWith("0") && number.length > 1 && "+$code" in DROPS_TRUNK_ZERO) number = number.substring(1)
+        }
+        return (if (code.isEmpty()) "" else "+$code") to number
     }
 
     /**

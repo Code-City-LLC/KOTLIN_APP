@@ -45,6 +45,11 @@ data class AddAuthorizedUserUiState(
      */
     val phoneExplicitCode: Boolean = false,
     /**
+     * The box dropped a trunk 0 in front of its digits; a newly picked code
+     * re-reads them with it ([AuthorizedUserPhoneEntry.droppedTrunkZero]).
+     */
+    val phoneDroppedTrunkZero: Boolean = false,
+    /**
      * The customer typed a number or picked a code. The profile default must
      * not move the picker under them, and an edit's stored phone is judged and
      * replaced only once this is true and the number differs from the stored one.
@@ -115,14 +120,16 @@ class AddAuthorizedUserViewModel(
      * digits: "+44 7911 123456" → 🇬🇧 +44 / 7911123456, "+1 (876) 555-1234" →
      * +1 / 8765551234. A Caribbean number written with a "+" ("+876 555
      * 1234") stays as typed until it is complete; see
-     * [AuthorizedUserPhoneInput.interpret].
+     * [AuthorizedUserPhoneInput.interpret], which reads the edit against the
+     * box before it.
      */
     fun onMobileNumber(v: String) = _state.update {
-        val entry = AuthorizedUserPhoneInput.interpret(v, it.phoneIso, it.phoneExplicitCode)
+        val entry = AuthorizedUserPhoneInput.interpret(v, it.phoneEntry)
         it.copy(
             mobileNumber = entry.number,
             phoneIso = entry.isoCode,
             phoneExplicitCode = entry.explicitCode,
+            phoneDroppedTrunkZero = entry.droppedTrunkZero,
             mobileError = null,
             phoneTouched = true,
         )
@@ -132,17 +139,20 @@ class AddAuthorizedUserViewModel(
         val calling = AuthorizedUserPhoneInput.country(iso)?.callingCode ?: "+1"
         // A country with the same calling code (Brazil again, or another +1
         // flag) leaves the box as it is: digits typed after a "+CC" stay whole,
-        // and a stored phone is not re-read. A new code re-reads the digits.
+        // and a stored phone is not re-read. A new code re-reads the digits,
+        // with the trunk 0 the box dropped put back in front of them.
         val sameCode = calling == it.callingCode
         val (box, asWritten) = if (sameCode) {
             it.mobileNumber to it.phoneExplicitCode
         } else {
-            AuthorizedUserPhoneInput.renumbered(it.mobileNumber, calling)
+            AuthorizedUserPhoneInput.renumbered(it.mobileNumber, calling, it.phoneDroppedTrunkZero)
         }
         it.copy(
             phoneIso = iso,
             mobileNumber = box,
             phoneExplicitCode = asWritten,
+            // Under a new code, only a 0 dropped by that code is remembered.
+            phoneDroppedTrunkZero = if (sameCode) it.phoneDroppedTrunkZero else asWritten,
             mobileError = null,
             phoneTouched = true,
         )
@@ -236,7 +246,10 @@ class AddAuthorizedUserViewModel(
                             email = user.email.orEmpty(),
                             mobileNumber = mobile,
                             phoneIso = phoneIso,
-                            phoneExplicitCode = false,
+                            // Stored as the server stores a number, the box
+                            // is that national number as written.
+                            phoneExplicitCode = AuthorizedUserPhoneInput.storedAsWritten(user.countryCode, user.mobileNumber),
+                            phoneDroppedTrunkZero = false,
                             // The box holds the stored phone: untouched until
                             // the customer types in it or picks a code.
                             phoneTouched = false,
@@ -397,12 +410,19 @@ class AddAuthorizedUserViewModel(
     private val AddAuthorizedUserUiState.callingCode: String
         get() = AuthorizedUserPhoneInput.country(phoneIso)?.callingCode ?: "+1"
 
+    /** The picker and the box as one entry, flags included. */
+    private val AddAuthorizedUserUiState.phoneEntry: AuthorizedUserPhoneEntry
+        get() = AuthorizedUserPhoneEntry(phoneIso, mobileNumber, phoneExplicitCode, phoneDroppedTrunkZero)
+
     /** The box read to the end ([AuthorizedUserPhoneInput.resolve]): "+876 555 1234" → 🇯🇲 8765551234. */
     private fun AddAuthorizedUserUiState.settledPhone(): AddAuthorizedUserUiState {
-        val entry = AuthorizedUserPhoneInput.resolve(
-            AuthorizedUserPhoneEntry(phoneIso, mobileNumber, phoneExplicitCode),
+        val entry = AuthorizedUserPhoneInput.resolve(phoneEntry)
+        return copy(
+            mobileNumber = entry.number,
+            phoneIso = entry.isoCode,
+            phoneExplicitCode = entry.explicitCode,
+            phoneDroppedTrunkZero = entry.droppedTrunkZero,
         )
-        return copy(mobileNumber = entry.number, phoneIso = entry.isoCode, phoneExplicitCode = entry.explicitCode)
     }
 
     private fun isValidEmail(email: String): Boolean =

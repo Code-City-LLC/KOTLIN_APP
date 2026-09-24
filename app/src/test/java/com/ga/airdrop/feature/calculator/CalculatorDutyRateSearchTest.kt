@@ -52,15 +52,24 @@ class CalculatorDutyRateSearchTest {
         assertEquals("Something custom", vm.state.value.product)
     }
 
+    // Was "all returned matches remain selectable instead of being truncated
+    // to eight". Release audit 2026-09-24: every match rendered, in a non-lazy
+    // Column, so a three-letter query could draw hundreds of rows. The best 20
+    // render, in the repository's ranking (iOS's own comment and RN: "up to
+    // 20"), and every one of them stays selectable.
     @Test
-    fun `all returned matches remain selectable instead of being truncated to eight`() = runTest(dispatcher) {
+    fun `the best twenty matches render and stay selectable`() = runTest(dispatcher) {
         val rows = (1..30).map { CalcDutyRate(it, "Book $it", 37.0) }
         val vm = model(SearchRepository { rows })
         vm.onProductChange("book")
         advanceUntilIdle()
-        assertEquals(DutyRateSearchState.Results(rows), vm.state.value.searchState)
-        vm.onProductSelected(rows.last())
-        assertEquals(30, vm.state.value.selectedDutyRate?.id)
+        val results = vm.state.value.searchState as DutyRateSearchState.Results
+        val shown = results.products
+        assertEquals(rows.take(20), shown)
+        assertEquals("the header can say how many matched", 30, results.totalMatches)
+        assertEquals("Top 20 of 30 results", results.header())
+        vm.onProductSelected(shown.last())
+        assertEquals(20, vm.state.value.selectedDutyRate?.id)
         assertEquals(DutyRateSearchState.Hidden, vm.state.value.searchState)
     }
 
@@ -111,6 +120,14 @@ class CalculatorDutyRateSearchTest {
         vm.onProductChange("book")
         advanceUntilIdle()
         assertEquals(DutyRateSearchState.Results(listOf(book)), vm.state.value.searchState)
+    }
+
+    /** Swift's header while every match is drawn. */
+    @Test
+    fun `the header counts results when every match is drawn`() {
+        assertEquals("1 result found", DutyRateSearchState.Results(listOf(book)).header())
+        val twenty = (1..20).map { CalcDutyRate(it, "Book $it", 37.0) }
+        assertEquals("20 results found", DutyRateSearchState.Results(twenty).header())
     }
 
     // Was "Standard keeps the description free text without querying customs".
