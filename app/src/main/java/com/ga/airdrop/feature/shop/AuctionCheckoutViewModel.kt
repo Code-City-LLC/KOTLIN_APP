@@ -512,25 +512,23 @@ class AuctionCheckoutViewModel(
         ncbSpiToken = null
         ncbCheckoutId = null
         if (!AirdropFeatureFlags.jmdNcbCheckout) {
-            _ncb.update {
-                it.copy(
-                    errorMessage = "Paying in Jamaican dollars is temporarily " +
-                        "unavailable while we complete work with our card " +
-                        "processor. No payment was started.",
-                )
-            }
+            ncbError(
+                "Paying in Jamaican dollars is temporarily " +
+                    "unavailable while we complete work with our card " +
+                    "processor. No payment was started.",
+            )
             return
         }
         val product = _state.value.product
         val packageId = product?.packageId?.takeIf { it > 0 }
         if (product == null || packageId == null || product.id <= 0) {
-            _ncb.update { it.copy(errorMessage = "This product can't be purchased right now.") }
+            ncbError("This product can't be purchased right now.")
             return
         }
         val owner = sessionBoundary.capture()?.takeIf { it.sessionId == sessionOwner?.sessionId }
         val requestOwner = owner?.let { sessionBoundary.requestOwner(it) }
         if (owner == null || requestOwner == null) {
-            _ncb.update { it.copy(errorMessage = "Log in to your Airdropja account before paying.") }
+            ncbError("Log in to your Airdropja account before paying.")
             return
         }
         val form = _ncb.value.form
@@ -544,21 +542,15 @@ class AuctionCheckoutViewModel(
         val lastName = form.lastName.trim().ifBlank { holder.substringAfter(' ', "").trim() }
         val city = form.city.trim()
         if (firstName.isBlank() || lastName.isBlank() || city.isBlank()) {
-            _ncb.update {
-                it.copy(
-                    errorMessage = "Add your full billing name and city in More → Profile " +
-                        "before paying with JMD, or choose USD.",
-                )
-            }
+            ncbError(
+                "Add your full billing name and city in More → Profile " +
+                    "before paying with JMD, or choose USD.",
+            )
             return
         }
         val countryCode = ncbCountryCode(form.country)
         if (countryCode == null) {
-            _ncb.update {
-                it.copy(
-                    errorMessage = "Select Jamaica or United States as your billing country for JMD payments.",
-                )
-            }
+            ncbError("Select Jamaica or United States as your billing country for JMD payments.")
             return
         }
         val request = CreateNcbSessionRequest(
@@ -578,7 +570,7 @@ class AuctionCheckoutViewModel(
             cardCvv = cardCvv.trim(),
             deliveryMode = "pickup",
         )
-        _ncb.update { it.copy(busy = true, errorMessage = null) }
+        _ncb.update { it.copy(busy = true, errorMessage = null, underReview = false) }
         viewModelScope.launch {
             checkout.createNcbSession(request, requestOwner.provenance)
                 .onSuccess { resp ->
@@ -595,9 +587,9 @@ class AuctionCheckoutViewModel(
                         _ncb.update {
                             it.copy(
                                 busy = false,
-                                // Held by the fraud rules is not a failure (2026-09-15).
-                                errorTitle = if (e.isPaymentUnderReview) "Payment under review" else null,
                                 errorMessage = e.message ?: "We couldn't start the payment. Please try again.",
+                                // Held by the fraud rules is not a failure (2026-09-15).
+                                underReview = e.isPaymentUnderReview,
                             )
                         }
                     }
@@ -615,14 +607,12 @@ class AuctionCheckoutViewModel(
         // Fail closed: without a usable checkout id the server cannot bind the
         // settlement, so we do not attempt it.
         val checkoutId = ncbCheckoutId?.takeIf { it > 0L } ?: run {
-            _ncb.update {
-                it.copy(errorMessage = "We couldn't confirm your payment. Please contact support.")
-            }
+            ncbError("We couldn't confirm your payment. Please contact support.")
             return
         }
         val owner = sessionBoundary.capture()?.takeIf { it.sessionId == sessionOwner?.sessionId } ?: return
         val requestOwner = sessionBoundary.requestOwner(owner) ?: return
-        _ncb.update { it.copy(busy = true, errorMessage = null) }
+        _ncb.update { it.copy(busy = true, errorMessage = null, underReview = false) }
         viewModelScope.launch {
             checkout.ncbCompletePayment(spiToken, checkoutId, requestOwner.provenance)
                 .onSuccess { resp ->
@@ -647,14 +637,19 @@ class AuctionCheckoutViewModel(
                         _ncb.update {
                             it.copy(
                                 busy = false,
-                                errorTitle = if (e.isPaymentUnderReview) "Payment under review" else null,
                                 errorMessage = e.message
                                     ?: "We couldn't confirm your payment. Check Shipments before paying again.",
+                                underReview = e.isPaymentUnderReview,
                             )
                         }
                     }
                 }
         }
+    }
+
+    /** Every card-screen error except the hold clears the hold's state. */
+    private fun ncbError(message: String) {
+        _ncb.update { it.copy(errorMessage = message, underReview = false) }
     }
 
     // JM|US only, else null → createNcbSession REJECTS (no coerce-to-US; Laravel

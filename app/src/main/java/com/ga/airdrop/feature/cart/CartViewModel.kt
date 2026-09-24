@@ -138,6 +138,9 @@ class CartViewModel(
                 navTo3DS = it.navToNcb3DS,
                 navToSuccess = it.navToNcbSuccess,
                 errorMessage = it.errorMessage,
+                // Only the hold's own title: a new attempt clears the title and
+                // every other error replaces it, so this can never go stale.
+                underReview = it.errorTitle == PAYMENT_UNDER_REVIEW_TITLE,
             )
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, NcbUiModel())
@@ -861,7 +864,7 @@ class CartViewModel(
                     // nor retryable: say so, with the server's text.
                     orderError(
                         when {
-                            error.isPaymentUnderReview -> "Payment under review"
+                            error.isPaymentUnderReview -> PAYMENT_UNDER_REVIEW_TITLE
                             unauthenticated -> "Sign in required"
                             else -> "Payment status unknown"
                         },
@@ -1005,7 +1008,7 @@ class CartViewModel(
                             it.copy(
                                 ncbBusy = false,
                                 // Held by the fraud rules is not a failure (2026-09-15).
-                                errorTitle = if (e.isPaymentUnderReview) "Payment under review" else "Payment failed",
+                                errorTitle = if (e.isPaymentUnderReview) PAYMENT_UNDER_REVIEW_TITLE else "Payment failed",
                                 errorMessage = e.message ?: "We couldn't start the payment. Please try again.",
                             )
                         }
@@ -1066,7 +1069,7 @@ class CartViewModel(
                         _state.update {
                             it.copy(
                                 ncbBusy = false,
-                                errorTitle = if (e.isPaymentUnderReview) "Payment under review" else "Payment not confirmed",
+                                errorTitle = if (e.isPaymentUnderReview) PAYMENT_UNDER_REVIEW_TITLE else "Payment not confirmed",
                                 errorMessage = e.message
                                     ?: "We couldn't confirm your payment. Check Shipments before paying again.",
                             )
