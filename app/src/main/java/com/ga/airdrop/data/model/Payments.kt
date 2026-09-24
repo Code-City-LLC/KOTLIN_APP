@@ -139,9 +139,17 @@ data class PaymentReviewStatus(
     val isRefused: Boolean
         get() = status?.lowercase() in setOf("declined", "cancelled", "canceled", "expired")
 
+    /** Staff released the payment: the one review outcome that is paid. */
+    val isApproved: Boolean
+        get() = status?.lowercase() == "approved"
+
     val customerMessage: String
         get() = message?.takeIf { it.isNotBlank() }
-            ?: "Your payment is being reviewed by our team. You will be notified as soon as a decision is made — please do not pay again."
+            ?: if (isRefused) {
+                "We were unable to approve this payment. Any amount charged has been reversed; the refund normally appears on your card statement within 5–10 business days."
+            } else {
+                "Your payment is being reviewed by our team. You will be notified as soon as a decision is made — please do not pay again."
+            }
 }
 
 @Serializable

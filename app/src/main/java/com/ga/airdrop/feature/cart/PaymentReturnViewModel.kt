@@ -65,21 +65,32 @@ sealed interface PaymentReturnResult {
      * yet, but NOT "incomplete — try again": that would charge them twice.
      */
     data class UnderReview(val label: String, val message: String) : PaymentReturnResult
+
+    /**
+     * Staff REFUSED a held payment — declined, cancelled, or the review
+     * expired (2026-09-15). Laravel refunds the charge when it closes the
+     * review, so this is not paid and never "successful"; the cart stays.
+     */
+    data class NotAccepted(val label: String, val message: String) : PaymentReturnResult
     data class Unconfirmed(val detail: String) : PaymentReturnResult
 }
 
 /**
- * Saves only an authoritative terminal non-payment after Activity/process
- * recreation. Transient outcomes must reverify because they can become paid.
+ * Saves only an authoritative terminal outcome — a non-payment or a refused
+ * review — whose pending checkout is already released, so a re-verify after
+ * Activity/process recreation could only answer "not pending". Transient
+ * outcomes must reverify because they can become paid; an open review is one
+ * of them (staff may approve it).
  * Card details never enter this state or the saved-state Bundle.
  */
-private val PaymentAlertOutcomeSaver = listSaver<PaymentReturnResult?, Any>(
+internal val PaymentAlertOutcomeSaver = listSaver<PaymentReturnResult?, Any>(
     save = { result ->
         when (result) {
             is PaymentReturnResult.NotPaid -> if (result.terminal) listOf(
                 "not_paid",
                 result.statusText,
             ) else emptyList()
+            is PaymentReturnResult.NotAccepted -> listOf("not_accepted", result.label, result.message)
             else -> emptyList()
         }
     },
@@ -88,6 +99,10 @@ private val PaymentAlertOutcomeSaver = listSaver<PaymentReturnResult?, Any>(
             "not_paid" -> PaymentReturnResult.NotPaid(
                 statusText = saved.getOrNull(1) as? String ?: "unknown",
                 terminal = true,
+            )
+            "not_accepted" -> PaymentReturnResult.NotAccepted(
+                label = saved.getOrNull(1) as? String ?: "Payment not accepted",
+                message = saved.getOrNull(2) as? String ?: "",
             )
             else -> null
         }
@@ -136,9 +151,19 @@ class PaymentReturnViewModel(
                     }
                 }
                 is PaymentReturnResult.Unconfirmed -> Unit
-                // Held for review: the checkout stays pending (the money is
-                // captured; staff decide) — nothing to commit or release.
+                // Held for review: the money is captured and staff decide, so
+                // the checkout stays pending and the cart is untouched. The
+                // on-resume reconciler re-verifies it: approval then commits it
+                // like any paid checkout, refusal releases it. Meanwhile
+                // Laravel's blockForPackages refuses a second charge.
                 is PaymentReturnResult.UnderReview -> Unit
+                // Refused: the review is closed and the charge refunded, and
+                // Stripe completed the session, so no browser can pay it again.
+                // Release it like a terminal non-payment; the cart rows stay.
+                is PaymentReturnResult.NotAccepted ->
+                    if (!CheckoutFlowStore.releaseTerminalNotPaid(sessionId, owner)) {
+                        return@runWhileCurrent false
+                    }
             }
             committed = result
             true
@@ -206,6 +231,30 @@ internal suspend fun verifySession(
                         "The payment response did not match this checkout session.",
                     )
                 }
+                // ⚠️ THE REVIEW IS READ BEFORE `paid`, AND THAT ORDER IS THE FIX.
+                // A held session is ALWAYS paid on Stripe: Laravel processes a
+                // Checkout Session only once payment_status is `paid`
+                // (StripeWebhookController ~:302) and raises the hold inside
+                // that processing (StripePaymentService ~:1162), money captured.
+                // A refusal refunds the charge, but Stripe still says paid.
+                // Checked paid-first, both said "Your payment was successful"
+                // and cleared the cart. Only an approved review takes the paid
+                // path; a status this build does not know is not an approval,
+                // so it stays under review.
+                val review = s.review
+                if (review != null && !review.isApproved) {
+                    return if (review.isRefused) {
+                        PaymentReturnResult.NotAccepted(
+                            label = review.label?.takeIf { it.isNotBlank() } ?: "Payment not accepted",
+                            message = review.customerMessage,
+                        )
+                    } else {
+                        PaymentReturnResult.UnderReview(
+                            label = review.label?.takeIf { it.isNotBlank() } ?: "Payment under review",
+                            message = review.customerMessage,
+                        )
+                    }
+                }
                 val paid = s.paymentStatus?.lowercase() == "paid" ||
                     s.status?.lowercase() == "paid"
                 return if (paid) {
@@ -222,12 +271,6 @@ internal suspend fun verifySession(
                         )
                     }
                     PaymentReturnResult.Success(sessionId, amount, s.packageIds)
-                } else if (s.review?.isPending == true) {
-                    val review = requireNotNull(s.review)
-                    PaymentReturnResult.UnderReview(
-                        label = review.label?.takeIf { it.isNotBlank() } ?: "Payment under review",
-                        message = review.customerMessage,
-                    )
                 } else {
                     val statusText = s.paymentStatus ?: s.status ?: "unknown"
                     PaymentReturnResult.NotPaid(
@@ -300,6 +343,7 @@ internal fun PaymentReturnContent(
             is PaymentReturnResult.NotPaid -> pendingAlert = result
             is PaymentReturnResult.Unconfirmed -> pendingAlert = result
             is PaymentReturnResult.UnderReview -> pendingAlert = result
+            is PaymentReturnResult.NotAccepted -> pendingAlert = result
         }
     }
 
@@ -323,11 +367,22 @@ internal fun PaymentReturnContent(
         is PaymentReturnResult.UnderReview -> PaymentOutcomeAlert(
             // Held by the fraud rules (2026-09-15): captured, waiting on staff,
             // customer notified. Never "try again" — that is a second charge.
-            title = alert.label,
+            // Titles are iOS SceneDelegate's; the server's text follows.
+            title = "Payment under review",
             message = alert.message,
             onDismiss = {
                 pendingAlert = null
                 onUnconfirmed("Payment held for review: ${alert.message}")
+            },
+        )
+        is PaymentReturnResult.NotAccepted -> PaymentOutcomeAlert(
+            // Refused and reversed: nothing was paid, so the intact cart is
+            // where the customer goes next.
+            title = "Payment not accepted",
+            message = alert.message,
+            onDismiss = {
+                pendingAlert = null
+                onNotPaid(alert.label)
             },
         )
         is PaymentReturnResult.Unconfirmed -> PaymentOutcomeAlert(
@@ -396,9 +451,15 @@ fun PaymentCancelledHost(
         // A cancellation return that finds the payment HELD (2026-09-15): it
         // was captured and is with the review team, so it is not cancelled.
         is PaymentReturnResult.UnderReview -> PaymentOutcomeAlert(
-            title = outcome.label,
+            title = "Payment under review",
             message = outcome.message,
             onDismiss = onUnconfirmed,
+        )
+        // Refused and reversed: terminal, so the cart is available again.
+        is PaymentReturnResult.NotAccepted -> PaymentOutcomeAlert(
+            title = "Payment not accepted",
+            message = outcome.message,
+            onDismiss = onTerminalNotPaid,
         )
         null -> Unit
     }

@@ -118,23 +118,98 @@ class PaymentUnderReviewContractTest {
         assertEquals("Your payment is being reviewed.", e?.message)
     }
 
+    /**
+     * ⚠️ THE FIXTURE USED TO SAY `"payment_status":"unpaid"`, AND THAT SHAPE
+     * CANNOT HAPPEN. Laravel only processes a Checkout Session whose
+     * payment_status is `paid` (StripeWebhookController ~:302), and the hold is
+     * raised INSIDE that processing (StripePaymentService ~:1162) with the money
+     * already captured. So a held session always reads paid + pending_review —
+     * and against that real shape the old paid-first check said "Your payment
+     * was successful" and cleared the cart.
+     */
     @Test
-    fun `a held hosted checkout verifies as UnderReview not NotPaid`() = runBlocking {
+    fun `a held hosted checkout is paid on Stripe and still verifies as UnderReview`() = runBlocking {
         val status = AirdropJson.decodeFromString<CheckoutSessionStatus>(
-            """{"status":"complete","payment_status":"unpaid","invoice_id":null,"package_ids":[],
+            """{"status":"complete","payment_status":"paid","invoice_id":null,"package_ids":[],
                "review":{"id":12,"status":"pending_review","label":"Under review","message":"Your payment is being reviewed.","amount":120,"currency":"USD"}}""",
         )
         assertTrue(status.review?.isPending == true)
 
         val outcome = verifySession("cs_test_held", retryDelayMs = { 0L }) { Result.success(status) }
-        assertTrue("expected UnderReview, got $outcome", outcome is PaymentReturnResult.UnderReview)
+        assertTrue("a held payment is not a success; got $outcome", outcome is PaymentReturnResult.UnderReview)
         assertEquals("Under review", (outcome as PaymentReturnResult.UnderReview).label)
         assertEquals("Your payment is being reviewed.", outcome.message)
 
-        // Without a review object the same unpaid status is still NotPaid.
+        // Staff asked for more information: still open, still under review.
+        val infoRequired = verifySession("cs_test_info", retryDelayMs = { 0L }) {
+            Result.success(status.copy(review = status.review?.copy(status = "info_required")))
+        }
+        assertTrue("info_required is still open; got $infoRequired", infoRequired is PaymentReturnResult.UnderReview)
+
+        // Without a review object the same paid session is an ordinary success,
+        // and an unpaid one is still NotPaid.
         val plain = verifySession("cs_test_plain", retryDelayMs = { 0L }) {
             Result.success(status.copy(review = null))
         }
-        assertTrue(plain is PaymentReturnResult.NotPaid)
+        assertTrue(plain is PaymentReturnResult.Success)
+        val unpaid = verifySession("cs_test_unpaid", retryDelayMs = { 0L }) {
+            Result.success(status.copy(paymentStatus = "unpaid", review = null))
+        }
+        assertTrue(unpaid is PaymentReturnResult.NotPaid)
+    }
+
+    /**
+     * Declined, cancelled and expired close the review and Laravel reverses the
+     * charge — but Stripe still reports the Checkout Session as paid. None of
+     * them may celebrate; each carries the review's own label and message.
+     */
+    @Test
+    fun `a refused hosted checkout verifies as NotAccepted with the review's words`() = runBlocking {
+        for ((reviewStatus, label) in listOf(
+            "declined" to "Payment Declined",
+            "cancelled" to "Payment Cancelled",
+            "expired" to "Review Expired",
+        )) {
+            val status = AirdropJson.decodeFromString<CheckoutSessionStatus>(
+                """{"status":"complete","payment_status":"paid","invoice_id":null,"package_ids":[],
+                   "review":{"id":13,"status":"$reviewStatus","label":"$label","message":"We could not approve it; the charge was reversed.","amount":120,"currency":"USD"}}""",
+            )
+
+            val outcome = verifySession("cs_test_refused", retryDelayMs = { 0L }) { Result.success(status) }
+            assertTrue(
+                "$reviewStatus is refused, never a success; got $outcome",
+                outcome is PaymentReturnResult.NotAccepted,
+            )
+            assertEquals(label, (outcome as PaymentReturnResult.NotAccepted).label)
+            assertEquals("We could not approve it; the charge was reversed.", outcome.message)
+        }
+    }
+
+    /** A refusal with no text must not borrow the "being reviewed" fallback. */
+    @Test
+    fun `a refused review with no message never says it is still being reviewed`() = runBlocking {
+        val status = AirdropJson.decodeFromString<CheckoutSessionStatus>(
+            """{"status":"complete","payment_status":"paid","package_ids":[],
+               "review":{"id":14,"status":"declined"}}""",
+        )
+
+        val outcome = verifySession("cs_test_refused", retryDelayMs = { 0L }) { Result.success(status) }
+        assertTrue("got $outcome", outcome is PaymentReturnResult.NotAccepted)
+        val refused = outcome as PaymentReturnResult.NotAccepted
+        assertFalse(refused.message, refused.message.contains("being reviewed"))
+        assertTrue(refused.message, refused.message.isNotBlank())
+    }
+
+    /** Approval is the one review outcome that is paid: the normal success path. */
+    @Test
+    fun `an approved hosted checkout is an ordinary success`() = runBlocking {
+        val status = AirdropJson.decodeFromString<CheckoutSessionStatus>(
+            """{"status":"complete","payment_status":"paid","invoice_id":88,"package_ids":[41,42],
+               "review":{"id":15,"status":"approved","label":"Payment Approved","message":"Good news — approved.","can_retry":false}}""",
+        )
+
+        val outcome = verifySession("cs_test_approved", retryDelayMs = { 0L }) { Result.success(status) }
+        assertTrue("got $outcome", outcome is PaymentReturnResult.Success)
+        assertEquals(listOf(41, 42), (outcome as PaymentReturnResult.Success).packageIds)
     }
 }
