@@ -185,6 +185,7 @@ class DocumentsViewModel(
     private val sessionJobs = AuthenticatedSessionJobs(viewModelScope)
     private var accountIdentityJob: Job? = null
     private var loadJob: Job? = null
+    private var openJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -413,6 +414,33 @@ class DocumentsViewModel(
         onOpen: (url: String, title: String) -> Unit,
     ) {
         val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
+        // ⚠️ An upload's url is a PRE-SIGNED link that dies after 60 minutes,
+        // and this list can be older than that: the viewer would get a 403 the
+        // customer can do nothing about. Fetch a fresh list and open ITS link
+        // (iOS refreshThenOpen). A failed refresh still opens the old link,
+        // and the viewer reports the failed download.
+        if (_state.value.files[slot.docType]?.isUrlExpired() == true) {
+            if (openJob?.isActive == true) return
+            val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: return
+            openJob = sessionJobs.launch {
+                repository.userDocuments(requestOwner.provenance).onSuccess { files ->
+                    sessionBoundary.apply(requestOwner.session) {
+                        _state.update { it.copy(files = files, filesLoadFailed = false) }
+                    }
+                }
+                openCurrentDocument(requestOwner.session, slot, apiBase, onOpen)
+            }
+            return
+        }
+        openCurrentDocument(owner, slot, apiBase, onOpen)
+    }
+
+    private fun openCurrentDocument(
+        owner: AuthenticatedSessionOwner,
+        slot: DocumentSlot,
+        apiBase: String,
+        onOpen: (url: String, title: String) -> Unit,
+    ) {
         sessionBoundary.apply(owner) {
             val current = _state.value
             val url = (

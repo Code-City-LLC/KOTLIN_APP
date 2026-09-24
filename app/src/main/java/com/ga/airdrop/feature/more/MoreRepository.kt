@@ -20,6 +20,7 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.time.OffsetDateTime
 
 /*
  * More-tab data access. Mirrors the Swift AirdropAPI call set used by the
@@ -164,8 +165,26 @@ data class MoreDocumentFile(
     val fileUrl: String?,
     val docType: String?,
     val uploadStatus: Boolean?,
+    /**
+     * When [fileUrl]'s signature stops working: UserDocumentResource hands back
+     * a Spaces PRE-SIGNED url good for 60 minutes with this beside it. A legacy
+     * unsigned url has none and never expires.
+     */
+    val urlExpiresAt: String? = null,
 ) {
     val hasFile: Boolean get() = !fileUrl.isNullOrBlank() || !fileName.isNullOrBlank()
+
+    /**
+     * Past its expiry, or within a minute of it — a slow tap or a fast device
+     * clock must not lose the race (iOS UserDocumentFile.isURLExpired parity).
+     * No expiry, or one that does not parse, is not expired.
+     */
+    fun isUrlExpired(nowMs: Long = System.currentTimeMillis()): Boolean {
+        val expiresAtMs = urlExpiresAt?.takeIf { it.isNotBlank() }?.let {
+            runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull()
+        } ?: return false
+        return expiresAtMs - nowMs <= 60_000L
+    }
 }
 
 class MoreRepositoryException(message: String) : IOException(message)
@@ -308,6 +327,7 @@ class MoreRepository internal constructor(
                             fileUrl = obj.flexString("file_url", "fileURL", "url"),
                             docType = obj.flexString("doc_type", "docType") ?: key,
                             uploadStatus = obj.flexBool("upload_status"),
+                            urlExpiresAt = obj.flexString("url_expires_at"),
                         ),
                     )
                 }
