@@ -37,8 +37,11 @@ class DutyRateSearchParityTest {
     @Test fun failedCatalogueRetriesInDarkTheme() = verifyFailure(ThemeController.Mode.DARK)
     @Test fun emptyCataloguePreservesDescriptionInLightTheme() = verifyEmpty(ThemeController.Mode.LIGHT)
     @Test fun emptyCataloguePreservesDescriptionInDarkTheme() = verifyEmpty(ThemeController.Mode.DARK)
-    @Test fun allMatchesAreSelectableInLightTheme() = verifyAllMatches(ThemeController.Mode.LIGHT)
-    @Test fun allMatchesAreSelectableInDarkTheme() = verifyAllMatches(ThemeController.Mode.DARK)
+    // Were allMatchesAreSelectable*: every match used to be drawn. Release
+    // audit 2026-09-24: the best MAX_DUTY_SUGGESTIONS are drawn and selectable,
+    // and the header says how many matched.
+    @Test fun bestMatchesAreSelectableInLightTheme() = verifyBestMatches(ThemeController.Mode.LIGHT)
+    @Test fun bestMatchesAreSelectableInDarkTheme() = verifyBestMatches(ThemeController.Mode.DARK)
 
     private fun verifyFailure(mode: ThemeController.Mode) {
         val repository = SearchRepository { throw IOException("offline") }
@@ -73,23 +76,25 @@ class DutyRateSearchParityTest {
         capture("empty_${mode.name.lowercase()}")
     }
 
-    private fun verifyAllMatches(mode: ThemeController.Mode) {
+    private fun verifyBestMatches(mode: ThemeController.Mode) {
         val rows = (1..30).map { CalcDutyRate(it, "Book ${it.toString().padStart(2, '0')}", 37.0) }
         val repository = SearchRepository { rows }
         val model = showSearch(mode, repository)
         compose.waitUntil(5_000) { model.state.value.searchState is DutyRateSearchState.Results }
-        compose.onNodeWithText("Book 30").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Top 20 of 30 results").assertIsDisplayed()
+        compose.onNodeWithText("Book 20").performScrollTo().assertIsDisplayed()
+        assertNoText("Book 21")
         capture("last_match_${mode.name.lowercase()}")
-        compose.onNodeWithText("Book 30").performClick()
+        compose.onNodeWithText("Book 20").performClick()
         compose.runOnIdle {
-            assertEquals(30, model.state.value.selectedDutyRate?.id)
-            assertEquals("Book 30", model.state.value.product)
+            assertEquals(20, model.state.value.selectedDutyRate?.id)
+            assertEquals("Book 20", model.state.value.product)
             assertEquals(DutyRateSearchState.Hidden, model.state.value.searchState)
             // Kemar 2026-09-23: the customs pick prices Airdrop quotes too
             // (Laravel's tier quote takes custom_duty_rate_id), so switching to
             // Airdrop keeps it...
             model.onMethodSelected(ShippingMethod.STANDARD)
-            assertEquals(30, model.state.value.selectedDutyRate?.id)
+            assertEquals(20, model.state.value.selectedDutyRate?.id)
             // ...and a new description there searches the catalogue again.
             repository.search = { query -> if (query == "custom description") emptyList() else rows }
             model.onProductChange("custom description")
