@@ -69,7 +69,11 @@ val playUploadSigningConfigured =
 // 2026-09-23: 35 (3.2.6), the mobile merge (SwiftHawk) — tier quote + customs,
 // NCB city, invoice button, proof of delivery, payment review, phone audit — on the
 // INTERNAL track (Claude-SwiftHawk). Play queried first: codes [2, 26..34].
-val knownPlayProductionVersionCodeFloor = 35
+// 2026-09-24: 36 (3.2.7), the release audit (SwiftHawk, #260) — held payments read
+// "under review", the Stripe return placeholder, per-package quotes, PDF-only KYC
+// slots, phone input — on the PRODUCTION track at 100% (managed publishing holds it
+// for Kemar's Publish). Play queried first: codes [31..35].
+val knownPlayProductionVersionCodeFloor = 36
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
