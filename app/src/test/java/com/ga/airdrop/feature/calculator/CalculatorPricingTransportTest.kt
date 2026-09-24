@@ -291,6 +291,44 @@ class CalculatorPricingTransportTest {
         assertEquals(31, (vm.state.value.searchState as DutyRateSearchState.Results).totalMatches)
     }
 
+    // ─── SeaDrop's processing fee (release audit 2026-09-24, LOW) ───────────
+
+    /**
+     * SeaDrop's airdrop_charges include a fixed $30
+     * breakdown.bill_of_lading_processing, but the charges card had no line for
+     * it, so its lines did not add up to "Total Airdrop Charges". The customer
+     * web calculator calls it "Processing Fees" (RateResult.jsx).
+     */
+    @Test
+    fun `SeaDrop's processing fee has its own line, so the lines add up`() = runTest(dispatcher) {
+        val transport = ScriptedTransport().apply { respond(200, SEADROP_JSON) }
+        val vm = viewModel(transport)
+        vm.onMethodSelected(ShippingMethod.SEADROP)
+        vm.fillForm()
+        vm.calculate()
+        vm.awaitCalculated()
+
+        val charges = resolveCharges(vm.result.value!!)
+        val rows = charges.chargeRows()
+        assertEquals(
+            listOf("Insurance" to 15.0, "Freight" to 35.0, "Fuel" to 1.5, "Processing Fees" to 30.0),
+            rows,
+        )
+        assertEquals("Total Airdrop Charges", charges.airdropCharges, rows.sumOf { it.second }, 0.001)
+
+        // Express has no such fee, so no such line.
+        val express = ScriptedTransport().apply { respond(200, EXPRESS_JSON) }
+        val expressVm = viewModel(express)
+        expressVm.onMethodSelected(ShippingMethod.EXPRESS)
+        expressVm.fillForm()
+        expressVm.calculate()
+        expressVm.awaitCalculated()
+        assertEquals(
+            listOf("Insurance", "Freight", "Fuel"),
+            resolveCharges(expressVm.result.value!!).chargeRows().map { it.first },
+        )
+    }
+
     // ─── harness ────────────────────────────────────────────────────────────
 
     private fun CalculatorViewModel.fillForm() {
@@ -425,6 +463,17 @@ class CalculatorPricingTransportTest {
                 "grand_total": 33},
               "calculations": {"total_chargeable_weight_lbs": 5.5, "number_of_packages": 1,
                 "cif_value": 181.5, "invoice_amount": 150}}}
+        """
+
+        /** POST /shipping/calculate for seadrop_standard (calculateSeadropStandard shape). */
+        const val SEADROP_JSON = """
+            {"success": true, "message": "Shipping cost calculated successfully", "data": {
+              "shipping_method": "seadrop_standard",
+              "breakdown": {"freight": 35, "insurance": 15, "tariff": 0, "fuel_surcharge": 1.5,
+                "bill_of_lading_processing": 30, "customs_duty": 0, "airdrop_charges": 81.5,
+                "total_charges": 231.5, "grand_total": 81.5},
+              "calculations": {"total_volume_cuft": 0.278, "number_of_packages": 1,
+                "cif_value": 200, "invoice_amount": 150}}}
         """
 
         /** A real /shipments/quote envelope (pre-staging shape). */

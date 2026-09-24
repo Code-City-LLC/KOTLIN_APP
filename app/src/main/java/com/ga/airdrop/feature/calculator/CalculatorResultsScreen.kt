@@ -211,15 +211,7 @@ private fun LegacyResultsContent(
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         ChargesHeader()
         ChargesCard {
-            ChargeRow("Insurance", charges.insurance)
-            ChargeRow("Freight", charges.freight)
-            ChargeRow("Fuel", charges.fuelSurcharge)
-            if (charges.customsDuty > 0) {
-                ChargeRow("Customs Duty", charges.customsDuty)
-            }
-            charges.badAddressFee?.takeIf { it > 0 }?.let {
-                ChargeRow("Bad Address Fee", it)
-            }
+            charges.chargeRows().forEach { (label, amount) -> ChargeRow(label, amount) }
         }
     }
 
