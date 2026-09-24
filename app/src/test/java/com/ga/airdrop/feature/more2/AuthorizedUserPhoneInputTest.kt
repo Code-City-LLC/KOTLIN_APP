@@ -559,7 +559,8 @@ class AuthorizedUserPhoneInputTest {
         // on that code, the number typed or pasted, the box settled, must read
         // as the server's normalized pair. Not modelled by the box: a code the
         // picker cannot show ("+876", "undefined", ""), which only old stored
-        // rows carry, and "011", the NANP exit code.
+        // rows carry. "011", the NANP exit code, is in (2026-09-24 audit: it
+        // was left out here, and the box refused +1 / 0118765551234).
         val rows = fixture("authorized-user-phones").jsonArray.map { it.jsonObject }
         var checked = 0
         for (row in rows) {
@@ -567,7 +568,6 @@ class AuthorizedUserPhoneInputTest {
             val code = row.getValue("code").jsonPrimitive.content
             val mobile = row.getValue("mobile").jsonPrimitive.content
             val iso = AuthorizedUserPhoneInput.countries.firstOrNull { it.callingCode == code }?.isoCode ?: continue
-            if (mobile.startsWith("011")) continue
             val (wantCode, wantNumber) = row.getValue("normalized").jsonArray.map { it.jsonPrimitive.content }
             val start = if (code == "+1") "JM" else AuthorizedUserPhoneInput.isoFor(code, "")
             for ((how, entry) in listOf(
@@ -581,7 +581,7 @@ class AuthorizedUserPhoneInputTest {
             checked++
             assertTrue(iso.isNotEmpty())
         }
-        assertEquals("fixture rows checked", 49, checked)
+        assertEquals("fixture rows checked", 50, checked)
     }
 
     @Test

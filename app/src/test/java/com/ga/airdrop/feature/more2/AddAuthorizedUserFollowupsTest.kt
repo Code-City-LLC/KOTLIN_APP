@@ -1113,4 +1113,28 @@ class AddAuthorizedUserFollowupsTest {
         assertEquals("+39" to "612345678", picked("6 1234 5678", "GB", "IT").third)
         assertEquals("+39" to "612345678", picked("+44 6 1234 5678", "JM", "IT").third)
     }
+
+    @Test
+    fun `011 dialled from a +1 country is the exit code, as on the server`() = runTest(dispatcher) {
+        // The server reads 011 in front of more than eleven digits under +1 as
+        // the NANP exit code (normalize step 1; its own fixture keeps
+        // +1 / 0118765551234 as 8765551234). The app refused both.
+        fun sent(text: String, pasted: Boolean): Triple<String, String, Pair<String, String>> {
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = freshForm("JM", calls)
+            if (pasted) vm.onMobileNumber(text) else vm.typeIntoMobile(text)
+            vm.save()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertNull(text, vm.state.value.mobileError)
+            return Triple(vm.state.value.phoneIso, vm.state.value.mobileNumber, calls.sentPhone)
+        }
+        for (pasted in listOf(false, true)) {
+            assertEquals(Triple("GB", "7911123456", "+44" to "7911123456"), sent("011 44 7911 123456", pasted))
+            assertEquals(Triple("JM", "8765551234", "+1" to "8765551234"), sent("011 876 555 1234", pasted))
+        }
+        // Eleven digits or fewer are no exit code, and under any other code 011 is a trunk 0 and 11…
+        val short = freshForm("JM").apply { typeIntoMobile("011 44 791 112") }
+        assertEquals("JM" to "01144791112", short.shown)
+        assertEquals("GB" to "11447911123456", freshForm("GB").apply { typeIntoMobile("011 44 7911 123456") }.shown)
+    }
 }

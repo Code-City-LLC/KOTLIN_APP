@@ -238,8 +238,10 @@ object AuthorizedUserPhoneInput {
      * sent as +44 / 447911123456 — the "+" was stripped before the code after
      * it had arrived, so the code stayed in the number).
      *
-     * A leading "+" or "00" starts an international number, read in the
-     * server's order (App\Support\AuthorizedUserPhone::normalize, step 1):
+     * A leading "+" or "00" — or under +1 the exit code 011 before more than
+     * eleven digits ([internationalDigits]) — starts an international number,
+     * read in the server's order (App\Support\AuthorizedUserPhone::normalize,
+     * step 1):
      *
      *  1. The picker's own calling code (not +1) typed in front wins: with
      *     Singapore picked, "+65 8555 1234" is 🇸🇬 85551234.
@@ -280,10 +282,10 @@ object AuthorizedUserPhoneInput {
     fun interpret(raw: String, previous: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
         val currentIso = previous.isoCode
         val digits = raw.filter(Char::isDigit)
-        if (startsInternational(raw, digits)) {
-            return readInternational(raw, digits, currentIso, waitForCaribbean = true)
-        }
         val code = country(currentIso)?.callingCode ?: "+1"
+        internationalDigits(raw, digits, code)?.let { international ->
+            return readInternational(raw, digits, international, currentIso, waitForCaribbean = true)
+        }
         val continues = raw.isNotEmpty() && keepsStart(previous.number.filter(Char::isDigit), digits, code)
         val explicit = previous.explicitCode && continues
         val (number, dropped) = boxDigits(code, digits, explicit)
@@ -329,13 +331,25 @@ object AuthorizedUserPhoneInput {
      */
     fun resolve(entry: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
         val digits = entry.number.filter(Char::isDigit)
-        if (!startsInternational(entry.number, digits)) return entry
-        return readInternational(entry.number, digits, entry.isoCode, waitForCaribbean = false)
+        val code = country(entry.isoCode)?.callingCode ?: "+1"
+        val international = internationalDigits(entry.number, digits, code) ?: return entry
+        return readInternational(entry.number, digits, international, entry.isoCode, waitForCaribbean = false)
     }
 
-    /** A "+" ([hasLeadingPlus]) or a "00" in front of the digits: an international number. */
-    private fun startsInternational(raw: String, digits: String): Boolean =
-        hasLeadingPlus(raw) || digits.startsWith("00")
+    /**
+     * The digits after an international prefix in front of [digits], read as
+     * the server reads one (AuthorizedUserPhone::normalize, step 1): a "+"
+     * ([hasLeadingPlus]), a "00", or under +1 the NANP exit code 011 in front
+     * of more than eleven digits — "011 44 7911 123456" from Jamaica is 🇬🇧
+     * 7911123456 (2026-09-24 audit: the box refused it). Eleven digits or
+     * fewer are read as a +1 number, as the server reads them. null: none.
+     */
+    private fun internationalDigits(raw: String, digits: String, callingCode: String): String? = when {
+        hasLeadingPlus(raw) -> digits
+        digits.startsWith("00") -> digits.substring(2)
+        callingCode == "+1" && digits.startsWith("011") && digits.length > 11 -> digits.substring(3)
+        else -> null
+    }
 
     /**
      * Whether [raw] starts with an international "+", read the way the server
@@ -352,11 +366,11 @@ object AuthorizedUserPhoneInput {
     private fun readInternational(
         raw: String,
         digits: String,
+        international: String,
         currentIso: String,
         waitForCaribbean: Boolean,
     ): AuthorizedUserPhoneEntry {
         val plus = hasLeadingPlus(raw)
-        val international = if (plus) digits else digits.substring(2)
         // The number is not settled yet (or names no country): keep what was
         // typed so the next key can finish it and Save can refuse it.
         val pending = AuthorizedUserPhoneEntry(
