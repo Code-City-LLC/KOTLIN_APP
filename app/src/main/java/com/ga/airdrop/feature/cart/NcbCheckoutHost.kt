@@ -38,7 +38,14 @@ data class NcbUiModel(
     val invoiceId: String? = null,
     val navTo3DS: Boolean = false,
     val navToSuccess: Boolean = false,
-    /** Set when the message is not a failure — e.g. "Payment under review" (2026-09-15). */
-    val errorTitle: String? = null,
     val errorMessage: String? = null,
+    /**
+     * [errorMessage] is a fraud-review HOLD, not a failure (2026-09-15): the
+     * card screen draws it in the brand tone under [PAYMENT_UNDER_REVIEW_TITLE].
+     * Set for the hold only; every new attempt and every other error clears it.
+     */
+    val underReview: Boolean = false,
 )
+
+/** The title of a payment the fraud rules held for staff review (iOS wording). */
+internal const val PAYMENT_UNDER_REVIEW_TITLE = "Payment under review"

@@ -529,7 +529,13 @@ object ShipmentsFormat {
         return null
     }
 
-    /** A legal-receipt date is deterministic UTC and never displays raw invalid input. */
+    /**
+     * A legal-receipt date never displays raw invalid input. A timestamp with
+     * an offset is an instant and shows on the device's calendar: Laravel
+     * sends delivered_at with Jamaica's offset, and formatting it in UTC made
+     * every evening delivery read as the next day. A timestamp without an
+     * offset keeps the date it names.
+     */
     fun receiptDate(iso: String?): String? {
         val value = iso?.trim().orEmpty()
         if (value.isEmpty()) return null
@@ -542,8 +548,9 @@ object ShipmentsFormat {
             val position = ParsePosition(0)
             val parsed = parser.parse(value, position)
             if (parsed != null && position.index == value.length) {
+                val instant = pattern.endsWith("XXX") || pattern.endsWith("'Z'")
                 return SimpleDateFormat("d MMM yyyy", Locale.US).apply {
-                    timeZone = utc
+                    timeZone = if (instant) TimeZone.getDefault() else utc
                 }.format(parsed)
             }
         }

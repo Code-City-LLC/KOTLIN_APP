@@ -248,11 +248,12 @@ fun NcbCardEntryScreen(
                 (localError ?: ui.errorMessage)?.let { text ->
                     // "Payment under review" is not an error (2026-09-15): the
                     // title leads in the brand tone, the server's text follows.
-                    val heldTitle = ui.errorTitle?.takeIf { localError == null && it.isNotBlank() }
-                    if (heldTitle != null) {
-                        Text(heldTitle, style = AirdropType.body2, color = BrandPalette.OrangeMain)
+                    // Only the hold's flag draws it — never another title.
+                    val underReview = ui.underReview && localError == null
+                    if (underReview) {
+                        Text(PAYMENT_UNDER_REVIEW_TITLE, style = AirdropType.body2, color = BrandPalette.OrangeMain)
                     }
-                    Text(text, style = AirdropType.body2, color = if (heldTitle != null) BrandPalette.OrangeMain else AlertPalette.Error)
+                    Text(text, style = AirdropType.body2, color = if (underReview) BrandPalette.OrangeMain else AlertPalette.Error)
                 }
             }
 
