@@ -60,7 +60,8 @@ SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 # 2026-09-22: 32 (3.2.5) uploaded to the internal track; floors raised to 32
 # in the same change, per the rule above.
 # 2026-09-22: 33 (3.2.5) uploaded to the internal track; floors 33.
-VERSION_CODE_FLOOR = 33
+# 2026-09-23: 34 (3.2.5) uploaded to the internal track; floors 34.
+VERSION_CODE_FLOOR = 34
 
 
 def die(msg: str) -> "None":

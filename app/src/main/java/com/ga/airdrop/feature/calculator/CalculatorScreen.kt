@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -135,7 +136,9 @@ fun CalculatorScreen(
                     value = state.product,
                     onValueChange = viewModel::onProductChange,
                     placeholder = "Search",
-                    required = true,
+                    // Laravel accepts item_name as optional on the tier quote;
+                    // it is a description, not a required duty selection.
+                    required = false,
                     trailing = {
                         Image(
                             painter = painterResource(R.drawable.ic_search),
@@ -146,6 +149,8 @@ fun CalculatorScreen(
                         )
                     },
                 )
+                // The customs pick prices every method, Airdrop included:
+                // Laravel's tier quote takes custom_duty_rate_id (2026-09-23).
                 ProductResultsPanel(
                     searchState = state.searchState,
                     onSelect = viewModel::onProductSelected,
@@ -395,8 +400,7 @@ private fun PackageDimensionsCard() {
 
 /**
  * Product search dropdown — Swift renderProductResults: bordered panel,
- * "N results found" header on gray150, 62dp rows (shop icon bubble + title +
- * price), dividers between rows.
+ * "N results found" header on gray150, 62dp customs rows, and dividers.
  */
 @Composable
 private fun ProductResultsPanel(
@@ -431,16 +435,36 @@ private fun ProductResultsPanel(
                 }
             }
 
+            DutyRateSearchState.Failed -> {
+                Box(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 18.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Couldn't load the customs item list. Check your connection and try again.",
+                        style = AirdropType.body2,
+                        color = colors.textDescription,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
             is DutyRateSearchState.Results -> {
                 val products = searchState.products
                 if (products.isEmpty()) {
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .heightIn(min = 52.dp)
+                            .padding(horizontal = 18.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(text = "No products found", style = AirdropType.body2, color = colors.textDescription)
+                        Text(
+                            text = "No matching customs item — keep your own description and calculate.",
+                            style = AirdropType.body2,
+                            color = colors.textDescription,
+                            textAlign = TextAlign.Center,
+                        )
                     }
                 } else {
                     Box(
@@ -504,7 +528,7 @@ private fun ProductResultRow(product: CalcDutyRate, onClick: () -> Unit) {
         }
         Column {
             Text(
-                text = product.itemName,
+                text = product.itemName.trim(),
                 style = AirdropType.body2,
                 color = colors.textDarkTitle,
                 maxLines = 1,

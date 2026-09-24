@@ -49,7 +49,10 @@ class CalculatorDutyRateSelectionTest {
     private val laptop = CalcDutyRate(id = 42, itemName = "Laptop computer", dutyPercentage = 20.0)
     private val phone = CalcDutyRate(id = 7, itemName = "Mobile phone", dutyPercentage = 12.5)
 
-    private fun viewModel(repo: FakeRepo) = CalculatorViewModel(repo)
+    private fun viewModel(repo: FakeRepo) = CalculatorViewModel(repo).also {
+        // Customs classifications remain on the legacy calculate rail, not Standard TierQuote.
+        it.onMethodSelected(ShippingMethod.EXPRESS)
+    }
 
     private class FakeRepo : CalculatorRepository {
         var dutyRateId: Int? = null

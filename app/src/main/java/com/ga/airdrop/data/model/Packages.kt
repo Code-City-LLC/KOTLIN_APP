@@ -11,6 +11,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonObject
+import java.net.URI
 
 // List item for GET /packages. Laravel ships both `package_*`-prefixed and
 // flat key variants concurrently; mirror Swift's fallback cascade.
@@ -191,7 +192,41 @@ data class PackageDetail(
     val exchangeRate: Double? = null,
     val history: List<PackageHistoryItem> = emptyList(),
     val invoices: List<PackageInvoiceDocument> = emptyList(),
+    val proofOfDelivery: PackageProofOfDelivery? = null,
 )
+
+/**
+ * Owner-scoped delivery-signature metadata embedded by GET /packages/{id}.
+ * The block is absent when no valid signature is available.
+ */
+data class PackageProofOfDelivery(
+    val signatureUrl: String,
+    val deliveredAt: String? = null,
+    val receivedBy: String? = null,
+)
+
+/** The package-detail contract only permits a fetchable absolute HTTP(S) URL. */
+internal fun isUsableProofOfDeliveryUrl(value: String?): Boolean {
+    val raw = value?.trim().orEmpty()
+    if (raw.isEmpty()) return false
+    return runCatching {
+        val uri = URI(raw)
+        uri.host?.isNotBlank() == true &&
+            uri.scheme?.lowercase() in setOf("http", "https")
+    }.getOrDefault(false)
+}
+
+private fun JsonObject.toPackageProofOfDelivery(): PackageProofOfDelivery? {
+    val signatureUrl = flexString("signature_url")
+        ?.trim()
+        ?.takeIf(::isUsableProofOfDeliveryUrl)
+        ?: return null
+    return PackageProofOfDelivery(
+        signatureUrl = signatureUrl,
+        deliveredAt = flexString("delivered_at"),
+        receivedBy = flexString("received_by"),
+    )
+}
 
 /**
  * Laravel's `storage` block — one shared calculation owned by
@@ -303,6 +338,7 @@ object PackageDetailSerializer : KSerializer<PackageDetail> {
             history = json.decodeListOrNull(PackageHistoryItem.serializer(), obj["history"])
                 ?: emptyList(),
             invoices = invoices,
+            proofOfDelivery = (obj["proof_of_delivery"] as? JsonObject)?.toPackageProofOfDelivery(),
         )
     }
 }

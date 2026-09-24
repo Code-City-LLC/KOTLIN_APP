@@ -1,5 +1,8 @@
 package com.ga.airdrop.feature.calculator
 
+import java.time.Instant
+import java.time.OffsetDateTime
+
 /**
  * Domain models for the Shipping Calculator flow. Behavior mirrors
  * FigmaCalculatorViewController / FigmaCalculatorResultsViewController.
@@ -10,12 +13,19 @@ package com.ga.airdrop.feature.calculator
  * `shipping_method` string POSTed to /shipping/calculate — see Swift
  * `ShippingMethod.apiValue`.
  */
-enum class ShippingMethod(val label: String, val apiValue: String, val info: String) {
+enum class ShippingMethod(
+    val label: String,
+    val apiValue: String,
+    val info: String,
+    /** Non-null only when Laravel's tier quote is the pricing authority. */
+    val tierQuoteMethod: String? = null,
+) {
     // Figma 40001464:29102 info copy — "2 to 3 business days…"
     STANDARD(
         label = "Airdrop",
         apiValue = "airdrop_standard",
         info = "2 to 3 business days after items are delivered to our warehouse.",
+        tierQuoteMethod = "AIR",
     ),
 
     // Swift FigmaCalculatorViewController.swift:26 — "2 to 4 weeks…" (Swift wins over Figma 40001464:30381)
@@ -81,11 +91,76 @@ data class ShipmentCalculation(
 )
 
 /**
+ * The persisted, server-authoritative result of POST /shipments/quote.
+ * The app must render [lineItems] and [totalDue] as returned and never
+ * reconstruct a freight or customs figure locally.
+ */
+data class TierQuote(
+    val quoteReference: String?,
+    val customerTier: String?,
+    val method: String?,
+    val destination: String?,
+    val currency: String?,
+    val lineItems: List<TierLineItem>,
+    val subtotal: Double,
+    val totalDue: Double,
+    val status: String?,
+    val isExpired: Boolean,
+    val expiresAt: String?,
+    val insuranceOptions: TierInsuranceOptions?,
+    val insuranceChoiceRequired: Boolean,
+    val aircoinsEarned: Double,
+) {
+    fun isExpiredNow(now: Instant = Instant.now()): Boolean {
+        if (isExpired) return true
+        val expiry = expiresAt ?: return false
+        return runCatching { !OffsetDateTime.parse(expiry).toInstant().isAfter(now) }
+            .getOrDefault(false)
+    }
+}
+
+/** One quote line, displayed verbatim with the server-provided amount. */
+data class TierLineItem(
+    val code: String,
+    val label: String?,
+    val amount: Double,
+)
+
+/** SAVR may decline insurance; all other tiers remain backend-mandatory. */
+data class TierInsuranceOptions(
+    val insuredValue: Double,
+    val ratePer100: Double,
+    val blockSize: Int,
+    val blocks: Int,
+    val premium: Double,
+    val maxCoverage: Double?,
+    val coveredValue: Double,
+    val canDecline: Boolean,
+    val mandatory: Boolean,
+    val explicitRequired: Boolean,
+)
+
+/** Request contract for POST /shipments/quote. */
+data class TierQuoteRequest(
+    val weightLbs: Double,
+    val method: String? = null,
+    val destination: String? = null,
+    val declaredValue: Double? = null,
+    val insuredValue: Double? = null,
+    val itemName: String? = null,
+    val insuranceDeclined: Boolean? = null,
+    val returnWeight: Double? = null,
+    val storageCharge: Double? = null,
+    val deliveryCharge: Double? = null,
+    /** The picked customs item. Laravel prices its duty into the quote (2026-09-23). */
+    val customDutyRateId: Int? = null,
+)
+
+/**
  * Everything the results screens need — the calculator screen builds this and
  * publishes it on the graph-scoped [CalculatorViewModel] (Android counterpart
- * of the Swift results-VC initializer arguments). `live` is the server's own
- * breakdown from POST /shipping/calculate and is always present — the screen
- * is never reached without it.
+ * of the Swift results-VC initializer arguments). Exactly one server result is
+ * present: `live` for SeaDrop/Express or `tierQuote` for Airdrop.
  */
 data class CalculationResult(
     val method: ShippingMethod,
@@ -96,7 +171,12 @@ data class CalculationResult(
     val lengthIn: Double?,
     val widthIn: Double?,
     val heightIn: Double?,
-    val live: ShipmentCalculation?,
+    val live: ShipmentCalculation? = null,
+    val tierQuote: TierQuote? = null,
+    /** Retained so expiry and SAVR choices can request a fresh server quote. */
+    val tierQuoteRequest: TierQuoteRequest? = null,
+    /** null until a quote requiring a SAVR insurance choice has one. */
+    val insuranceChoice: Boolean? = null,
 )
 
 /** Resolved breakdown used by the results + government-charges UI. */
@@ -116,16 +196,20 @@ data class Charges(
 )
 
 /**
- * Port of FigmaCalculatorResultsViewController.resolveCharges(): live API
- * payload for SeaDrop/Express, offline Airdrop Standard formula otherwise.
+ * Legacy /shipping/calculate breakdown for SeaDrop/Express. Airdrop TierQuote
+ * returns only its authoritative total here because its line items render directly.
  */
 fun resolveCharges(result: CalculationResult): Charges {
-    // `live` is now always present: every method goes through
-    // POST /shipping/calculate and a failure raises an error instead of
-    // pushing this screen. The client-side ShippingCalculator fallback that
-    // used to sit here is gone — it under-quoted by up to 86% because it
-    // ignored the package count, and it rendered indistinguishably from a
-    // real quote.
+    result.tierQuote?.let { quote ->
+        return Charges(
+            totalWeightLbs = result.weightLbs,
+            invoiceAmount = result.invoiceUsd,
+            totalWithDuty = quote.totalDue,
+        )
+    }
+    // SeaDrop/Express have a server result from POST /shipping/calculate. A
+    // failure raises an error instead of pushing this screen; the former local
+    // formula under-quoted because it ignored package count.
     val live = result.live ?: return Charges(
         totalWeightLbs = result.weightLbs,
         invoiceAmount = result.invoiceUsd,

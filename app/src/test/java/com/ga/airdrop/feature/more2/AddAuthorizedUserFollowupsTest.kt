@@ -502,4 +502,520 @@ class AddAuthorizedUserFollowupsTest {
         assertNull("the next key clears it", vm.state.value.mobileError)
         assertEquals("8765551234", vm.state.value.mobileNumber)
     }
+
+    // ── 2026-09-23 audit: a "+" number is read the way the server reads it ─────
+
+    private fun freshJamaica(calls: MutableList<AuthorizedUserRequest> = mutableListOf()) = AddAuthorizedUserViewModel(
+        editId = null,
+        repository = More2Repository(api(http(500, "{}"), calls)),
+        defaultPhoneIso = "JM",
+    )
+
+    /** Types [text] one key at a time and returns the picker country after every key. */
+    private fun AddAuthorizedUserViewModel.pickerWhileTyping(text: String): List<String> =
+        text.map { key ->
+            onMobileNumber(state.value.mobileNumber + key)
+            state.value.phoneIso
+        }
+
+    private val AddAuthorizedUserViewModel.shown: Pair<String, String>
+        get() = state.value.phoneIso to state.value.mobileNumber
+
+    @Test
+    fun `a Caribbean number typed with a plus is never another country and saves as +1`() = runTest(dispatcher) {
+        val expected = listOf(
+            Triple("+876 555 1234", "JM", "8765551234"), // was refused: no calling code starts 876
+            Triple("+658 555 1234", "JM", "6585551234"), // was Singapore from "+65"
+            Triple("+868 555 1234", "TT", "8685551234"), // was China from "+86"
+            Triple("+441 555 1234", "BM", "4415551234"), // was the UK from "+44"
+        )
+        for ((typed, iso, number) in expected) {
+            val vm = freshJamaica()
+            assertEquals("$typed moved the picker while it was typed", listOf("JM"), vm.pickerWhileTyping(typed).distinct())
+            vm.onMobileBlur()
+            assertNull("$typed is a valid number", vm.state.value.mobileError)
+            assertEquals(typed, iso to number, vm.shown)
+        }
+
+        // Straight to Save without leaving the box: settled first, then sent.
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = freshJamaica(calls).fillEverythingButThePhone()
+        vm.typeIntoMobile("+658 555 1234")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("+1", calls.single().userCountryCode)
+        assertEquals("6585551234", calls.single().userMobileNumber)
+        assertEquals("JM" to "6585551234", vm.shown)
+    }
+
+    @Test
+    fun `a plus code that cannot be Caribbean moves the picker at the key that rules it out`() {
+        val uk = freshJamaica().apply { typeIntoMobile("+44") }
+        assertEquals("+44 waits: +441 is Bermuda", "JM" to "+44", uk.shown)
+        uk.typeIntoMobile(" 7")
+        assertEquals("GB" to "7", uk.shown)
+        uk.typeIntoMobile("911 123456")
+        assertEquals("GB" to "7911123456", uk.shown)
+
+        val singapore = freshJamaica().apply { typeIntoMobile("+65") }
+        assertEquals("+65 waits: +658 is Jamaica", "JM" to "+65", singapore.shown)
+        singapore.typeIntoMobile(" 9123 4567")
+        assertEquals("SG" to "91234567", singapore.shown)
+
+        // Singapore already picked: its own code typed in front stays Singapore's.
+        val picked = AddAuthorizedUserViewModel(
+            editId = null,
+            repository = More2Repository(api(http(500, "{}"))),
+            defaultPhoneIso = "SG",
+        ).apply { typeIntoMobile("+65 8555 1234") }
+        assertEquals("SG" to "85551234", picked.shown)
+
+        // Ten digits that start like Bermuda's still could be; an eleventh cannot.
+        val london = freshJamaica().apply { typeIntoMobile("+44 1632 9600") }
+        assertEquals("JM" to "+4416329600", london.shown)
+        london.typeIntoMobile("00")
+        london.onMobileBlur()
+        assertEquals("GB" to "1632960000", london.shown)
+        assertNull(london.state.value.mobileError)
+    }
+
+    @Test
+    fun `a Brazilian mobile typed after +55 keeps its area code 55`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = freshJamaica(calls).fillEverythingButThePhone()
+        vm.typeIntoMobile("+55 55 99123 4567")
+        assertEquals("BR" to "55991234567", vm.shown)
+        // Choosing Brazil again in the picker leaves the number alone.
+        vm.onPhoneCountry("BR")
+        assertEquals("BR" to "55991234567", vm.shown)
+        vm.onMobileBlur()
+        assertNull(vm.state.value.mobileError)
+        vm.save()
+        advanceUntilIdle()
+        // As bare digits the server would cut the 55 as the code typed twice;
+        // with the typed "+55" in front it keeps 55991234567, as Swift sends it.
+        assertEquals("+55", calls.single().userCountryCode)
+        assertEquals("+5555991234567", calls.single().userMobileNumber)
+        assertEquals("the box still shows the national number", "55991234567", vm.state.value.mobileNumber)
+    }
+
+    @Test
+    fun `only a number the server would cut goes with its code in front, and never under +1`() = runTest(dispatcher) {
+        fun sent(typed: String, startIso: String = "JM"): Pair<String, String> {
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = AddAuthorizedUserViewModel(
+                editId = null,
+                repository = More2Repository(api(http(500, "{}"), calls)),
+                defaultPhoneIso = startIso,
+            ).fillEverythingButThePhone()
+            vm.typeIntoMobile(typed)
+            vm.save()
+            dispatcher.scheduler.advanceUntilIdle()
+            return calls.single().let { it.userCountryCode to it.userMobileNumber }
+        }
+        // The Laravel fixture's German twin of the Brazil case.
+        assertEquals("+49" to "+4949211234567", sent("+49 4921 1234567"))
+        // A typed code whose number does not start with it again: digits only.
+        assertEquals("+44" to "7911123456", sent("+44 7911 123456"))
+        assertEquals("+55" to "11991234567", sent("+55 11 99123 4567"))
+        assertEquals("+1" to "8765551234", sent("+1 876 555 1234"))
+        assertEquals("+1" to "8765551234", sent("+876 555 1234"))
+        // No typed code: the digits the box shows.
+        assertEquals("+44" to "7911123456", sent("447911123456", startIso = "GB"))
+        // The box shows 49112345678 (its trunk 0 dropped once); bare, the server
+        // would cut "49" as well, so it goes with the code in front.
+        assertEquals("+49" to "+4949112345678", sent("049112345678", startIso = "DE"))
+    }
+
+    // ── 2026-09-23 audit: an edit sends back what it did not change ───────────
+    // The server keeps a value an edit sends back unchanged, even one its rules
+    // would refuse (AuthorizedUserPhone::forUpdate, AuthorizedUserFields::forUpdate),
+    // so the device must neither refuse it nor tidy it.
+
+    private fun storedRow(
+        countryCode: String? = "+1",
+        mobileNumber: String? = "8765551234",
+        firstName: String? = "Chase",
+        lastName: String? = "Camp",
+        identificationType: String? = "National ID",
+        idNumber: String? = "194049512",
+        email: String? = "chase@example.com",
+        trn: String? = "123456789",
+    ) = AuthorizedUser(
+        id = 7,
+        firstName = firstName,
+        lastName = lastName,
+        identificationType = identificationType,
+        identificationIdNumber = idNumber,
+        email = email,
+        countryCode = countryCode,
+        mobileNumber = mobileNumber,
+        trnNumber = trn,
+    )
+
+    private fun editing(stored: AuthorizedUser, calls: MutableList<AuthorizedUserRequest>) = AddAuthorizedUserViewModel(
+        editId = 7,
+        repository = More2Repository(api(http(500, "{}"), calls, stored)),
+        defaultPhoneIso = "JM",
+    )
+
+    @Test
+    fun `an edit that leaves a legacy phone alone sends it back exactly as stored`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = editing(storedRow(countryCode = "undefined", mobileNumber = "5551234"), calls)
+        advanceUntilIdle()
+        vm.onEmail("chase.camp@example.com")
+        vm.onMobileBlur()
+        assertNull("an untouched stored phone is not judged on blur", vm.state.value.mobileError)
+        vm.save()
+        advanceUntilIdle()
+        assertNull("nor on save", vm.state.value.mobileError)
+        val sent = calls.single()
+        assertEquals("undefined", sent.userCountryCode)
+        assertEquals("5551234", sent.userMobileNumber)
+        assertEquals("chase.camp@example.com", sent.userEmail)
+
+        // Once the customer types in the box the phone is theirs, and judged:
+        // eight digits are no +1 number.
+        vm.typeIntoMobile("5")
+        vm.onMobileBlur()
+        assertEquals(AuthorizedUserPhoneInput.FIELD_ERROR, vm.state.value.mobileError)
+        vm.save()
+        advanceUntilIdle()
+        assertEquals(AuthorizedUserPhoneInput.FIELD_ERROR, vm.state.value.mobileError)
+        assertEquals("nothing more was sent", 1, calls.size)
+    }
+
+    @Test
+    fun `an untouched stored phone goes back byte for byte, not as the box shows it`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = editing(storedRow(countryCode = "+1", mobileNumber = "876 87 548 50"), calls)
+        advanceUntilIdle()
+        assertEquals("the box shows it folded", "JM" to "8768754850", vm.shown)
+        vm.onLastName("Updated")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("+1", calls.single().userCountryCode)
+        assertEquals("876 87 548 50", calls.single().userMobileNumber)
+    }
+
+    @Test
+    fun `a changed phone or code on an edit is judged and sent as picker code and digits`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val picked = editing(storedRow(countryCode = "undefined", mobileNumber = "5551234"), calls)
+        advanceUntilIdle()
+        picked.onPhoneCountry("GB")
+        picked.save()
+        advanceUntilIdle()
+        assertNull(picked.state.value.mobileError)
+        assertEquals("+44", calls.single().userCountryCode)
+        assertEquals("5551234", calls.single().userMobileNumber)
+        calls.clear()
+
+        val retyped = editing(storedRow(countryCode = "undefined", mobileNumber = "5551234"), calls)
+        advanceUntilIdle()
+        retyped.onMobileNumber("")
+        retyped.typeIntoMobile("876 555 123")
+        retyped.save()
+        advanceUntilIdle()
+        assertEquals("nine digits are no +1 number", AuthorizedUserPhoneInput.FIELD_ERROR, retyped.state.value.mobileError)
+        assertTrue(calls.isEmpty())
+        retyped.typeIntoMobile("4")
+        retyped.save()
+        advanceUntilIdle()
+        assertEquals("+1", calls.single().userCountryCode)
+        assertEquals("8765551234", calls.single().userMobileNumber)
+    }
+
+    @Test
+    fun `a stored phone the customer puts back, or moves to another +1 country, is still kept`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        // Typed away and back: the same digits under the same code.
+        val putBack = editing(storedRow(countryCode = "undefined", mobileNumber = "5551234"), calls)
+        advanceUntilIdle()
+        putBack.typeIntoMobile("5")
+        putBack.onMobileNumber("5551234")
+        putBack.onMobileBlur()
+        assertNull(putBack.state.value.mobileError)
+        putBack.save()
+        advanceUntilIdle()
+        assertEquals("undefined", calls.single().userCountryCode)
+        assertEquals("5551234", calls.single().userMobileNumber)
+        calls.clear()
+
+        // Another +1 flag is still +1 and the same digits: nothing to judge.
+        val otherFlag = editing(storedRow(countryCode = "undefined", mobileNumber = "5551234"), calls)
+        advanceUntilIdle()
+        otherFlag.onPhoneCountry("US")
+        otherFlag.save()
+        advanceUntilIdle()
+        assertNull(otherFlag.state.value.mobileError)
+        assertEquals("undefined", calls.single().userCountryCode)
+        assertEquals("5551234", calls.single().userMobileNumber)
+    }
+
+    @Test
+    fun `an edit sends the fields it did not change exactly as the API sent them`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = editing(storedRow(email = "john doe@example.com", trn = "", identificationType = "other"), calls)
+        advanceUntilIdle()
+        assertEquals("the stored type is shown, not a default", "other", vm.state.value.idType)
+        vm.onFirstName("Chasen")
+        vm.save()
+        advanceUntilIdle()
+        assertNull(vm.state.value.validationError)
+        assertNull(vm.state.value.mobileError)
+        val sent = calls.single()
+        assertEquals("Chasen", sent.userFirstName)
+        assertEquals("john doe@example.com", sent.userEmail)
+        assertEquals("", sent.trnNo)
+        assertEquals("other", sent.identificationType)
+
+        // A changed field is judged as before.
+        vm.onEmail("jane doe@example.com")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("Please enter a valid Email Address", vm.state.value.validationError)
+        assertEquals("nothing more was sent", 1, calls.size)
+    }
+
+    @Test
+    fun `an edit keeps an empty name, an over-long ID number and a missing TRN it did not change`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = editing(
+            storedRow(firstName = "", lastName = null, identificationType = null, idNumber = "ABCDEFGHIJKLMNOP", trn = null),
+            calls,
+        )
+        advanceUntilIdle()
+        vm.onEmail("chase.camp@example.com")
+        vm.save()
+        advanceUntilIdle()
+        assertNull(vm.state.value.validationError)
+        // null from the API goes back as "", which the server reads the same.
+        val sent = calls.single()
+        assertEquals("", sent.userFirstName)
+        assertEquals("", sent.userLastName)
+        assertEquals("", sent.identificationType)
+        assertEquals("ABCDEFGHIJKLMNOP", sent.identificationIdNumber)
+        assertEquals("", sent.trnNo)
+        assertEquals("chase.camp@example.com", sent.userEmail)
+
+        // Each one is judged again once it changes, and kept again once it is
+        // back to what was stored.
+        vm.onIdNumber("ABCDEFGHIJKLMNOPQ")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("Identification Number can be at most 14 characters", vm.state.value.validationError)
+        vm.dismissValidation()
+        vm.onIdNumber("ABCDEFGHIJKLMNOP")
+        vm.onTrn("12345")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("Tax Registration Number must be 9 digits", vm.state.value.validationError)
+        vm.dismissValidation()
+        vm.onTrn("")
+        vm.onLastName(" ")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("Please enter Last Name", vm.state.value.validationError)
+        assertEquals("nothing more was sent", 1, calls.size)
+    }
+
+    @Test
+    fun `an Add still judges every field`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = freshJamaica(calls).fillEverythingButThePhone()
+        vm.typeIntoMobile("8765551234")
+        vm.onEmail("john doe@example.com")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("Please enter a valid Email Address", vm.state.value.validationError)
+        vm.dismissValidation()
+        vm.onEmail("john@example.com")
+        vm.onTrn("")
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("Please enter Tax Registration Number", vm.state.value.validationError)
+        assertTrue(calls.isEmpty())
+    }
+
+    // ── 2026-09-23 display gaps: the box shows the number the server stores ────
+
+    private fun freshForm(iso: String, calls: MutableList<AuthorizedUserRequest> = mutableListOf()) =
+        AddAuthorizedUserViewModel(
+            editId = null,
+            repository = More2Repository(api(http(500, "{}"), calls)),
+            defaultPhoneIso = iso,
+        ).fillEverythingButThePhone()
+
+    private val List<AuthorizedUserRequest>.sentPhone: Pair<String, String>
+        get() = single().let { it.userCountryCode to it.userMobileNumber }
+
+    @Test
+    fun `a trunk 0 after the code is dropped once, shown and sent as the server keeps it`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val typed = freshForm("JM", calls)
+        typed.typeIntoMobile("+44 07911 123456")
+        assertEquals("GB" to "7911123456", typed.shown)
+        typed.onMobileBlur()
+        assertNull(typed.state.value.mobileError)
+        typed.save()
+        advanceUntilIdle()
+        assertEquals("+44" to "7911123456", calls.sentPhone)
+
+        // The UK already picked, the number written the national way.
+        assertEquals("GB" to "7911123456", freshForm("GB").apply { typeIntoMobile("07911 123456") }.shown)
+        // The UK picked after the digits.
+        val later = freshForm("JM").apply { typeIntoMobile("07911123456") }
+        later.onPhoneCountry("GB")
+        assertEquals("GB" to "7911123456", later.shown)
+        // Only where the server drops it: Italy keeps its 0.
+        assertEquals("IT" to "0612345678", freshForm("JM").apply { typeIntoMobile("+39 06 1234 5678") }.shown)
+    }
+
+    @Test
+    fun `a stored phone with a trunk 0 goes back as stored until its number changes`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val stored = storedRow(countryCode = "+44", mobileNumber = "07700900123")
+
+        // Left alone: shown and sent exactly as stored, never normalized.
+        val untouched = editing(stored, calls)
+        advanceUntilIdle()
+        assertEquals("GB" to "07700900123", untouched.shown)
+        untouched.onEmail("chase.camp@example.com")
+        untouched.save()
+        advanceUntilIdle()
+        assertEquals("+44" to "07700900123", calls.sentPhone)
+        calls.clear()
+
+        // The UK picked again: nothing is re-read.
+        val repicked = editing(stored, calls)
+        advanceUntilIdle()
+        repicked.onPhoneCountry("GB")
+        assertEquals("GB" to "07700900123", repicked.shown)
+        repicked.save()
+        advanceUntilIdle()
+        assertEquals("+44" to "07700900123", calls.sentPhone)
+        calls.clear()
+
+        // Away to +1 and back, or typed back the national way: the box drops
+        // the 0 as the server would, and it is still the stored number.
+        val roundTrip = editing(stored, calls)
+        advanceUntilIdle()
+        roundTrip.onPhoneCountry("US")
+        roundTrip.onPhoneCountry("GB")
+        assertEquals("GB" to "7700900123", roundTrip.shown)
+        roundTrip.save()
+        advanceUntilIdle()
+        assertEquals("+44" to "07700900123", calls.sentPhone)
+        calls.clear()
+
+        val retyped = editing(stored, calls)
+        advanceUntilIdle()
+        retyped.onMobileNumber("")
+        retyped.typeIntoMobile("07700 900123")
+        assertEquals("GB" to "7700900123", retyped.shown)
+        retyped.onMobileBlur()
+        assertNull(retyped.state.value.mobileError)
+        retyped.save()
+        advanceUntilIdle()
+        assertEquals("+44" to "07700900123", calls.sentPhone)
+        calls.clear()
+
+        // Another number is judged and sent as the box shows it.
+        val changed = editing(stored, calls)
+        advanceUntilIdle()
+        changed.onMobileNumber("")
+        changed.typeIntoMobile("07700 900124")
+        changed.save()
+        advanceUntilIdle()
+        assertEquals("+44" to "7700900124", calls.sentPhone)
+    }
+
+    @Test
+    fun `+1 typed from the UK waits for its area code, and 868 is Trinidad and Tobago`() = runTest(dispatcher) {
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val vm = freshForm("GB", calls)
+        assertEquals(listOf("GB", "GB", "GB", "GB", "GB", "TT"), vm.pickerWhileTyping("+1 868"))
+        vm.typeIntoMobile(" 555 1234")
+        assertEquals("TT" to "8685551234", vm.shown)
+        vm.save()
+        advanceUntilIdle()
+        assertEquals("+1" to "8685551234", calls.sentPhone)
+
+        assertEquals("US" to "2125551234", freshForm("GB").apply { typeIntoMobile("+1 212 555 1234") }.shown)
+        // A +1 country already picked stays as it is.
+        assertEquals("JM" to "8685551234", freshForm("JM").apply { typeIntoMobile("+1 868 555 1234") }.shown)
+    }
+
+    @Test
+    fun `a Brazilian number typed without a plus keeps area code 55, and a code typed again still goes`() =
+        runTest(dispatcher) {
+            fun typedUnderBrazil(typed: String): Triple<String, String, String> {
+                val calls = mutableListOf<AuthorizedUserRequest>()
+                val vm = freshForm("BR", calls)
+                vm.typeIntoMobile(typed)
+                vm.save()
+                dispatcher.scheduler.advanceUntilIdle()
+                val (code, wire) = calls.sentPhone
+                return Triple(vm.state.value.mobileNumber, code, wire)
+            }
+            // Kept whole, and sent so that any server keeps it whole.
+            assertEquals(Triple("55991234567", "+55", "+5555991234567"), typedUnderBrazil("55 99123 4567"))
+            // The code typed again: cut once.
+            assertEquals(Triple("55991234567", "+55", "+5555991234567"), typedUnderBrazil("55 55 99123 4567"))
+            assertEquals(Triple("1134567890", "+55", "1134567890"), typedUnderBrazil("55 11 3456 7890"))
+        }
+
+    @Test
+    fun `a pasted plus behind an invisible mark, in brackets or after tel is read and sent as on the server`() =
+        runTest(dispatcher) {
+            fun pasted(text: String, iso: String): Triple<String, String, Pair<String, String>> {
+                val calls = mutableListOf<AuthorizedUserRequest>()
+                val vm = freshForm(iso, calls)
+                vm.onMobileNumber(text)
+                vm.onMobileBlur()
+                assertNull(text, vm.state.value.mobileError)
+                vm.save()
+                dispatcher.scheduler.advanceUntilIdle()
+                return Triple(vm.state.value.phoneIso, vm.state.value.mobileNumber, calls.sentPhone)
+            }
+            assertEquals(Triple("GB", "7911123456", "+44" to "7911123456"), pasted("\u200E+44 7911 123456", "JM"))
+            assertEquals(Triple("GB", "7911123456", "+44" to "7911123456"), pasted("(+44) 7911 123456", "JM"))
+            assertEquals(Triple("JM", "8765551234", "+1" to "8765551234"), pasted("tel:+1 876 555 1234", "GB"))
+            // A "+" after a digit: the digits, under the picker.
+            assertEquals(Triple("JM", "8765551234", "+1" to "8765551234"), pasted("876+5551234", "JM"))
+        }
+
+    @Test
+    fun `a German number that could be read two ways is refused under the field, and nothing is sent`() =
+        runTest(dispatcher) {
+            val message = "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = freshForm("DE", calls)
+            vm.typeIntoMobile("4921 1234567")
+            assertEquals("kept as typed", "DE" to "49211234567", vm.shown)
+            vm.onMobileBlur()
+            assertEquals(message, vm.state.value.mobileError)
+            vm.save()
+            advanceUntilIdle()
+            assertEquals(message, vm.state.value.mobileError)
+            assertTrue("nothing may be sent", calls.isEmpty())
+
+            // The four shapes the server reads as they are.
+            fun sent(typed: String): Pair<String, String> {
+                val sentCalls = mutableListOf<AuthorizedUserRequest>()
+                val form = freshForm("DE", sentCalls)
+                form.typeIntoMobile(typed)
+                form.onMobileBlur()
+                assertNull(typed, form.state.value.mobileError)
+                form.save()
+                dispatcher.scheduler.advanceUntilIdle()
+                return sentCalls.sentPhone
+            }
+            assertEquals("+49" to "+4949211234567", sent("+49 4921 1234567"))
+            assertEquals("+49" to "2111234567", sent("0049 211 1234567"))
+            assertEquals("+49" to "+4949211234567", sent("04921 1234567"))
+            assertEquals("+49" to "3012345678", sent("49 30 12345678"))
+        }
 }

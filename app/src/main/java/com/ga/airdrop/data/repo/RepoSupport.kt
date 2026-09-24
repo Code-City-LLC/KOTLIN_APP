@@ -22,7 +22,16 @@ internal suspend fun <T> apiResult(block: suspend () -> T): Result<T> =
         throw e
     } catch (e: HttpException) {
         val parsed = parseHttpError(e)
-        Result.failure(ApiException(parsed.message, e, parsed.fieldErrors))
+        // The fraud-review hold answers 422 with code "payment_under_review"
+        // (2026-09-15): a typed exception, so screens say "under review"
+        // instead of "failed" and never invite a second payment.
+        Result.failure(
+            if (parsed.code == PAYMENT_UNDER_REVIEW_CODE) {
+                PaymentUnderReviewException(parsed.message, e)
+            } else {
+                ApiException(parsed.message, e, parsed.fieldErrors)
+            },
+        )
     } catch (e: IOException) {
         Result.failure(
             ApiException("Can't reach AirDrop. Check your connection and try again.", e),
@@ -37,23 +46,30 @@ internal suspend fun <T> apiResult(block: suspend () -> T): Result<T> =
  * field, so a form can put a 422 under the field it names (Kemar 2026-09-15:
  * an authorized user's mobile number was failing silently).
  */
-internal class ApiException(
+internal open class ApiException(
     message: String,
     cause: Throwable? = null,
     val fieldErrors: Map<String, String> = emptyMap(),
 ) : Exception(message, cause)
 
-internal data class ParsedHttpError(val message: String, val fieldErrors: Map<String, String>)
+internal data class ParsedHttpError(
+    val message: String,
+    val fieldErrors: Map<String, String>,
+    /** Laravel's machine-readable `code` / `error_code`, when the body carries one. */
+    val code: String? = null,
+)
 
 /** The body can be read once; read it once and keep both the message and the field map. */
 private fun parseHttpError(e: HttpException): ParsedHttpError {
     val body = runCatching { e.response()?.errorBody()?.string().orEmpty() }.getOrDefault("")
     val fieldErrors = linkedMapOf<String, String>()
     var message = ""
+    var code: String? = null
     runCatching {
         if (body.isNotBlank()) {
             val json = JSONObject(body)
             message = json.optString("message").ifBlank { json.optString("error") }
+            code = json.optString("code").ifBlank { json.optString("error_code") }.ifBlank { null }
             json.optJSONObject("errors")?.let { errors ->
                 for (key in errors.keys()) {
                     val value = errors.opt(key)
@@ -68,7 +84,7 @@ private fun parseHttpError(e: HttpException): ParsedHttpError {
     }
     if (message.isBlank()) message = fieldErrors.values.firstOrNull().orEmpty()
     if (message.isBlank()) message = friendlyHttpMessage(e)
-    return ParsedHttpError(message, fieldErrors)
+    return ParsedHttpError(message, fieldErrors, code)
 }
 
 /**

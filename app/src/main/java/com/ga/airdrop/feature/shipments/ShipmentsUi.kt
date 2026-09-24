@@ -56,6 +56,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.SubcomposeAsyncImage
 import com.ga.airdrop.R
+import com.ga.airdrop.data.model.isUsableProofOfDeliveryUrl
 import com.ga.airdrop.core.designsystem.components.AirdropChrome
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
@@ -65,9 +66,11 @@ import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.feature.cart.isPackageCartEligibleStatus
 import java.text.NumberFormat
+import java.text.ParsePosition
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /*
  * Shared visual vocabulary of the SHIPMENTS group — Figma components
@@ -294,6 +297,30 @@ fun timelineStatusColor(statusName: String?): Color {
 
 // ─── Formatters (ports of the Swift helpers) ───────────────────────────────
 
+internal data class SignedForPresentation(
+    val imageUrl: String,
+    val meta: String? = null,
+)
+
+/**
+ * Pure Signed For gate. The view only gets a presentation for a server-supplied,
+ * absolute HTTP(S) URL; a failed image load stays hidden separately in the UI.
+ */
+internal fun signedForPresentation(proof: ShipmentProofOfDelivery?): SignedForPresentation? {
+    val usableProof = proof ?: return null
+    if (!isUsableProofOfDeliveryUrl(usableProof.signatureUrl)) return null
+
+    val name = usableProof.receivedBy?.trim()?.takeIf { it.isNotEmpty() }
+    val date = ShipmentsFormat.receiptDate(usableProof.deliveredAt)
+    val meta = when {
+        name != null && date != null -> "Received by $name \u00B7 $date"
+        name != null -> "Received by $name"
+        date != null -> date
+        else -> null
+    }
+    return SignedForPresentation(imageUrl = usableProof.signatureUrl, meta = meta)
+}
+
 object ShipmentsFormat {
 
     private fun decimal(min: Int, max: Int): NumberFormat =
@@ -497,6 +524,27 @@ object ShipmentsFormat {
         for (pattern in parsePatterns) {
             runCatching {
                 return SimpleDateFormat(pattern, Locale.US).parse(value)
+            }
+        }
+        return null
+    }
+
+    /** A legal-receipt date is deterministic UTC and never displays raw invalid input. */
+    fun receiptDate(iso: String?): String? {
+        val value = iso?.trim().orEmpty()
+        if (value.isEmpty()) return null
+        val utc = TimeZone.getTimeZone("UTC")
+        for (pattern in parsePatterns) {
+            val parser = SimpleDateFormat(pattern, Locale.US).apply {
+                timeZone = utc
+                isLenient = false
+            }
+            val position = ParsePosition(0)
+            val parsed = parser.parse(value, position)
+            if (parsed != null && position.index == value.length) {
+                return SimpleDateFormat("d MMM yyyy", Locale.US).apply {
+                    timeZone = utc
+                }.format(parsed)
             }
         }
         return null

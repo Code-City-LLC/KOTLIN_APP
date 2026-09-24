@@ -3,7 +3,6 @@ package com.ga.airdrop.feature.shipments
 import com.ga.airdrop.feature.cart.AlwaysOkCartServerGateway
 import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
 import android.graphics.Bitmap
-import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
@@ -33,6 +32,7 @@ import com.ga.airdrop.core.designsystem.theme.ThemeController
 import com.ga.airdrop.feature.cart.CartStore
 import java.io.File
 import java.io.FileOutputStream
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -536,7 +536,13 @@ class PackageDetailsParityTest {
             packageDetailsViewModel.uploadInvoices(listOf(upload))
         }
 
-        SystemClock.sleep(500)
+        // Wait for the upload and its silent refresh to finish, not a fixed
+        // 500 ms: on a loaded emulator 350 ms of upload plus the refresh can
+        // outlast any sleep, and the assertions below would read a half-done state.
+        compose.waitUntil(timeoutMillis = 20_000) {
+            val state = packageDetailsViewModel.state.value
+            !state.uploading && state.detail?.invoices?.any { it.id == 202 } == true
+        }
         assertEquals("Upload re-entry should be ignored while the first upload is in flight", 1, packagesRepo.uploadCalls)
         assertFalse(packageDetailsViewModel.state.value.uploading)
         assertFalse(
@@ -552,7 +558,11 @@ class PackageDetailsParityTest {
             mode = ThemeController.Mode.LIGHT,
             detail = sampleDetail(status = "6", statusName = "Processing at our Warehouse"),
         )
-        packagesRepo.deleteDelayMs = 650
+        // The delete stays in flight until the test releases it. A timed delay
+        // (650 ms) raced the assertions below: on a loaded emulator the delete
+        // finished before the spinner was looked up, and the tag was gone.
+        val releaseDelete = CompletableDeferred<Unit>()
+        packagesRepo.deleteGate = releaseDelete
 
         compose.onNodeWithTag("package-details-invoice-delete-101")
             .performScrollTo()
@@ -574,6 +584,7 @@ class PackageDetailsParityTest {
             packageDetailsViewModel.state.value.loading,
         )
 
+        releaseDelete.complete(Unit)
         compose.waitUntil(timeoutMillis = 20_000) {
             packagesRepo.deletedInvoiceIds == listOf(101) &&
                 packageDetailsViewModel.state.value.deletingInvoiceId == null
@@ -1192,7 +1203,7 @@ class PackageDetailsParityTest {
         val uploadPackageIds = mutableListOf<String>()
         var uploadCalls = 0
         var uploadDelayMs = 0L
-        var deleteDelayMs = 0L
+        var deleteGate: CompletableDeferred<Unit>? = null
         var packageDetailsDelayMs = 0L
 
         override suspend fun packages(
@@ -1229,7 +1240,7 @@ class PackageDetailsParityTest {
         }
 
         override suspend fun deleteInvoice(packageId: String, invoiceId: Int): Result<Unit> {
-            if (deleteDelayMs > 0) delay(deleteDelayMs)
+            deleteGate?.await()
             deletedInvoiceIds += invoiceId
             detail = detail.copy(invoices = detail.invoices.filterNot { it.id == invoiceId })
             return Result.success(Unit)

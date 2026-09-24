@@ -3,6 +3,7 @@ package com.ga.airdrop.data.repo
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.api.AirdropJson
+import com.ga.airdrop.data.model.DataEnvelope
 import com.ga.airdrop.data.model.CheckoutResponse
 import com.ga.airdrop.data.model.CheckoutSessionStatus
 import com.ga.airdrop.data.model.CreateCheckoutRequest
@@ -94,7 +95,7 @@ class PaymentsRepository(private val service: AirdropApiService) {
         )
         val data = envelope.data
         if (envelope.success == false || data == null || data.checkoutUrl.isNullOrEmpty()) {
-            error(envelope.message ?: "Failed to create checkout session")
+            envelope.fail("Failed to create checkout session")
         }
         data
     }
@@ -114,7 +115,7 @@ class PaymentsRepository(private val service: AirdropApiService) {
             sessionId = sessionId,
         )
         if (envelope.success == false || envelope.data == null) {
-            error(envelope.message ?: "Failed to fetch checkout session status")
+            envelope.fail("Failed to fetch checkout session status")
         }
         envelope.data
     }
@@ -130,7 +131,7 @@ class PaymentsRepository(private val service: AirdropApiService) {
         )
         val data = envelope.data
         if (envelope.success == false || data == null || data.paymentIntent.isNullOrEmpty()) {
-            error(envelope.message ?: "Unable to process the payment request. Please try again.")
+            envelope.fail("Unable to process the payment request. Please try again.")
         }
         data
     }
@@ -138,7 +139,7 @@ class PaymentsRepository(private val service: AirdropApiService) {
     suspend fun paymentIntentStatus(paymentIntentId: String): Result<PaymentIntentStatus> = apiResult {
         val envelope = service.paymentIntentStatus(paymentIntentId)
         if (envelope.success == false || envelope.data == null) {
-            error(envelope.message ?: "Failed to fetch payment status")
+            envelope.fail("Failed to fetch payment status")
         }
         envelope.data
     }
@@ -163,7 +164,7 @@ class PaymentsRepository(private val service: AirdropApiService) {
             if (envelope.success == false || data == null ||
                 data.spiToken.isNullOrBlank() || data.redirectData.isNullOrBlank()
             ) {
-                error(envelope.message ?: "Unable to start the JMD payment. Please try again.")
+                envelope.fail("Unable to start the JMD payment. Please try again.")
             }
             // Settlement is bound to {spi_token, checkout_id, user}. Reject an
             // incomplete session here, before either checkout ViewModel opens
@@ -204,9 +205,21 @@ class PaymentsRepository(private val service: AirdropApiService) {
             )
             val data = envelope.data
             if (envelope.success == false || data == null || data.invoiceId.isNullOrBlank()) {
-                error(envelope.message ?: "We couldn't confirm your payment. Please contact support.")
+                envelope.fail("We couldn't confirm your payment. Please contact support.")
             }
             data
         }
     }
+}
+
+/**
+ * A `success:false` envelope: the fraud-review hold carries
+ * `code: "payment_under_review"` and must surface as the typed exception so a
+ * screen can say "under review" instead of "failed" (2026-09-15). Everything
+ * else stays the plain message it always was.
+ */
+private fun DataEnvelope<*>.fail(default: String): Nothing {
+    val text = message?.takeIf { it.isNotBlank() } ?: default
+    if (code == PAYMENT_UNDER_REVIEW_CODE) throw PaymentUnderReviewException(text)
+    error(text)
 }

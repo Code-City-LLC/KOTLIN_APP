@@ -1,0 +1,842 @@
+[
+    {
+        "code": "+1",
+        "mobile": "8765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "18765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "5551234"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. A +1 number has 10 digits, for example 876 555 1234."
+        ]
+    },
+    {
+        "code": "+1",
+        "mobile": "1765551234",
+        "normalized": [
+            "+1",
+            "1765551234"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. The area code cannot start with 0 or 1, for example 876 555 1234."
+        ]
+    },
+    {
+        "code": "+1",
+        "mobile": "0765551234",
+        "normalized": [
+            "+1",
+            "0765551234"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. The area code cannot start with 0 or 1, for example 876 555 1234."
+        ]
+    },
+    {
+        "code": "+1",
+        "mobile": "",
+        "normalized": [
+            "+1",
+            ""
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number."
+        ]
+    },
+    {
+        "code": "+1",
+        "mobile": "(876) 555-1234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": " 876 555 1234 ",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "8765551234567",
+        "normalized": [
+            "+1",
+            "8765551234567"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. A +1 number has 10 digits, for example 876 555 1234."
+        ]
+    },
+    {
+        "code": "+1",
+        "mobile": "0118765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "0044791112345",
+        "normalized": [
+            "+44",
+            "791112345"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+876",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "876",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+658",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "6585551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "1876",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1876",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1876",
+        "mobile": "8765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1876",
+        "mobile": "18765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1876",
+        "mobile": "55512",
+        "normalized": [
+            "+1",
+            "87655512"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. A +1 number has 10 digits, for example 876 555 1234."
+        ]
+    },
+    {
+        "code": "",
+        "mobile": "8765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "",
+        "mobile": "18765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "",
+        "mobile": "5551234",
+        "normalized": [
+            "",
+            "5551234"
+        ],
+        "problem": [
+            "user_country_code",
+            "Please enter a valid phone number. Choose the country code, for example +1 for Jamaica."
+        ]
+    },
+    {
+        "code": "",
+        "mobile": "+447911123456",
+        "normalized": [
+            "+44",
+            "7911123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "undefined",
+        "mobile": "5551234",
+        "normalized": [
+            "",
+            "5551234"
+        ],
+        "problem": [
+            "user_country_code",
+            "Please enter a valid phone number. Choose the country code, for example +1 for Jamaica."
+        ]
+    },
+    {
+        "code": "undefined",
+        "mobile": "8765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "null",
+        "mobile": "8765551234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "NaN",
+        "mobile": "",
+        "normalized": [
+            "",
+            ""
+        ],
+        "problem": [
+            "user_country_code",
+            "Please enter a valid phone number. Choose the country code, for example +1 for Jamaica."
+        ]
+    },
+    {
+        "code": "",
+        "mobile": "",
+        "normalized": [
+            "",
+            ""
+        ],
+        "problem": [
+            "user_country_code",
+            "Please enter a valid phone number. Choose the country code, for example +1 for Jamaica."
+        ]
+    },
+    {
+        "code": "+44",
+        "mobile": "07911123456",
+        "normalized": [
+            "+44",
+            "7911123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+44",
+        "mobile": "7911123456",
+        "normalized": [
+            "+44",
+            "7911123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+44",
+        "mobile": "447911123456",
+        "normalized": [
+            "+44",
+            "7911123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+44",
+        "mobile": "+447911123456",
+        "normalized": [
+            "+44",
+            "7911123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+44",
+        "mobile": "00447911123456",
+        "normalized": [
+            "+44",
+            "7911123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+44",
+        "mobile": "12345",
+        "normalized": [
+            "+44",
+            "12345"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. Enter 7 to 13 digits, without the country code."
+        ]
+    },
+    {
+        "code": "+44",
+        "mobile": "79111234567890123",
+        "normalized": [
+            "+44",
+            "79111234567890123"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. Enter 7 to 13 digits, without the country code."
+        ]
+    },
+    {
+        "code": "+44",
+        "mobile": "abc",
+        "normalized": [
+            "+44",
+            ""
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number."
+        ]
+    },
+    {
+        "code": "+44",
+        "mobile": "+1 876 555 1234",
+        "normalized": [
+            "+1",
+            "8765551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+4477",
+        "mobile": "00900123",
+        "normalized": [
+            "+44",
+            "7700900123"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+99",
+        "mobile": "5551234",
+        "normalized": [
+            "+99",
+            "5551234"
+        ],
+        "problem": [
+            "user_country_code",
+            "Please enter a valid phone number. +99 is not a country code. Choose one from the list, for example +1 for Jamaica."
+        ]
+    },
+    {
+        "code": "+999",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "9995551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+0",
+        "mobile": "5551234",
+        "normalized": [
+            "+0",
+            "5551234"
+        ],
+        "problem": [
+            "user_country_code",
+            "Please enter a valid phone number. +0 is not a country code. Choose one from the list, for example +1 for Jamaica."
+        ]
+    },
+    {
+        "code": "+1234",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "2345551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+39",
+        "mobile": "0612345678",
+        "normalized": [
+            "+39",
+            "0612345678"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+36",
+        "mobile": "06301234567",
+        "normalized": [
+            "+36",
+            "06301234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+7",
+        "mobile": "9161234567",
+        "normalized": [
+            "+7",
+            "9161234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+234",
+        "mobile": "08031234567",
+        "normalized": [
+            "+234",
+            "8031234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+234",
+        "mobile": "2348031234567",
+        "normalized": [
+            "+234",
+            "8031234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+290",
+        "mobile": "1234",
+        "normalized": [
+            "+290",
+            "1234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+290",
+        "mobile": "123",
+        "normalized": [
+            "+290",
+            "123"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. Enter 4 to 12 digits, without the country code."
+        ]
+    },
+    {
+        "code": "+500",
+        "mobile": "12345",
+        "normalized": [
+            "+500",
+            "12345"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+298",
+        "mobile": "123456",
+        "normalized": [
+            "+298",
+            "123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+592",
+        "mobile": "6123456",
+        "normalized": [
+            "+592",
+            "6123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+509",
+        "mobile": "34123456",
+        "normalized": [
+            "+509",
+            "34123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+86",
+        "mobile": "13812345678",
+        "normalized": [
+            "+86",
+            "13812345678"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+86",
+        "mobile": "8613812345678",
+        "normalized": [
+            "+86",
+            "13812345678"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+353",
+        "mobile": "0871234567",
+        "normalized": [
+            "+353",
+            "871234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+971",
+        "mobile": "0501234567",
+        "normalized": [
+            "+971",
+            "501234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "+658 555 1234",
+        "normalized": [
+            "+1",
+            "6585551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "+868 555 1234",
+        "normalized": [
+            "+1",
+            "8685551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "+441 555 1234",
+        "normalized": [
+            "+1",
+            "4415551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "+345 555 1234",
+        "normalized": [
+            "+1",
+            "3455551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "+242 555 1234",
+        "normalized": [
+            "+1",
+            "2425551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "+758 555 1234",
+        "normalized": [
+            "+1",
+            "7585551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "+787 555 1234",
+        "normalized": [
+            "+1",
+            "7875551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+44",
+        "mobile": "+868 555 1234",
+        "normalized": [
+            "+1",
+            "8685551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+6585",
+        "mobile": "551234",
+        "normalized": [
+            "+1",
+            "6585551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+868",
+        "mobile": "5551234",
+        "normalized": [
+            "+1",
+            "8685551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "868",
+        "mobile": "8685551234",
+        "normalized": [
+            "+1",
+            "8685551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+55",
+        "mobile": "+55 55 99123 4567",
+        "normalized": [
+            "+55",
+            "55991234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "+49 4921 1234567",
+        "normalized": [
+            "+49",
+            "49211234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "+592 612 3456",
+        "normalized": [
+            "+592",
+            "6123456"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+65",
+        "mobile": "+65 8555 1234",
+        "normalized": [
+            "+65",
+            "85551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+86",
+        "mobile": "+86 138 1234 5678",
+        "normalized": [
+            "+86",
+            "13812345678"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": " +44 7700 900123",
+        "normalized": [
+            "+44",
+            "7700900123"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1",
+        "mobile": "‎+44 7700 900123",
+        "normalized": [
+            "+44",
+            "7700900123"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+242",
+        "mobile": "5551234",
+        "normalized": [
+            "+242",
+            "5551234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+246",
+        "mobile": "3801234",
+        "normalized": [
+            "+246",
+            "3801234"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+1876",
+        "mobile": "52907369",
+        "normalized": [
+            "+1",
+            "87652907369"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. A +1 number has 10 digits, for example 876 555 1234."
+        ]
+    },
+    {
+        "code": "+55",
+        "mobile": "55 99123 4567",
+        "normalized": [
+            "+55",
+            "55991234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+55",
+        "mobile": "55 55 99123 4567",
+        "normalized": [
+            "+55",
+            "55991234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+55",
+        "mobile": "55 11 3456 7890",
+        "normalized": [
+            "+55",
+            "1134567890"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "4921 1234567",
+        "normalized": [
+            "+49",
+            "+49211234567"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+        ]
+    },
+    {
+        "code": "+49",
+        "mobile": "04921 1234567",
+        "normalized": [
+            "+49",
+            "49211234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "+49 4921 1234567",
+        "normalized": [
+            "+49",
+            "49211234567"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "49 30 12345678",
+        "normalized": [
+            "+49",
+            "3012345678"
+        ],
+        "problem": null
+    },
+    {
+        "code": "+49",
+        "mobile": "4930 1234567",
+        "normalized": [
+            "+49",
+            "+49301234567"
+        ],
+        "problem": [
+            "user_mobile_number",
+            "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+        ]
+    },
+    {
+        "code": "+49",
+        "mobile": "0049 211 1234567",
+        "normalized": [
+            "+49",
+            "2111234567"
+        ],
+        "problem": null
+    }
+]

@@ -64,7 +64,12 @@ val playUploadSigningConfigured =
 // Play queried first: uploaded codes were [2, 22, 26..31], 31 live on production.
 // 2026-09-22: 33 (3.2.5), main 570af5e0 with the blur check (#249), replaced 32
 // on the internal track (Claude-BronzeMountain). Play: codes [2, 26..33].
-val knownPlayProductionVersionCodeFloor = 33
+// 2026-09-23: 34 (3.2.5), main a09d1010 with the phone audit (#254 + #255),
+// replaced 33 on the internal track (Claude-BronzeMountain). Play: codes [2, 26..34].
+// 2026-09-23: 35 (3.2.6), the mobile merge (SwiftHawk) — tier quote + customs,
+// NCB city, invoice button, proof of delivery, payment review, phone audit — on the
+// INTERNAL track (Claude-SwiftHawk). Play queried first: codes [2, 26..34].
+val knownPlayProductionVersionCodeFloor = 35
 val maximumPlayVersionCode = 2_100_000_000
 val requestedPlayVersionCode = providers.gradleProperty("playVersionCode")
     .orElse(providers.environmentVariable("PLAY_VERSION_CODE"))
@@ -211,6 +216,7 @@ android {
         compose = true
         buildConfig = true
     }
+    sourceSets.getByName("test").resources.srcDir(rootProject.file("test-fixtures"))
 }
 
 androidComponents {
@@ -290,6 +296,10 @@ dependencies {
     testImplementation(libs.junit)
     // ViewModel request-order/zero-call proofs (tier change flow, gate #22836-4).
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    // Local unit tests run against a stubbed android.jar whose org.json throws;
+    // RepoSupport.parseHttpError reads error bodies with org.json, so the
+    // payment-hold contract test needs the real implementation (2026-09-15).
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     // UiAutomator drives system UI (back key, platform dialogs) WITHOUT

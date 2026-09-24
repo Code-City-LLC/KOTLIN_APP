@@ -58,6 +58,13 @@ sealed interface PaymentReturnResult {
     ) : PaymentReturnResult
 
     data class NotPaid(val statusText: String, val terminal: Boolean = false) : PaymentReturnResult
+
+    /**
+     * The fraud rules HELD this payment for staff review (2026-09-15). The
+     * money is captured and staff decide; the customer is notified. Not paid
+     * yet, but NOT "incomplete — try again": that would charge them twice.
+     */
+    data class UnderReview(val label: String, val message: String) : PaymentReturnResult
     data class Unconfirmed(val detail: String) : PaymentReturnResult
 }
 
@@ -129,6 +136,9 @@ class PaymentReturnViewModel(
                     }
                 }
                 is PaymentReturnResult.Unconfirmed -> Unit
+                // Held for review: the checkout stays pending (the money is
+                // captured; staff decide) — nothing to commit or release.
+                is PaymentReturnResult.UnderReview -> Unit
             }
             committed = result
             true
@@ -212,6 +222,12 @@ internal suspend fun verifySession(
                         )
                     }
                     PaymentReturnResult.Success(sessionId, amount, s.packageIds)
+                } else if (s.review?.isPending == true) {
+                    val review = requireNotNull(s.review)
+                    PaymentReturnResult.UnderReview(
+                        label = review.label?.takeIf { it.isNotBlank() } ?: "Payment under review",
+                        message = review.customerMessage,
+                    )
                 } else {
                     val statusText = s.paymentStatus ?: s.status ?: "unknown"
                     PaymentReturnResult.NotPaid(
@@ -283,6 +299,7 @@ internal fun PaymentReturnContent(
             // Alert first; navigation runs on dismiss.
             is PaymentReturnResult.NotPaid -> pendingAlert = result
             is PaymentReturnResult.Unconfirmed -> pendingAlert = result
+            is PaymentReturnResult.UnderReview -> pendingAlert = result
         }
     }
 
@@ -301,6 +318,16 @@ internal fun PaymentReturnContent(
                 } else {
                     onUnconfirmed("Stripe still reports ${alert.statusText}; checkout remains pending.")
                 }
+            },
+        )
+        is PaymentReturnResult.UnderReview -> PaymentOutcomeAlert(
+            // Held by the fraud rules (2026-09-15): captured, waiting on staff,
+            // customer notified. Never "try again" — that is a second charge.
+            title = alert.label,
+            message = alert.message,
+            onDismiss = {
+                pendingAlert = null
+                onUnconfirmed("Payment held for review: ${alert.message}")
             },
         )
         is PaymentReturnResult.Unconfirmed -> PaymentOutcomeAlert(
@@ -364,6 +391,13 @@ fun PaymentCancelledHost(
         is PaymentReturnResult.Unconfirmed -> PaymentOutcomeAlert(
             title = "Couldn't confirm cancellation",
             message = "The checkout remains pending to prevent a duplicate payment. " + outcome.detail,
+            onDismiss = onUnconfirmed,
+        )
+        // A cancellation return that finds the payment HELD (2026-09-15): it
+        // was captured and is with the review team, so it is not cancelled.
+        is PaymentReturnResult.UnderReview -> PaymentOutcomeAlert(
+            title = outcome.label,
+            message = outcome.message,
             onDismiss = onUnconfirmed,
         )
         null -> Unit
