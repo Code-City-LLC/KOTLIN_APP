@@ -204,6 +204,28 @@ class AuthorizedUserPhoneInputTest {
     }
 
     @Test
+    fun `a stored row whose code cannot say the country opens as the server reads it`() {
+        // AuthorizedUserPhone::normalize, ported for stored rows: every row of the Laravel fixture.
+        val rows = fixture("authorized-user-phones").jsonArray.map { it.jsonObject }
+        assertEquals(87, rows.size)
+        for (row in rows) {
+            val code = row.getValue("code").jsonPrimitive.content
+            val mobile = row.getValue("mobile").jsonPrimitive.content
+            val (wantCode, wantNumber) = row.getValue("normalized").jsonArray.map { it.jsonPrimitive.content }
+            assertEquals("$code \"$mobile\"", wantCode to wantNumber, AuthorizedUserPhoneInput.serverReading(code, mobile))
+        }
+        // Split four digits wide, a Caribbean area code as the code, the code in the number.
+        assertEquals("GB" to "7911123456", AuthorizedUserPhoneInput.fold("+4479", "11123456"))
+        assertEquals("JM" to "8765290736", AuthorizedUserPhoneInput.fold("+876", "5290736"))
+        assertEquals("GB" to "7700900123", AuthorizedUserPhoneInput.fold("+4477", "00900123"))
+        assertEquals("JM" to "6585551234", AuthorizedUserPhoneInput.fold("+6585", "551234"))
+        assertEquals("GB" to "7911123456", AuthorizedUserPhoneInput.fold("", "+447911123456"))
+        // A code the picker shows keeps the row as received; one the server cannot read either.
+        assertEquals("GB" to "07700900123", AuthorizedUserPhoneInput.fold("+44", "07700900123"))
+        assertEquals("JM" to "5551234", AuthorizedUserPhoneInput.fold("+99", "5551234"))
+    }
+
+    @Test
     fun `the picker opens on the customer's country, else Jamaica - the device only when it is a +1 region`() {
         assertEquals("GB", AuthorizedUserPhoneInput.defaultIso("United Kingdom", "US"))
         assertEquals("JM", AuthorizedUserPhoneInput.defaultIso("jamaica", "GB"))

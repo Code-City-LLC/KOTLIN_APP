@@ -1211,4 +1211,38 @@ class AddAuthorizedUserFollowupsTest {
         over.onMobileNumber("+447911123456")
         assertEquals("GB" to "7911123456", over.shown)
     }
+
+    @Test
+    fun `an old row whose code names no country opens as the server reads it, and is never shortened`() =
+        runTest(dispatcher) {
+            // Rows saved before the server normalized phones were split four
+            // digits wide: "+4479" / "11123456" is 🇬🇧 +44 7911123456 to the
+            // server. The form fell back to Jamaica and 11123456, and a customer
+            // who put the flag right saved +44 / 11123456, "79" gone.
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val uk = editing(storedRow(countryCode = "+4479", mobileNumber = "11123456"), calls)
+            advanceUntilIdle()
+            uk.onPhoneCountry("GB")
+            uk.save()
+            advanceUntilIdle()
+            // Nothing changed, so it goes back exactly as stored; the server keeps it.
+            assertEquals("+4479" to "11123456", calls.sentPhone)
+            assertEquals("GB" to "7911123456", uk.shown)
+            // A corrected digit is a new number, sent as the box shows it.
+            val fixedCalls = mutableListOf<AuthorizedUserRequest>()
+            val fixed = editing(storedRow(countryCode = "+4479", mobileNumber = "11123456"), fixedCalls)
+            advanceUntilIdle()
+            fixed.onMobileNumber("7911123457")
+            fixed.save()
+            advanceUntilIdle()
+            assertEquals("+44" to "7911123457", fixedCalls.sentPhone)
+            // A Caribbean area code kept as the code: all ten digits, on Jamaica.
+            val jm = editing(storedRow(countryCode = "+876", mobileNumber = "5290736"), mutableListOf())
+            advanceUntilIdle()
+            assertEquals("JM" to "8765290736", jm.shown)
+            // A row the server cannot read either stays as stored.
+            val legacy = editing(storedRow(countryCode = "undefined", mobileNumber = "5551234"), mutableListOf())
+            advanceUntilIdle()
+            assertEquals("JM" to "5551234", legacy.shown)
+        }
 }

@@ -624,7 +624,127 @@ object AuthorizedUserPhoneInput {
             }
             else -> calling = callingCode("+$codeDigits")
         }
+        // A code column that cannot say the country — an old app split "+CC…"
+        // four digits wide ("+4479" / "11123456"), kept a Caribbean area code
+        // as the code ("+876" / "5290736"), or left the code in the number —
+        // is read as the server reads it, when the server can (2026-09-24
+        // audit: "+4479" opened on Jamaica with 11123456, and the flag put
+        // right saved +44 11123456, "79" gone). The website does the same
+        // (storedPhoneForPicker). Anything else is shown as received.
+        val (readCode, readNumber) = serverReading(storedCode, number)
+        if (readCode != calling && validationError(readNumber, readCode) == null) {
+            return isoFor(readCode, readNumber) to readNumber
+        }
         return isoFor(calling, numberDigits) to numberDigits.take(MAX_DIGITS)
+    }
+
+    /**
+     * App\Support\AuthorizedUserPhone::normalize, step for step: the code and
+     * national number the server reads a stored pair as — "+4479" /
+     * "11123456" is "+44" / "7911123456", "+876" / "5290736" is "+1" /
+     * "8765290736". A number it cannot read either way comes back as it
+     * does there, "+" in front. For stored rows ([fold]); what the customer
+     * types is read by [interpret].
+     */
+    internal fun serverReading(storedCode: String?, storedNumber: String?): Pair<String, String> {
+        // AuthorizedUserPhone::digits: ASCII digits; "undefined", "null", "NaN" are empty.
+        fun digits(value: String?): String {
+            val text = value.orEmpty().trim()
+            return if (text.lowercase(Locale.US) in setOf("undefined", "null", "nan")) "" else text.filter { it in '0'..'9' }
+        }
+        fun isCode(code: String) = code.isNotEmpty() && "+$code" in validCallingCodes
+        fun minimum(code: String) = MINIMUM_NATIONAL_DIGITS["+$code"] ?: 7
+        // CallingCodes::split: the first calling code the digits start with, if a whole number follows.
+        fun split(all: String): Pair<String, String>? {
+            for (length in 1..3) {
+                val code = all.take(length)
+                if (all.length > length && isCode(code)) {
+                    val national = all.substring(length)
+                    return if (national.length >= minimum(code)) code to national else null
+                }
+            }
+            return null
+        }
+        fun isNanp(all: String) = all.length == 10 && all[0] in '2'..'9'
+
+        var code = digits(storedCode)
+        var number = digits(storedNumber)
+        // 1. The number carries its own international prefix.
+        val plus = storedNumber.orEmpty().firstOrNull { it == '+' || it in '0'..'9' } == '+'
+        val international = when {
+            plus -> number
+            number.startsWith("00") -> number.substring(2)
+            number.startsWith("011") && (code == "" || code == "1") && number.length > 11 -> number.substring(3)
+            else -> null
+        }
+        var explicit = false
+        if (international != null) {
+            val typed = split(international)
+            if (code != "1" && isCode(code) && international.startsWith(code) &&
+                international.length - code.length >= minimum(code)
+            ) {
+                number = international.substring(code.length)
+                explicit = true
+            } else if (isCaribbeanNumber(international)) {
+                code = "1"
+                number = international
+                explicit = true
+            } else if (typed != null) {
+                code = typed.first
+                number = typed.second
+                explicit = true
+            }
+        }
+        // 2. A Caribbean area code used as the country code.
+        if (code in NANP_CARIBBEAN_AREA_ISOS && !isCode(code)) code = "1$code"
+        // 3. A NANP area code stored inside the code ("+1876").
+        if (code.length == 4 && code[0] == '1') {
+            val area = code.substring(1)
+            code = "1"
+            if (number.length == 11 && number[0] == '1') {
+                number = number.substring(1)
+            } else if (number.length != 10) {
+                number = area + number
+            }
+        }
+        // 4. A code that is no calling code: re-read the digits it came from.
+        if (code.isNotEmpty() && !isCode(code)) {
+            val joined = code + number
+            val again = split(joined)
+            if (isCaribbeanNumber(joined)) {
+                code = "1"
+                number = joined
+            } else if (again != null) {
+                code = again.first
+                number = again.second
+            } else if (isNanp(joined)) {
+                code = "1"
+                number = joined
+            }
+        }
+        // 5. No code at all.
+        if (code.isEmpty()) {
+            if (number.length == 11 && number[0] == '1') {
+                code = "1"
+                number = number.substring(1)
+            } else if (number.length == 10) {
+                code = "1"
+            }
+        }
+        // 6. "+1" with the trunk 1 typed again.
+        if (code == "1" && number.length == 11 && number[0] == '1') number = number.substring(1)
+        // 7. Outside NANP: the code typed again (never after "+CC"), or the trunk 0.
+        if (code.isNotEmpty() && code != "1") {
+            if (!explicit && isAmbiguousRepeatedCode(number, "+$code")) return "+$code" to "+$number"
+            val longest = LONGEST_NATIONAL_NUMBER["+$code"] ?: 10
+            if (!explicit && number.length > longest && number.startsWith(code) &&
+                number.length - code.length >= minimum(code)
+            ) {
+                number = number.substring(code.length)
+            }
+            if (number.startsWith("0") && number.length > 1 && "+$code" in DROPS_TRUNK_ZERO) number = number.substring(1)
+        }
+        return (if (code.isEmpty()) "" else "+$code") to number
     }
 
     /**
