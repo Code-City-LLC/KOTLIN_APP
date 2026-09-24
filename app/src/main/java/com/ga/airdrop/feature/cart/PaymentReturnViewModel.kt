@@ -114,16 +114,34 @@ class PaymentReturnViewModel(
     private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
 
-    /** Bare Stripe cancel URLs recover the one persisted exact session. */
-    suspend fun verifyPendingCancellation(): PaymentReturnResult {
+    /**
+     * A return without a trustworthy id — the bare Stripe cancel URL, or a
+     * success URL whose id is not a Stripe id (see [verify]) — recovers the one
+     * persisted exact session.
+     */
+    suspend fun verifyPendingCheckout(): PaymentReturnResult {
         val owner = sessionBoundary.capture()
             ?: return PaymentReturnResult.Unconfirmed("The checkout owner is no longer signed in.")
         val pending = CheckoutFlowStore.pending(owner)
             ?: return PaymentReturnResult.Unconfirmed("No exact pending checkout could be recovered.")
-        return verify(pending.checkoutSessionId)
+        return verifyExact(pending.checkoutSessionId)
     }
 
-    suspend fun verify(sessionId: String): PaymentReturnResult {
+    /**
+     * ⚠️ ONLY A STRIPE `cs_` ID IS EVER MATCHED. Laravel a4d6940d0 (2026-08-13)
+     * built the mobile success_url with http_build_query, which encoded the
+     * `{CHECKOUT_SESSION_ID}` placeholder; Stripe substitutes only the literal
+     * placeholder, so those servers return `session_id={CHECKOUT_SESSION_ID}`.
+     * Matched exactly, it found no pending checkout, and a successful payment
+     * came back "Couldn't confirm payment". An id that is not a Stripe id —
+     * missing, blank, or the placeholder raw or encoded — is never sent or
+     * matched: the one pending checkout is verified instead, as for the bare
+     * cancel URL. A real `cs_` id keeps its exact match.
+     */
+    suspend fun verify(sessionId: String): PaymentReturnResult =
+        if (sessionId.startsWith("cs_")) verifyExact(sessionId) else verifyPendingCheckout()
+
+    private suspend fun verifyExact(sessionId: String): PaymentReturnResult {
         val owner = sessionBoundary.capture()
             ?: return PaymentReturnResult.Unconfirmed("The checkout owner is no longer signed in.")
         if (CheckoutFlowStore.pending(sessionId, owner) == null) {
@@ -427,7 +445,7 @@ fun PaymentCancelledHost(
     ) { mutableStateOf<PaymentReturnResult?>(null) }
     LaunchedEffect(Unit) {
         if (result == null) {
-            result = verify?.invoke() ?: viewModel.verifyPendingCancellation()
+            result = verify?.invoke() ?: viewModel.verifyPendingCheckout()
         }
     }
     when (val outcome = result) {
