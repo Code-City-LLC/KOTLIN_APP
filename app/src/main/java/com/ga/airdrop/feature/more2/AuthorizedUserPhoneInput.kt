@@ -277,9 +277,14 @@ object AuthorizedUserPhoneInput {
      * digits typed in front, is a new number read afresh (2026-09-24 audit:
      * 447911123456 pasted over 🇬🇧 7911123456, whose trunk 0 had set the flag,
      * went as +44447911123456 and was stored 447911123456). Emptying the box
-     * starts over.
+     * starts over. A "+" put in front of the digits already in the box, and
+     * nothing else, is no calling code: the box and the picker stay as they
+     * are (2026-09-24 audit: 🇺🇸 2125551234 became 🇲🇦 +212 5551234). Pasted
+     * into an empty box, or over other digits, "+2125551234" is still Morocco.
      */
     fun interpret(raw: String, previous: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
+        val box = previous.number
+        if (box.isNotEmpty() && box.all { it in '0'..'9' } && raw == "+$box") return previous
         val currentIso = previous.isoCode
         val digits = asciiDigits(raw)
         val code = country(currentIso)?.callingCode ?: "+1"

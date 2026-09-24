@@ -1189,4 +1189,26 @@ class AddAuthorizedUserFollowupsTest {
             advanceUntilIdle()
             assertEquals("+44" to "7911123457", legacy.sentPhone)
         }
+
+    @Test
+    fun `a plus typed in front of the number in the box moves nothing`() = runTest(dispatcher) {
+        // 🇺🇸 2125551234 with a "+" put in front was read as +212 555 1234:
+        // the picker jumped to Morocco and the box became 5551234. 🇬🇧
+        // 7911123456 became Russia's 911123456.
+        val calls = mutableListOf<AuthorizedUserRequest>()
+        val us = freshForm("US", calls).apply { typeIntoMobile("2125551234") }
+        us.onMobileNumber("+2125551234")
+        assertEquals("US" to "2125551234", us.shown)
+        us.save()
+        advanceUntilIdle()
+        assertEquals("+1" to "2125551234", calls.sentPhone)
+        val uk = freshForm("GB").apply { typeIntoMobile("7911123456") }
+        uk.onMobileNumber("+7911123456")
+        assertEquals("GB" to "7911123456", uk.shown)
+        // A "+" number pasted into an empty box, or over another number, is read as before.
+        assertEquals("MA" to "5551234", freshForm("US").apply { onMobileNumber("+2125551234") }.shown)
+        val over = freshForm("US").apply { typeIntoMobile("8765551234") }
+        over.onMobileNumber("+447911123456")
+        assertEquals("GB" to "7911123456", over.shown)
+    }
 }
