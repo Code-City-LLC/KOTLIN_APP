@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.InterceptPlatformTextInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -18,9 +21,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
+import kotlinx.coroutines.awaitCancellation
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -67,6 +71,7 @@ class CalculatorImeTest {
         shell("wm size reset")
     }
 
+    @OptIn(ExperimentalComposeUiApi::class)
     @Test
     fun focusingInvoiceKeepsTheEntireDecoratedFieldAboveTheKeyboardOnAShortScreen() {
         lateinit var viewModel: CalculatorViewModel
@@ -78,20 +83,25 @@ class CalculatorImeTest {
 
         var imeBottomPx = 0
         compose.setContent {
-            AirdropTheme {
-                imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
-                Box(Modifier.fillMaxSize()) {
-                    CalculatorScreen(
-                        viewModel = viewModel,
-                        onBack = {},
-                        onShowResults = {},
-                    )
+            // Focus must not summon a real IME that overwrites the synthetic
+            // inset between measuring the keyboard and measuring the field.
+            InterceptPlatformTextInput(interceptor = { _, _ -> awaitCancellation() }) {
+                AirdropTheme {
+                    imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
+                    Box(Modifier.fillMaxSize()) {
+                        CalculatorScreen(
+                            viewModel = viewModel,
+                            onBack = {},
+                            onShowResults = {},
+                        )
+                    }
                 }
             }
         }
         compose.waitForIdle()
 
         compose.onNodeWithTag("calculator-invoice-input", useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("calculator-invoice-input", useUnmergedTree = true).assertIsFocused()
 
         var windowHeightPx = 0
         instrumentation.runOnMainSync {
@@ -107,18 +117,20 @@ class CalculatorImeTest {
         }
         compose.waitForIdle()
 
-        assumeTrue(
-            "synthetic IME inset was not applied (got $imeBottomPx px)",
-            imeBottomPx >= windowHeightPx / 4,
+        assertEquals(
+            "the exact synthetic IME inset must be applied",
+            windowHeightPx / 2,
+            imeBottomPx,
         )
 
         val keyboardTopPx = windowHeightPx - imeBottomPx
-        val fieldBottomPx = compose
+        val field = compose
             .onNodeWithTag("calculator-invoice-field", useUnmergedTree = true)
             .fetchSemanticsNode()
-            .boundsInWindow
-            .bottom
+        // boundsInWindow clips at the scroll viewport, hiding any covered edge.
+        val fieldBottomPx = field.positionInWindow.y + field.size.height
 
+        assertEquals("the synthetic IME must remain stable", windowHeightPx / 2, imeBottomPx)
         assertTrue(
             "keyboard top=$keyboardTopPx must not cover the full invoice field (bottom=$fieldBottomPx)",
             fieldBottomPx <= keyboardTopPx + 1f,
