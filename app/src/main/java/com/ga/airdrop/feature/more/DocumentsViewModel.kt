@@ -11,6 +11,7 @@ import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.captureOwnedRequest
 import com.ga.airdrop.core.session.captureOwnedSession
 import com.ga.airdrop.core.session.changeTo
+import com.ga.airdrop.feature.common.AirdropUploadSourceConfig
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,12 @@ data class DocumentSlot(
     val title: String,
     val description: String,
     val detailDescription: String,
+    /**
+     * Laravel StoreUserDocumentsRequest takes only `mimes:pdf` for this slot
+     * (the ID card and TRN also take jpg/jpeg/png/gif), so a photo for it is
+     * uploaded as a one-page PDF.
+     */
+    val pdfOnly: Boolean = false,
 )
 
 /** Swift/RN canonical order: Contract → 1583 → Custom Form → ID Card → TRN. */
@@ -36,18 +43,21 @@ val DOCUMENT_SLOTS = listOf(
         title = "AirDrop Contract",
         description = "Terms and conditions for using AirDrop’s services.",
         detailDescription = "The AirDrop Contract is a service agreement between you and AirDrop Limited that outlines the terms, conditions, and responsibilities of both parties.\n\nIt establishes your authorization for AirDrop to ship, handle, and deliver your packages while defining how fees, liabilities, and services are managed.\n\nThis document protects both the customer and the company by ensuring transparency and compliance with shipping policies.",
+        pdfOnly = true,
     ),
     DocumentSlot(
         docType = "file_1583",
         title = "1583 Form",
         description = "USPS form allowing AirDrop to receive your packages.",
         detailDescription = "USPS Form 1583 is a U.S. Postal Service authorization form that allows a Commercial Mail Receiving Agency (CMRA)—such as a shipping or mailbox company—to receive mail on your behalf.\n\nIt’s a mandatory federal requirement for anyone opening a virtual mailbox, mail forwarding, or package receiving service in the United States.",
+        pdfOnly = true,
     ),
     DocumentSlot(
         docType = "authorization_form",
         title = "Custom Form",
         description = "Authorizes AirDrop to handle customs clearance and duties on your behalf.",
         detailDescription = "The Customs Form authorizes AirDrop Limited and/or its licensed customs agents to act on your behalf during customs clearance.\nThis includes submitting import documents, declaring shipment values, and paying duties or taxes as required by local customs authorities.\nIt ensures your shipments are cleared efficiently in compliance with Jamaica Customs and international trade regulations.",
+        pdfOnly = true,
     ),
     DocumentSlot(
         docType = "id_card_form",
@@ -62,6 +72,22 @@ val DOCUMENT_SLOTS = listOf(
         detailDescription = "Your TRN serves as your official identification number with the Jamaica Customs Agency and is used to identify you as the importer.\n\nAirDrop cannot make customs declarations or clear shipments on your behalf without a valid TRN on file.",
     ),
 )
+
+/** What the upload sheet may hand back for [slot]: only what Laravel accepts. */
+internal fun documentUploadConfig(slot: DocumentSlot) = AirdropUploadSourceConfig(
+    sheetTitle = "Upload ${slot.title}",
+    allowedFileExtensions = AirdropUploadSourceConfig.userDocumentFileExtensions,
+    allowsMultipleFileSelection = false,
+    maxSelectionCount = 1,
+    imagesAsPdf = slot.pdfOnly,
+)
+
+/** Why Laravel would refuse this file for [slot], or null when it is acceptable. */
+internal fun documentUploadRefusal(slot: DocumentSlot, mimeType: String): String? = when {
+    slot.pdfOnly && !mimeType.equals("application/pdf", ignoreCase = true) ->
+        "${slot.title} must be a PDF. Choose a PDF, or a photo to upload as a PDF."
+    else -> null
+}
 
 data class DocumentsUiState(
     /** Non-secret owner generation used to discard account-A UI intents. */
@@ -259,6 +285,12 @@ class DocumentsViewModel(
         mimeType: String,
         bytes: ByteArray,
     ) {
+        // A file the server is certain to refuse is refused here, with the
+        // reason, rather than after the upload.
+        documentUploadRefusal(claim.slot, mimeType)?.let { reason ->
+            showUploadFailure(claim, reason)
+            return
+        }
         updateOwnedState(claim.ownerSessionId) {
             it.copy(
                 pendingUploads = it.pendingUploads + (
