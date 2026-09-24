@@ -283,7 +283,7 @@ class AuthorizedUserPhoneInputTest {
     private fun typedSteps(text: String, startIso: String): List<AuthorizedUserPhoneEntry> {
         var entry = AuthorizedUserPhoneEntry(startIso, "")
         return text.map { key ->
-            entry = AuthorizedUserPhoneInput.interpret(entry.number + key, entry.isoCode, entry.explicitCode)
+            entry = AuthorizedUserPhoneInput.interpret(entry.number + key, entry)
             entry
         }
     }
@@ -351,6 +351,29 @@ class AuthorizedUserPhoneInputTest {
         assertEquals("8765551234", typedAndSettled("+1 1876 555 1234", "JM").second)
         // Emptying the box starts over.
         assertFalse(AuthorizedUserPhoneInput.interpret("", "BR", explicitCode = true).explicitCode)
+    }
+
+    @Test
+    fun `an edit keeps the number as written only while it keeps how the number starts`() {
+        // 2026-09-24 audit: the flag outlived the digits it was set for.
+        fun edited(iso: String, box: String, raw: String) =
+            AuthorizedUserPhoneInput.interpret(raw, AuthorizedUserPhoneEntry(iso, box, explicitCode = true))
+        // Pasted over the box: read afresh, exactly as pasted into an empty one.
+        assertEquals(AuthorizedUserPhoneEntry("GB", "7911123456"), edited("GB", "7911123456", "447911123456"))
+        assertEquals(AuthorizedUserPhoneInput.interpret("447911123456", "GB"), edited("GB", "7911123456", "447911123456"))
+        assertEquals(AuthorizedUserPhoneEntry("IN", "9876543210"), edited("IN", "9876543210", "919876543210"))
+        assertEquals(AuthorizedUserPhoneEntry("DE", "4012345678"), edited("DE", "4012345678", "494012345678"))
+        // Read afresh, 49301234567 can be two German numbers: kept, not as written, so it is asked about.
+        assertEquals(AuthorizedUserPhoneEntry("DE", "49301234567"), edited("DE", "301234567", "49301234567"))
+        // Typed on, deleted back, corrected further along: still as written.
+        assertEquals(AuthorizedUserPhoneEntry("DE", "49211234568", true), edited("DE", "49211234567", "49211234568"))
+        assertEquals(AuthorizedUserPhoneEntry("DE", "4921123456", true), edited("DE", "49211234567", "4921123456"))
+        assertEquals(AuthorizedUserPhoneEntry("DE", "492112345678", true), edited("DE", "49211234567", "492112345678"))
+        // The first digits after a typed "+55" continue it.
+        assertEquals(AuthorizedUserPhoneEntry("BR", "5", true), edited("BR", "", "5"))
+        // Emptied, or nothing left but a non-digit: starts over.
+        assertFalse(edited("GB", "7911123456", "").explicitCode)
+        assertFalse(edited("GB", "7911123456", " ").explicitCode)
     }
 
     @Test

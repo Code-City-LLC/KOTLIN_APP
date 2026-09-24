@@ -1018,4 +1018,69 @@ class AddAuthorizedUserFollowupsTest {
             assertEquals("+49" to "+4949211234567", sent("04921 1234567"))
             assertEquals("+49" to "3012345678", sent("49 30 12345678"))
         }
+
+    // ── 2026-09-24 audit: what the box remembers belongs to the digits it was for ──
+
+    @Test
+    fun `a number pasted over the box is read afresh, not as the national number it replaced`() =
+        runTest(dispatcher) {
+            // 07911 123456 under 🇬🇧 shows 7911123456, and the dropped trunk 0
+            // marks the box as the national number as written. Select all and
+            // paste 447911123456 over it: the mark stayed, "44" was kept as
+            // part of the number, and +44 447911123456 was stored, which cannot
+            // be dialled. Pasted into an empty box it is 7911123456.
+            fun pastedOver(iso: String, typed: String, pasted: String): Pair<String, String> {
+                val calls = mutableListOf<AuthorizedUserRequest>()
+                val vm = freshForm(iso, calls)
+                vm.typeIntoMobile(typed)
+                vm.onMobileNumber(pasted)
+                vm.save()
+                dispatcher.scheduler.advanceUntilIdle()
+                return calls.sentPhone
+            }
+            assertEquals("+44" to "7911123456", pastedOver("GB", "07911 123456", "447911123456"))
+            // Typed over it key by key after select-all: the first key replaces it.
+            val uk = freshForm("GB").apply { typeIntoMobile("07911 123456") }
+            uk.onMobileNumber("4")
+            uk.typeIntoMobile("47911123456")
+            assertEquals("GB" to "7911123456", uk.shown)
+            // India's code starts like the mobile it is pasted over (9…), so a
+            // shared first digit is no continuation either.
+            assertEquals("+91" to "9876543210", pastedOver("IN", "+91 98765 43210", "919876543210"))
+
+            // Germany: 030 1234567, then 49301234567 pasted over it. The server
+            // cannot tell Berlin with "+49" typed again from an 0493 number and
+            // asks; the stale mark sent +4949301234567 past that question.
+            val german = "Please enter a valid phone number. For a German number, start with +49, or with 0 as dialled in Germany."
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val de = freshForm("DE", calls)
+            de.typeIntoMobile("030 1234567")
+            de.onMobileNumber("49301234567")
+            de.save()
+            advanceUntilIdle()
+            assertEquals(german, de.state.value.mobileError)
+            assertTrue("nothing may be sent", calls.isEmpty())
+        }
+
+    @Test
+    fun `typing on, deleting back or correcting a later digit keeps the number as written`() = runTest(dispatcher) {
+        fun sentAfter(typed: String, vararg edits: String): Pair<String, String> {
+            val calls = mutableListOf<AuthorizedUserRequest>()
+            val vm = freshForm("DE", calls)
+            vm.typeIntoMobile(typed)
+            edits.forEach(vm::onMobileNumber)
+            vm.onMobileBlur()
+            assertNull("$typed then ${edits.toList()}", vm.state.value.mobileError)
+            vm.save()
+            dispatcher.scheduler.advanceUntilIdle()
+            return calls.sentPhone
+        }
+        // Emden, typed after +49: the last digit fixed in place, or deleted and typed again.
+        assertEquals("+49" to "+4949211234568", sentAfter("+49 4921 1234567", "49211234568"))
+        assertEquals("+49" to "+4949211234568", sentAfter("+49 4921 1234567", "4921123456", "49211234568"))
+        // A digit further along fixed with the cursor: deleted, then typed.
+        assertEquals("+49" to "+4949219234567", sentAfter("+49 4921 1234567", "4921234567", "49219234567"))
+        // Leer, typed the German way with its trunk 0, then one more digit.
+        assertEquals("+49" to "+49491123456789", sentAfter("0491 12345678", "491123456789"))
+    }
 }

@@ -257,20 +257,53 @@ object AuthorizedUserPhoneInput {
      * 7911123456; under +1 that is the trunk 1 (18765551234 → 8765551234).
      * "Full" is longer than the country's longest national number: Brazil's
      * 55991234567 (area code 55) stays whole. Digits typed after an explicit
-     * "+CC" ([explicitCode], the previous entry's flag) keep a repeated code;
+     * "+CC" ([AuthorizedUserPhoneEntry.explicitCode] of [previous]) keep a repeated code;
      * only the +1 trunk 1 still goes, as it does on the server. Either way one
      * trunk 0 goes where the server drops it: "+44 07911 123456" and 07911
-     * 123456 under 🇬🇧 are both 7911123456. Emptying the box starts over.
+     * 123456 under 🇬🇧 are both 7911123456.
+     *
+     * [previous] is the entry before this edit — its picker country, its box,
+     * and its flag. The flag belongs to the digits it was set for, so it holds
+     * only while the edit keeps how they start ([keepsStart]): typed on,
+     * deleted back, a digit further along corrected. Select all and paste, or
+     * digits typed in front, is a new number read afresh (2026-09-24 audit:
+     * 447911123456 pasted over 🇬🇧 7911123456, whose trunk 0 had set the flag,
+     * went as +44447911123456 and was stored 447911123456). Emptying the box
+     * starts over.
      */
-    fun interpret(raw: String, currentIso: String, explicitCode: Boolean = false): AuthorizedUserPhoneEntry {
+    fun interpret(raw: String, previous: AuthorizedUserPhoneEntry): AuthorizedUserPhoneEntry {
+        val currentIso = previous.isoCode
         val digits = raw.filter(Char::isDigit)
         if (startsInternational(raw, digits)) {
             return readInternational(raw, digits, currentIso, waitForCaribbean = true)
         }
-        val explicit = explicitCode && raw.isNotEmpty()
         val code = country(currentIso)?.callingCode ?: "+1"
+        val explicit = previous.explicitCode && raw.isNotEmpty() &&
+            keepsStart(previous.number.filter(Char::isDigit), digits, code)
         val (number, asWritten) = boxDigits(code, digits, explicit)
         return AuthorizedUserPhoneEntry(currentIso, number, asWritten)
+    }
+
+    /**
+     * [raw] read on its own, as if typed into an empty box under [currentIso];
+     * [explicitCode]: a "+CC" was read just before it (see [interpret]).
+     */
+    fun interpret(raw: String, currentIso: String, explicitCode: Boolean = false): AuthorizedUserPhoneEntry =
+        interpret(raw, AuthorizedUserPhoneEntry(currentIso, "", explicitCode))
+
+    /**
+     * [after] starts the way [before] did, digits both: as far as the shorter
+     * of them goes, and no further than the calling code's length and one
+     * digit more — the part that decides whether a code typed again is read
+     * in front of the number. One digit is not enough: India's 919876543210
+     * pasted over 9876543210 shares its first digit, as does Hamburg's
+     * 494012345678 pasted over 4012345678. Nothing before (the digits after a
+     * "+CC") is always continued; nothing after, only then.
+     */
+    private fun keepsStart(before: String, after: String, callingCode: String): Boolean {
+        if (after.isEmpty()) return before.isEmpty()
+        val start = minOf(before.length, after.length, callingCode.count(Char::isDigit) + 1)
+        return before.regionMatches(0, after, 0, start)
     }
 
     /**

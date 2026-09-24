@@ -115,10 +115,12 @@ class AddAuthorizedUserViewModel(
      * digits: "+44 7911 123456" → 🇬🇧 +44 / 7911123456, "+1 (876) 555-1234" →
      * +1 / 8765551234. A Caribbean number written with a "+" ("+876 555
      * 1234") stays as typed until it is complete; see
-     * [AuthorizedUserPhoneInput.interpret].
+     * [AuthorizedUserPhoneInput.interpret], which reads the edit against the
+     * box before it.
      */
     fun onMobileNumber(v: String) = _state.update {
-        val entry = AuthorizedUserPhoneInput.interpret(v, it.phoneIso, it.phoneExplicitCode)
+        val previous = AuthorizedUserPhoneEntry(it.phoneIso, it.mobileNumber, it.phoneExplicitCode)
+        val entry = AuthorizedUserPhoneInput.interpret(v, previous)
         it.copy(
             mobileNumber = entry.number,
             phoneIso = entry.isoCode,
