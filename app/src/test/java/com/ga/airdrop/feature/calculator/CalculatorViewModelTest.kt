@@ -564,6 +564,54 @@ class CalculatorViewModelTest {
     }
 
     /**
+     * Release audit 2026-09-24: only Express shows the lbs/kg picker, but its
+     * unit converted every method's weight. Kg picked on Express, then 10 typed
+     * into Airdrop's "Actual Weight (lbs)", was priced as 22.05 lb. Neither
+     * switching method nor setting the unit on Airdrop may convert it.
+     */
+    @Test
+    fun aKgUnitNeverConvertsAirdropsPoundField() = runTest(dispatcher) {
+        for (pickKg in listOf<CalculatorViewModel.() -> Unit>(
+            {
+                onMethodSelected(ShippingMethod.EXPRESS)
+                onWeightUnitSelected(WeightUnit.KG)
+                onMethodSelected(ShippingMethod.STANDARD)
+            },
+            {
+                onMethodSelected(ShippingMethod.STANDARD)
+                onWeightUnitSelected(WeightUnit.KG)
+            },
+        )) {
+            val repo = RecordingRepository()
+            val viewModel = CalculatorViewModel(repo)
+            viewModel.pickKg()
+            viewModel.onInvoiceChange("150")
+            viewModel.onActualWeightChange("10")
+            viewModel.calculate()
+            advanceUntilIdle()
+
+            assertEquals("Airdrop's field is pounds", 10.0, repo.tierRequests.single().weightLbs, 0.001)
+            assertEquals(WeightUnit.LBS, viewModel.result.value!!.weightUnit)
+        }
+    }
+
+    /** Express shows the picker, so its kg weight is still converted. */
+    @Test
+    fun expressStillConvertsAKgWeight() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onMethodSelected(ShippingMethod.EXPRESS)
+        viewModel.onWeightUnitSelected(WeightUnit.KG)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("10")
+        viewModel.calculate()
+        advanceUntilIdle()
+
+        assertEquals(10.0 / 0.453592, repo.weight!!, 0.001)
+        assertEquals(WeightUnit.KG, viewModel.result.value!!.weightUnit)
+    }
+
+    /**
      * A refused customs item is unpicked — but only if it is still the pick.
      * One chosen while the refused quote was in flight is the customer's new
      * choice and must survive.

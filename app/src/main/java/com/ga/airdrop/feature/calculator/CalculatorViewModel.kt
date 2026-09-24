@@ -44,6 +44,14 @@ data class CalculatorUiState(
 )
 
 /**
+ * The unit the weight field is in. [CalculatorUiState.weightUnit] outlives a
+ * method switch, and only a method with the picker can be in kg (release audit
+ * 2026-09-24: kg picked on Express converted Airdrop's pound field).
+ */
+private val CalculatorUiState.effectiveWeightUnit: WeightUnit
+    get() = if (method.weightUnitSelectable) weightUnit else WeightUnit.LBS
+
+/**
  * Shared across the calculator nav graph (form → results → government
  * charges) so [result] rides along without serializing it into route args —
  * the Swift flow passes the same values through the results-VC initializer.
@@ -158,7 +166,7 @@ class CalculatorViewModel(
         // three pounds — a number nobody entered and nothing measured.
         val weightLbs: Double? = when {
             parsedWeight <= 0 -> null
-            form.weightUnit == WeightUnit.KG -> maxOf(0.5, parsedWeight / 0.453592)
+            form.effectiveWeightUnit == WeightUnit.KG -> maxOf(0.5, parsedWeight / 0.453592)
             else -> maxOf(0.5, parsedWeight)
         }
         // The server requires weight for the airdrop methods (Scribe:
@@ -269,7 +277,7 @@ class CalculatorViewModel(
             method = form.method,
             productName = form.product.ifBlank { null },
             weightLbs = weightLbs,
-            weightUnit = form.weightUnit,
+            weightUnit = form.effectiveWeightUnit,
             invoiceUsd = invoice,
             lengthIn = form.length.replace(',', '.').toDoubleOrNull()?.times(factor),
             widthIn = form.width.replace(',', '.').toDoubleOrNull()?.times(factor),
@@ -304,7 +312,7 @@ class CalculatorViewModel(
             method = form.method,
             productName = form.product.ifBlank { null },
             weightLbs = weightLbs,
-            weightUnit = form.weightUnit,
+            weightUnit = form.effectiveWeightUnit,
             invoiceUsd = invoice,
             lengthIn = null,
             widthIn = null,

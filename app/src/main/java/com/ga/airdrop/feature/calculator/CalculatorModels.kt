@@ -19,6 +19,11 @@ enum class ShippingMethod(
     val info: String,
     /** Non-null only when Laravel's tier quote is the pricing authority. */
     val tierQuoteMethod: String? = null,
+    /**
+     * True only where the form shows the lbs/kg picker (Express, CalculatorScreen).
+     * Every other weight field is pounds, whatever unit was last picked.
+     */
+    val weightUnitSelectable: Boolean = false,
 ) {
     // Figma 40001464:29102 info copy — "2 to 3 business days…"
     STANDARD(
@@ -38,6 +43,7 @@ enum class ShippingMethod(
         label = "Express",
         apiValue = "airdrop_express",
         info = "1 to 2 business days after items are delivered to our warehouse.",
+        weightUnitSelectable = true,
     ),
 }
 
