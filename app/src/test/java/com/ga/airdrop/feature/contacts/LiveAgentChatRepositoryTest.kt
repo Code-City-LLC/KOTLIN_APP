@@ -579,6 +579,137 @@ class LiveAgentChatRepositoryTest {
         assertTrue(directServer.requests.isEmpty())
     }
 
+    // Chat state: ended / expired chats and "End Chat" (AutoPilot CRM
+    // Enhancements items 7 and 8).
+
+    @Test
+    fun `thread carries the chat state next to the messages`() {
+        val thread = LiveAgentChatRepository.parseThreadResponse(
+            """
+            {
+              "success": true,
+              "conversation_id": "5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11",
+              "messages": [{"id":"m1","body":"Hello","direction":"outbound","sender_type":"agent"}],
+              "conversation": {
+                "id": "5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11",
+                "status": "closed",
+                "closed": true,
+                "closed_at": "2026-09-29T07:00:00+00:00",
+                "ended_by": "expired",
+                "agent_name": null
+              }
+            }
+            """.trimIndent(),
+            AirdropJson,
+        )
+
+        assertEquals(listOf("m1"), thread.messages.map { it.id })
+        val state = requireNotNull(thread.conversation)
+        assertTrue(state.isClosed)
+        assertEquals("expired", state.endedBy)
+        assertEquals("2026-09-29T07:00:00+00:00", state.closedAt)
+        assertNull(state.agentName)
+    }
+
+    @Test
+    fun `session and send results carry the chat state`() {
+        val session = LiveAgentChatRepository.parseSessionResponse(
+            """
+            {
+              "conversation_id": "5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11",
+              "messages": [],
+              "conversation": {"id":"5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11","status":"open","closed":false,"agent_name":"Ramiela"}
+            }
+            """.trimIndent(),
+            AirdropJson,
+        )
+        val sent = LiveAgentChatRepository.parseSendResultResponse(
+            """
+            {
+              "conversation_id": "9b1c7e44-2f0a-4d3b-8c6e-5a4f3e2d1c0b",
+              "reply": null,
+              "conversation": {"id":"9b1c7e44-2f0a-4d3b-8c6e-5a4f3e2d1c0b","status":"open","closed":false}
+            }
+            """.trimIndent(),
+            AirdropJson,
+        )
+
+        assertEquals("Ramiela", session.conversation?.agentName)
+        assertFalse(requireNotNull(session.conversation).isClosed)
+        assertEquals("9b1c7e44-2f0a-4d3b-8c6e-5a4f3e2d1c0b", sent.conversation?.id)
+    }
+
+    @Test
+    fun `older servers without chat state still parse`() {
+        val session = LiveAgentChatRepository.parseSessionResponse(
+            """{"conversation_id":"conv_1","messages":[]}""",
+            AirdropJson,
+        )
+        val thread = LiveAgentChatRepository.parseThreadResponse("""{"messages":[]}""", AirdropJson)
+        val bare = LiveAgentChatRepository.parseThreadResponse("""[]""", AirdropJson)
+
+        assertNull(session.conversation)
+        assertNull(thread.conversation)
+        assertNull(bare.conversation)
+    }
+
+    @Test
+    fun `end chat posts to the conversation's end route with identity headers only`() =
+        runBlocking {
+            AuthTokenStore.save("sanctum-test")
+            val identityServer = RecordingJsonInterceptor(
+                """
+                {
+                  "data": {
+                    "endpoint": "https://api.autopilotcrm.ai",
+                    "publishable_key": "pub_test",
+                    "user_id": "airdrop-user-42",
+                    "identity_hash": "hash_42",
+                    "user_profile": {"account_number": "GA-42"}
+                  }
+                }
+                """.trimIndent(),
+            )
+            val directServer = RecordingJsonInterceptor(
+                """
+                {
+                  "success": true,
+                  "conversation_id": "5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11",
+                  "conversation": {"id":"5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11","status":"closed","closed":true,"ended_by":"customer"}
+                }
+                """.trimIndent(),
+                """{"success": true}""",
+            )
+            val repository = LiveAgentChatRepository(
+                airdropClient = OkHttpClient.Builder()
+                    .addInterceptor(AuthInterceptor())
+                    .addInterceptor(identityServer)
+                    .build(),
+                directClient = OkHttpClient.Builder().addInterceptor(directServer).build(),
+                apiBaseUrl = "https://pre-staging.example/api/v1/",
+                accountContextSource = LiveAgentChatAccountContextSource { LiveAgentChatAccountContext() },
+            )
+
+            val ended = repository.endChat("5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11")
+            // A 2xx with no state in the body still means the chat is closed.
+            val bodyless = repository.endChat("9b1c7e44-2f0a-4d3b-8c6e-5a4f3e2d1c0b")
+
+            val request = directServer.requests.first()
+            assertEquals("POST", request.method)
+            assertEquals(
+                "https://api.autopilotcrm.ai/api/v1/app-channels/conversations/5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11/end",
+                request.url.toString(),
+            )
+            assertEquals("pub_test", request.header("x-autopilot-publishable-key"))
+            assertEquals("airdrop-user-42", request.header("x-autopilot-user-id"))
+            assertEquals("hash_42", request.header("x-autopilot-identity-hash"))
+            assertNull(request.header("Authorization"))
+            assertTrue(ended.isClosed)
+            assertEquals("customer", ended.endedBy)
+            assertTrue(bodyless.isClosed)
+            assertEquals("9b1c7e44-2f0a-4d3b-8c6e-5a4f3e2d1c0b", bodyless.id)
+        }
+
     private fun testUser() = AirdropUser(
         id = 42,
         accountNumber = "GA-42",
