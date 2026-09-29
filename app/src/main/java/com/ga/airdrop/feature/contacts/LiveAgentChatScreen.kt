@@ -195,12 +195,16 @@ internal fun LiveAgentChatContent(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 items(state.messages, key = { it.id }) { turn ->
-                    LiveChatBubble(
-                        turn = turn,
-                        customerName = state.customerDisplayName,
-                        agentName = state.agentDisplayName,
-                        onResend = onResend,
-                    )
+                    if (turn.role == LiveChatRole.Notice) {
+                        LiveChatNotice(turn.body)
+                    } else {
+                        LiveChatBubble(
+                            turn = turn,
+                            customerName = state.customerDisplayName,
+                            agentName = state.agentDisplayName,
+                            onResend = onResend,
+                        )
+                    }
                 }
             }
         }
@@ -233,7 +237,7 @@ internal fun LiveAgentChatContent(
             title = { Text("End this chat?", style = AirdropType.title1) },
             text = {
                 Text(
-                    "This clears the conversation on this device and starts a fresh one with Nirvana. " +
+                    "This ends the conversation and starts a fresh one with Nirvana. " +
                         "It cannot be undone.",
                     style = AirdropType.body2,
                 )
@@ -572,6 +576,23 @@ private fun LiveChatInputBar(
             }
         }
     }
+}
+
+/**
+ * A centred line about the chat itself — ended, expired, a team member joined
+ * (CRM Enhancements items 7 and 8). Styled as the composer's status line.
+ */
+@Composable
+private fun LiveChatNotice(text: String) {
+    Text(
+        text,
+        style = AirdropType.body3,
+        color = AirdropTheme.colors.textDescription,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("live-chat-notice"),
+    )
 }
 
 @Composable

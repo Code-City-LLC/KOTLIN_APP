@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 internal enum class LiveChatRole {
     Customer,
     Assistant,
+    /** A centred line about the chat itself: ended, expired, a team member joined. */
+    Notice,
 }
 
 internal data class LiveAgentChatTurn(
@@ -43,9 +45,97 @@ internal const val LIVE_CHAT_WAITING_STATUS = "Waiting for Nirvana…"
 internal const val LIVE_CHAT_STILL_WAITING_STATUS = "Still waiting for Nirvana…"
 internal const val LIVE_CHAT_RECONNECTING_STATUS = "Reconnecting to Nirvana…"
 internal const val LIVE_CHAT_DELAYED_STATUS = "Message sent — reply delayed"
+internal const val LIVE_CHAT_ENDING_STATUS = "Ending chat…"
+internal const val LIVE_CHAT_END_FAILED_ERROR = "Couldn't end the chat. Please try again."
 internal val LIVE_CHAT_POLL_SCHEDULE_MILLIS =
     List(10) { 3_000L } + List(9) { 10_000L }
 private const val LIVE_CHAT_INITIAL_POLL_ATTEMPTS = 10
+
+/**
+ * "Waiting for Nirvana…" never shows longer than this without a reply (CRM
+ * Enhancements item 14). Polling carries on, so a late reply — including
+ * AutoPilot's "can't answer right now" fallback — still shows up.
+ */
+internal const val LIVE_CHAT_WAITING_TIMEOUT_MILLIS = 60_000L
+
+private val CANONICAL_CONVERSATION_ID =
+    Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+/**
+ * What Live Chat tells the customer as the chat's state changes: closed by the
+ * team, expired after they went quiet, ended by them, or a team member joining
+ * (AutoPilot CRM Enhancements items 7 and 8). Mirrors iOS
+ * `LiveChatConversationTracker` (FigmaRouteViewController.swift).
+ */
+internal class LiveChatConversationTracker {
+    sealed interface Notice {
+        data class AgentJoined(val name: String) : Notice
+        data class Ended(val endedBy: String?) : Notice
+    }
+
+    var conversationId: String? = null
+        private set
+    var agentName: String? = null
+        private set
+    var isClosed: Boolean = false
+        private set
+
+    /**
+     * Folds the state returned for the active conversation into the tracker
+     * and returns what to tell the customer. State for any other conversation
+     * (a poll still in flight for a chat since replaced by a new one) is
+     * ignored.
+     */
+    fun apply(state: AutoPilotAppChatConversationState?, activeConversationId: String?): List<Notice> {
+        if (state == null) return emptyList()
+        val stateId = state.id.cleaned()
+        val activeId = activeConversationId.cleaned()
+        if (stateId != null && activeId != null && stateId != activeId) return emptyList()
+        val id = stateId ?: activeId ?: return emptyList()
+        val name = state.agentName.cleaned()
+        if (id != conversationId) {
+            // First state for this conversation (opened, or the new chat after
+            // a close): nothing to announce unless it has ended.
+            conversationId = id
+            agentName = name
+            isClosed = state.isClosed
+            return if (state.isClosed) listOf(Notice.Ended(state.endedBy.cleaned())) else emptyList()
+        }
+        val notices = mutableListOf<Notice>()
+        if (!state.isClosed && agentName == null && name != null) {
+            notices += Notice.AgentJoined(name)
+        }
+        if (name != null) agentName = name
+        if (state.isClosed && !isClosed) {
+            notices += Notice.Ended(state.endedBy.cleaned())
+        }
+        isClosed = state.isClosed
+        return notices
+    }
+
+    fun isClosed(conversationId: String?): Boolean {
+        val id = conversationId.cleaned() ?: return false
+        return isClosed && id == this.conversationId
+    }
+
+    companion object {
+        fun text(notice: Notice): String =
+            when (notice) {
+                is Notice.AgentJoined -> "${notice.name} joined the chat"
+                is Notice.Ended -> {
+                    val reason = when (notice.endedBy?.lowercase()) {
+                        "customer" -> "You ended this chat."
+                        "agent" -> "This chat was closed by our team."
+                        "expired" -> "This chat closed after a period of inactivity."
+                        else -> "This chat has ended."
+                    }
+                    "$reason Send a message to start a new chat."
+                }
+            }
+
+        private fun String?.cleaned(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+    }
+}
 
 internal class LiveAgentChatViewModel(
     private val repository: LiveAgentChatDataSource = LiveAgentChatRepository(),
@@ -63,6 +153,9 @@ internal class LiveAgentChatViewModel(
     // Tracked so endChatAndStartFresh() can cancel an in-flight send; otherwise
     // the retired conversationId is written back over the fresh conversation.
     private var sendJob: Job? = null
+    private var endJob: Job? = null
+    /** Open / closed state of the active conversation, and who is on it. */
+    private var tracker = LiveChatConversationTracker()
 
     fun start() {
         val snapshot = _state.value
@@ -107,6 +200,35 @@ internal class LiveAgentChatViewModel(
      * leave a live poller writing into a "fresh" screen.
      */
     fun endChatAndStartFresh() {
+        if (endJob?.isActive == true) return
+        // The conversation is closed in AutoPilot first, so the team sees it
+        // end and the next session really is new (CRM Enhancements item 8) —
+        // otherwise the server hands the same open conversation straight back.
+        // A chat that never reached AutoPilot, or has already closed, just
+        // starts fresh. If the end call fails nothing is wiped: the customer
+        // is never told the chat ended when it did not.
+        val conversationId = _state.value.conversationId
+            ?.trim()
+            ?.takeIf { CANONICAL_CONVERSATION_ID.matches(it) && !tracker.isClosed(it) }
+        if (conversationId == null) {
+            startFresh()
+            return
+        }
+        _state.update { it.copy(status = LIVE_CHAT_ENDING_STATUS, error = null) }
+        endJob = viewModelScope.launch {
+            try {
+                repository.endChat(conversationId)
+            } catch (err: CancellationException) {
+                throw err
+            } catch (_: Throwable) {
+                _state.update { it.copy(status = null, error = LIVE_CHAT_END_FAILED_ERROR) }
+                return@launch
+            }
+            startFresh()
+        }
+    }
+
+    private fun startFresh() {
         pollJob?.cancel()
         pollJob = null
         // An in-flight send must die too: deliver() writes the canonical
@@ -116,6 +238,7 @@ internal class LiveAgentChatViewModel(
         sendJob = null
         sessionStarting = false
         displayedRemoteMessageIds.clear()
+        tracker = LiveChatConversationTracker()
         _state.value = LiveAgentChatUiState()
         start()
     }
@@ -173,6 +296,9 @@ internal class LiveAgentChatViewModel(
                     ?.takeIf { it.isNotEmpty() }
                     ?: conversationId
                 _state.update { it.copy(conversationId = canonicalConversationId) }
+                // After a close this is a NEW conversation (AutoPilot starts one
+                // for the customer's next message), so its state starts clean.
+                applyConversationState(result.conversation)
                 val returned = result.message
                 when {
                     returned != null && !returned.isCustomerAuthored && returned.body.isNotBlank() -> {
@@ -277,6 +403,7 @@ internal class LiveAgentChatViewModel(
                 historyCount = session.messages.count { msg -> msg.body.isNotBlank() },
             )
         }
+        applyConversationState(session.conversation)
     }
 
     /**
@@ -292,15 +419,18 @@ internal class LiveAgentChatViewModel(
         // returned the thread, re-fetching would be a wasted round trip AND
         // would consume a reply the poll loop is about to look for.
         if (_state.value.messages.isNotEmpty()) return
-        val remote = runCatching { repository.messages(conversationId) }.getOrNull() ?: return
+        val thread = runCatching { repository.thread(conversationId) }.getOrNull() ?: return
+        val remote = thread.messages
         val turns = remote.filter { it.body.isNotBlank() }
             .map { it.toTurn(_state.value.agentDisplayName) }
-        if (turns.isEmpty()) return
-        remote.forEach(::markDisplayed)
-        // Nothing local can exist yet — this runs during start(), before any
-        // send — so a straight assignment is correct and cannot drop a pending
-        // turn.
-        _state.update { it.copy(messages = turns, historyCount = turns.size) }
+        if (turns.isNotEmpty()) {
+            remote.forEach(::markDisplayed)
+            // Nothing local can exist yet — this runs during start(), before
+            // any send — so a straight assignment is correct and cannot drop a
+            // pending turn.
+            _state.update { it.copy(messages = turns, historyCount = turns.size) }
+        }
+        applyConversationState(thread.conversation)
     }
 
     private fun startPolling(
@@ -339,8 +469,16 @@ internal class LiveAgentChatViewModel(
         inlineAssistantFingerprint: String?,
         surfaceWaitingStatus: Boolean,
     ): Boolean {
+        var waiting = surfaceWaitingStatus
+        var elapsedMillis = 0L
         pollScheduleMillis.forEachIndexed { index, intervalMillis ->
-            if (surfaceWaitingStatus) {
+            if (waiting && elapsedMillis >= LIVE_CHAT_WAITING_TIMEOUT_MILLIS) {
+                // Never "waiting" for more than a minute (item 14). Keep
+                // polling quietly: a late reply still shows up.
+                waiting = false
+                _state.update { it.copy(status = LIVE_CHAT_DELAYED_STATUS) }
+            }
+            if (waiting) {
                 _state.update {
                     it.copy(
                         status = if (index < LIVE_CHAT_INITIAL_POLL_ATTEMPTS) {
@@ -352,27 +490,58 @@ internal class LiveAgentChatViewModel(
                 }
             }
             pollDelay(intervalMillis)
-            val messages = try {
-                repository.messages(conversationId)
+            elapsedMillis += intervalMillis
+            val thread = try {
+                repository.thread(conversationId)
             } catch (err: CancellationException) {
                 throw err
             } catch (_: Throwable) {
-                if (surfaceWaitingStatus) {
+                if (waiting) {
                     _state.update { it.copy(status = LIVE_CHAT_RECONNECTING_STATUS) }
                 }
                 return@forEachIndexed
             }
-            if (
-                appendRemoteAssistantMessages(
-                    messages = messages,
-                    inlineAssistantMessageId = inlineAssistantMessageId,
-                    inlineAssistantFingerprint = inlineAssistantFingerprint,
-                )
-            ) {
+            // A team member who just took the chat is announced before their
+            // reply; an end is announced after the last messages.
+            if (thread.conversation?.isClosed == false) {
+                applyConversationState(thread.conversation)
+            }
+            val received = appendRemoteAssistantMessages(
+                messages = thread.messages,
+                inlineAssistantMessageId = inlineAssistantMessageId,
+                inlineAssistantFingerprint = inlineAssistantFingerprint,
+            )
+            // The chat can end while the customer waits (closed by the team,
+            // or expired): say so and stop polling.
+            if (applyConversationState(thread.conversation) || received) {
                 return true
             }
         }
         return false
+    }
+
+    /**
+     * Folds AutoPilot's state for the active conversation into the transcript:
+     * a centred notice when a team member joins or the chat ends. State for
+     * any other conversation is ignored. Returns true when the active chat is
+     * closed.
+     */
+    private fun applyConversationState(conversation: AutoPilotAppChatConversationState?): Boolean {
+        val activeId = _state.value.conversationId
+        val notices = tracker.apply(conversation, activeConversationId = activeId)
+        if (notices.isNotEmpty()) {
+            _state.update {
+                it.copy(
+                    messages = it.messages + notices.map { notice ->
+                        LiveAgentChatTurn(
+                            role = LiveChatRole.Notice,
+                            body = LiveChatConversationTracker.text(notice),
+                        )
+                    },
+                )
+            }
+        }
+        return tracker.isClosed(activeId)
     }
 
     private fun appendRemoteAssistantMessages(

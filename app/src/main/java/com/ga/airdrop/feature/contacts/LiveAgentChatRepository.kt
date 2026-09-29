@@ -29,6 +29,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
@@ -67,12 +68,41 @@ internal data class AutoPilotAppChatCustomer(
     val appBundleId: String = BuildConfig.APPLICATION_ID,
 )
 
+/**
+ * The chat's state, returned by AutoPilot as `conversation` on the session,
+ * messages and send responses and by "end chat" (CRM Enhancements items 7 and
+ * 8). It is closed once the team closes it, it expires after the customer goes
+ * quiet, or the customer ends it — [endedBy] says which ("agent", "expired",
+ * "customer"). After a close the customer's next message starts a new
+ * conversation with a new id. Contract: AutoPilot
+ * `docs/integrations/app-channel-api.md`.
+ */
+internal data class AutoPilotAppChatConversationState(
+    val id: String?,
+    val status: String?,
+    val closed: Boolean = false,
+    val closedAt: String? = null,
+    val endedBy: String? = null,
+    /** First name of the team member handling the chat, else null. */
+    val agentName: String? = null,
+) {
+    val isClosed: Boolean
+        get() = closed || status.equals("closed", ignoreCase = true)
+}
+
 internal data class AutoPilotAppChatSession(
     val conversationId: String,
     val channelId: String?,
     val status: String?,
     val assignedAgentName: String?,
     val messages: List<AutoPilotAppChatMessage>,
+    val conversation: AutoPilotAppChatConversationState? = null,
+)
+
+/** A conversation's messages plus its state (`GET /conversations/{id}/messages`). */
+internal data class AutoPilotAppChatThread(
+    val messages: List<AutoPilotAppChatMessage>,
+    val conversation: AutoPilotAppChatConversationState? = null,
 )
 
 internal data class AutoPilotAppChatMessage(
@@ -99,6 +129,8 @@ internal data class AutoPilotAppChatSendResult(
     val conversationId: String?,
     val reply: String?,
     val message: AutoPilotAppChatMessage?,
+    /** State of the conversation the message landed in — after a close, a NEW one. */
+    val conversation: AutoPilotAppChatConversationState? = null,
 )
 
 /**
@@ -226,6 +258,17 @@ internal interface LiveAgentChatDataSource {
         body: String,
         user: AirdropUser,
     ): AutoPilotAppChatSendResult
+
+    /** Messages plus the chat's state (open / closed and why). */
+    suspend fun thread(conversationId: String): AutoPilotAppChatThread =
+        AutoPilotAppChatThread(messages(conversationId))
+
+    /**
+     * The customer ends the chat. AutoPilot closes it for the team too and
+     * returns the closed state; ending a chat that is already closed changes
+     * nothing.
+     */
+    suspend fun endChat(conversationId: String): AutoPilotAppChatConversationState? = null
 }
 
 internal class LiveAgentChatRepository(
@@ -276,14 +319,31 @@ internal class LiveAgentChatRepository(
         }
 
     override suspend fun messages(conversationId: String): List<AutoPilotAppChatMessage> =
+        thread(conversationId).messages
+
+    override suspend fun thread(conversationId: String): AutoPilotAppChatThread =
         withContext(Dispatchers.IO) {
             val identity = identity()
-            parseMessagesResponse(
+            parseThreadResponse(
                 autoPilotDirect(
                     identity = identity,
                     path = "/api/v1/app-channels/conversations/$conversationId/messages",
                     method = "GET",
                 ),
+                json,
+            )
+        }
+
+    override suspend fun endChat(conversationId: String): AutoPilotAppChatConversationState =
+        withContext(Dispatchers.IO) {
+            val identity = identity()
+            parseEndResponse(
+                autoPilotDirect(
+                    identity = identity,
+                    path = "/api/v1/app-channels/conversations/$conversationId/end",
+                    method = "POST",
+                ),
+                conversationId,
                 json,
             )
         }
@@ -596,11 +656,48 @@ internal class LiveAgentChatRepository(
                 status = obj.flexString("status"),
                 assignedAgentName = obj.flexString("assigned_agent_name", "assignedAgentName"),
                 messages = parseMessagesElement(obj["messages"], json),
+                conversation = obj.takeIf { it.hasAny("conversation_id", "conversationId") }
+                    ?.objectAt("conversation")
+                    ?.let(::parseConversationState),
             )
         }
 
         internal fun parseMessagesResponse(raw: String, json: Json = ApiClient.json): List<AutoPilotAppChatMessage> =
             parseMessagesElement(json.parseToJsonElement(raw), json)
+
+        internal fun parseThreadResponse(raw: String, json: Json = ApiClient.json): AutoPilotAppChatThread {
+            val root = json.parseToJsonElement(raw)
+            return AutoPilotAppChatThread(
+                messages = parseMessagesElement(root, json),
+                conversation = root.objectOrNull()?.objectAt("conversation")?.let(::parseConversationState),
+            )
+        }
+
+        /** A 2xx from "end chat" means it is closed, even if the body carried no state. */
+        internal fun parseEndResponse(
+            raw: String,
+            conversationId: String,
+            json: Json = ApiClient.json,
+        ): AutoPilotAppChatConversationState =
+            runCatching { json.parseToJsonElement(raw).objectOrNull()?.objectAt("conversation") }
+                .getOrNull()
+                ?.let(::parseConversationState)
+                ?: AutoPilotAppChatConversationState(
+                    id = conversationId,
+                    status = "closed",
+                    closed = true,
+                    endedBy = "customer",
+                )
+
+        private fun parseConversationState(obj: JsonObject): AutoPilotAppChatConversationState =
+            AutoPilotAppChatConversationState(
+                id = obj.flexString("id"),
+                status = obj.flexString("status"),
+                closed = (obj["closed"] as? JsonPrimitive)?.booleanOrNull ?: false,
+                closedAt = obj.flexString("closed_at"),
+                endedBy = obj.flexString("ended_by"),
+                agentName = obj.flexString("agent_name"),
+            )
 
         internal fun parseSendResultResponse(raw: String, json: Json = ApiClient.json): AutoPilotAppChatSendResult {
             val root = json.parseToJsonElement(raw).objectOrNull() ?: JsonObject(emptyMap())
@@ -611,6 +708,7 @@ internal class LiveAgentChatRepository(
                 conversationId = root.flexString("conversation_id", "conversationId"),
                 reply = root.flexString("reply"),
                 message = message?.let(::parseMessageObject),
+                conversation = root.objectAt("conversation")?.let(::parseConversationState),
             )
         }
 

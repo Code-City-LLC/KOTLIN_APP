@@ -5,10 +5,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -81,9 +83,58 @@ class LiveAgentChatScreenParityTest {
         compose.onNodeWithContentDescription("Send message").assertIsDisplayed()
     }
 
+    @Test
+    fun endedChatShowsWhyAsACentredNotice() {
+        setContent(
+            mode = ThemeController.Mode.DARK,
+            state = LiveAgentChatUiState(
+                customerDisplayName = "Chase Camp",
+                messages = listOf(
+                    LiveAgentChatTurn(
+                        id = "customer-1",
+                        role = LiveChatRole.Customer,
+                        body = "Is my package ready?",
+                        senderName = "Chase Camp",
+                    ),
+                    LiveAgentChatTurn(
+                        id = "notice-1",
+                        role = LiveChatRole.Notice,
+                        body = "This chat was closed by our team. Send a message to start a new chat.",
+                    ),
+                ),
+            ),
+        )
+
+        compose.onNodeWithTag("live-chat-notice").assertIsDisplayed()
+        compose.onNodeWithText("This chat was closed by our team. Send a message to start a new chat.")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Is my package ready?").assertIsDisplayed()
+    }
+
+    @Test
+    fun endChatConfirmsThatItEndsTheConversation() {
+        var ended = 0
+        setContent(
+            mode = ThemeController.Mode.LIGHT,
+            state = LiveAgentChatUiState(conversationId = "5f0c3d1e-8a4b-4c55-9d6e-2b7a1c9e0f11"),
+            onEndChat = { ended += 1 },
+        )
+
+        compose.onNodeWithContentDescription("About Nirvana and chat history").performClick()
+        compose.onNodeWithText("End Chat & Start Fresh").performClick()
+        compose.onNodeWithText("End this chat?").assertIsDisplayed()
+        compose.onNodeWithText(
+            "This ends the conversation and starts a fresh one with Nirvana. It cannot be undone.",
+        ).assertIsDisplayed()
+        compose.onNodeWithText("End & Start Fresh").performClick()
+
+        assertEquals(1, ended)
+    }
+
     private fun setContent(
         mode: ThemeController.Mode,
         state: LiveAgentChatUiState,
+        onEndChat: () -> Unit = {},
     ) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             ThemeController.set(mode)
@@ -95,6 +146,7 @@ class LiveAgentChatScreenParityTest {
                     onBack = {},
                     onInputChange = {},
                     onSend = {},
+                    onEndChat = onEndChat,
                 )
             }
         }
