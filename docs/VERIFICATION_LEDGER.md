@@ -15,14 +15,9 @@
 
 ## 1. OPEN PROBLEMS
 
-### P0 — 🔐 SECURITY: hardcoded Trengo live-chat widget key in BOTH apps (KEMAR #14792 — remove Trengo → Autopilot/Hermes)
-- **Key:** `window.Trengo.key` = a Trengo **client-side widget** key (redacted `VEoe…`, len 15) — not a REST/server secret, but **hardcoded, shipped-in-binary, and in git history of both repos.** True invalidation = **rotate the widget key in the Trengo dashboard** (source scrub alone won't undo the exposure).
-- **Swift footprint** (all in `Airdrop/FigmaRouteViewController.swift`): key :1051 · `embed.js` :1057 · `loadHTMLString` baseURL airdropja.com :1068 · route case `"LiveAgentChatView"` :808 → VC class :942-1074. The route is **orphaned** in Swift (no in-app callers), but route strings arrive dynamically from push/server → **retarget** the :808 case to the replacement, don't just delete.
-- **Kotlin footprint:** [LiveAgentChatScreen.kt](app/src/main/java/com/ga/airdrop/feature/contacts/LiveAgentChatScreen.kt) (key :47 in `TRENGO_HTML` :40-63, `embed.js` :53, `Trengo.Api.Widget.open` :55, WebView baseURL airdropja.com ~:128, KDoc :34-37) · [Routes.kt](app/src/main/java/com/ga/airdrop/core/navigation/Routes.kt):25-26 · [AppRoot.kt](app/src/main/java/com/ga/airdrop/core/navigation/AppRoot.kt) composable · **branch-only** `RouteResolver.kt:19` + `PushDeepLinkParityTest.kt:39` (added by `c403099`) · docs `HANDOFF.md:40` (key verbatim).
-- **Reachability:** origin/main = **dead** (no resolver, no Contacts card); PR branch = push-deep-link reachable; the **uncommitted working-tree** rework of `ContactsScreen.kt` (:107-129) adds a **tappable Live Chat card** → whoever removes Trengo must reconcile that local rework.
-- **Replacement rail:** `hermes`/`autopilot` = **ZERO hits in both repos** — the Autopilot+Hermes routing does not exist yet. Per Kemar rule #5 **do not guess** the replacement API; get the spec first.
-- **DO NOT remove:** call/email/WhatsApp/location Help-tab actions, and `FigmaIcon_Chat`/`FigmaIcon.chat` notification-category icons — those are NOT Trengo.
-- **My role:** inventory-only (verifier). A senior agent owns key-rotation + the Hermes swap; I verify "no Trengo key remains + support/chat flow intact" once removal lands. (Full 33-ref map: ORC [TRENGO INVENTORY] post.)
+### P0 — ✅ RESOLVED (2026-07-28) — old third-party live-chat widget removed from both apps
+- The hardcoded widget and its key were removed from `app/` on `origin/main` (`38d60d30`); Live Chat runs natively on Nirvana/AutoPilot (#154, `75c3d65f`). Swift `origin/main` is also clear.
+- The former vendor's account was cancelled on 2026-10-12, so the old widget key is dead; its last docs mention was removed the same day.
 
 ### P1 — ✅ FIXED & DEVICE-VERIFIED (2026-07-06) — Featured Product Details "Product not found"
 - **Was:** Shop → Feature Products → tap any product → "Product not found" for EVERY featured product. Root cause ([ShopRepoBinding.kt:77](app/src/main/java/com/ga/airdrop/feature/shop/ShopRepoBinding.kt) `productBySlug`): featured slugs 404 on `GET /products/{slug}`; `featured-products?slug=` 200-but-empty (Laravel `/featured-products` has no show route). Chain ended in `error("Product not found")`.
@@ -83,7 +78,7 @@
 
 
 ### AUDIT APPEND — #144 (FuchsiaTower, 2026-07-28T13:23:01Z) — RESOLVED only
-- **RESOLVED (Kotlin app source):** P0 Trengo widget embedding removed from `app/` on `origin/main` `38d60d30`. Land: `75c3d65f` (#154) native Nirvana/AutoPilot Live Chat. Evidence: `git grep` 0 hits for trengo/VEoe under `app/`; `LiveAgentChatScreen.kt` Nirvana consent; identity via `GET /autopilot/identity` (`LiveAgentChatRepository.kt:290-299`). Residual: `HANDOFF.md:40` still quotes key (docs/history); dashboard key rotation still ops-owned. Swift `origin/main` also Trengo-free in `*.swift` (AutoPilot rail).
+- **RESOLVED (Kotlin app source):** P0 old chat-widget embedding removed from `app/` on `origin/main` `38d60d30`. Land: `75c3d65f` (#154) native Nirvana/AutoPilot Live Chat. Evidence: `git grep` 0 hits for the old widget under `app/`; `LiveAgentChatScreen.kt` Nirvana consent; identity via `GET /autopilot/identity` (`LiveAgentChatRepository.kt:290-299`). Residual docs mention removed 2026-10-12; the vendor account is cancelled, so the key is dead. Swift `origin/main` also clear in `*.swift` (AutoPilot rail).
 - **RESOLVED (code):** P6 Notifications inbox list restored — `NotificationsScreen.kt` ViewModel + `LazyColumn`/`NotificationRow` (empty only when items empty); restore `3e0aaf9c`. Device L+D on notif-bearing acct still pending.
 
 ## 1b. MISSING-FUNCTIONS SWEEP — CLOSED 2026-07-06 (TealSnow; do not re-derive)
