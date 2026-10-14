@@ -435,6 +435,31 @@ class DocumentsViewModel(
         openCurrentDocument(owner, slot, apiBase, onOpen)
     }
 
+    /**
+     * A row of the Blank forms section: always the server-generated blank
+     * form, whatever the slot holds. The slot's own Download opens the
+     * customer's upload once there is one, so without this section a customer
+     * who has uploaded could not get a fresh form.
+     */
+    fun openBlankForm(
+        slot: DocumentSlot,
+        apiBase: String,
+        onOpen: (url: String, title: String) -> Unit,
+    ) {
+        val owner = sessionBoundary.captureOwnedSession(sessionOwner) ?: return
+        sessionBoundary.apply(owner) {
+            val url = mobileFormDownloadUrl(slot.docType, apiBase)
+                ?.replaceFirst("http://", "https://")
+            if (url == null) {
+                _state.update {
+                    it.copy(alert = "Not available" to "No blank form is available for ${slot.title}.")
+                }
+            } else {
+                onOpen(url, slot.title)
+            }
+        }
+    }
+
     private fun openCurrentDocument(
         owner: AuthenticatedSessionOwner,
         slot: DocumentSlot,
@@ -489,3 +514,19 @@ internal fun mobileFormDownloadUrl(docType: String, apiBase: String): String? {
         else -> null
     }
 }
+
+/**
+ * The dedicated "Blank forms" section (Kemar's CUSTOMER SIDE doc, 2026-10-13):
+ * blank forms sit in a section of their own, separate from the uploaded
+ * documents, on the website, the mobile web and the app. One row per slot the
+ * blank-form route serves, in slot order, so each row carries its card's name.
+ */
+internal val BLANK_FORM_SLOTS: List<DocumentSlot> =
+    DOCUMENT_SLOTS.filter { mobileFormDownloadUrl(it.docType, apiBase = "") != null }
+
+internal const val BLANK_FORMS_TITLE = "Blank forms"
+
+/** The website and mobile-web sections say the same. */
+internal const val BLANK_FORMS_DESCRIPTION =
+    "Download a blank form, complete and sign it, then upload it above. " +
+        "Your approved document stays in force until the new one is approved."

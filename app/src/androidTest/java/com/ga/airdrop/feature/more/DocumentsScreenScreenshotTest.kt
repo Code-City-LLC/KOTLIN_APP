@@ -15,12 +15,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.auth.AuthTokenStore
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.ThemeController
+import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.session.FakeAuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.SessionStore
 import java.io.File
@@ -73,6 +76,84 @@ class DocumentsScreenScreenshotTest {
 
         assertUploadedFileAndActionsGeometry()
         saveRootScreenshot("documents_card_swift_geometry_dark.png")
+    }
+
+    /** Kemar's CUSTOMER SIDE doc: blank forms in a section of their own. */
+    @Test
+    fun blankFormsSectionOffersTheThreeServerForms() {
+        assertEquals(
+            listOf("airdrop_contract", "file_1583", "authorization_form"),
+            BLANK_FORM_SLOTS.map { it.docType },
+        )
+        assertEquals(
+            listOf("AirDrop Contract", "1583 Form", "Custom Form"),
+            BLANK_FORM_SLOTS.map { it.title },
+        )
+    }
+
+    @Test
+    fun blankFormsCardUsesTheSlotGeometryLight() {
+        setBlankFormsCard(ThemeController.Mode.LIGHT)
+
+        assertBlankFormsGeometry()
+        saveRootScreenshot("documents_blank_forms_light.png")
+    }
+
+    @Test
+    fun blankFormsCardUsesTheSlotGeometryDark() {
+        setBlankFormsCard(ThemeController.Mode.DARK)
+
+        assertBlankFormsGeometry()
+        saveRootScreenshot("documents_blank_forms_dark.png")
+    }
+
+    /**
+     * A row opens the server-generated blank form even when the slot already
+     * holds an upload; the slot's own Download still opens the upload.
+     */
+    @Test
+    fun blankFormRowOpensTheBlankFormEvenWhenTheSlotHoldsAnUpload() {
+        val repository = CountingDocumentsRepository(
+            documents = mapOf("airdrop_contract" to sampleFile),
+        )
+        val boundary = FakeAuthenticatedSessionBoundary("session-a", initialAccountId = 101)
+        val navigated = AtomicReference<String?>()
+        lateinit var viewModel: DocumentsViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(ThemeController.Mode.LIGHT)
+            viewModel = DocumentsViewModel(repository, boundary)
+        }
+        compose.setContent {
+            AirdropTheme {
+                DocumentsScreen(
+                    onBack = {},
+                    onNavigate = { navigated.set(it) },
+                    viewModel = viewModel,
+                )
+            }
+        }
+        compose.waitUntil(timeoutMillis = 20_000) {
+            viewModel.state.value.files["airdrop_contract"] != null
+        }
+
+        compose.onNodeWithTag("documents-blank-form-airdrop_contract")
+            .performScrollTo()
+            .performClick()
+        compose.waitForIdle()
+        assertEquals(
+            Routes.invoiceViewer(
+                "${BuildConfig.API_BASE_URL}/user/forms/contract/download",
+                "AirDrop Contract",
+            ),
+            navigated.get(),
+        )
+
+        compose.onAllNodesWithText("Download")[0].performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(
+            Routes.invoiceViewer(sampleFile.fileUrl!!, "AirDrop Contract"),
+            navigated.get(),
+        )
     }
 
     @Test
@@ -360,6 +441,33 @@ class DocumentsScreenScreenshotTest {
             }
         }
         compose.waitForIdle()
+    }
+
+    private fun setBlankFormsCard(mode: ThemeController.Mode) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(mode)
+        }
+        compose.setContent {
+            AirdropTheme {
+                Box(Modifier.width(335.dp)) {
+                    BlankFormsCard(onOpen = {})
+                }
+            }
+        }
+        compose.waitForIdle()
+    }
+
+    private fun assertBlankFormsGeometry() {
+        val cardBounds = compose.onNodeWithTag("documents-blank-forms").getUnclippedBoundsInRoot()
+        assertClose(335f, boundsWidth(cardBounds), "Blank forms card width")
+        listOf("airdrop_contract", "file_1583", "authorization_form").forEach { type ->
+            val row = compose.onNodeWithTag("documents-blank-form-$type").getUnclippedBoundsInRoot()
+            assertClose(303f, boundsWidth(row), "Blank form row width ($type)")
+            assertClose(56f, boundsHeight(row), "Blank form row height ($type)")
+        }
+        compose.onNodeWithText(BLANK_FORMS_TITLE).assertIsDisplayed()
+        compose.onNodeWithText(BLANK_FORMS_DESCRIPTION).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Download the blank 1583 Form").assertIsDisplayed()
     }
 
     private fun assertUploadedFileAndActionsGeometry() {
