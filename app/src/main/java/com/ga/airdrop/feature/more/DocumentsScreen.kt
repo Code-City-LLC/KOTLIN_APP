@@ -63,7 +63,7 @@ import java.util.Locale
  * Documents — Figma node 40000975:7748, behavior from
  * FigmaDocumentsViewController: five document slots (title + info circle,
  * description, peach uploaded-file row with trash/eye, Download|Upload
- * split action bar). Upload uses the shared file/photo/camera source sheet
+ * split action bar), then the Blank forms card. Upload uses the shared file/photo/camera source sheet
  * and stages a pending file before explicit commit; view/download routes
  * through the shared invoice viewer.
  */
@@ -100,6 +100,12 @@ fun DocumentsScreen(
 
     fun openFile(slot: DocumentSlot) {
         viewModel.openDocument(slot, com.ga.airdrop.BuildConfig.API_BASE_URL) { url, title ->
+            onNavigate(Routes.invoiceViewer(url, title))
+        }
+    }
+
+    fun openBlankForm(slot: DocumentSlot) {
+        viewModel.openBlankForm(slot, com.ga.airdrop.BuildConfig.API_BASE_URL) { url, title ->
             onNavigate(Routes.invoiceViewer(url, title))
         }
     }
@@ -156,6 +162,7 @@ fun DocumentsScreen(
                             onCommitPendingUpload = { viewModel.commitPendingUpload(slot) },
                         )
                     }
+                    BlankFormsCard(onOpen = { slot -> openBlankForm(slot) })
                     Spacer(Modifier.height(Spacing.md))
                 }
             }
@@ -323,6 +330,96 @@ internal fun DocumentCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * Blank forms — Kemar's CUSTOMER SIDE doc: the blank forms in a section of
+ * their own, separate from the uploaded documents, so a customer can always get
+ * a fresh form. Same card as the slots and the same peach 56dp rows as an
+ * uploaded file (Swift: the Blank forms card on FigmaDocumentsViewController).
+ */
+@Composable
+internal fun BlankFormsCard(onOpen: (DocumentSlot) -> Unit) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("documents-blank-forms")
+            .clip(RoundedCornerShape(Radius.s))
+            .background(colors.gray100)
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(30.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(
+                    text = BLANK_FORMS_TITLE,
+                    style = AirdropType.subtitle1,
+                    color = colors.textDarkTitle,
+                    maxLines = 1,
+                )
+            }
+            Text(
+                text = BLANK_FORMS_DESCRIPTION,
+                style = AirdropType.body2,
+                color = colors.textDescription,
+            )
+        }
+        BLANK_FORM_SLOTS.forEach { slot ->
+            BlankFormRow(slot = slot, onClick = { onOpen(slot) })
+        }
+    }
+}
+
+@Composable
+private fun BlankFormRow(slot: DocumentSlot, onClick: () -> Unit) {
+    val colors = AirdropTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .testTag("documents-blank-form-${slot.docType}")
+            .clip(RoundedCornerShape(8.dp))
+            .background(colors.peachLight)
+            .clickable(onClickLabel = "Download the blank ${slot.title}", onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_pdf),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier.size(28.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = slot.title,
+                style = AirdropType.body2,
+                color = colors.textDarkTitle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "PDF",
+                style = AirdropType.body3,
+                color = colors.textDescription,
+                maxLines = 1,
+            )
+        }
+        Image(
+            painter = painterResource(R.drawable.ic_download_file),
+            contentDescription = "Download the blank ${slot.title}",
+            colorFilter = ColorFilter.tint(colors.iconSelected),
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 
