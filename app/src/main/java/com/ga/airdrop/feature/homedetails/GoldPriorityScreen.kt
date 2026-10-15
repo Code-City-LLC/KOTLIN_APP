@@ -364,6 +364,7 @@ fun GoldPriorityScreen(
 /** Which sheet is presented over the pager. */
 private sealed interface TierSheet {
     data object Breakdown : TierSheet
+    data object Business : TierSheet
     data class Change(val target: TierPage, val isUpgrade: Boolean) : TierSheet
 }
 
@@ -403,7 +404,8 @@ internal fun GoldPriorityContent(
     val activeTier = tierPages[activeIndex]
     val relation = tierRelation(activeIndex, resolvedTierIndex)
     val customerTierName = resolvedTierIndex?.let(tierPages::getOrNull)?.name
-    val ctaLabel = tierCtaLabel(relation, activeTier.name, resolutionStatus, customerTierName)
+    val ctaLabel = if (activeTier.id == "corporate") "Contact Us"
+        else tierCtaLabel(relation, activeTier.name, resolutionStatus, customerTierName)
     val gradientTop by animateColorAsState(activeTier.gradientTop, label = "tierTop")
     val gradientBottom by animateColorAsState(activeTier.gradientBottom, label = "tierBottom")
 
@@ -461,6 +463,7 @@ internal fun GoldPriorityContent(
         // Un-offered upgrades render DISABLED (dimmed, inert, a11y-disabled)
         // instead of silently-dead (#22991-2).
         val ctaEnabled = when {
+            activeTier.id == "corporate" -> true
             resolutionStatus == TierResolutionStatus.Loading -> false
             resolutionStatus == TierResolutionStatus.Failed -> true
             relation == TierRelation.UPGRADE ->
@@ -477,7 +480,9 @@ internal fun GoldPriorityContent(
             label = ctaLabel,
             enabled = ctaEnabled,
             onTap = {
-                if (resolutionStatus == TierResolutionStatus.Failed) {
+                if (activeTier.id == "corporate") {
+                    activeSheet = TierSheet.Business
+                } else if (resolutionStatus == TierResolutionStatus.Failed) {
                     onRetryBenefits()
                 } else when (relation) {
                     // Kemar 2026-07-11: "Your Tier" opens the benefits
@@ -513,6 +518,13 @@ internal fun GoldPriorityContent(
 
     val userTier = resolvedTierIndex?.let(tierPages::getOrNull)
     when (val sheet = activeSheet) {
+        TierSheet.Business -> BusinessInquirySheet(
+            onDismiss = { activeSheet = null },
+            onOpenChat = { conversationId ->
+                activeSheet = null
+                onNavigate(Routes.liveChat(conversationId))
+            },
+        )
         is TierSheet.Breakdown -> if (userTier != null) {
             YourTierBreakdownSheet(
                 tier = userTier,

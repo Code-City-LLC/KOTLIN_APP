@@ -271,6 +271,15 @@ internal interface LiveAgentChatDataSource {
     suspend fun endChat(conversationId: String): AutoPilotAppChatConversationState? = null
 }
 
+internal interface BusinessInquiryChat : LiveAgentChatDataSource {
+    suspend fun sendInquiry(
+        conversationId: String,
+        body: String,
+        user: AirdropUser,
+        metadata: Map<String, String>,
+    ): AutoPilotAppChatSendResult
+}
+
 internal class LiveAgentChatRepository(
     private val userRepository: UserRepository = UserRepository(ApiClient.service),
     private val airdropClient: OkHttpClient = ApiClient.okHttp,
@@ -281,7 +290,8 @@ internal class LiveAgentChatRepository(
     private val clockMs: () -> Long = { System.currentTimeMillis() },
     private val accountContextSource: LiveAgentChatAccountContextSource =
         DefaultLiveAgentChatAccountContextSource(),
-) : LiveAgentChatDataSource {
+    private val expectedSession: com.ga.airdrop.core.auth.AuthTokenStore.RequestProvenance? = null,
+) : BusinessInquiryChat {
     private var cachedIdentity: AutoPilotIdentity? = null
     @Volatile
     private var cachedAccountContext: LiveAgentChatAccountContext? = null
@@ -352,6 +362,20 @@ internal class LiveAgentChatRepository(
         conversationId: String,
         body: String,
         user: AirdropUser,
+    ): AutoPilotAppChatSendResult = sendWithMetadata(conversationId, body, user, emptyMap())
+
+    override suspend fun sendInquiry(
+        conversationId: String,
+        body: String,
+        user: AirdropUser,
+        metadata: Map<String, String>,
+    ): AutoPilotAppChatSendResult = sendWithMetadata(conversationId, body, user, metadata)
+
+    private suspend fun sendWithMetadata(
+        conversationId: String,
+        body: String,
+        user: AirdropUser,
+        additionalMetadata: Map<String, String>,
     ): AutoPilotAppChatSendResult =
         withContext(Dispatchers.IO) {
             val identity = identity()
@@ -369,7 +393,11 @@ internal class LiveAgentChatRepository(
                 put("sender", "customer")
                 put("messageType", "text")
                 put("customer", customer.toJson())
-                put("metadata", messageMetadata(user, accountContext))
+                put("metadata", buildJsonObject {
+                    additionalMetadata.forEach { (key, value) -> put(key, value) }
+                    // Account context remains authoritative; inquiry metadata cannot replace it.
+                    messageMetadata(user, accountContext).forEach { (key, value) -> put(key, value) }
+                })
             }.toString()
 
             parseSendResultResponse(
@@ -384,11 +412,18 @@ internal class LiveAgentChatRepository(
         }
 
     private fun identity(): AutoPilotIdentity {
+        checkExpectedSession()
         cachedIdentity?.let { return it }
         val url = "${apiBaseUrl.trimEnd('/')}/autopilot/identity"
         val request = Request.Builder()
             .url(url)
             .header("Accept", "application/json")
+            .apply {
+                expectedSession?.let {
+                    header(com.ga.airdrop.core.auth.AuthTokenStore.REQUEST_REVISION_HEADER, it.revision.toString())
+                    header(com.ga.airdrop.core.auth.AuthTokenStore.REQUEST_SESSION_ID_HEADER, it.sessionId)
+                }
+            }
             .post("{}".toRequestBody(LiveChatJsonMediaType))
             .build()
         val raw = execute(airdropClient, request, vendorRequest = false)
@@ -442,8 +477,10 @@ internal class LiveAgentChatRepository(
         request: Request,
         vendorRequest: Boolean,
     ): String {
+        checkExpectedSession()
         try {
             client.newCall(request).execute().use { response ->
+                checkExpectedSession()
                 val raw = response.body?.string().orEmpty()
                 if (response.isSuccessful) return raw
                 throw exceptionForStatus(response.code, raw, vendorRequest)
@@ -459,6 +496,14 @@ internal class LiveAgentChatRepository(
                 cause = err,
             )
         }
+    }
+
+    private fun checkExpectedSession() {
+        val expected = expectedSession ?: return
+        val current = com.ga.airdrop.core.auth.AuthTokenStore.requestProvenance(
+            com.ga.airdrop.core.auth.AuthTokenStore.snapshot(),
+        )
+        check(current == expected) { "Your session changed. Please reopen your Business request." }
     }
 
     private fun exceptionForStatus(status: Int, body: String, vendorRequest: Boolean): LiveAgentChatException {

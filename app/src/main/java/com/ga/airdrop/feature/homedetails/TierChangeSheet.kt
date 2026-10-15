@@ -485,7 +485,7 @@ private fun TierSheetMark(
 }
 
 @Composable
-private fun TierSheetPrimaryButton(
+internal fun TierSheetPrimaryButton(
     label: String,
     loading: Boolean,
     enabled: Boolean,
@@ -522,7 +522,7 @@ private fun TierSheetPrimaryButton(
 }
 
 @Composable
-private fun TierSheetQuietButton(
+internal fun TierSheetQuietButton(
     label: String,
     loading: Boolean,
     enabled: Boolean,
