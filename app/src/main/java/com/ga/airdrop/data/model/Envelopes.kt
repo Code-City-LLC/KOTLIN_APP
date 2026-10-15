@@ -74,11 +74,20 @@ class PaginatedSerializer<T>(private val itemSerializer: KSerializer<T>) : KSeri
         // also where it publishes unread_count). Try both, and only accept a
         // decode that actually carried pagination data — the delivery envelope
         // has a "meta" of {timestamp, version} that must not masquerade as one.
+        fun decodePagination(element: kotlinx.serialization.json.JsonElement?): Pagination? {
+            val fields = (element as? JsonObject)?.toMutableMap() ?: return null
+            // Referral history uses these names; retain standard-key precedence
+            // and every existing package/order/payment/notification envelope.
+            if ("total" !in fields) fields["total_records"]?.let { fields["total"] = it }
+            if ("last_page" !in fields) fields["total_pages"]?.let { fields["last_page"] = it }
+            return json.decodeOrNull(Pagination.serializer(), JsonObject(fields))
+        }
+
         fun paginationIn(container: JsonObject?): Pagination? {
             container ?: return null
-            json.decodeOrNull(Pagination.serializer(), container["pagination"])
+            decodePagination(container["pagination"])
                 ?.let { return it }
-            val meta = json.decodeOrNull(Pagination.serializer(), container["meta"])
+            val meta = decodePagination(container["meta"])
                 ?: return null
             val carriesPagination = meta.currentPage != null || meta.perPage != null ||
                 meta.total != null || meta.lastPage != null || meta.unreadCount != null

@@ -13,9 +13,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +45,7 @@ import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.feature.shipments.ShipmentsFormat
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReferredFriendsScreen(
     onBack: () -> Unit,
@@ -45,93 +53,87 @@ fun ReferredFriendsScreen(
 ) {
     val colors = AirdropTheme.colors
     val state by viewModel.state.collectAsState()
+    val listState = rememberLazyListState()
+    val nearEnd by remember {
+        derivedStateOf {
+            val layout = listState.layoutInfo
+            state.referrals.isNotEmpty() && layout.totalItemsCount > 0 &&
+                (layout.visibleItemsInfo.lastOrNull()?.index ?: -1) >= layout.totalItemsCount - 3
+        }
+    }
+    LaunchedEffect(nearEnd, state.referrals.size, state.hasMore) {
+        if (nearEnd) viewModel.loadMore()
+    }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(colors.gray150)
-            .testTag("referred-friends-screen"),
-    ) {
+    Column(Modifier.fillMaxSize().background(colors.gray150).testTag("referred-friends-screen")) {
         More2InnerHeader(title = "Referred Friends", onBack = onBack)
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+        PullToRefreshBox(
+            isRefreshing = state.loading && state.referrals.isNotEmpty(),
+            onRefresh = viewModel::loadFriends,
+            modifier = Modifier.weight(1f).fillMaxWidth().testTag("referred-friends-refresh"),
         ) {
-            when {
-                state.loading -> {
-                    CircularProgressIndicator(
-                        color = BrandPalette.OrangeMain,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 60.dp)
-                            .size(42.dp)
-                            .testTag("referred-friends-loading"),
-                    )
-                }
-                // ⚠️ This arm must come BEFORE the empty check. A failed fetch
-                // also leaves the list empty, so ordering it after would put us
-                // straight back to telling the customer they referred nobody.
-                state.loadFailed && state.referrals.isEmpty() -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 80.dp, start = 32.dp, end = 32.dp)
-                            .testTag("referred-friends-load-failed"),
-                    ) {
-                        Text(
-                            // Swift's copy verbatim (FigmaReferredFriendsViewController
-                            // :199) so both platforms say the same thing. "Tap
-                            // Retry" rather than "Pull down" because this screen
-                            // has a button, not a refresh control.
-                            text = "Couldn't load your referrals. Tap Retry to try again.",
-                            style = AirdropType.body1,
-                            color = colors.textDescription,
-                            textAlign = TextAlign.Center,
-                        )
-                        Spacer(Modifier.height(Spacing.md))
-                        Text(
-                            text = "Retry",
-                            style = AirdropType.subtitle2,
-                            color = BrandPalette.OrangeMain,
-                            modifier = Modifier
-                                .clickable { viewModel.loadFriends() }
-                                .padding(Spacing.sm)
-                                .testTag("referred-friends-retry"),
-                        )
-                    }
-                }
-                state.referrals.isEmpty() -> {
-                    Text(
-                        text = "You haven't referred any friends yet.",
-                        style = AirdropType.body1,
-                        color = colors.textDescription,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 80.dp, start = 32.dp, end = 32.dp)
-                            .testTag("referred-friends-empty"),
-                    )
-                }
-                else -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 20.dp, vertical = 16.dp)
-                            .testTag("referred-friends-list"),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        state.referrals.forEach { friend ->
-                            ReferredFriendCard(friend)
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().testTag("referred-friends-list"),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (state.referrals.isEmpty()) {
+                    item(key = "initial-state") {
+                        when {
+                            state.loading -> Box(Modifier.fillMaxWidth().padding(top = 44.dp), contentAlignment = Alignment.TopCenter) {
+                                CircularProgressIndicator(color = BrandPalette.OrangeMain,
+                                    modifier = Modifier.size(42.dp).testTag("referred-friends-loading"))
+                            }
+                            state.loadFailed -> ReferralRetry(
+                                "Couldn't load your referrals. Tap Retry to try again.",
+                                "referred-friends-load-failed", "referred-friends-retry", viewModel::loadFriends,
+                                Modifier.padding(top = 64.dp, start = 12.dp, end = 12.dp),
+                            )
+                            else -> Text(
+                                text = "You haven't referred any friends yet.",
+                                style = AirdropType.body1, color = colors.textDescription,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(top = 64.dp, start = 12.dp, end = 12.dp)
+                                    .testTag("referred-friends-empty"),
+                            )
                         }
-                        Spacer(Modifier.height(8.dp))
                     }
+                } else {
+                    if (state.loadFailed && !state.loading) {
+                        item(key = "refresh-failure") {
+                            ReferralRetry("Couldn't refresh your referrals. Your previous results are shown.",
+                                "referred-friends-refresh-failed", "referred-friends-refresh-retry", viewModel::loadFriends)
+                        }
+                    }
+                    items(state.referrals, key = { it.id }) { friend -> ReferredFriendCard(friend) }
+                    if (state.loadingMore) {
+                        item(key = "loading-more") {
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = BrandPalette.OrangeMain,
+                                    modifier = Modifier.size(32.dp).testTag("referred-friends-loading-more"))
+                            }
+                        }
+                    } else if (state.loadMoreError) {
+                        item(key = "more-failure") {
+                            ReferralRetry("Couldn't load more referrals.", "referred-friends-more-failed",
+                                "referred-friends-more-retry", viewModel::retryLoadMore)
+                        }
+                    }
+                    item(key = "bottom-space") { Spacer(Modifier.height(8.dp)) }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReferralRetry(message: String, tag: String, retryTag: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().testTag(tag), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(message, style = AirdropType.body1, color = AirdropTheme.colors.textDescription, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(Spacing.md))
+        Text("Retry", style = AirdropType.subtitle2, color = BrandPalette.OrangeMain,
+            modifier = Modifier.clickable(onClick = onRetry).padding(Spacing.sm).testTag(retryTag))
     }
 }
 
@@ -229,9 +231,9 @@ private fun ReferredFriend.displayName(): String {
 }
 
 private fun ReferredFriend.statusFallbackText(): String = when (status) {
-    1 -> "Completed"
-    2 -> "Pending"
-    3 -> "Expired"
-    4 -> "Cancelled"
-    else -> "Unknown"
+    0, 99 -> "Not Signed Up"
+    1 -> "Signed up but has not placed first order"
+    2 -> "Placed first order but not delivered"
+    3 -> "AirCoin Credited"
+    else -> "Unknown Status"
 }

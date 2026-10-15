@@ -1,5 +1,11 @@
 package com.ga.airdrop.feature.more2
 
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.AuthenticatedSessionOwner
+import com.ga.airdrop.core.session.AuthenticatedRequestOwner
+import com.ga.airdrop.data.model.Paginated
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.ReferredFriend
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +46,7 @@ class ReferredFriendsFailureTest {
     @Test
     fun `a failed history read is distinguishable from having referred nobody`() =
         runTest(dispatcher) {
-            val viewModel = ReferredFriendsViewModel(FailingRepo())
+            val viewModel = ReferredFriendsViewModel(FailingRepo(), ReferralTestBoundary())
             advanceUntilIdle()
 
             assertTrue(
@@ -53,7 +59,7 @@ class ReferredFriendsFailureTest {
 
     @Test
     fun `a genuinely empty account is NOT reported as a failure`() = runTest(dispatcher) {
-        val viewModel = ReferredFriendsViewModel(EmptyRepo())
+        val viewModel = ReferredFriendsViewModel(EmptyRepo(), ReferralTestBoundary())
         advanceUntilIdle()
 
         assertFalse(
@@ -70,7 +76,7 @@ class ReferredFriendsFailureTest {
     @Test
     fun `a failed retry keeps the referrals already on screen`() = runTest(dispatcher) {
         val repo = FlakyRepo()
-        val viewModel = ReferredFriendsViewModel(repo)
+        val viewModel = ReferredFriendsViewModel(repo, ReferralTestBoundary())
         advanceUntilIdle()
         assertEquals(1, viewModel.state.value.referrals.size)
 
@@ -89,7 +95,7 @@ class ReferredFriendsFailureTest {
     @Test
     fun `a successful reload clears the failure flag`() = runTest(dispatcher) {
         val repo = FlakyRepo().apply { failNext = true }
-        val viewModel = ReferredFriendsViewModel(repo)
+        val viewModel = ReferredFriendsViewModel(repo, ReferralTestBoundary())
         advanceUntilIdle()
         assertTrue(viewModel.state.value.loadFailed)
 
@@ -103,20 +109,37 @@ class ReferredFriendsFailureTest {
 
     private class FailingRepo : ReferAFriendRepository {
         override suspend fun currentUser() = Result.failure<AirdropUser>(UnsupportedOperationException())
-        override suspend fun referredFriends(limit: Int) =
-            Result.failure<List<ReferredFriend>>(IllegalStateException("network"))
+        override suspend fun referredFriends(expectedSession: AuthTokenStore.RequestProvenance, page: Int, limit: Int) =
+            Result.failure<Paginated<ReferredFriend>>(IllegalStateException("network"))
     }
 
     private class EmptyRepo : ReferAFriendRepository {
         override suspend fun currentUser() = Result.failure<AirdropUser>(UnsupportedOperationException())
-        override suspend fun referredFriends(limit: Int) = Result.success(emptyList<ReferredFriend>())
+        override suspend fun referredFriends(expectedSession: AuthTokenStore.RequestProvenance, page: Int, limit: Int) = Result.success(Paginated(emptyList<ReferredFriend>()))
     }
 
     private class FlakyRepo : ReferAFriendRepository {
         var failNext = false
         override suspend fun currentUser() = Result.failure<AirdropUser>(UnsupportedOperationException())
-        override suspend fun referredFriends(limit: Int) =
+        override suspend fun referredFriends(expectedSession: AuthTokenStore.RequestProvenance, page: Int, limit: Int) =
             if (failNext) Result.failure(IllegalStateException("network"))
-            else Result.success(listOf(ReferredFriend(id = 1, friendName = "Ada Lovelace")))
+            else Result.success(Paginated(listOf(ReferredFriend(id = 1, friendName = "Ada Lovelace"))))
     }
+}
+
+internal class ReferralTestBoundary : AuthenticatedSessionBoundary {
+    val owners = MutableStateFlow<AuthenticatedSessionOwner?>(AuthenticatedSessionOwner("referral-a", 1))
+    override val changes = owners
+    override fun capture() = owners.value
+    override fun isCurrent(owner: AuthenticatedSessionOwner) = owner == owners.value
+    override fun apply(owner: AuthenticatedSessionOwner, action: () -> Unit): Boolean {
+        if (!isCurrent(owner)) return false
+        action()
+        return true
+    }
+    override fun runWhileCurrent(owner: AuthenticatedSessionOwner, action: () -> Boolean) =
+        isCurrent(owner) && action()
+    override fun requestOwner(owner: AuthenticatedSessionOwner) =
+        if (isCurrent(owner)) AuthenticatedRequestOwner(owner, AuthTokenStore.RequestProvenance(1L, owner.sessionId)) else null
+    override fun bindAccountId(owner: AuthenticatedSessionOwner, accountId: Int) = isCurrent(owner)
 }

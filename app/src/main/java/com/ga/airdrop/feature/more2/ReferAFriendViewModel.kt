@@ -3,6 +3,16 @@ package com.ga.airdrop.feature.more2
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ga.airdrop.core.network.ApiClient
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.AuthenticatedOwnerChange
+import com.ga.airdrop.core.session.DefaultAuthenticatedSessionBoundary
+import com.ga.airdrop.core.session.captureOwnedRequest
+import com.ga.airdrop.core.session.changeTo
+import com.ga.airdrop.data.model.Paginated
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import com.ga.airdrop.data.model.AirdropUser
 import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.repo.UserRepository
@@ -37,11 +47,18 @@ data class ReferredFriendsUiState(
      * below is theirs verbatim so the platforms say the same thing.
      */
     val loadFailed: Boolean = false,
+    val loadingMore: Boolean = false,
+    val hasMore: Boolean = false,
+    val loadMoreError: Boolean = false,
 )
 
 interface ReferAFriendRepository {
     suspend fun currentUser(): Result<AirdropUser>
-    suspend fun referredFriends(limit: Int = 20): Result<List<ReferredFriend>>
+    suspend fun referredFriends(
+        expectedSession: AuthTokenStore.RequestProvenance,
+        page: Int = 1,
+        limit: Int = 20,
+    ): Result<Paginated<ReferredFriend>>
 }
 
 private class DefaultReferAFriendRepository(
@@ -49,8 +66,12 @@ private class DefaultReferAFriendRepository(
 ) : ReferAFriendRepository {
     override suspend fun currentUser(): Result<AirdropUser> = userRepository.currentUser()
 
-    override suspend fun referredFriends(limit: Int): Result<List<ReferredFriend>> =
-        userRepository.referredFriends(limit = limit)
+    override suspend fun referredFriends(
+        expectedSession: AuthTokenStore.RequestProvenance,
+        page: Int,
+        limit: Int,
+    ): Result<Paginated<ReferredFriend>> =
+        userRepository.referredFriends(expectedSession, page, limit)
 }
 
 /** FigmaReferAFriendViewController: static carousel landing + Invite CTA. */
@@ -62,39 +83,104 @@ class ReferAFriendViewModel(
     val state: StateFlow<ReferAFriendUiState> = _state
 }
 
-/** FigmaReferredFriendsViewController: GET /refer-friend/history?limit=200 history list. */
+/** Existing referral history, paged in Swift's 20-row batches. */
 class ReferredFriendsViewModel(
     private val repository: ReferAFriendRepository = DefaultReferAFriendRepository(),
+    private val sessionBoundary: AuthenticatedSessionBoundary = DefaultAuthenticatedSessionBoundary,
 ) : ViewModel() {
-
     private val _state = MutableStateFlow(ReferredFriendsUiState())
     val state: StateFlow<ReferredFriendsUiState> = _state
+    private var sessionOwner = sessionBoundary.capture()
+    private var generation = 0L
+    private var loadJob: Job? = null
+    private var currentPage = 0
 
     init {
+        viewModelScope.launch {
+            sessionBoundary.changes.collect { changed ->
+                when (sessionOwner.changeTo(changed)) {
+                    AuthenticatedOwnerChange.Unchanged -> return@collect
+                    AuthenticatedOwnerChange.IdentityUpdated -> {
+                        sessionOwner = changed
+                        return@collect
+                    }
+                    AuthenticatedOwnerChange.SessionReplaced -> Unit
+                }
+                generation++
+                loadJob?.cancel()
+                sessionOwner = changed
+                currentPage = 0
+                _state.value = ReferredFriendsUiState(loading = false)
+                if (changed != null) loadFriends()
+            }
+        }
         loadFriends()
     }
 
-    fun loadFriends() {
-        _state.update { it.copy(loading = true, error = null) }
-        viewModelScope.launch {
-            repository.referredFriends(limit = 200)
-                .onSuccess { friends ->
-                    _state.update {
-                        it.copy(loading = false, referrals = friends, error = null, loadFailed = false)
+    fun loadFriends() = load(reset = true)
+    fun loadMore() {
+        val s = _state.value
+        if (s.loading || s.loadingMore || !s.hasMore || s.loadMoreError || s.loadFailed) return
+        load(reset = false)
+    }
+    fun retryLoadMore() {
+        val s = _state.value
+        if (!s.loadMoreError || s.loading || s.loadingMore) return
+        load(reset = false)
+    }
+
+    private fun load(reset: Boolean) {
+        val requestOwner = sessionBoundary.captureOwnedRequest(sessionOwner) ?: run {
+            if (sessionBoundary.capture() == null) _state.value = ReferredFriendsUiState(loading = false)
+            return
+        }
+        if (reset) {
+            generation++
+            loadJob?.cancel()
+        }
+        val requestGeneration = generation
+        val requestedPage = if (reset) 1 else currentPage + 1
+        _state.update { it.copy(loading = reset, loadingMore = !reset, error = null, loadMoreError = false) }
+        loadJob = viewModelScope.launch {
+            val result = try {
+                repository.referredFriends(requestOwner.provenance, requestedPage, 20).mapCatching { page ->
+                    require(page.items.all { it.id > 0 }) { "Unable to read referral history" }
+                    require(page.pagination?.currentPage?.let { it == requestedPage } != false) {
+                        "Unable to read referral history page"
                     }
+                    page
                 }
-                .onFailure { error ->
-                    // Do NOT wipe `referrals`. On a retry that would blank a list
-                    // the customer is already reading, and on first load there is
-                    // nothing to clear anyway — so clearing only ever destroys.
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+            if (requestGeneration != generation) return@launch
+            sessionBoundary.apply(requestOwner.session) {
+                result.onSuccess { page ->
+                    val existing = if (reset) emptyList() else _state.value.referrals
+                    val merged = (existing + page.items).distinctBy { it.id }
+                    val gained = merged.size > existing.size
+                    currentPage = requestedPage
                     _state.update {
                         it.copy(
-                            loading = false,
-                            error = error.message,
-                            loadFailed = true,
+                            referrals = merged, loading = false, loadingMore = false,
+                            error = null, loadFailed = false, loadMoreError = false,
+                            hasMore = page.pagination?.lastPage?.let { last -> requestedPage < last }
+                                ?: (page.items.size >= 20 && gained),
+                        )
+                    }
+                }.onFailure {
+                    _state.update { state ->
+                        state.copy(
+                            loading = false, loadingMore = false,
+                            error = if (reset) "Couldn't refresh your referrals." else state.error,
+                            loadFailed = if (reset) true else state.loadFailed,
+                            loadMoreError = !reset,
                         )
                     }
                 }
+            }
         }
     }
 }

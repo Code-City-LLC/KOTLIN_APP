@@ -502,9 +502,11 @@ interface AirdropApiService {
 
     @GET("refer-friend/history")
     suspend fun referredFriends(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+        @Query("page") page: Int,
         @Query("limit") limit: Int,
-        @Query("user_id") userId: Int?,
-    ): Paginated<ReferredFriend>
+    ): kotlinx.serialization.json.JsonObject
 
     // ── Authorized users ──
 
