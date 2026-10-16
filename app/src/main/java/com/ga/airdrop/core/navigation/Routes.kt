@@ -24,6 +24,8 @@ object Routes {
 
     // Help drill-down — Swift "LiveAgentChatView" (native AutoPilot/Nirvana chat)
     const val LIVE_CHAT = "liveChat"
+    fun liveChat(conversationId: String): String =
+        "$LIVE_CHAT?conversationId=${java.net.URLEncoder.encode(conversationId, "UTF-8")}"
 
     // Home drill-downs
     const val WAREHOUSES = "warehouses"

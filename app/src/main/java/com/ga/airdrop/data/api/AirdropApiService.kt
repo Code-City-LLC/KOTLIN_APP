@@ -19,6 +19,8 @@ import com.ga.airdrop.data.model.NcbCompleteResponse
 import com.ga.airdrop.data.model.NcbSessionResponse
 import com.ga.airdrop.data.model.CurrentUserResponse
 import com.ga.airdrop.data.model.CustomerTier
+import com.ga.airdrop.data.model.BusinessRateInquiryRequest
+import com.ga.airdrop.data.model.BusinessRateInquiryResult
 import com.ga.airdrop.data.model.TierChangeRequest
 import com.ga.airdrop.data.model.TierChangeResult
 import com.ga.airdrop.data.model.CustomDutyRate
@@ -140,6 +142,13 @@ interface AirdropApiService {
         @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
         @Body body: TierChangeRequest,
     ): DataEnvelope<TierChangeResult>
+
+    @POST("business-rate-inquiries")
+    suspend fun submitBusinessRateInquiry(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+        @Body body: BusinessRateInquiryRequest,
+    ): DataEnvelope<BusinessRateInquiryResult>
 
     // ── CMS / FAQ ──
 
@@ -493,9 +502,11 @@ interface AirdropApiService {
 
     @GET("refer-friend/history")
     suspend fun referredFriends(
+        @Header(AuthTokenStore.REQUEST_REVISION_HEADER) authRevision: String,
+        @Header(AuthTokenStore.REQUEST_SESSION_ID_HEADER) sessionId: String,
+        @Query("page") page: Int,
         @Query("limit") limit: Int,
-        @Query("user_id") userId: Int?,
-    ): Paginated<ReferredFriend>
+    ): kotlinx.serialization.json.JsonObject
 
     // ── Authorized users ──
 

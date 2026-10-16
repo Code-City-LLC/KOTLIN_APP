@@ -68,8 +68,10 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.session.LiveAgentChatConsentStore
 
 @Composable
-fun LiveAgentChatScreen(onBack: () -> Unit) {
-    val viewModel: LiveAgentChatViewModel = viewModel()
+fun LiveAgentChatScreen(onBack: () -> Unit, initialConversationId: String? = null) {
+    val viewModel: LiveAgentChatViewModel = viewModel(key = initialConversationId) {
+        LiveAgentChatViewModel(initialConversationId = initialConversationId)
+    }
     LiveAgentChatRoute(onBack = onBack, viewModel = viewModel)
 }
 
@@ -100,31 +102,12 @@ internal fun LiveAgentChatRoute(
     )
 
     if (!consentAccepted) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("Chat with Nirvana", style = AirdropType.title1) },
-            text = {
-                Text(
-                    "Nirvana is an AI agent handling this conversation. AI may make mistakes — please verify important information.\n\n" +
-                        "Your name, account number, and what you type here will be sent to the agent service to power the conversation. You can ask for a human agent at any time.",
-                    style = AirdropType.body2,
-                )
+        LiveAgentChatConsentDialog(
+            onAccept = {
+                LiveAgentChatConsentStore.accept(context)
+                consentAccepted = true
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        LiveAgentChatConsentStore.accept(context)
-                        consentAccepted = true
-                    },
-                ) {
-                    Text("Continue")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onBack) {
-                    Text("Not Now")
-                }
-            },
+            onDecline = onBack,
         )
     }
 }
@@ -716,4 +699,33 @@ private fun noteAwareText(body: String) = buildAnnotatedString {
     } else {
         append(body)
     }
+}
+
+@Composable
+internal fun LiveAgentChatConsentDialog(onAccept: () -> Unit, onDecline: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("Chat with Nirvana", style = AirdropType.title1) },
+        text = {
+            Text(
+                "Nirvana is an AI agent handling this conversation. AI may make mistakes — please verify important information.\n\n" +
+                    "Your name, account number, and what you type here will be sent to the agent service to power the conversation. You can ask for a human agent at any time.",
+                style = AirdropType.body2,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onAccept()
+                },
+            ) {
+                Text("Continue")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDecline) {
+                Text("Not Now")
+            }
+        },
+    )
 }

@@ -1,5 +1,7 @@
 package com.ga.airdrop.data.repo
 
+import com.ga.airdrop.data.api.AirdropJson
+import kotlinx.serialization.json.JsonArray
 import com.ga.airdrop.data.api.AirdropApiService
 import com.ga.airdrop.data.api.UploadFile
 import com.ga.airdrop.data.api.textPart
@@ -15,6 +17,8 @@ import com.ga.airdrop.data.model.ProfileAssetResponse
 import com.ga.airdrop.data.model.ProfileMutationResponse
 import com.ga.airdrop.data.model.ProfileUpdateRequest
 import com.ga.airdrop.data.model.ReferFriendRequest
+import com.ga.airdrop.core.auth.AuthTokenStore
+import com.ga.airdrop.data.model.Paginated
 import com.ga.airdrop.data.model.ReferredFriend
 import com.ga.airdrop.data.model.UserDocumentType
 import com.ga.airdrop.data.model.UserDocuments
@@ -118,6 +122,26 @@ class UserRepository(private val service: AirdropApiService) {
         response
     }
 
-    suspend fun referredFriends(userId: Int? = null, limit: Int = 20): Result<List<ReferredFriend>> =
-        apiResult { service.referredFriends(limit = limit, userId = userId).items }
+    suspend fun referredFriends(
+        expectedSession: AuthTokenStore.RequestProvenance,
+        page: Int = 1,
+        limit: Int = 20,
+    ): Result<Paginated<ReferredFriend>> = apiResult {
+        require(page > 0 && limit in 1..100) { "Invalid referral history page" }
+        val payload = service.referredFriends(
+            authRevision = expectedSession.revision.toString(),
+            sessionId = expectedSession.sessionId,
+            page = page,
+            limit = limit,
+        )
+        // The common legacy decoder salvages unreadable arrays as empty. A
+        // referral page must never turn malformed history into a valid empty
+        // account, so validate the exact API array before accepting the page.
+        val rows = payload["data"] as? JsonArray ?: error("Unable to read referral history")
+        val result = AirdropJson.decodeFromJsonElement(Paginated.serializer(ReferredFriend.serializer()), payload)
+        require(result.items.size == rows.size && result.items.all { it.id > 0 }) {
+            "Unable to read referral history"
+        }
+        result
+    }
 }

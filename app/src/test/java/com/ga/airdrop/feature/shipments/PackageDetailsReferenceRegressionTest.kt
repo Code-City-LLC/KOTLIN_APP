@@ -58,12 +58,58 @@ class PackageDetailsReferenceRegressionTest {
         assertTrue(tracking.timelinePackageIds.all { it == 7 })
     }
 
+    @Test
+    fun `damage description preserves all text accepted by Laravel unicode limit`() = runTest(dispatcher) {
+        val descriptions = listOf(
+            "a".repeat(5_000),
+            "a".repeat(4_999) + "😀",
+            "😀".repeat(5_000),
+            "e\u0301".repeat(2_500),
+            "  " + "😀".repeat(5_000) + "  ",
+        )
+        for (description in descriptions) {
+            val packages = AmbiguousPackagesRepository()
+            val viewModel = PackageDetailsViewModel("42", packages, EmptyHubRepository(), tracking = RecordingTrackingGateway())
+            advanceUntilIdle()
+            viewModel.onDamageReportDescription(description)
+            assertEquals(description, viewModel.state.value.damageReportDescription)
+            viewModel.submitDamageReport()
+            advanceUntilIdle()
+            assertEquals(listOf(description.trim()), packages.damageDescriptions)
+            assertTrue(viewModel.state.value.showDamageReportSubmitted)
+        }
+    }
+
+    @Test
+    fun `oversized damage draft is retained and blocked before upload then corrected retry succeeds`() = runTest(dispatcher) {
+        for (description in listOf("a".repeat(5_001), "😀".repeat(5_001), "e\u0301".repeat(2_500) + "x")) {
+            val packages = AmbiguousPackagesRepository()
+            val viewModel = PackageDetailsViewModel("42", packages, EmptyHubRepository(), tracking = RecordingTrackingGateway())
+            advanceUntilIdle()
+            viewModel.showReportDamageSheet(true)
+            viewModel.onDamageReportDescription(description)
+            viewModel.submitDamageReport()
+            advanceUntilIdle()
+            assertEquals(description, viewModel.state.value.damageReportDescription)
+            assertTrue(packages.damageDescriptions.isEmpty())
+            assertTrue(viewModel.state.value.showReportDamageSheet)
+            assertTrue(!viewModel.state.value.submittingDamageReport)
+            assertEquals("Description cannot exceed 5,000 characters.", viewModel.state.value.damageReportError)
+            viewModel.onDamageReportDescription("Corrected damage description")
+            viewModel.submitDamageReport()
+            advanceUntilIdle()
+            assertEquals(listOf("Corrected damage description"), packages.damageDescriptions)
+            assertTrue(viewModel.state.value.showDamageReportSubmitted)
+        }
+    }
+
     private class AmbiguousPackagesRepository : ShipmentsPackagesRepository {
         val searches = mutableListOf<String>()
         val detailRequests = mutableListOf<String>()
         val uploadPackageIds = mutableListOf<String>()
         val deletePackageIds = mutableListOf<String>()
         val damagePackageIds = mutableListOf<String>()
+        val damageDescriptions = mutableListOf<String>()
 
         override suspend fun packages(
             page: Int,
@@ -114,6 +160,7 @@ class PackageDetailsReferenceRegressionTest {
             photos: List<DamageReportUploadFile>,
         ): Result<Unit> {
             damagePackageIds += packageId
+            damageDescriptions += description
             return Result.success(Unit)
         }
     }

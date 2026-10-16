@@ -31,8 +31,14 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.ByteArrayInputStream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -61,9 +67,10 @@ class InvoiceViewerParityTest {
     }
 
     @Test
-    fun localPdfRendersInsideViewerAndEnablesActions() {
+    fun cachedPdfRendersInsideViewerAndEnablesActions() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val file = File(context.cacheDir, "invoice-preview-screen.pdf").also(::writeSamplePdf)
+        val source = File(context.cacheDir, "invoice-preview-screen.pdf").also(::writeSamplePdf)
+        val file = copyInvoiceStreamToCache(context, source.name, source.inputStream())
 
         setInvoiceViewerContent(
             mode = ThemeController.Mode.LIGHT,
@@ -146,6 +153,7 @@ class InvoiceViewerParityTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val marker = "invoice-copy-failure-${System.nanoTime()}.pdf"
         val invoiceDir = File(context.cacheDir, "invoices")
+        val existingEntries = invoiceDir.listFiles().orEmpty().map { it.name }.toSet()
         val failingStream = object : InputStream() {
             private var firstRead = true
 
@@ -171,10 +179,110 @@ class InvoiceViewerParityTest {
         assertTrue("the simulated body failure must propagate", failure is IOException)
         assertTrue(
             "no final or .part customer file may survive a failed copy",
-            invoiceDir.listFiles()
-                .orEmpty()
+            invoiceDir.walkTopDown()
                 .none { it.name.contains(marker) },
         )
+        assertEquals(existingEntries, invoiceDir.listFiles().orEmpty().map { it.name }.toSet())
+    }
+
+    @Test
+    fun overlappingSameNameDownloadsKeepTheirOwnBytesAndShareHandles() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        val name = "invoice-overlap-${System.nanoTime()}.pdf"
+        var older: File? = null
+        var newer: File? = null
+        val slow = object : ByteArrayInputStream("older document".toByteArray()) {
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                started.countDown()
+                check(release.await(10, TimeUnit.SECONDS)) { "download was not released" }
+                return super.read(buffer, offset, length)
+            }
+        }
+        val pending = executor.submit<File> { copyInvoiceStreamToCache(context, name, slow) }
+        try {
+            assertTrue(started.await(10, TimeUnit.SECONDS))
+            val current = copyInvoiceStreamToCache(context, name, "newer document".byteInputStream())
+            newer = current
+            val intent = invoiceShareIntent(context, current, "Invoice")
+            val shared = requireNotNull(intent.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM))
+            release.countDown()
+            val previous = pending.get(10, TimeUnit.SECONDS)
+            older = previous
+
+            assertNotEquals(previous.canonicalPath, current.canonicalPath)
+            assertEquals(name, previous.name)
+            assertEquals(name, current.name)
+            assertEquals("older document", previous.readText())
+            assertEquals("newer document", current.readText())
+            assertTrue(previous.delete()) // mirrors stale-owner cleanup
+            assertTrue(current.exists())
+            assertEquals("newer document", context.contentResolver.openInputStream(shared)!!.bufferedReader().use { it.readText() })
+        } finally {
+            release.countDown()
+            executor.shutdown()
+            executor.awaitTermination(15, TimeUnit.SECONDS)
+            if (older == null && pending.isDone) older = runCatching { pending.get() }.getOrNull()
+            for (file in listOfNotNull(older, newer)) {
+                file.delete()
+                file.parentFile?.delete()
+            }
+        }
+    }
+
+    @Test
+    fun cancelledCopyClosesStreamAndLeavesOtherDownloadUntouched() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "invoice-cancel-${System.nanoTime()}.pdf"
+        val current = copyInvoiceStreamToCache(context, name, "keep me".byteInputStream())
+        val root = File(context.cacheDir, "invoices")
+        val before = root.listFiles().orEmpty().map { it.name }.toSet()
+        var closed = false
+        val cancelled = object : InputStream() {
+            override fun read(): Int = throw CancellationException("synthetic cancelled download")
+            override fun close() { closed = true }
+        }
+        try {
+            val failure = runCatching { copyInvoiceStreamToCache(context, name, cancelled) }.exceptionOrNull()
+            assertTrue(failure is CancellationException)
+            assertTrue(closed)
+            assertEquals(before, root.listFiles().orEmpty().map { it.name }.toSet())
+            assertEquals("keep me", current.readText())
+        } finally {
+            current.delete()
+            current.parentFile?.delete()
+        }
+    }
+
+    @Test
+    fun closeFailureRemovesOnlyItsOwnUnpublishedDownload() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val root = File(context.cacheDir, "invoices")
+        val before = root.listFiles().orEmpty().map { it.name }.toSet()
+        val stream = object : ByteArrayInputStream("complete body".toByteArray()) {
+            override fun close() { throw IOException("synthetic close failure") }
+        }
+        val failure = runCatching { copyInvoiceStreamToCache(context, "Invoice.pdf", stream) }.exceptionOrNull()
+        assertTrue(failure is IOException)
+        assertEquals(before, root.listFiles().orEmpty().map { it.name }.toSet())
+    }
+
+    @Test
+    fun dotFilenamesCannotEscapeOwnedDownloadDirectory() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        for (name in listOf(".", "..")) {
+            val file = copyInvoiceStreamToCache(context, name, "document".byteInputStream())
+            try {
+                assertEquals("Invoice.pdf", file.name)
+                assertEquals(File(context.cacheDir, "invoices").canonicalFile, file.parentFile!!.parentFile!!.canonicalFile)
+                assertEquals("document", file.readText())
+            } finally {
+                file.delete()
+                file.parentFile?.delete()
+            }
+        }
     }
 
     private fun setInvoiceViewerContent(

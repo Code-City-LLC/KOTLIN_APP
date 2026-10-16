@@ -141,6 +141,7 @@ internal class LiveAgentChatViewModel(
     private val repository: LiveAgentChatDataSource = LiveAgentChatRepository(),
     private val pollDelay: suspend (Long) -> Unit = { delay(it) },
     private val pollScheduleMillis: List<Long> = LIVE_CHAT_POLL_SCHEDULE_MILLIS,
+    private val initialConversationId: String? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LiveAgentChatUiState())
@@ -165,7 +166,12 @@ internal class LiveAgentChatViewModel(
                 sessionStarting = true
                 _state.update { it.copy(loading = true, error = null, status = null) }
                 val user = resolveCurrentUser()
-                val session = repository.startSession(user)
+                val requestedConversation = initialConversationId?.takeIf { it.isNotBlank() }
+                val session = if (requestedConversation != null) {
+                    val thread = repository.thread(requestedConversation)
+                    AutoPilotAppChatSession(requestedConversation, null, null,
+                        thread.conversation?.agentName, thread.messages, thread.conversation)
+                } else repository.startSession(user)
                 applySession(user, session)
                 // The conversation is PERSISTENT server-side — the same
                 // conversation id comes back on every session call — so the
@@ -174,7 +180,10 @@ internal class LiveAgentChatViewModel(
                 // poll loop, and polling only starts after you SEND. So leaving
                 // the app and coming back showed an empty thread even though the
                 // history was sitting on the server. Load it explicitly here.
-                loadHistory(session.conversationId)
+                if (requestedConversation == null) loadHistory(session.conversationId)
+                if (requestedConversation != null && session.messages.lastOrNull()?.isCustomerAuthored == true) {
+                    startPolling(requestedConversation, null, null)
+                }
             }.onFailure { err ->
                 _state.update {
                     it.copy(

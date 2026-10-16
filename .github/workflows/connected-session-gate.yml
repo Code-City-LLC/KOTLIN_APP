@@ -35,7 +35,10 @@ jobs:
   focused-connected:
     name: Prod and Staging session runtime
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Both flavors completed without failures in run38927191855, but the
+    # 45-minute deadline cancelled emulator teardown. Preserve all selected
+    # tests and allow bounded time for setup, both flavors, and cleanup.
+    timeout-minutes: 60
     env:
       CONNECTED_SESSION_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       CONNECTED_SESSION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

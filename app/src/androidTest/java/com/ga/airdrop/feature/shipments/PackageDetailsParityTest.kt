@@ -22,6 +22,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -761,13 +762,12 @@ class PackageDetailsParityTest {
         compose.onNodeWithTag("package-details-report-damage-description")
             .performTextInput("  Cracked corner  ")
         compose.onNodeWithTag("package-details-report-damage-submit")
+            .performScrollTo()
+            .assertIsDisplayed()
             .performClick()
 
-        // 15s, not 5s: submitting the damage-report sheet is a round-trip behind
-        // a bottom sheet, and it timed out on the CI emulator while passing
-        // locally. NOTE: this test is not touched by PR #206 at all — it went
-        // red purely on CI timing, which is the tell that the budget was the
-        // problem rather than the behaviour.
+        // The keyboard can move Submit below the compact viewport; scroll it
+        // into view before clicking, then await the asynchronous fake response.
         compose.waitUntil(timeoutMillis = 15_000) { packagesRepo.damageReports.size == 1 }
         assertEquals(
             DamageReportCall(packageId = "7", description = "Cracked corner", photoCount = 0),
@@ -776,6 +776,34 @@ class PackageDetailsParityTest {
         compose.onNodeWithText("Report received").assertIsDisplayed()
         compose.onNodeWithText("Thanks — we'll review the damage photos and reach out within 24 hours.")
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun damageDescriptionErrorPreservesDraftAndUnicodeRetrySubmitsIntact() {
+        setPackageDetailsContent(
+            mode = ThemeController.Mode.LIGHT,
+            detail = sampleDetail(status = "8", statusName = "Delivered"),
+        )
+        compose.onNodeWithTag("package-details-report-damage").performScrollTo().performClick()
+        val draft = "a".repeat(5_001)
+        compose.onNodeWithTag("package-details-report-damage-description").performTextInput(draft)
+        compose.onNodeWithTag("package-details-report-damage-submit").performScrollTo().performClick()
+        compose.onNodeWithTag("package-details-report-damage-error").performScrollTo()
+        saveRootScreenshot("damage_description_validation.png", captureDisplay = true)
+        compose.onNodeWithTag("package-details-report-damage-error")
+            .assertIsDisplayed()
+            .assertTextEquals("Description cannot exceed 5,000 characters.")
+        compose.onNodeWithTag("package-details-report-damage-description").assertTextEquals(draft)
+        assertTrue(packagesRepo.damageReports.isEmpty())
+
+        val valid = "a".repeat(4_999) + "😀"
+        compose.onNodeWithTag("package-details-report-damage-description").performTextReplacement(valid)
+        compose.onNodeWithTag("package-details-report-damage-error").assertDoesNotExist()
+        compose.onNodeWithTag("package-details-report-damage-submit").performScrollTo().performClick()
+        compose.waitUntil(timeoutMillis = 15_000) { packagesRepo.damageReports.size == 1 }
+        assertEquals(valid, packagesRepo.damageReports.single().description)
+        compose.onNodeWithText("Report received").assertIsDisplayed()
+        saveRootScreenshot("damage_description_retry_success.png", captureDisplay = true)
     }
 
     @Test
@@ -1274,8 +1302,16 @@ class PackageDetailsParityTest {
         override suspend fun ordersShortlist() = Result.success(emptyList<ShipmentOrder>())
     }
 
-    private fun saveRootScreenshot(filename: String) {
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+    private fun saveRootScreenshot(filename: String, captureDisplay: Boolean = false) {
+        compose.waitForIdle()
+        val bitmap = if (captureDisplay) {
+            // Dialogs use separate windows; capture the display rather than the activity surface.
+            val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            automation.waitForIdle(500, 5_000)
+            requireNotNull(automation.takeScreenshot())
+        } else {
+            compose.onRoot().captureToImage().asAndroidBitmap()
+        }
         val output = File(screenshotDir(), filename)
         FileOutputStream(output).use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)

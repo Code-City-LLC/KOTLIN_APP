@@ -321,8 +321,18 @@ private fun androidx.navigation.NavGraphBuilder.mainGraph(
     composable(Routes.CONTACTS) {
         com.ga.airdrop.feature.contacts.ContactsScreen(onNavigate = { navController.navigate(it) })
     }
-    composable(Routes.LIVE_CHAT) {
-        com.ga.airdrop.feature.contacts.LiveAgentChatScreen(onBack = { navController.popBackStack() })
+    composable(
+        Routes.LIVE_CHAT + "?conversationId={conversationId}",
+        arguments = listOf(androidx.navigation.navArgument("conversationId") {
+            type = androidx.navigation.NavType.StringType
+            nullable = true
+            defaultValue = null
+        }),
+    ) { entry ->
+        com.ga.airdrop.feature.contacts.LiveAgentChatScreen(
+            onBack = { navController.popBackStack() },
+            initialConversationId = entry.arguments?.getString("conversationId"),
+        )
     }
     // More hub + drill-downs (registers Routes.MORE itself).
     moreGraph(navController)

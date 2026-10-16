@@ -182,7 +182,9 @@ class CalculatorViewModel(
         // three pounds — a number nobody entered and nothing measured.
         val weightLbs: Double? = when {
             parsedWeight <= 0 -> null
-            form.effectiveWeightUnit == WeightUnit.KG -> maxOf(0.5, parsedWeight / 0.453592)
+            // Exact pounds-to-kilograms ratio, matching Swift. Truncation can
+            // move a request across Laravel's whole-pound freight boundary.
+            form.effectiveWeightUnit == WeightUnit.KG -> maxOf(0.5, parsedWeight / 0.45359237)
             else -> maxOf(0.5, parsedWeight)
         }
         // The server requires weight for the airdrop methods (Scribe:
