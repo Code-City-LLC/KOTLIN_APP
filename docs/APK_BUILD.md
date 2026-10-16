@@ -85,7 +85,8 @@ or the Production track alone. Any uploaded artifact can consume a code.
 
 1. Recover the existing Play-authorized upload key or complete an owner-approved
    upload-key reset in Play Console. Never generate or reset a key by assumption.
-2. Use `python3 tools/play_publish.py --status` to inspect track configuration.
+2. Use `python3 tools/play_publish.py --status` to inspect production review/publication state.
+   Add `--track internal` to inspect that track.
    The uploader also queries bundles, APKs and all tracks before uploading, and
    rejects a code at or below that current maximum. Choose a new integer no
    greater than Play's `2,100,000,000` limit.
@@ -122,8 +123,10 @@ it does not upload the bundle again. Omit `--rollout` for full rollout. The tool
 requires an explicit destination and rejects replacement of a newer target.
 A repeat promotion of the same configured rollout is a no-op, preserving its
 review submission. `--dry-run` performs reads and builds a plan only: it does not
-upload, update a track, or commit. Read operations use a temporary API edit and
-clean up only that invocation's edit.
+upload, update a track, or commit. Dry-run configuration reads use a temporary API edit and clean up only that
+invocation's edit. `--status` uses the lifecycle GET API directly, without an edit,
+and distinguishes in-review, approved-but-unpublished, rejected and published
+releases. Publication must match the intended version and production track.
 
 Reuse the existing AIRDROP service-account credential via
 `PLAY_SERVICE_ACCOUNT_JSON` or `--key`; keep credentials in the approved vault
@@ -145,7 +148,8 @@ python3 -m unittest discover -s tools -p 'test_play_publish.py' -v
 ```
 
 API references: [track updates](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks/update),
-[edit commits](https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit).
+[edit commits](https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit),
+[release lifecycle](https://developers.google.com/android-publisher/api-ref/rest/v3/applications.tracks.releases).
 
 ## Reverting the spammer (if ever needed)
 

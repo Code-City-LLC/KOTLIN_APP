@@ -43,11 +43,29 @@ class PlayReleaseSafetyTests(unittest.TestCase):
         self.assertIn('public availability is NOT yet verified', self.output.getvalue())
         self.assertNotIn('Managed publishing is ON', self.output.getvalue())
 
-    def test_status_is_read_only_and_cleans_own_edit(self):
-        self.run_mode(['--status'])
-        self.assert_no_release_writes()
-        self.edits.delete.assert_called_once_with(packageName=play.PACKAGE_NAME, editId='owned-edit')
-        self.assertIn('Not established', self.output.getvalue())
+    def test_lifecycle_status_is_one_get_without_an_edit(self):
+        session = MagicMock()
+        releases = [{'activeArtifacts': [{'versionCode': 37}],
+                     'releaseLifecycleState': 'RELEASE_LIFECYCLE_STATE_IN_REVIEW'},
+                    {'activeArtifacts': [{'versionCode': 36}],
+                     'releaseLifecycleState': 'RELEASE_LIFECYCLE_STATE_PUBLISHED'}]
+        session.get.return_value.ok = True
+        session.get.return_value.json.return_value = {'releases': releases}
+        status = play.read_release_status(session)
+        self.assertEqual(status['releases'], releases)
+        session.get.assert_called_once_with(
+            'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.ga.airdrop.app/tracks/production/releases', timeout=30)
+        session.post.assert_not_called()
+        self.service.edits.assert_not_called()
+        self.assertEqual(play.parse_args(['--status', '--track', 'internal']).track, 'internal')
+
+    def test_lifecycle_failure_cannot_be_reported_as_published(self):
+        session = MagicMock()
+        session.get.return_value.ok = False
+        session.get.return_value.status_code = 403
+        with self.assertRaisesRegex(ValueError, 'status unavailable'):
+            play.read_release_status(session)
+        session.get.return_value.json.assert_not_called()
 
     def test_promotion_dry_run_does_not_write(self):
         self.run_mode(['--promote-code', '37', '--track', 'production', '--dry-run'])
@@ -107,7 +125,7 @@ class PlayReleaseSafetyTests(unittest.TestCase):
                      ['--promote-code', '37', '--track', 'production', '--rollout', '1'],
                      ['--promote-code', '37', '--track', 'internal', '--rollout', '.1'],
                      ['--promote-code', '37', '--track', 'production', '--name', 'override'],
-                     ['--status', '--track', 'production']]:
+                     ['--status', '--name', 'override']]:
             with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 play.parse_args(argv)
 

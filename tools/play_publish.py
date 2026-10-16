@@ -2,8 +2,9 @@
 """Upload, promote, or inspect AIRDROP releases using the Google Play API.
 
 Reuse PLAY_SERVICE_ACCOUNT_JSON or --key; never put credentials in the repo.
---status reads track configuration. --dry-run plans without uploading a bundle,
-changing a track, or committing an edit. Both use a temporary API edit for reads.
+--status reads the release lifecycle API (production by default), without an edit.
+--dry-run plans without uploading a bundle, changing a track, or committing;
+it creates and cleans up a temporary API edit for its configuration reads.
 
 Examples:
   ./tools/play_publish.py --status
@@ -25,6 +26,7 @@ import os
 import re
 import sys
 import zipfile
+from urllib.parse import quote
 
 PACKAGE_NAME = "com.ga.airdrop.app"
 DEFAULT_KEY_PATH = "/Volumes/MAC PRO /DEV PROJECTS/KEYS/AIRDROP KOTLIN 2026/play-service-account.json"
@@ -94,7 +96,7 @@ def release_codes(release):
 
 
 def plan_promotion(tracks, source, target, version_code, rollout=None):
-    """Select the exact reviewed artifact and retain its existing release metadata."""
+    """Select the exact source artifact and retain its existing release metadata."""
     if source == target:
         raise ValueError("source and target tracks must differ")
     matches = [r for t in tracks if t.get("track") == source
@@ -121,16 +123,27 @@ def plan_promotion(tracks, source, target, version_code, rollout=None):
     return release
 
 
+def read_release_status(session, track="production"):
+    """Read review/publication state directly; never infer it from edit status."""
+    url = ("https://androidpublisher.googleapis.com/androidpublisher/v3/applications/"
+           + PACKAGE_NAME + "/tracks/" + quote(track, safe="") + "/releases")
+    response = session.get(url, timeout=30)
+    if not response.ok:
+        raise ValueError(f"Play lifecycle API returned HTTP {response.status_code}; status unavailable")
+    payload = response.json()
+    if not isinstance(payload, dict) or not isinstance(payload.get("releases", []), list):
+        raise ValueError("Play lifecycle API returned an invalid release list")
+    return {"package": PACKAGE_NAME, "track": track,
+            "releases": payload.get("releases", []),
+            "source": "applications.tracks.releases.list"}
+
+
 def run_edit(service, args, bundle_identity=None, media_factory=None):
     edit_id = service.edits().insert(body={}, packageName=PACKAGE_NAME).execute()["id"]
     committed = False
     try:
         scope = {"packageName": PACKAGE_NAME, "editId": edit_id}
         tracks = service.edits().tracks().list(**scope).execute().get("tracks", [])
-        if args.status:
-            print(json.dumps({"package": PACKAGE_NAME, "tracks": tracks,
-                              "public_availability": "Not established by track configuration"}, indent=2))
-            return 0
         if args.promote_code is not None:
             release = plan_promotion(tracks, args.from_track, args.track,
                                      args.promote_code, args.rollout)
@@ -186,7 +199,7 @@ def parse_args(argv=None):
     mode = p.add_mutually_exclusive_group(required=True)
     mode.add_argument("--aab", help="new bundle to upload")
     mode.add_argument("--promote-code", type=int, help="existing version code to promote without uploading again")
-    mode.add_argument("--status", action="store_true", help="read track configuration without changing releases")
+    mode.add_argument("--status", action="store_true", help="read release review/publication status; defaults to production")
     p.add_argument("--track", help="explicit destination track (including existing custom tracks)")
     p.add_argument("--from-track", default="internal", help="source track for promotion")
     p.add_argument("--name", help="name for a new uploaded release")
@@ -205,7 +218,7 @@ def parse_args(argv=None):
         p.error("--promote-code must be a valid positive Play version code")
     if args.promote_code is not None and (args.name or args.notes_from_track):
         p.error("promotion preserves the selected source release name and notes")
-    if args.status and (args.track or args.rollout is not None or args.name or args.notes_from_track):
+    if args.status and (args.rollout is not None or args.name or args.notes_from_track):
         p.error("--status cannot be combined with release mutation options")
     return args
 
@@ -218,12 +231,17 @@ def main():
     if not os.path.isfile(args.key):
         die("existing Play service-account credential unavailable; use --key or PLAY_SERVICE_ACCOUNT_JSON")
     from google.oauth2 import service_account
+    from google.auth.transport.requests import AuthorizedSession
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
     from googleapiclient.errors import HttpError
     creds = service_account.Credentials.from_service_account_file(args.key, scopes=[SCOPE])
-    service = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
     try:
+        if args.status:
+            with AuthorizedSession(creds) as session:
+                print(json.dumps(read_release_status(session, args.track or "production"), indent=2))
+            return 0
+        service = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
         return run_edit(service, args, identity, MediaFileUpload)
     except ValueError as exc:
         die(str(exc))
