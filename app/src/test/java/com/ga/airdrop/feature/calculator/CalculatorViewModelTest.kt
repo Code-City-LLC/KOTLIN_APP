@@ -607,8 +607,30 @@ class CalculatorViewModelTest {
         viewModel.calculate()
         advanceUntilIdle()
 
-        assertEquals(10.0 / 0.453592, repo.weight!!, 0.001)
+        assertEquals(10.0 / 0.45359237, repo.weight!!, 0.000000001)
         assertEquals(WeightUnit.KG, viewModel.result.value!!.weightUnit)
+    }
+
+    @Test
+    fun expressKgInputBelowTwoPoundsStaysBelowTheFreightBoundary() = runTest(dispatcher) {
+        val repo = RecordingRepository()
+        val viewModel = CalculatorViewModel(repo)
+        viewModel.onMethodSelected(ShippingMethod.EXPRESS)
+        viewModel.onWeightUnitSelected(WeightUnit.KG)
+        viewModel.onInvoiceChange("150")
+        viewModel.onActualWeightChange("0.907184")
+        viewModel.onLengthChange("1")
+        viewModel.onWidthChange("1")
+        viewModel.onHeightChange("1")
+        viewModel.calculate()
+        advanceUntilIdle()
+
+        // This is just below 2 lb. Laravel's Express freight changes at 2 lb;
+        // the truncated 0.453592 divisor incorrectly sent exactly 2 lb.
+        assertEquals(1, repo.legacyCalls)
+        assertEquals(0, repo.tierCalls)
+        assertTrue("Conversion must not move the input into the next freight band", repo.weight!! < 2.0)
+        assertEquals(0.907184 / 0.45359237, repo.weight!!, 0.000000001)
     }
 
     /** A retired customs item also leaves the suggestions on screen, and their count. */
