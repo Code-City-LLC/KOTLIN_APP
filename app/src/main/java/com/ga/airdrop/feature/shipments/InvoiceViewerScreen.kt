@@ -67,6 +67,7 @@ import java.io.FilterInputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -511,24 +512,33 @@ internal fun copyInvoiceStreamToCache(
     fileName: String,
     input: java.io.InputStream,
 ): File {
-    val dir = File(context.cacheDir, "invoices").also { it.mkdirs() }
-    val output = File(dir, safeInvoiceFileName(fileName))
-    val partial = File.createTempFile(".${output.name}.", ".part", dir)
+    var directory: File? = null
+    var output: File? = null
+    var partial: File? = null
     try {
         input.use { source ->
-            partial.outputStream().use { sink -> source.copyTo(sink) }
+            val root = File(context.cacheDir, "invoices")
+            check(root.mkdirs() || root.isDirectory) { "Unable to create invoice cache" }
+            // Keep the display filename, but never share a destination with
+            // another request. A late response or stale-session cleanup must
+            // not replace/delete a newer download with the same filename.
+            val ownedDirectory = Files.createTempDirectory(root.toPath(), "download-").toFile()
+            directory = ownedDirectory
+            output = File(ownedDirectory, safeInvoiceFileName(fileName))
+            val pending = File.createTempFile(".download-", ".part", ownedDirectory)
+            partial = pending
+            pending.outputStream().use { sink -> source.copyTo(sink) }
         }
-        if (output.exists() && !output.delete()) {
-            error("Unable to replace cached invoice file")
-        }
-        check(partial.renameTo(output)) {
+        val completed = requireNotNull(output)
+        check(requireNotNull(partial).renameTo(completed)) {
             "Unable to publish cached invoice file"
         }
-        return output
+        return completed
     } catch (failure: Throwable) {
-        // Never leave a partially copied customer document in the shared
-        // cache after an I/O failure or coroutine cancellation.
-        partial.delete()
+        // Only this request's private directory is eligible for cleanup.
+        partial?.delete()
+        output?.delete()
+        directory?.delete()
         throw failure
     }
 }
@@ -561,5 +571,5 @@ private fun safeInvoiceFileName(fileName: String): String {
         .ifBlank { "Invoice.pdf" }
         .replace(Regex("""[^\w.\- ]"""), "_")
         .trim()
-    return cleaned.ifBlank { "Invoice.pdf" }
+    return cleaned.takeUnless { it.isBlank() || it == "." || it == ".." } ?: "Invoice.pdf"
 }
