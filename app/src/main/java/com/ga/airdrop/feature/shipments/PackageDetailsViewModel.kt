@@ -419,7 +419,7 @@ class PackageDetailsViewModel(
     fun onDamageReportDescription(value: String) =
         _state.update {
             it.copy(
-                damageReportDescription = value.take(MAX_DAMAGE_DESCRIPTION_LENGTH),
+                damageReportDescription = value,
                 damageReportError = null,
             )
         }
@@ -462,12 +462,18 @@ class PackageDetailsViewModel(
     fun submitDamageReport() {
         val state = _state.value
         if (state.submittingDamageReport) return
+        val description = state.damageReportDescription.trim()
+        // Laravel's string max counts Unicode code points, not UTF-16 units.
+        // Keep the full draft so validation never silently drops user input.
+        if (description.codePointCount(0, description.length) > MAX_DAMAGE_DESCRIPTION_LENGTH) {
+            _state.update { it.copy(damageReportError = "Description cannot exceed 5,000 characters.") }
+            return
+        }
         val apiPackageId = resolvedPackageId ?: run {
             _state.update { it.copy(damageReportError = "Package details are not ready. Try again.") }
             return
         }
         viewModelScope.launch {
-            val description = state.damageReportDescription.trim()
             _state.update { it.copy(submittingDamageReport = true, damageReportError = null) }
             repo.reportDamage(apiPackageId, description, state.damageReportPhotos)
                 .onSuccess {
