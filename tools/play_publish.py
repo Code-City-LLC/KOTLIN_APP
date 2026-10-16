@@ -1,42 +1,26 @@
 #!/usr/bin/env python3
-"""Upload an .aab to Google Play and submit it for review, without a browser.
+"""Upload, promote, or inspect AIRDROP releases using the Google Play API.
 
-Why this exists
----------------
-The browser automation used for releases before this script could not upload the
-bundle: the file-upload bridge only accepts user-shared paths and caps at 10 MB,
-while our bundle is ~37 MB. Computer-use cannot substitute because browsers are
-granted read-only. So every release stalled on a human drag-and-drop. This talks
-to the Android Publisher API directly and removes that step.
+Reuse PLAY_SERVICE_ACCOUNT_JSON or --key; never put credentials in the repo.
+--status reads track configuration. --dry-run plans without uploading a bundle,
+changing a track, or committing an edit. Both use a temporary API edit for reads.
 
-Setup (once)
-------------
-  1. A Google Cloud service account with a JSON key.
-  2. Play Console -> Users and permissions -> Invite the service account's email,
-     granting at least "Release to production, exclude devices, and use Play App
-     Signing" on this app.
-  3. Point PLAY_SERVICE_ACCOUNT_JSON at the key file (see --help).
+Examples:
+  ./tools/play_publish.py --status
+  ./tools/play_publish.py --aab app-prod-release.aab --track internal
+  ./tools/play_publish.py --promote-code 37 --from-track internal --track production --dry-run
+  ./tools/play_publish.py --promote-code 37 --from-track internal --track production
 
-⚠️ The key file is a credential. Keep it out of the repo; .gitignore covers
-tools/*.json and the default path lives under KEYS/.
-
-Usage
------
-  ./tools/play_publish.py --aab path/to/app-prod-release.aab --track internal
-  ./tools/play_publish.py --aab ... --track production --notes-from-track internal
-  ./tools/play_publish.py --aab ... --track production --dry-run
-
-Managed publishing note
------------------------
-If managed publishing is ON (it is, for com.ga.airdrop.app), committing an edit
-sends the release to REVIEW. It does NOT go live: after review it parks in
-"Changes ready to publish" until a human presses Publish. This script never
-publishes; it only submits.
+A committed edit is not proof of public availability. Google review and the
+current managed-publishing setting control when a production release is public.
+API track status "completed" describes full rollout configuration, not approval.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
+import json
 import os
 import re
 import sys
@@ -45,23 +29,6 @@ import zipfile
 PACKAGE_NAME = "com.ga.airdrop.app"
 DEFAULT_KEY_PATH = "/Volumes/MAC PRO /DEV PROJECTS/KEYS/AIRDROP KOTLIN 2026/play-service-account.json"
 SCOPE = "https://www.googleapis.com/auth/androidpublisher"
-
-# Play rejects a versionCode at or below one already live. Mirrors
-# `knownPlayProductionVersionCodeFloor` in app/build.gradle.kts — keep in step.
-# ⚠️ These two DRIFTED: both sat at 21 while 25 was live, so 22-25 passed both
-# local guards and would have failed only at Google. Bump BOTH every release.
-# v29 (internal) and v30 (production review) were uploaded on 2026-08-12 —
-# the "Version code 30 has already been used" rejection was measured live on
-# this tool, which is exactly the failure this floor exists to catch locally.
-# PR #238 raised the Gradle floor to 30 but not this one (fourth drift); then
-# v31 was uploaded 2026-08-12 and NEITHER floor was bumped (fifth). Bump BOTH
-# in the SAME commit as every upload — the upload is what burns the code.
-# Query Play again before building: any upload on any track burns its code.
-# 2026-09-22: 32 (3.2.5) uploaded to the internal track; floors raised to 32
-# in the same change, per the rule above.
-# 2026-09-22: 33 (3.2.5) uploaded to the internal track; floors 33.
-# 2026-09-23: 34 (3.2.5) uploaded to the internal track; floors 34.
-VERSION_CODE_FLOOR = 34
 
 
 def die(msg: str) -> "None":
@@ -122,123 +89,147 @@ def load_notes(service, edit_id: str, from_track: str) -> "list | None":
     return None
 
 
-def main() -> int:
-    p = argparse.ArgumentParser(
-        description="Upload an .aab to Play and submit it for review.")
-    p.add_argument("--aab", required=True, help="path to the .aab")
-    p.add_argument("--track", default="internal",
-                   help="internal | alpha | beta | production (default: internal)")
-    p.add_argument("--name", help="release name shown in the console")
-    p.add_argument("--notes-from-track",
-                   help="copy release notes from this track's newest release")
-    p.add_argument("--rollout", type=float,
-                   help="staged rollout fraction 0<f<1; omit for full rollout")
-    p.add_argument("--key", default=os.environ.get(
-        "PLAY_SERVICE_ACCOUNT_JSON", DEFAULT_KEY_PATH),
-        help="service-account JSON (or set PLAY_SERVICE_ACCOUNT_JSON)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="do everything except commit; the edit is discarded")
-    args = p.parse_args()
+def release_codes(release):
+    return [int(code) for code in release.get("versionCodes", [])]
 
-    version_code, version_name = read_bundle_identity(args.aab)
-    size_mb = os.path.getsize(args.aab) / 1048576
-    print(f"bundle      : {args.aab}")
-    print(f"             versionCode={version_code} versionName={version_name} "
-          f"({size_mb:.1f} MB)")
 
-    if version_code <= VERSION_CODE_FLOOR:
-        die(f"versionCode {version_code} is at or below the known-live floor "
-            f"{VERSION_CODE_FLOOR}; Play would reject it")
+def plan_promotion(tracks, source, target, version_code, rollout=None):
+    """Select the exact reviewed artifact and retain its existing release metadata."""
+    if source == target:
+        raise ValueError("source and target tracks must differ")
+    matches = [r for t in tracks if t.get("track") == source
+               for r in t.get("releases", []) if version_code in release_codes(r)]
+    if len(matches) != 1 or release_codes(matches[0]) != [version_code]:
+        raise ValueError("source must contain exactly one release with only the requested code")
+    if matches[0].get("status") != "completed":
+        raise ValueError("source release must be completed before promotion")
+    target_releases = [r for t in tracks if t.get("track") == target
+                       for r in t.get("releases", [])]
+    if any(c > version_code for r in target_releases for c in release_codes(r)):
+        raise ValueError("target contains a newer version; refusing to replace it")
+    release = copy.deepcopy(matches[0])
+    release["status"] = "completed" if rollout is None else "inProgress"
+    release.pop("userFraction", None)
+    if rollout is not None:
+        release["userFraction"] = rollout
+    # Re-running an already submitted promotion must not reset review or metadata.
+    if any(release_codes(r) == [version_code] and
+           r.get("status") == release["status"] and
+           r.get("userFraction") == release.get("userFraction")
+           for r in target_releases):
+        return None
+    return release
 
-    if not os.path.isfile(args.key):
-        die(f"no service-account key at {args.key}\n"
-            "  Create one in Google Cloud, then invite its email in Play Console\n"
-            "  under Users and permissions with release access to this app.")
 
-    from google.oauth2 import service_account          # noqa: E402
-    from googleapiclient.discovery import build        # noqa: E402
-    from googleapiclient.errors import HttpError       # noqa: E402
-    from googleapiclient.http import MediaFileUpload   # noqa: E402
-
-    creds = service_account.Credentials.from_service_account_file(
-        args.key, scopes=[SCOPE])
-    service = build("androidpublisher", "v3",
-                    credentials=creds, cache_discovery=False)
-
-    try:
-        edit = service.edits().insert(body={}, packageName=PACKAGE_NAME).execute()
-    except HttpError as exc:
-        die("could not open an edit — the service account most likely has no "
-            f"access to {PACKAGE_NAME} in Play Console.\n  {exc}")
-    edit_id = edit["id"]
-    print(f"edit        : {edit_id}")
-
+def run_edit(service, args, bundle_identity=None, media_factory=None):
+    edit_id = service.edits().insert(body={}, packageName=PACKAGE_NAME).execute()["id"]
     committed = False
     try:
-        print("uploading   : ...", flush=True)
-        media = MediaFileUpload(
-            args.aab, mimetype="application/octet-stream", resumable=True)
-        uploaded = service.edits().bundles().upload(
-            packageName=PACKAGE_NAME, editId=edit_id,
-            media_body=media).execute()
-        uploaded_code = int(uploaded["versionCode"])
-        print(f"uploaded    : versionCode={uploaded_code}")
-        if uploaded_code != version_code:
-            die(f"Play reports versionCode {uploaded_code} but the file says "
-                f"{version_code} — refusing to continue")
-
-        release = {
-            "name": args.name or f"{version_code} ({version_name})",
-            "versionCodes": [str(version_code)],
-            "status": "completed",
-        }
-        if args.rollout is not None:
-            if not 0 < args.rollout < 1:
-                die("--rollout must be strictly between 0 and 1")
-            release["status"] = "inProgress"
-            release["userFraction"] = args.rollout
-
-        if args.notes_from_track:
-            notes = load_notes(service, edit_id, args.notes_from_track)
-            if notes:
-                release["releaseNotes"] = notes
-                print(f"notes       : copied from '{args.notes_from_track}'")
-            else:
-                # Loud, because shipping a release with no "what's new" is a
-                # silent downgrade of the listing, not a neutral default.
-                print(f"notes       : WARNING none found on "
-                      f"'{args.notes_from_track}' — release will have none")
-
-        service.edits().tracks().update(
-            packageName=PACKAGE_NAME, editId=edit_id, track=args.track,
-            body={"track": args.track, "releases": [release]}).execute()
-        print(f"track       : {args.track} "
-              f"({'staged ' + str(args.rollout) if args.rollout else 'full rollout'})")
-
-        if args.dry_run:
-            print("dry-run     : discarding the edit, nothing was submitted")
-            service.edits().delete(
-                packageName=PACKAGE_NAME, editId=edit_id).execute()
+        scope = {"packageName": PACKAGE_NAME, "editId": edit_id}
+        tracks = service.edits().tracks().list(**scope).execute().get("tracks", [])
+        if args.status:
+            print(json.dumps({"package": PACKAGE_NAME, "tracks": tracks,
+                              "public_availability": "Not established by track configuration"}, indent=2))
             return 0
-
-        service.edits().commit(
-            packageName=PACKAGE_NAME, editId=edit_id).execute()
+        if args.promote_code is not None:
+            release = plan_promotion(tracks, args.from_track, args.track,
+                                     args.promote_code, args.rollout)
+            if release is None:
+                print("unchanged   : requested rollout already configured; no edit committed")
+                print("Public availability still requires separate verification.")
+                return 0
+        else:
+            version_code, version_name = bundle_identity
+            bundles = service.edits().bundles().list(**scope).execute().get("bundles", [])
+            apks = service.edits().apks().list(**scope).execute().get("apks", [])
+            used = [int(x["versionCode"]) for x in bundles + apks]
+            used += [c for t in tracks for r in t.get("releases", []) for c in release_codes(r)]
+            if used and version_code <= max(used):
+                raise ValueError(f"versionCode {version_code} is not above live API artifact maximum {max(used)}")
+            release = {"name": args.name or f"{version_code} ({version_name})",
+                       "versionCodes": [str(version_code)], "status": "completed"}
+            if args.rollout is not None:
+                release.update(status="inProgress", userFraction=args.rollout)
+            if args.notes_from_track:
+                notes = load_notes(service, edit_id, args.notes_from_track)
+                if not notes:
+                    raise ValueError("requested source track has no release notes")
+                release["releaseNotes"] = notes
+        print(json.dumps({"target_track": args.track, "release": release, "dry_run": args.dry_run}, indent=2))
+        if args.dry_run:
+            print("dry-run     : plan only; no upload, track update, or commit")
+            return 0
+        if args.aab:
+            media = media_factory(args.aab, mimetype="application/octet-stream", resumable=True)
+            uploaded = service.edits().bundles().upload(**scope, media_body=media).execute()
+            if int(uploaded["versionCode"]) != bundle_identity[0]:
+                raise ValueError("uploaded version code differs from bundle identity")
+        service.edits().tracks().update(**scope, track=args.track,
+            body={"track": args.track, "releases": [release]}).execute()
+        service.edits().validate(**scope).execute()
+        service.edits().commit(**scope, changesNotSentForReview=False).execute()
         committed = True
-        print("committed   : SUBMITTED FOR REVIEW")
-        print()
-        print("Managed publishing is ON, so this does NOT go live. After Google's")
-        print("review it waits in 'Changes ready to publish' for a human.")
+        print("committed   : release edit accepted; public availability is NOT yet verified")
+        print("Google review and the current managed-publishing setting determine publication.")
         return 0
-    except HttpError as exc:
-        die(f"Play API rejected the request:\n  {exc}")
     finally:
-        if not committed and not args.dry_run:
-            # Leaving an edit open blocks later edits with a confusing error.
+        if not committed:
+            # Only discard the temporary edit created by this invocation.
             try:
-                service.edits().delete(
-                    packageName=PACKAGE_NAME, editId=edit_id).execute()
+                service.edits().delete(packageName=PACKAGE_NAME, editId=edit_id).execute()
             except Exception:
-                pass
+                print("warning: temporary edit cleanup failed; it will expire", file=sys.stderr)
+
+
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--aab", help="new bundle to upload")
+    mode.add_argument("--promote-code", type=int, help="existing version code to promote without uploading again")
+    mode.add_argument("--status", action="store_true", help="read track configuration without changing releases")
+    p.add_argument("--track", help="explicit destination track (including existing custom tracks)")
+    p.add_argument("--from-track", default="internal", help="source track for promotion")
+    p.add_argument("--name", help="name for a new uploaded release")
+    p.add_argument("--notes-from-track", help="copy notes for a new uploaded release")
+    p.add_argument("--rollout", type=float, help="fraction strictly between 0 and 1; omit for full rollout")
+    p.add_argument("--key", default=os.environ.get("PLAY_SERVICE_ACCOUNT_JSON", DEFAULT_KEY_PATH))
+    p.add_argument("--dry-run", action="store_true", help="plan only; no upload, track update, or commit")
+    args = p.parse_args(argv)
+    if not args.status and not args.track:
+        p.error("--track is required for upload or promotion")
+    if args.rollout is not None and not 0 < args.rollout < 1:
+        p.error("--rollout must be strictly between 0 and 1")
+    if args.rollout is not None and args.track == "internal":
+        p.error("internal track does not support staged rollouts")
+    if args.promote_code is not None and not 0 < args.promote_code <= 2_100_000_000:
+        p.error("--promote-code must be a valid positive Play version code")
+    if args.promote_code is not None and (args.name or args.notes_from_track):
+        p.error("promotion preserves the selected source release name and notes")
+    if args.status and (args.track or args.rollout is not None or args.name or args.notes_from_track):
+        p.error("--status cannot be combined with release mutation options")
+    return args
+
+
+def main():
+    args = parse_args()
+    identity = read_bundle_identity(args.aab) if args.aab else None
+    if identity and not 0 < identity[0] <= 2_100_000_000:
+        die("bundle versionCode is outside Play's supported range")
+    if not os.path.isfile(args.key):
+        die("existing Play service-account credential unavailable; use --key or PLAY_SERVICE_ACCOUNT_JSON")
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+    from googleapiclient.errors import HttpError
+    creds = service_account.Credentials.from_service_account_file(args.key, scopes=[SCOPE])
+    service = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
+    try:
+        return run_edit(service, args, identity, MediaFileUpload)
+    except ValueError as exc:
+        die(str(exc))
+    except HttpError as exc:
+        # Avoid dumping response bodies containing operational or account details.
+        die(f"Play API returned HTTP {exc.resp.status}; no public availability claim can be made")
 
 
 if __name__ == "__main__":

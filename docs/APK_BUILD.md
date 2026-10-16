@@ -79,20 +79,20 @@ records fail closed.
 ## Google Play upload bundle
 
 The Desktop `airdrop-vN.apk` artifacts are staging/debug sideload builds. They
-are not Google Play submissions. Play production is known to use versionCode 21,
-but that is only a floor: an internal, closed, or open track may already contain
-a higher code that cannot be reused.
+are not Google Play submissions. Query the authenticated Play API for current
+artifacts and tracks; never infer an unused version code from old documentation
+or the Production track alone. Any uploaded artifact can consume a code.
 
 1. Recover the existing Play-authorized upload key or complete an owner-approved
    upload-key reset in Play Console. Never generate or reset a key by assumption.
-2. In Play Console's App Bundle Explorer, verify the highest versionCode across
-   every uploaded artifact and track. Choose a new integer greater than that
-   maximum and no greater than Play's `2,100,000,000` limit; do not infer it
-   from the Production track alone.
+2. Use `python3 tools/play_publish.py --status` to inspect track configuration.
+   The uploader also queries bundles, APKs and all tracks before uploading, and
+   rejects a code at or below that current maximum. Choose a new integer no
+   greater than Play's `2,100,000,000` limit.
 3. Copy `keystore.properties.example` to the gitignored
    `keystore.properties` and set the four real values on the release host.
 4. Build the minified production bundle with the verified code. Replace `NN`
-   with that owner-verified integer:
+   with that API-verified integer:
 
    ```bash
    ./gradlew :app:bundleProdRelease -PplayVersionCode=NN
@@ -108,9 +108,44 @@ debug-signed, knowingly reused, or out-of-range Play candidate.
 
 Verify the resulting `app/build/outputs/bundle/prodRelease/app-prod-release.aab`
 with `jarsigner -verify -verbose -certs`, compare its certificate fingerprint to
-the authorized Play upload certificate, and record its SHA-256. Upload first to
-the approved internal test track; production rollout remains gated by issue
-#112 and explicit release approval.
+the authorized Play upload certificate, and record its SHA-256. Use the existing
+API release tool with the explicitly intended track:
+
+```bash
+python3 tools/play_publish.py --aab app/build/outputs/bundle/prodRelease/app-prod-release.aab --track internal
+python3 tools/play_publish.py --promote-code NN --from-track internal --track production --dry-run
+python3 tools/play_publish.py --promote-code NN --from-track internal --track production
+```
+
+Promotion reuses the exact uploaded version, name, notes and release metadata;
+it does not upload the bundle again. Omit `--rollout` for full rollout. The tool
+requires an explicit destination and rejects replacement of a newer target.
+A repeat promotion of the same configured rollout is a no-op, preserving its
+review submission. `--dry-run` performs reads and builds a plan only: it does not
+upload, update a track, or commit. Read operations use a temporary API edit and
+clean up only that invocation's edit.
+
+Reuse the existing AIRDROP service-account credential via
+`PLAY_SERVICE_ACCOUNT_JSON` or `--key`; keep credentials in the approved vault
+and release-host key directory, never in source or logs. Do not use Code City
+signing credentials. Browser use is a fallback for API limitations, necessary
+interactive authentication, or rendered verification.
+
+An accepted commit and API track status `completed` do **not** establish Google
+review approval or public availability. The current managed-publishing setting
+controls whether approval publishes automatically or waits for release. Do not
+hard-code that setting or report a submission as live. Existing owner release
+authority applies; testing is a verification step, not the final destination
+when production release has been requested.
+
+Validate changes to the release tool with:
+
+```bash
+python3 -m unittest discover -s tools -p 'test_play_publish.py' -v
+```
+
+API references: [track updates](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks/update),
+[edit commits](https://developers.google.com/android-publisher/api-ref/rest/v3/edits/commit).
 
 ## Reverting the spammer (if ever needed)
 
