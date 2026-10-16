@@ -362,17 +362,23 @@ class CartHostedCheckoutParityTest {
         compose.onNodeWithText("Your Note").assertDoesNotExist()
 
         compose.onNodeWithContentDescription("Remove Sale watch").performClick()
-        assertEquals(lines[1].key, removedItem.get()?.key)
+        compose.runOnIdle { assertEquals(lines[1].key, removedItem.get()?.key) }
 
         compose.onNodeWithTag("order-summary-special-instructions").performClick()
         compose.onNodeWithTag("cart-note-input").performTextClearance()
         compose.onNodeWithTag("cart-note-input").performTextInput("Leave with security")
         compose.onNodeWithTag("cart-note-save").performClick()
-        assertEquals("Leave with security", noteUpdates.get())
+        // Touch injection can return before Compose processes the callback.
+        // Require the saved screen state as well as the callback value.
+        compose.onNodeWithTag("cart-note-popup").assertDoesNotExist()
+        compose.onNodeWithText("Leave with security").assertIsDisplayed()
+        compose.runOnIdle { assertEquals("Leave with security", noteUpdates.get()) }
 
         compose.onNodeWithText("Make Payment").performClick()
-        assertEquals(1, makePaymentCalls.get())
-        assertEquals("Opening/confirming payment UI must not clear cart rows", 2, CartStore.count)
+        compose.runOnIdle {
+            assertEquals(1, makePaymentCalls.get())
+            assertEquals("Opening/confirming payment UI must not clear cart rows", 2, CartStore.count)
+        }
     }
 
     @Test
