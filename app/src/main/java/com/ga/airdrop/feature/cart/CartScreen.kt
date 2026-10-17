@@ -72,6 +72,7 @@ import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.frostedGlassSurface
+import com.ga.airdrop.feature.shipments.ShipmentsFormat
 import com.ga.airdrop.feature.shop.AMAZON_ASSOCIATES_DISCLOSURE
 import com.ga.airdrop.feature.shop.ShopChevronRight
 import com.ga.airdrop.feature.shop.ShopInnerHeader
@@ -785,8 +786,10 @@ private fun CartItemCard(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "Drop Number", style = AirdropType.subtitle3, color = colors.textDescription)
                     Text(
-                        // Swift :459 — "AIR" + %010d (Swift wins over Figma sample).
-                        text = String.format(Locale.US, "AIR%010d", line.id),
+                        // The package's real drop number. "AIR" + the internal id
+                        // was an invented code; an unknown one shows "—".
+                        text = line.trackingCode?.takeIf { it.isNotBlank() }
+                            ?.let { ShipmentsFormat.trackingCode(it) } ?: "—",
                         style = AirdropType.subtitle1,
                         color = colors.textDarkTitle,
                         maxLines = 1,

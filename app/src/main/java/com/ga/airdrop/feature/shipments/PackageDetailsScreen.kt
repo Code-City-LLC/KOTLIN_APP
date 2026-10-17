@@ -423,7 +423,10 @@ private fun PackageDetailsContent(
                 detail.shipper?.takeIf { it.isNotBlank() },
                 detail.courierNumber?.takeIf { it.isNotBlank() },
             ).joinToString(" ").ifBlank { "—" }
-            DetailRow("Drop Number", detail.trackingCode ?: "—")
+            DetailRow(
+                "Drop Number",
+                detail.trackingCode?.takeIf { it.isNotBlank() }?.let { ShipmentsFormat.trackingCode(it) } ?: "—",
+            )
             DetailRow("Shipping Method", shippingMethodDisplayName(detail.shippingMethod))
             // Swift orders Status immediately after Shipping Method
             // (FigmaPackageDetailsViewController:1332-1333, and the placeholder

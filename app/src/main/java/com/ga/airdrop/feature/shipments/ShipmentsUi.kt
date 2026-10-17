@@ -479,33 +479,68 @@ object ShipmentsFormat {
     }
 
     /**
-     * Drop-number formatting: prefix + last 11 digits grouped 3-4-4.
-     * Swift FigmaPackagesViewController.formatTrackingCode(_:statusCode:) — the
-     * empty-tracking fallback is status-aware: status 1 (Drop Alerted) shows
-     * "Awaiting Package Creation", any other status shows an em dash. Callers
-     * without a status (Payments cards) omit [statusId] and keep the legacy "-".
+     * THE drop-number display for the whole app. Kemar, 2026-10-17: "We have
+     * started to stick with six digits ARD number ... getting rid of the zeros
+     * and we'll have space ... across everywhere."
+     *
+     * The rule is the web's `displayTrackingCode`
+     * (resources/js/utils/trackingCode.js, Kemar 2026-08-18): an ARD code
+     * loses its leading zeros and its digits are grouped in threes from the
+     * right, keeping an SD/ES suffix.
+     *   ARD00000153998   -> "ARD 153 998"
+     *   ARD00000015814SD -> "ARD 15 814 SD"
+     *   ARD00001000000   -> "ARD 1 000 000"
+     * Anything that is not an ARD code (a courier number, another label) is
+     * shown trimmed and otherwise unchanged.
+     *
+     * Display only: storage, API params, scans and push routing keep the raw
+     * code. Search accepts this form through [normalizeTrackingCode].
+     *
+     * The empty fallback is Swift's
+     * FigmaPackagesViewController.formatTrackingCode(_:statusCode:): status 1
+     * (Drop Alerted) shows "Awaiting Package Creation", any other status an em
+     * dash, and callers without a status (Payments cards) the legacy "-".
      */
     fun trackingCode(raw: String?, statusId: Int? = null): String {
-        val stripped = raw.orEmpty().replace(" ", "")
-        if (stripped.isEmpty()) return when (statusId) {
+        val trimmed = raw.orEmpty().trim()
+        if (trimmed.isEmpty()) return when (statusId) {
             1 -> "Awaiting Package Creation"
             null -> "-"
             else -> "—"
         }
-        // SwiftHawk #79761 §2 — DISPLAY format is the LAST SIX digits grouped
-        // 3 + 3:  ARD00000138634 -> "ARD 138 634".
-        // Display only: the full reference still goes to the API and is what
-        // search matches. Fewer than six digits is shown as-is and NEVER
-        // zero-padded — padding would misrepresent a short reference.
-        val prefix = stripped.takeWhile { it.isLetter() }.uppercase(Locale.US)
-        val digits = stripped.filter { it.isDigit() }
-        val grouped = if (digits.length >= 6) {
-            val six = digits.takeLast(6)
-            six.take(3) + " " + six.takeLast(3)
-        } else {
-            digits
-        }
-        return listOf(prefix, grouped).filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "-" }
+        val (number, suffix) = ardCodeParts(trimmed) ?: return trimmed
+        val grouped = number.reversed().chunked(3).joinToString(" ").reversed()
+        return if (suffix.isEmpty()) "ARD $grouped" else "ARD $grouped $suffix"
+    }
+
+    /**
+     * The reverse of [trackingCode], for search: what a customer types or
+     * copies ("ARD 153 998", "ard153998sd") becomes the stored code
+     * ("ARD00000153998", "ARD00000153998SD"). Anything that is not an ARD
+     * code is returned trimmed. Mirrors the web's `normalizeTrackingCode`.
+     */
+    fun normalizeTrackingCode(input: String?): String {
+        val trimmed = input.orEmpty().trim()
+        val (number, suffix) = ardCodeParts(trimmed) ?: return trimmed
+        return "ARD" + number.padStart(ARD_CODE_DIGITS, '0') + suffix
+    }
+
+    /** Canonical width of an ARD code's number. */
+    private const val ARD_CODE_DIGITS = 11
+    private val ardCodePattern = Regex("^ARD(\\d+)(SD|ES)?$", RegexOption.IGNORE_CASE)
+    private val whitespace = Regex("\\s+")
+
+    /**
+     * The number without leading zeros ("0" when it is all zeros) and the
+     * uppercased SD/ES suffix ("" when absent), or null when [trimmed] is not
+     * an ARD code.
+     */
+    private fun ardCodeParts(trimmed: String): Pair<String, String>? {
+        val match = ardCodePattern.matchEntire(trimmed.replace(whitespace, "")) ?: return null
+        val (digits, suffix) = match.destructured
+        // More digits than the canonical width cannot be a real code.
+        if (digits.length > ARD_CODE_DIGITS) return null
+        return digits.trimStart('0').ifEmpty { "0" } to suffix.uppercase(Locale.US)
     }
 
     private val parsePatterns = listOf(

@@ -574,7 +574,8 @@ private fun QuickTrackRecentRow(
         )
         Column(Modifier.weight(1f)) {
             Text(
-                text = recent.trackingCode?.takeIf { it.isNotBlank() } ?: recent.code,
+                // Display only: the stored recent and the re-track tap keep the raw code.
+                text = ShipmentsFormat.trackingCode(recent.trackingCode?.takeIf { it.isNotBlank() } ?: recent.code),
                 style = AirdropType.subtitle2,
                 color = colors.textDarkTitle,
             )

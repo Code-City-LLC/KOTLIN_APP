@@ -6,6 +6,7 @@ import com.ga.airdrop.core.session.AuthenticatedSessionBoundary
 import com.ga.airdrop.core.session.AuthenticatedSessionOwner
 import com.ga.airdrop.data.model.CartPackage
 import com.ga.airdrop.data.repo.PackagesRepository
+import com.ga.airdrop.feature.shipments.ShipmentsFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -53,7 +54,7 @@ internal fun CartPackage.toCartLine(): CartStore.CartLine = CartStore.CartLine(
     id = requireNotNull(id).also { require(it > 0) },
     packageId = id,
     title = description?.takeIf(String::isNotBlank)
-        ?: trackingCode?.takeIf(String::isNotBlank)
+        ?: trackingCode?.takeIf(String::isNotBlank)?.let { ShipmentsFormat.trackingCode(it) }
         ?: "Package #${requireNotNull(id)}",
     qty = 1,
     priceUsd = totalCharges ?: additionalChargesTotal ?: additionalCharges ?: shippingCost ?: 0.0,
@@ -67,6 +68,7 @@ internal fun CartPackage.toCartLine(): CartStore.CartLine = CartStore.CartLine(
         ?.let { 7 },
     serverConfirmed = true,
     isAuction = false,
+    trackingCode = trackingCode,
 )
 
 /**
