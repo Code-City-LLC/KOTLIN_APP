@@ -249,6 +249,13 @@ val AirdropColorScheme.infoBoxBackground: Color
 val AirdropColorScheme.infoBoxBorder: Color
     get() = if (isDark) Color(0xFF0993D1) else AlertPalette.Middle.OnHold
 
+/**
+ * Alerts Color/Original Alert/On-Hold for the active mode: #0049D9, and #3E7FFF
+ * in dark, as Swift DesignTokens Alert.onHold and RN alert.on_hold resolve it.
+ */
+val AirdropColorScheme.alertOnHold: Color
+    get() = if (isDark) Color(0xFF3E7FFF) else AlertPalette.OnHold
+
 /** Home card glass resolves visually to Figma's opaque gray150 after Swift blur. */
 val AirdropColorScheme.frostedGlassCardSurface: Color
     get() = gray150

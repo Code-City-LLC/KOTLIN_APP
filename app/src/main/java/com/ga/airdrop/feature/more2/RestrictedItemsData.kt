@@ -11,6 +11,11 @@ internal data class RestrictedItem(val title: String, val detail: String?)
 
 internal enum class RestrictedCategory(
     val displayName: String,
+    /**
+     * The category's name in the category page's tab bar, in RN
+     * RestrictedItemsScreenView's words. The list keeps [displayName].
+     */
+    val tabLabel: String,
     val headline: String,
     val intro: String,
     val items: List<RestrictedItem>,
@@ -19,6 +24,7 @@ internal enum class RestrictedCategory(
 ) {
     PERMITTED(
         displayName = "Permitted",
+        tabLabel = "Permitted",
         headline = "Permitted Commodities (General Goods)",
         intro = "Freely shippable items that meet carrier packaging and safety standards. " +
             "These items are normally admissible when declared correctly and duty/taxes " +
@@ -38,6 +44,7 @@ internal enum class RestrictedCategory(
     ),
     LICENSE_REQUIRED(
         displayName = "License Required",
+        tabLabel = "License-Required",
         headline = "License Required Categories",
         intro = "These goods are legal to import into Jamaica only with valid permits or " +
             "licences from the relevant authority. Without proof of authorisation they will " +
@@ -84,6 +91,7 @@ internal enum class RestrictedCategory(
     ),
     RESTRICTED_COMMODITIES(
         displayName = "Restricted Commodities",
+        tabLabel = "Restricted Commodities",
         headline = "Restricted Commodities (Carrier/Dangerous Goods)",
         intro = "These items may be carried only under strict packaging, quantity, labeling " +
             "or mode-of-transport conditions. The list below incorporates items from " +
@@ -125,6 +133,7 @@ internal enum class RestrictedCategory(
     ),
     PROHIBITED(
         displayName = "Prohibited",
+        tabLabel = "Prohibited Articles",
         headline = "Prohibited Articles (Non-Admissible)",
         intro = "These items are not shippable under any circumstance because they are " +
             "illegal to export from the United States or import into Jamaica.",
@@ -167,6 +176,7 @@ internal enum class RestrictedCategory(
     ),
     CONDITIONAL_COMMODITIES(
         displayName = "Conditional Commodities",
+        tabLabel = "Conditional Commodities",
         headline = "Conditional Commodities (Special Handling)",
         intro = "Items that may be accepted on a case-by-case basis with quantity limits, " +
             "special packaging or additional documentation. Many of these appear on " +
@@ -202,14 +212,31 @@ internal enum class RestrictedCategory(
         carrierNote = null,
         batteryPolicy = null,
     ),
+    ;
+
+    /**
+     * The category page's search, as RN RestrictedItemsScreenView filters a
+     * tab: the items whose title or detail holds [query], ignoring case. A
+     * blank query keeps every item.
+     */
+    fun itemsMatching(query: String): List<RestrictedItem> {
+        val q = query.trim()
+        if (q.isEmpty()) return items
+        return items.filter { item ->
+            listOf(item.title, item.detail.orEmpty()).joinToString(" ").contains(q, ignoreCase = true)
+        }
+    }
+
+    /** The tab [step] places away in the bar (1 next, -1 previous), or null past either end. */
+    fun adjacent(step: Int): RestrictedCategory? = entries.getOrNull(ordinal + step)
 }
 
 /**
  * Legal "Information" page content — Swift
  * FigmaRestrictedItemsLegalInfoViewController (authorities :24-30, copy :120+),
- * reached from the Restricted Items list info button
- * (FigmaRestrictedItemsViewController:201). RN parity:
- * modules/More/ui/RestrictedItemsInfoView.
+ * reached from the info button of the Restricted Items list and of every
+ * category page (FigmaRestrictedItemsViewController:201). Figma
+ * 40001432:14025. RN parity: modules/More/ui/RestrictedItemsInfoView.
  */
 internal object RestrictedLegalInfo {
 
@@ -229,11 +256,13 @@ internal object RestrictedLegalInfo {
         "detain any shipment that does not meet these requirements."
 
     const val LABELING_TITLE = "Labeling & Compliance Checks"
-    const val LABELING_INTRO = "Items must be labeled or scrutinized under U.S. export controls " +
+    // Swift and Figma 40001432:14025 both read "may be blocked", and the
+    // first bullet's "(applies to ...)".
+    const val LABELING_INTRO = "Items may be blocked or scrutinized under U.S. export controls " +
         "or Jamaican import rules if they:"
     val labelingBullets = listOf(
-        "Lack English labeling or required FDA/MOH labeling for cosmetics, supplements and " +
-            "over-the-counter medicines",
+        "Lack English labeling or required FDA/MOH labeling (applies to cosmetics, supplements " +
+            "and over-the-counter medicines)",
         "Include medical devices not FDA-cleared/approved or lacking Ministry of Health clearance",
         "Appear on consumer safety advisories or recall lists",
         "Are perishable without appropriate cold-chain packaging",
@@ -274,5 +303,6 @@ internal object RestrictedLegalInfo {
         "that does not meet these requirements."
     const val BIS_LEAD_IN = "For further details on U.S. export controls, please refer to " +
         "official resources provided by the"
-    val bisLink = Authority("", "Bureau of Industry and Security (BIS).", "https://www.bis.doc.gov")
+    // Figma links the name inline and leaves the full stop outside the link.
+    val bisLink = Authority("", "Bureau of Industry and Security (BIS)", "https://www.bis.doc.gov")
 }

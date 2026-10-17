@@ -41,4 +41,20 @@ class RestrictedLegalInfoTest {
         assertFalse(RestrictedLegalInfo.DISCLAIMER.contains("asian"))
         assertEquals("https://www.bis.doc.gov", RestrictedLegalInfo.bisLink.url)
     }
+
+    @Test
+    fun `labeling copy matches Swift and Figma 40001432 14025`() {
+        assertEquals(
+            "Items may be blocked or scrutinized under U.S. export controls or Jamaican " +
+                "import rules if they:",
+            RestrictedLegalInfo.LABELING_INTRO,
+        )
+        assertEquals(
+            "Lack English labeling or required FDA/MOH labeling (applies to cosmetics, " +
+                "supplements and over-the-counter medicines)",
+            RestrictedLegalInfo.labelingBullets[0],
+        )
+        // Figma links the name inline and keeps the full stop outside the link.
+        assertEquals("Bureau of Industry and Security (BIS)", RestrictedLegalInfo.bisLink.label)
+    }
 }
