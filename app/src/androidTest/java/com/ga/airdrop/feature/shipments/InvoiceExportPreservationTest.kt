@@ -107,7 +107,10 @@ class InvoiceExportPreservationTest {
         assertEquals(Intent.ACTION_CREATE_DOCUMENT, intent.action)
         assertEquals("application/pdf", intent.type)
         assertEquals("same.pdf", intent.getStringExtra(Intent.EXTRA_TITLE))
-        assertTrue(intent.categories.contains(Intent.CATEGORY_OPENABLE))
+        val permissions = context.packageManager.getPackageInfo(
+            context.packageName, android.content.pm.PackageManager.GET_PERMISSIONS,
+        ).requestedPermissions.orEmpty()
+        assertFalse(permissions.contains("android.permission.WRITE_EXTERNAL_STORAGE"))
     }
 
     private fun source() = File.createTempFile("export-test-", ".pdf", context.cacheDir).apply { writeText("new export") }

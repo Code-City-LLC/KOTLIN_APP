@@ -75,6 +75,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
 import java.util.Locale
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -431,8 +432,16 @@ internal suspend fun writeInvoiceToDocument(resolver: ContentResolver, file: Fil
 internal suspend fun saveInvoiceToDownloads(resolver: ContentResolver, file: File, fileName: String): Uri =
     withContext(Dispatchers.IO) {
         require(file.isFile) { "Invoice file does not exist" }
+        // MediaStore may return an existing app-owned row for the same path.
+        // Give each export its own name before insert, so opening it for write
+        // cannot truncate a previous export or a concurrent writer's file.
+        val safeName = safeInvoiceFileName(fileName)
+        val extension = safeName.substringAfterLast('.', "")
+        val stem = if (extension.isEmpty()) safeName else safeName.substringBeforeLast('.')
+        val exportName = "${stem.take(160)}-${UUID.randomUUID()}" +
+            if (extension.isEmpty()) "" else ".${extension.take(16)}"
         val values = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, exportName)
             put(android.provider.MediaStore.Downloads.MIME_TYPE, invoiceMimeType(fileName))
             put(android.provider.MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
             put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
