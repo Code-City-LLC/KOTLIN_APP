@@ -9,12 +9,15 @@ data class CountryEntry(
     val flagEmoji: String,
     val dialCode: String?,
 ) {
+    /**
+     * The address Country label: the flag and the name only. Kemar,
+     * 2026-10-17: "we shouldn't have 1876 ... 1876 is not the only caller
+     * ID." The country no longer sets the phone number's code, and "+1876" is
+     * no calling code anyway. [dialCode] stays for the authorized-user phone
+     * picker, which turns it into a calling code.
+     */
     val display: String
-        get() = if (dialCode == null) {
-            "$flagEmoji  $name"
-        } else {
-            "$flagEmoji  $name  ($dialCode)"
-        }
+        get() = "$flagEmoji  $name"
 }
 
 /**

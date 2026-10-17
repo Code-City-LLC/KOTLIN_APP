@@ -41,11 +41,24 @@ class CountryCatalogTest {
     fun displayRowsRoundTripToCanonicalBackendName() {
         val jamaica = CountryCatalog.entryForIso("JM")!!
 
-        assertEquals("🇯🇲  Jamaica  (+1876)", jamaica.display)
+        assertEquals("🇯🇲  Jamaica", jamaica.display)
         assertEquals("Jamaica", CountryCatalog.canonicalName(jamaica.display))
         assertEquals(jamaica.display, CountryCatalog.displayNameFor("jamaica"))
         assertEquals("United States", CountryCatalog.canonicalName("US"))
         assertNull(CountryCatalog.entryForDisplay("Jamaica"))
+    }
+
+    @Test
+    fun addressCountryLabelsCarryNoDialCode() {
+        // Kemar 2026-10-17: "1876 is not the only caller ID". The calling
+        // codes live in the authorized-user phone picker, not on the address.
+        // Some names carry brackets of their own ("Myanmar (Burma)"), so check
+        // for the code's "+".
+        CountryCatalog.displayOptions.forEach { label ->
+            assertFalse(label, label.contains("+"))
+        }
+        assertEquals("🇺🇸  United States", CountryCatalog.displayNameFor("United States"))
+        assertEquals("🇬🇧  United Kingdom", CountryCatalog.displayNameFor("GB"))
     }
 
     @Test
