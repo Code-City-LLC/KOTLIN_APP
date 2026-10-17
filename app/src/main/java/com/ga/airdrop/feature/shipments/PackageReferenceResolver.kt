@@ -65,8 +65,12 @@ internal fun Iterable<ShipmentPackage>.exactPackageReferenceMatch(
     includePackageId: Boolean = true,
 ): ShipmentPackage? {
     val code = reference.trim().uppercase(Locale.US)
+    // The drop number as the app displays it ("ARD 153 998") must find the
+    // stored code ("ARD00000153998") too. Courier numbers stay as typed.
+    val storedCode = ShipmentsFormat.normalizeTrackingCode(code)
     val referenceMatch = firstOrNull { pkg ->
         pkg.trackingCode.matchesPackageReference(code) ||
+            pkg.trackingCode.matchesPackageReference(storedCode) ||
             pkg.courierNumber.matchesPackageReference(code)
     }
     if (referenceMatch != null || !includePackageId) return referenceMatch

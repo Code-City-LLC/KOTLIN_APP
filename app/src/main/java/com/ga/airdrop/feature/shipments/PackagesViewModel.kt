@@ -62,10 +62,14 @@ data class PackagesUiState(
     val visibleItems: List<ShipmentPackage>
         get() {
             val query = searchText.trim().lowercase(Locale.US)
+            // The displayed drop number ("ARD 153 998") also finds the stored
+            // code ("ARD00000153998").
+            val storedCode = ShipmentsFormat.normalizeTrackingCode(searchText).lowercase(Locale.US)
             val filtered = items.filter { pkg ->
                 methodFilter.matches(pkg) && (
                     query.isEmpty() ||
                         pkg.trackingCode.orEmpty().lowercase(Locale.US).contains(query) ||
+                        pkg.trackingCode.orEmpty().lowercase(Locale.US).contains(storedCode) ||
                         pkg.courierNumber.orEmpty().lowercase(Locale.US).contains(query) ||
                         pkg.description.orEmpty().lowercase(Locale.US).contains(query)
                     )

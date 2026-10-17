@@ -4,31 +4,36 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Drop Number formatting.
+ * Drop Number display.
  *
- * ⚠️ SUPERSEDED FORMAT: this used to assert "letter prefix + last 11 digits
- * grouped 3 / drop4 / drop8-mid4-last4". SwiftHawk #79761 §2 replaced it by
- * owner direction with the **last SIX digits grouped 3 + 3**
- * (`ARD00000138634` -> `ARD 138 634`). Display only — the full reference still
- * goes to the API and is what search matches, and a short reference is never
- * zero-padded. The status-aware empty fallback is unchanged.
+ * Kemar, 2026-10-17: "We have started to stick with six digits ARD number ...
+ * getting rid of the zeros and we'll have space ... across everywhere." The
+ * rule is the web's `displayTrackingCode` (resources/js/utils/trackingCode.js):
+ * an ARD code loses its leading zeros and groups its digits in threes from the
+ * right, keeping an SD/ES suffix. Anything else is shown unchanged. The
+ * status-aware empty fallback is unchanged.
  */
 class DropNumberFormatTest {
 
     @Test
-    fun `groups the last six digits three and three`() {
-        // The canonical example from the handoff.
-        assertEquals("ARD 138 634", ShipmentsFormat.trackingCode("ARD00000138634"))
-        // 7 digits -> last six of them, prefix uppercased.
-        assertEquals("ABC 234 567", ShipmentsFormat.trackingCode("abc1234567"))
-        // 11 digits -> still only the last six.
-        assertEquals("ABC 678 901", ShipmentsFormat.trackingCode("abc12345678901"))
-        // No prefix is fine.
-        assertEquals("234 567", ShipmentsFormat.trackingCode("1234567"))
-        // Fewer than six digits -> as-is, NEVER zero-padded.
-        assertEquals("AB 123", ShipmentsFormat.trackingCode("AB123"))
-        // Embedded spaces are stripped before grouping.
-        assertEquals("US 456 789", ShipmentsFormat.trackingCode("US 1 2345 6789"))
+    fun `an ARD code drops its zeros and groups its digits in threes`() {
+        assertEquals("ARD 153 998", ShipmentsFormat.trackingCode("ARD00000153998"))
+        assertEquals("ARD 15 814 SD", ShipmentsFormat.trackingCode("ARD00000015814SD"))
+        assertEquals("ARD 1 000 000", ShipmentsFormat.trackingCode("ARD00001000000"))
+        assertEquals("ARD 156 194 ES", ShipmentsFormat.trackingCode("ard00000156194es"))
+    }
+
+    @Test
+    fun `a code already in the display form reads the same`() {
+        assertEquals("ARD 156 194", ShipmentsFormat.trackingCode("ARD 156 194"))
+    }
+
+    @Test
+    fun `anything that is not an ARD code is shown unchanged`() {
+        assertEquals("1LSCYG50069L93S", ShipmentsFormat.trackingCode("1LSCYG50069L93S"))
+        assertEquals("1LSCYG50069L93S", ShipmentsFormat.trackingCode("  1LSCYG50069L93S "))
+        // More digits than the canonical eleven cannot be a real ARD code.
+        assertEquals("ARD000001539981", ShipmentsFormat.trackingCode("ARD000001539981"))
     }
 
     @Test

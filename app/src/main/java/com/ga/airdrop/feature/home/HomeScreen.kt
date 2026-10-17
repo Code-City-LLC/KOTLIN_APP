@@ -75,6 +75,7 @@ import com.ga.airdrop.core.navigation.Routes
 import com.ga.airdrop.core.session.SessionStore
 import com.ga.airdrop.data.model.AuctionProduct
 import com.ga.airdrop.feature.cart.CartStore
+import com.ga.airdrop.feature.shop.SaleHighlightsEmptyContent
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -797,7 +798,11 @@ private fun AuctionSkeletonCard() {
     }
 }
 
-/** Swift makeEmptyAuctionCard — shown when the API returns no products. */
+/**
+ * Swift makeEmptyAuctionCard — shown when the API returns no products: the
+ * same empty Sale Highlights as Shop (sale tag, title, "Check back soon"),
+ * in Home's own card frame.
+ */
 @Composable
 private fun EmptyAuctionCard() {
     val colors = AirdropTheme.colors
@@ -811,12 +816,7 @@ private fun EmptyAuctionCard() {
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "No sale highlights",
-            style = AirdropType.body1,
-            color = colors.textDescription,
-            textAlign = TextAlign.Center,
-        )
+        SaleHighlightsEmptyContent()
     }
 }
 

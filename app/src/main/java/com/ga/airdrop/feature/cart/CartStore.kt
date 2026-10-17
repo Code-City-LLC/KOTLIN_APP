@@ -71,6 +71,13 @@ object CartStore {
          * flag so a mixed cart is declared honestly.
          */
         val isAuction: Boolean = false,
+        /**
+         * The package's real drop number as the server sent it, shown through
+         * ShipmentsFormat.trackingCode. Null for sale products and for rows
+         * written by older APKs, which then show "—": the cart never invents
+         * a code from the internal package id.
+         */
+        val trackingCode: String? = null,
     ) {
         val resolvedKind: CartLineKind
             get() = kind ?: if (isAuction) CartLineKind.AUCTION else CartLineKind.PACKAGE

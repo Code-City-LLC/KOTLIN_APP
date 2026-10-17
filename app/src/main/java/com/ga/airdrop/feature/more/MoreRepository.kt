@@ -68,6 +68,8 @@ data class MoreUser(
     val paymentCurrency: String? = null,
     val tierName: String? = null,
     val profileImageUrl: String? = null,
+    /** user_country_code, the calling code stored with [mobile], when the API sends it. */
+    val countryCode: String? = null,
 ) {
     val fullName: String
         get() = listOfNotNull(firstName?.trim(), lastName?.trim())
@@ -443,6 +445,7 @@ class MoreRepository internal constructor(
         tierName = obj.objectAt("customer_tier")?.flexString("name")
             ?: obj.flexString("customer_tier"),
         profileImageUrl = obj.flexString("profile_image_url", "profile_image_remote"),
+        countryCode = obj.flexString("user_country_code", "country_code"),
     )
 }
 

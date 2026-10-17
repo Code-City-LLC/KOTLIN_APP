@@ -44,6 +44,7 @@ import com.ga.airdrop.core.designsystem.theme.Radius
 import com.ga.airdrop.core.designsystem.theme.Spacing
 import com.ga.airdrop.core.designsystem.theme.infoBoxBackground
 import com.ga.airdrop.core.designsystem.theme.infoBoxBorder
+import com.ga.airdrop.feature.shipments.ShipmentsFormat
 import com.ga.airdrop.feature.shop.ShopInnerHeader
 import java.util.Locale
 
@@ -268,7 +269,12 @@ private fun OrderSummaryPackageCard(
         verticalAlignment = Alignment.Top,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            OrderSummaryValue("Drop Number", String.format(Locale.US, "ARD%010d", line.id))
+            // The package's real drop number, never one invented from the
+            // internal id; an unknown one shows "—".
+            OrderSummaryValue(
+                "Drop Number",
+                line.trackingCode?.takeIf { it.isNotBlank() }?.let { ShipmentsFormat.trackingCode(it) } ?: "—",
+            )
             OrderSummaryValue("Description", line.title)
             val usd = line.priceUsd * line.qty
             OrderSummaryValue(

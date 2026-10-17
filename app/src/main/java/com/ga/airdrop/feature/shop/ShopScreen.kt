@@ -1,5 +1,6 @@
 package com.ga.airdrop.feature.shop
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,10 +14,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -31,11 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ga.airdrop.R
 import com.ga.airdrop.core.designsystem.components.AirdropHeader
 import com.ga.airdrop.core.designsystem.components.AirdropHeaderStyle
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -140,7 +146,7 @@ fun ShopScreen(
                     } else if (state.auction.isEmpty() && state.loadError != null) {
                         ShopEmptyCard(text = state.loadError!!, onRetry = viewModel::refresh)
                     } else if (state.auction.isEmpty()) {
-                        ShopEmptyCard(text = "No sale products")
+                        ShopEmptyFrame { SaleHighlightsEmptyContent() }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                             state.auction.chunked(2).forEach { rowItems ->
@@ -249,16 +255,7 @@ fun ShopScreen(
 @Composable
 internal fun ShopEmptyCard(text: String, modifier: Modifier = Modifier, onRetry: (() -> Unit)? = null) {
     val colors = AirdropTheme.colors
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .background(colors.gray100, RoundedCornerShape(Radius.s))
-            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
-            .then(if (onRetry != null) Modifier.clickable { onRetry() } else Modifier)
-            .padding(Spacing.sm1),
-        contentAlignment = Alignment.Center,
-    ) {
+    ShopEmptyFrame(modifier = modifier, onRetry = onRetry) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -278,6 +275,73 @@ internal fun ShopEmptyCard(text: String, modifier: Modifier = Modifier, onRetry:
                 )
             }
         }
+    }
+}
+
+/** The card frame every Shop empty or failed section sits in. */
+@Composable
+private fun ShopEmptyFrame(
+    modifier: Modifier = Modifier,
+    onRetry: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val colors = AirdropTheme.colors
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .background(colors.gray100, RoundedCornerShape(Radius.s))
+            .border(1.dp, colors.iconShape, RoundedCornerShape(Radius.s))
+            .then(if (onRetry != null) Modifier.clickable { onRetry() } else Modifier)
+            .padding(Spacing.sm1),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+/**
+ * Empty Sale Highlights, on Home and in Shop, each inside its own card frame.
+ * Kemar, 2026-10-17: "We need to have a beautiful design when we don't have a
+ * sales highlight ... Get an icon for it ... I don't want the slash. New deals
+ * go up regularly. Check back soon." Swift's design: the Shop tab's sale tag in
+ * a soft orange disc, the title, then the line under it.
+ */
+@Composable
+internal fun SaleHighlightsEmptyContent(modifier: Modifier = Modifier) {
+    val colors = AirdropTheme.colors
+    Column(
+        modifier = modifier.testTag("sale-highlights-empty"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .background(colors.orangeMain.copy(alpha = 0.18f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                // The bottom navigation's Shop tab icon (AirdropBottomBar).
+                painter = painterResource(R.drawable.ic_shop_filled),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(colors.orangeMain),
+                modifier = Modifier.size(26.dp),
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "No sale highlights right now",
+            style = AirdropType.subtitle2,
+            color = colors.textDarkTitle,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "New deals go up regularly. Check back soon.",
+            style = AirdropType.body2,
+            color = colors.textDescription,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

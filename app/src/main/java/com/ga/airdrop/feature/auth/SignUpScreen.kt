@@ -37,6 +37,7 @@ import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.AirdropType
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.validation.ProfileRules
 
 /** RN Config.termsAndConditions — opened from the T&C checkbox link. */
 private const val TERMS_URL = "https://airdropja.com/terms-and-conditions/"
@@ -228,11 +229,14 @@ fun SignUpScreen(
                 onClick = { pickerFor = "hearType" },
                 testTag = "signup-hear-type",
             )
+            // One field that opens on "+1"; the customer completes any
+            // country's number (Kemar 2026-10-17: "1876 is not the only
+            // caller ID"). The home address Country above never sets it.
             TypeInputField(
                 label = "Mobile Number",
                 value = state.mobile,
                 onValueChange = { v -> viewModel.set { it.copy(mobile = v) } },
-                placeholder = "e.g. +1876-5290736",
+                placeholder = ProfileRules.MOBILE_PLACEHOLDER,
                 required = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             )

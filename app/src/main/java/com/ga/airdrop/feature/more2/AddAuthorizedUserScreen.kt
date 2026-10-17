@@ -232,7 +232,8 @@ fun AddAuthorizedUserScreen(
                         onValueChange = viewModel::onMobileNumber,
                         fieldTag = "add-authorized-user-mobile-input",
                         cardTag = "add-authorized-user-mobile-card",
-                        placeholder = if (phoneCountry?.callingCode == "+1") "876 555 1234" else "Mobile number",
+                        // Not Jamaica's 876: +1 is many countries (Kemar 2026-10-17).
+                        placeholder = if (phoneCountry?.callingCode == "+1") "234 567 8900" else "Mobile number",
                         required = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         errorText = state.mobileError,

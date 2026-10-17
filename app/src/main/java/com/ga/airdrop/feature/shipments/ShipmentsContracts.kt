@@ -317,7 +317,8 @@ fun ShipmentPackage.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine
         id = id,
         packageId = id,
         title = description?.replaceFirstChar { it.uppercase(java.util.Locale.US) }
-            ?: trackingCode ?: "Package #$id",
+            ?: trackingCode?.takeIf { it.isNotBlank() }?.let { ShipmentsFormat.trackingCode(it) }
+            ?: "Package #$id",
         qty = 1,
         priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
         kind = com.ga.airdrop.feature.cart.CartStore.CartLineKind.PACKAGE,
@@ -326,6 +327,7 @@ fun ShipmentPackage.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine
         status = statusName,
         statusCode = status?.toIntOrNull(),
         isAuction = false,
+        trackingCode = trackingCode,
     )
 
 fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.CartLine =
@@ -333,7 +335,8 @@ fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.Ca
         id = id,
         packageId = id,
         title = description?.replaceFirstChar { it.uppercase(java.util.Locale.US) }
-            ?: trackingCode ?: "Package #$id",
+            ?: trackingCode?.takeIf { it.isNotBlank() }?.let { ShipmentsFormat.trackingCode(it) }
+            ?: "Package #$id",
         qty = 1,
         priceUsd = additionalChargesTotal ?: additionalCharges.values.sum(),
         kind = com.ga.airdrop.feature.cart.CartStore.CartLineKind.PACKAGE,
@@ -342,6 +345,7 @@ fun ShipmentPackageDetail.toCartLine(): com.ga.airdrop.feature.cart.CartStore.Ca
         status = statusName,
         statusCode = status?.toIntOrNull(),
         isAuction = false,
+        trackingCode = trackingCode,
     )
 
 private fun resolvedCartWeightKg(

@@ -82,6 +82,26 @@ class PackageReferenceResolverTest {
     }
 
     @Test
+    fun `the displayed drop number finds the stored code`() = runTest {
+        val stored = ShipmentPackage(id = 11, trackingCode = "ARD00000153998")
+        val repo = FakePackagesRepository(
+            items = listOf(ShipmentPackage(id = 12, trackingCode = "ARD00000153997"), stored),
+        )
+
+        val resolved = resolvePackageReference(
+            "ARD 153 998",
+            repo,
+            shortlist = { Result.success(emptyList()) },
+            numericIdIsCanonical = true,
+        ).getOrThrow()
+
+        assertEquals(11, resolved.packageId)
+        assertEquals(stored, resolved.matchedPackage)
+        // The lookup itself still sends what the customer typed.
+        assertEquals(listOf("ARD 153 998"), repo.searches)
+    }
+
+    @Test
     fun `shortlist fallback keeps the same exact-match rule`() = runTest {
         val repo = FakePackagesRepository(items = emptyList())
         val fallback = ShipmentPackage(id = 9, trackingCode = "PKG-9")

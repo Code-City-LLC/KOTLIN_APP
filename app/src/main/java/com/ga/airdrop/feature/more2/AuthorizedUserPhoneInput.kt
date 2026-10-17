@@ -199,6 +199,20 @@ object AuthorizedUserPhoneInput {
         return if (digits.startsWith("1")) "+1" else "+" + digits.take(4)
     }
 
+    /**
+     * The digits of an international number, after its "+", split by this
+     * picker's table into the calling code (with its "+") and the digits after
+     * it. The longest calling code they start with wins, so every NANP number
+     * is "+1": "18765290736" is "+1" / "8765290736", "447911123456" is "+44" /
+     * "7911123456". null when no calling code starts them. The box reads a
+     * typed "+CC" with it ([interpret]), and Sign Up and Edit Profile read
+     * their one mobile field with it (Kemar 2026-10-17).
+     */
+    fun splitInternational(digits: String): Pair<String, String>? {
+        val code = callingCodes.firstOrNull { digits.startsWith(it.substring(1)) } ?: return null
+        return code to digits.substring(code.length - 1)
+    }
+
     fun country(iso: String): AuthorizedUserPhoneCountry? {
         val upper = iso.trim().uppercase(Locale.US)
         return countries.firstOrNull { it.isoCode == upper }
@@ -406,8 +420,7 @@ object AuthorizedUserPhoneInput {
         } else if (isCaribbeanNumber(international)) {
             return AuthorizedUserPhoneEntry(isoFor("+1", international), international, explicitCode = true)
         }
-        val code = callingCodes.firstOrNull { international.startsWith(it.substring(1)) } ?: return pending
-        val national = international.substring(code.length - 1)
+        val (code, national) = splitInternational(international) ?: return pending
         // "+1" alone does not say which +1 country. From a picker with another
         // code it waits for the area code, which then names it — "+1 868…" is
         // 🇹🇹, "+1 212…" 🇺🇸, as in Swift; a +1 country already picked stays.

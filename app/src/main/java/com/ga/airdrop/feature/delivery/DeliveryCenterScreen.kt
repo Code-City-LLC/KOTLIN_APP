@@ -76,6 +76,7 @@ import com.ga.airdrop.data.repo.TrackedDelivery
 import com.ga.airdrop.data.repo.TrackedDeliveryStage
 import com.ga.airdrop.feature.homedetails.components.HomeDetailsHeader
 import com.ga.airdrop.feature.shipments.ShipmentStatusCatalog
+import com.ga.airdrop.feature.shipments.ShipmentsFormat
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -269,7 +270,7 @@ private fun JustPaidPackageRow(pkg: JustPaidPackage, onContactUs: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         pkg.ardNumber?.let {
-            Text(text = it, style = AirdropType.body1, color = colors.textDarkTitle)
+            Text(text = ShipmentsFormat.trackingCode(it), style = AirdropType.body1, color = colors.textDarkTitle)
         }
         pkg.description?.let {
             Text(text = it, style = AirdropType.body2, color = colors.textDescription)
@@ -676,7 +677,7 @@ private fun JourneyRow(journey: PackageJourney, onClick: () -> Unit) {
         }
         Column(Modifier.weight(1f)) {
             Text(
-                text = journey.ardNumber ?: "Package #${journey.packageId}",
+                text = journey.ardNumber?.let { ShipmentsFormat.trackingCode(it) } ?: "Package #${journey.packageId}",
                 style = AirdropType.subtitle1,
                 color = colors.textDarkTitle,
                 maxLines = 1,
@@ -769,7 +770,7 @@ private fun DeliveryDetail(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = journey?.ardNumber?.let { "Tracking #$it" }
+                        text = journey?.ardNumber?.let { "Tracking #${ShipmentsFormat.trackingCode(it)}" }
                             ?: "Package #$packageId",
                         style = AirdropType.body2,
                         color = colors.textDescription,
