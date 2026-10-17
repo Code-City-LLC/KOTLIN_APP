@@ -140,6 +140,9 @@ fun InvoiceViewerScreen(
         if (destination == null || source == null) {
             saving = false
         } else {
+            // The picker may return to a recreated activity, where the
+            // remembered busy flag has reset while pendingPickerPath survived.
+            saving = true
             exportScope.launch {
                 try {
                     writeInvoiceToDocument(context.contentResolver, source, destination)
