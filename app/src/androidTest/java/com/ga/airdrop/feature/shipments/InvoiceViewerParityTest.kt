@@ -119,10 +119,23 @@ class InvoiceViewerParityTest {
                     runCatching { compose.onNodeWithTag("invoice-save-button").assertIsEnabled(); true }.getOrDefault(false)
                 }
                 compose.onNodeWithTag("invoice-save-button").performClick()
-                compose.waitUntil(timeoutMillis = 20_000) {
-                    exports().size == index + 1 && runCatching {
-                        compose.onNodeWithTag("invoice-save-button").assertIsEnabled(); true
-                    }.getOrDefault(false)
+                var observedCount = -1
+                var observedEnabled = false
+                try {
+                    compose.waitUntil(timeoutMillis = 20_000) {
+                        observedCount = exports().size
+                        observedEnabled = runCatching {
+                            compose.onNodeWithTag("invoice-save-button").assertIsEnabled(); true
+                        }.getOrDefault(false)
+                        observedCount == index + 1 && observedEnabled
+                    }
+                } catch (failure: Throwable) {
+                    saveRootScreenshot("invoice_viewer_save_failure.png")
+                    throw AssertionError(
+                        "Save attempt ${index + 1}: exports=$observedCount, enabled=$observedEnabled, " +
+                            "button=${compose.onNodeWithTag("invoice-save-button").getUnclippedBoundsInRoot()}",
+                        failure,
+                    )
                 }
             }
             assertEquals(2, exports().size)
