@@ -15,6 +15,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -415,6 +417,87 @@ class DocumentsScreenScreenshotTest {
         assertEquals("Deleted" to "TRN was removed.", viewModel.state.value.alert)
     }
 
+    @Test
+    fun failedDocumentLoadIsVisibleAndPullRefreshRecoversLight() {
+        verifyFailedLoadRecovery(ThemeController.Mode.LIGHT, "light")
+    }
+
+    @Test
+    fun failedDocumentLoadIsVisibleAndPullRefreshRecoversDark() {
+        verifyFailedLoadRecovery(ThemeController.Mode.DARK, "dark")
+    }
+
+    private fun verifyFailedLoadRecovery(mode: ThemeController.Mode, suffix: String) {
+        val repository = CountingDocumentsRepository().apply {
+            loadResult.set(Result.failure(IllegalStateException("offline")))
+        }
+        val vm = setDocumentsScreen(repository, mode)
+        compose.waitUntil(20_000) { vm.state.value.filesLoadFailed }
+        compose.onNodeWithText("Couldn't load your documents. Pull down to try again.")
+            .assertIsDisplayed()
+        saveRootScreenshot("documents_load_failed_$suffix.png")
+        // A failed retry must not dismiss the only explanation for empty slots.
+        pullDocumentsToRefresh()
+        compose.waitUntil(20_000) { repository.loadCount.get() >= 2 && !vm.state.value.refreshing }
+        compose.onNodeWithTag("documents-load-error").assertIsDisplayed()
+        // Upload remains available while reading existing files is unavailable.
+        compose.onAllNodesWithText("Upload")[0].performScrollTo().performClick()
+        compose.onNodeWithTag("upload-source-sheet").assertIsDisplayed()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
+        repository.loadResult.set(Result.success(mapOf("airdrop_contract" to sampleFile)))
+        pullDocumentsToRefresh()
+        compose.waitUntil(20_000) { vm.state.value.files["airdrop_contract"] != null }
+        compose.onNodeWithTag("documents-load-error").assertDoesNotExist()
+        compose.onNodeWithText("Invoice.pdf").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.waitForIdle()
+        saveRootScreenshot("documents_load_recovered_$suffix.png")
+    }
+
+    @Test
+    fun failedWarmRefreshPreservesUploadedDocumentWithoutEmptyStateBanner() {
+        val repository = CountingDocumentsRepository(mapOf("airdrop_contract" to sampleFile))
+        val vm = setDocumentsScreen(repository, ThemeController.Mode.LIGHT)
+        compose.waitUntil(20_000) { vm.state.value.files.isNotEmpty() }
+        repository.loadResult.set(Result.failure(IllegalStateException("offline")))
+        pullDocumentsToRefresh()
+        compose.waitUntil(20_000) { vm.state.value.filesLoadFailed }
+        compose.onNodeWithTag("documents-load-error").assertDoesNotExist()
+        compose.onNodeWithText("Invoice.pdf").assertIsDisplayed()
+    }
+
+    @Test
+    fun successfulEmptyDocumentListDoesNotClaimLoadFailure() {
+        val repository = CountingDocumentsRepository()
+        val vm = setDocumentsScreen(repository, ThemeController.Mode.LIGHT)
+        compose.waitUntil(20_000) { repository.loadCount.get() > 0 && !vm.state.value.loading }
+        compose.onNodeWithTag("documents-load-error").assertDoesNotExist()
+        compose.onNodeWithTag("documents-card-airdrop_contract").assertIsDisplayed()
+    }
+
+    private fun setDocumentsScreen(
+        repository: CountingDocumentsRepository,
+        mode: ThemeController.Mode,
+    ): DocumentsViewModel {
+        lateinit var vm: DocumentsViewModel
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemeController.set(mode)
+            vm = DocumentsViewModel(repository, FakeAuthenticatedSessionBoundary())
+        }
+        compose.setContent {
+            AirdropTheme { DocumentsScreen(onBack = {}, onNavigate = {}, viewModel = vm) }
+        }
+        return vm
+    }
+
+    private fun pullDocumentsToRefresh() {
+        compose.onNodeWithTag("documents-pull-refresh").performTouchInput {
+            swipeDown(startY = height * 0.15f, endY = height * 0.9f, durationMillis = 600)
+        }
+        compose.waitForIdle()
+    }
+
     private fun setDocumentCard(
         mode: ThemeController.Mode,
         file: MoreDocumentFile?,
@@ -523,6 +606,7 @@ class DocumentsScreenScreenshotTest {
     private class CountingDocumentsRepository(
         private val documents: Map<String, MoreDocumentFile> = emptyMap(),
     ) : DocumentsRepository {
+        val loadResult = AtomicReference(Result.success(documents))
         val loadCount = AtomicInteger()
         val uploadCount = AtomicInteger()
         val deleteCount = AtomicInteger()
@@ -537,7 +621,7 @@ class DocumentsScreenScreenshotTest {
             expectedSession: AuthTokenStore.RequestProvenance,
         ): Result<Map<String, MoreDocumentFile>> {
             loadCount.incrementAndGet()
-            return Result.success(documents)
+            return loadResult.get()
         }
 
         override suspend fun uploadUserDocument(
