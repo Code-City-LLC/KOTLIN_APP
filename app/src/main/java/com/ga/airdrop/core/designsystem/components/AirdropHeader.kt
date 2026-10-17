@@ -60,14 +60,19 @@ object AirdropHeaderTags {
 /**
  * Tier accent colors — Swift FigmaTabHeader.tierAccentColor (lines 385-398).
  * Gold uses the Figma literal; others use the light/visible end of RN's
- * gradient pairs for legibility.
+ * gradient pairs for legibility — except Platinum, see below.
+ *
+ * internal (not private) so TierAccentColorTest can pin Kemar's Platinum.
  */
-private fun tierAccentColor(name: String): Color = when (name) {
+internal fun tierAccentColor(name: String): Color = when (name) {
     "Inactive" -> Color(0xFFF1A88C)
     "Ruby Starter" -> Color(0xFFD2554D)
     "Sapphire Saver" -> Color(0xFF40C4FF)
     "Gold Standard" -> Color(0xFFC19A02)
-    "Platinum Priority", "Platinum Standard" -> Color(0xFFCACACA)
+    // Kemar 2026-10-17: RN's light end, #CACACA, made "Platinum Priority"
+    // look greyed out, like a disabled label. He chose the slate #6E7B8B.
+    // Platinum only; the other tiers are unchanged.
+    "Platinum Priority", "Platinum Standard" -> Color(0xFF6E7B8B)
     "Diamond Elite", "Diamond Standard" -> Color(0xFFB8B8B8)
     "Corporate" -> Color(0xFF877CE5)
     else -> Color(0xFFC19A02)
