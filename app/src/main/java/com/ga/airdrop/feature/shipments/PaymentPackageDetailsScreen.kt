@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -266,7 +267,9 @@ internal fun PaymentPackageDetailsContent(
             value = ShipmentsFormat.dualForCurrency(state.totalAmount, state.totalCurrency, rate),
         )
 
-        Spacer(Modifier.height(116.dp))
+        // Clears the fixed footer, which also rises by the navigation-bar
+        // inset (see PaymentPackageDetailsFooter).
+        Spacer(Modifier.navigationBarsPadding().height(116.dp))
     }
 }
 
@@ -279,8 +282,15 @@ internal fun PaymentPackageDetailsFooter(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(96.dp)
+            // ⚠️ enableEdgeToEdge() (MainActivity) draws this screen under the
+            // system navigation bar, so a 96dp footer pinned to the window
+            // bottom left "View History" cut off beneath the bar. The footer
+            // now sits ABOVE the bar. The background comes BEFORE the padding
+            // so the gray100 surface still fills behind the bar instead of
+            // leaving a strip of page showing through it.
             .background(colors.gray100)
+            .navigationBarsPadding()
+            .height(96.dp)
             .testTag("payment-package-footer"),
     ) {
         Box(
