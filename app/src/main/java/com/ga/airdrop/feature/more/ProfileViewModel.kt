@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.ga.airdrop.core.validation.ProfileRules
 import com.ga.airdrop.feature.auth.signUpCountries
 
 data class ProfileUiState(
@@ -36,6 +37,7 @@ data class ProfileUiState(
     val state: String = "",
     val city: String = "",
     val phone: String = "",
+    /** The one mobile field, "+CC national" ("+1 8765290736"). */
     val mobile: String = "",
     val avatar: Bitmap? = null,
     val avatarLoading: Boolean = false,
@@ -161,7 +163,12 @@ class ProfileViewModel(
                             state = user.state.orEmpty(),
                             city = user.city.orEmpty(),
                             phone = user.phone.orEmpty(),
-                            mobile = user.mobile.orEmpty(),
+                            // The stored user_country_code + user_mobile, or the
+                            // stored phone when no mobile was ever saved.
+                            mobile = ProfileRules.mobileFieldText(
+                                user.countryCode,
+                                user.mobile?.takeIf { it.isNotBlank() } ?: user.phone,
+                            ),
                         )
                     }
                 }
@@ -311,6 +318,17 @@ class ProfileViewModel(
             }
             return
         }
+        // The mobile field is what gets saved. There used to be no field:
+        // Save re-sent the loaded mobile, or split the Phone when none was
+        // stored, through a hard-coded "+1876" rule, so editing Phone never
+        // changed the stored mobile.
+        val mobile = ProfileRules.mobileForApi(s.mobile)
+        if (mobile == null) {
+            sessionBoundary.apply(owner) {
+                _state.update { it.copy(alert = "Mobile Number" to ProfileRules.MOBILE_ERROR) }
+            }
+            return
+        }
         if (!sessionBoundary.apply(owner) {
                 _state.update { it.copy(saving = true) }
             }
@@ -319,16 +337,14 @@ class ProfileViewModel(
         val requestPickupLocation = pickupLocation
         val requestPaymentCurrency = paymentCurrency
         saveJob = sessionJobs.launch {
-            val mobileSource = s.mobile.ifBlank { s.phone }
-            val (countryCode, mobileNumber) = mobileParts(mobileSource)
             val fields = mapOf(
                 "user_id" to requestUserId?.toString(),
                 "email" to s.email.blankToNull(),
                 "first_name" to s.firstName.blankToNull(),
                 "last_name" to s.lastName.blankToNull(),
                 "user_phone" to s.phone.blankToNull(),
-                "user_mobile" to mobileNumber,
-                "user_country_code" to countryCode,
+                "user_mobile" to mobile.second,
+                "user_country_code" to mobile.first,
                 "user_trn_number" to s.taxId.blankToNull(),
                 "user_identity_type" to s.idType.blankToNull(),
                 "user_identity_number" to s.idNumber.blankToNull(),
@@ -373,24 +389,5 @@ class ProfileViewModel(
         if (parts.size != 3) return null
         val (mm, dd, yyyy) = parts
         return "$dd-$mm-$yyyy"
-    }
-
-    /** Swift FigmaProfileViewController.mobileParts port. */
-    private fun mobileParts(value: String): Pair<String?, String?> {
-        val cleaned = value.trim().replace(" ", "")
-        if (cleaned.isEmpty()) return null to null
-        if (cleaned.startsWith("+1876") && cleaned.length > 5) {
-            return "+1876" to cleaned.drop(5)
-        }
-        if (cleaned.startsWith("+1") && cleaned.length > 2) {
-            return "+1" to cleaned.drop(2)
-        }
-        if (cleaned.startsWith("+")) {
-            val digits = cleaned.drop(1).filter { it.isDigit() }
-            if (digits.isEmpty()) return null to null
-            val codeLength = minOf(4, maxOf(1, digits.length - 7))
-            return "+${digits.take(codeLength)}" to digits.drop(codeLength)
-        }
-        return "+1" to cleaned.filter { it.isDigit() }
     }
 }

@@ -50,6 +50,7 @@ import com.ga.airdrop.core.designsystem.components.TypeInputField
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
 import com.ga.airdrop.core.designsystem.theme.BrandPalette
 import com.ga.airdrop.core.designsystem.theme.Spacing
+import com.ga.airdrop.core.validation.ProfileRules
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -198,8 +199,18 @@ fun ProfileScreen(
                     required = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 )
-                // Swift's Edit Profile form ends at Phone — it derives the
-                // mobile/country-code from the Phone value (no Mobile field).
+                // Swift's Edit Profile has a Mobile Number field after Phone.
+                // ONE field with the country code typed in, never a fixed
+                // +1-876 (Kemar 2026-10-17); it opens on the stored number as
+                // "+CC national", or on "+1".
+                TypeInputField(
+                    label = "Mobile Number",
+                    value = state.mobile,
+                    onValueChange = { v -> viewModel.set { it.copy(mobile = v) } },
+                    placeholder = ProfileRules.MOBILE_PLACEHOLDER,
+                    required = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                )
                 Spacer(Modifier.height(Spacing.sm))
             }
             MoreBottomButtonBar(

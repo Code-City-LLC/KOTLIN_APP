@@ -114,6 +114,7 @@ class ProfileParityScreenshotTest {
                     state = "Kingston",
                     city = " Kingston ",
                     phone = " +1876 5551212 ",
+                    mobile = " +1 (876) 555-1212 ",
                 )
             }
             viewModel.save()
@@ -129,8 +130,10 @@ class ProfileParityScreenshotTest {
         assertEquals("Ada", fields["first_name"])
         assertEquals("Lovelace", fields["last_name"])
         assertEquals("+1876 5551212", fields["user_phone"])
-        assertEquals("+1876", fields["user_country_code"])
-        assertEquals("5551212", fields["user_mobile"])
+        // The Mobile Number field, split by its typed calling code: never the
+        // Phone value through the old hard-coded "+1876" rule.
+        assertEquals("+1", fields["user_country_code"])
+        assertEquals("8765551212", fields["user_mobile"])
         assertEquals("123456789", fields["user_trn_number"])
         assertEquals("Passport", fields["user_identity_type"])
         assertEquals("P-4242", fields["user_identity_number"])

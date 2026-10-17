@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ga.airdrop.core.validation.ProfileRules
 import com.ga.airdrop.data.model.SignUpRequest
 import com.ga.airdrop.data.repo.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,19 +12,19 @@ import kotlinx.coroutines.launch
 
 /**
  * Country options — the RN useSignUp defaultCountries (Jamaica pinned
- * first, then US / Canada / UK) with their dial codes and state lists
- * (states from the Swift bundled countries.json for these markets).
+ * first, then US / Canada / UK) with their state lists (states from the
+ * Swift bundled countries.json for these markets). The home address only:
+ * the mobile number carries its own calling code (Kemar 2026-10-17), so no
+ * dial code comes from the country.
  */
 data class SignUpCountry(
     val name: String,
-    val phoneCode: String,
     val states: List<String>,
 )
 
 val signUpCountries = listOf(
     SignUpCountry(
         name = "Jamaica",
-        phoneCode = "1-876",
         states = listOf(
             "Clarendon", "Hanover", "Kingston", "Manchester", "Portland",
             "Saint Andrew", "Saint Ann", "Saint Catherine", "Saint Elizabeth",
@@ -32,7 +33,6 @@ val signUpCountries = listOf(
     ),
     SignUpCountry(
         name = "United States",
-        phoneCode = "1",
         states = listOf(
             "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
             "Connecticut", "Delaware", "District of Columbia", "Florida", "Georgia",
@@ -48,7 +48,6 @@ val signUpCountries = listOf(
     ),
     SignUpCountry(
         name = "Canada",
-        phoneCode = "1",
         states = listOf(
             "Alberta", "British Columbia", "Manitoba", "New Brunswick",
             "Newfoundland and Labrador", "Northwest Territories", "Nova Scotia",
@@ -58,7 +57,6 @@ val signUpCountries = listOf(
     ),
     SignUpCountry(
         name = "United Kingdom",
-        phoneCode = "44",
         states = listOf("England", "Northern Ireland", "Scotland", "Wales"),
     ),
 )
@@ -109,7 +107,8 @@ data class SignUpUiState(
     val city: String = "",
     val pickupLocation: String = "",
     val hearType: String = "",
-    val mobile: String = "",
+    /** One field, opening on "+1": the customer types the rest, any country. */
+    val mobile: String = ProfileRules.MOBILE_PREFIX,
     val acceptTerms: Boolean = false,
     val acceptCustomsAuth: Boolean = false,
     val loading: Boolean = false,
@@ -154,8 +153,13 @@ class SignUpViewModel(
             return
         }
 
+        // "+1 876 529 0736" goes as "+1" / "8765290736". The calling code is
+        // typed in the number, never taken from the home address Country.
+        val (countryCode, mobileNumber) = ProfileRules.mobileForApi(s.mobile) ?: run {
+            _state.update { it.copy(alert = "Attention" to ProfileRules.MOBILE_ERROR) }
+            return
+        }
         _state.update { it.copy(loading = true) }
-        val countryCode = signUpCountries.firstOrNull { it.name == s.country }?.phoneCode ?: "1"
         val request = SignUpRequest(
             firstName = s.firstName.trim(),
             lastName = s.lastName.trim(),
@@ -163,7 +167,7 @@ class SignUpViewModel(
             password = s.password,
             confirmPassword = s.confirmPassword,
             userCountryCode = countryCode,
-            userMobile = s.mobile.trim(),
+            userMobile = mobileNumber,
             userAddressLine1 = s.addressLine1.trim(),
             userAddressLine2 = s.addressLine2.trim().takeIf { it.isNotEmpty() },
             userAddressCity = s.city.trim(),
@@ -233,9 +237,9 @@ class SignUpViewModel(
         if (s.email.trim() != s.confirmEmail.trim()) {
             return "Email addresses do not match."
         }
-        // Swift: ProfileValidator.isValidMobile — 10-15 digits.
-        if (!com.ga.airdrop.core.validation.ProfileRules.isValidMobile(s.mobile.trim())) {
-            return "Invalid mobile number. Must be 10-15 digits."
+        // "+", the country code and the number: 8 to 15 digits in all.
+        if (!ProfileRules.isValidMobile(s.mobile)) {
+            return ProfileRules.MOBILE_ERROR
         }
         if (!s.acceptTerms) {
             return "Please accept the Terms and Conditions."
