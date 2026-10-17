@@ -10,7 +10,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
@@ -44,9 +43,7 @@ import com.ga.airdrop.core.session.clearLocalUserSessionAfterCustomerLogout
 import com.ga.airdrop.feature.auth.OnboardingStore
 import com.ga.airdrop.feature.auth.authenticatedEntryDestination
 import com.ga.airdrop.feature.auth.onboardingCompletionDestination
-import com.ga.airdrop.feature.auth.resetToSignedOutRoute
 import com.ga.airdrop.feature.auth.splashDestination
-import com.ga.airdrop.feature.auth.tokenLossDestination
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -113,78 +110,17 @@ class AppRootNavigationParityTest {
         saveRootScreenshot("harness_auth_landing_after_token_clear.png")
     }
 
-    /**
-     * An explicit logout arms onboarding before it clears the bearer, so the
-     * token-loss reset must land on ONBOARDING, not the auth landing. Settings'
-     * own onLoggedOut then navigates to the same route, and arriving second it
-     * must not start the slides over.
-     */
     @Test
-    fun armedLogoutResetsToOnboardingOnceInsteadOfTheAuthLanding() {
-        val token = mutableStateOf<String?>("ui-proof-token")
-        var navController: NavHostController? = null
-
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ThemeController.set(ThemeController.Mode.LIGHT)
-        }
-        compose.setContent {
-            AirdropTheme {
-                ReactiveLogoutHarness(
-                    token = token,
-                    onboardingArmed = { true },
-                    onNavController = { navController = it },
-                )
-            }
-        }
-
-        compose.onNodeWithTag("nav-home-root").assertIsDisplayed()
-        compose.runOnIdle {
-            token.value = null
-        }
-
-        compose.waitUntil(timeoutMillis = 20_000) {
-            compose.onAllNodesWithTag("nav-onboarding-root").fetchSemanticsNodes().isNotEmpty()
-        }
-        compose.waitForIdle()
-        assertEquals(0, compose.onAllNodesWithText("Welcome to AirDrop").fetchSemanticsNodes().size)
-        assertEquals(0, compose.onAllNodesWithTag("nav-home-root").fetchSemanticsNodes().size)
-
-        compose.runOnIdle {
-            val controller = checkNotNull(navController)
-            val onboardingEntry = controller.currentBackStackEntry?.id
-            controller.resetToSignedOutRoute(Routes.ONBOARDING)
-            assertEquals(Routes.ONBOARDING, controller.currentDestination?.route)
-            assertEquals(
-                "the second logout navigation must not recreate onboarding",
-                onboardingEntry,
-                controller.currentBackStackEntry?.id,
-            )
-        }
-    }
-
-    /**
-     * Kemar 2026-10-17, React Native order: Log Out → onboarding → auth
-     * landing. This used to pin the opposite: the slides waited for the next
-     * successful login, and a signed-out launch with the flag armed went to
-     * AUTH_LANDING.
-     */
-    @Test
-    fun explicitLogoutPlaysOnboardingOnceBeforeTheNextLogin() {
+    fun explicitLogoutRequiresOnboardingAfterTheNextSuccessfulLogin() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         OnboardingStore.markSeen(context)
 
         try {
             clearLocalUserSessionAfterCustomerLogout(context)
 
-            // The logout armed onboarding, and every signed-out route follows
-            // it: AppRoot's token-loss reset and a cold start alike.
             assertTrue(OnboardingStore.isRequiredAfterLogin(context))
             assertEquals(
-                Routes.ONBOARDING,
-                tokenLossDestination(OnboardingStore.isRequiredAfterLogin(context)),
-            )
-            assertEquals(
-                Routes.ONBOARDING,
+                Routes.AUTH_LANDING,
                 splashDestination(
                     isAuthenticated = false,
                     onboardingSeen = false,
@@ -192,14 +128,13 @@ class AppRootNavigationParityTest {
                 ),
             )
             assertEquals(
-                Routes.ONBOARDING,
+                Routes.AUTH_LANDING,
                 splashDestination(
                     isAuthenticated = false,
                     onboardingSeen = true,
                     onboardingRequiredAfterLogin = true,
                 ),
             )
-            // Slides that never finished still play before Home after a login.
             assertEquals(
                 Routes.ONBOARDING,
                 splashDestination(
@@ -215,22 +150,9 @@ class AppRootNavigationParityTest {
                 ),
             )
 
-            // OnboardingScreen's finish: the flag clears, the slides end on the
-            // auth landing, and the next login goes straight Home. They play
-            // once per logout, never again at the login.
             OnboardingStore.markSeen(context)
 
             assertFalse(OnboardingStore.isRequiredAfterLogin(context))
-            assertEquals(
-                Routes.HOME,
-                authenticatedEntryDestination(
-                    onboardingRequired = OnboardingStore.isRequiredAfterLogin(context),
-                ),
-            )
-            assertEquals(
-                Routes.AUTH_LANDING,
-                tokenLossDestination(OnboardingStore.isRequiredAfterLogin(context)),
-            )
             assertEquals(
                 Routes.ONBOARDING,
                 splashDestination(
@@ -436,21 +358,18 @@ private fun NavigationHarness(startDestination: String) {
     }
 }
 
-/** Mirrors AppRoot's token-loss reset; [onboardingArmed] stands in for OnboardingStore. */
 @Composable
-private fun ReactiveLogoutHarness(
-    token: MutableState<String?>,
-    onboardingArmed: () -> Boolean = { false },
-    onNavController: (NavHostController) -> Unit = {},
-) {
+private fun ReactiveLogoutHarness(token: MutableState<String?>) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    SideEffect { onNavController(navController) }
 
     LaunchedEffect(token.value, currentRoute) {
         if (shouldResetToAuthLanding(token.value, currentRoute)) {
-            navController.resetToSignedOutRoute(tokenLossDestination(onboardingArmed()))
+            navController.navigate(Routes.AUTH_LANDING) {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
+            }
         }
     }
 
@@ -460,7 +379,6 @@ private fun ReactiveLogoutHarness(
         modifier = Modifier.fillMaxSize(),
     ) {
         composable(Routes.HOME) { HarnessDestination("Home root", "nav-home-root") }
-        composable(Routes.ONBOARDING) { HarnessDestination("Onboarding", "nav-onboarding-root") }
         composable(Routes.AUTH_LANDING) {
             com.ga.airdrop.feature.auth.AuthLandingScreen(
                 onLogin = {},
