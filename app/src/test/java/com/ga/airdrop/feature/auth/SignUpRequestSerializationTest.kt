@@ -13,6 +13,19 @@ import org.junit.Test
 class SignUpRequestSerializationTest {
 
     @Test
+    fun channelVocabularyMatchesLaravelWithoutLegacyAliases() {
+        // AIRDROP-LARAVEL SignupChannelsContractTest defines this API vocabulary.
+        assertEquals(
+            listOf(
+                "Saw our ad on Facebook/Instagram", "Facebook", "Instagram", "Google",
+                "YouTube", "TikTok", "WhatsApp", "Radio", "TV", "Recommended by Someone",
+                "Bank / Credit Card Promotion", "Outdoor Promotion", "Other",
+            ),
+            hearAboutUsOptions,
+        )
+    }
+
+    @Test
     fun signUpIdentityFieldsUseCanonicalKeyWithCurrentLaravelAlias() {
         val request = SignUpRequest(
             firstName = "Kemar",
@@ -46,5 +59,12 @@ class SignUpRequestSerializationTest {
         assertEquals("Passport", fields["indentity_type"]?.jsonPrimitive?.content)
         assertTrue(fields.containsKey("comfirm_passsord"))
         assertFalse(fields.containsKey("identity_type"))
+
+        hearAboutUsOptions.forEach { channel ->
+            val payload = AirdropJson.parseToJsonElement(
+                AirdropJson.encodeToString(request.copy(userHearType = channel)),
+            ) as JsonObject
+            assertEquals(channel, payload["user_hear_type"]?.jsonPrimitive?.content)
+        }
     }
 }

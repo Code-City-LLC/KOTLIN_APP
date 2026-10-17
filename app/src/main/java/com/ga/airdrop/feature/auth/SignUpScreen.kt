@@ -226,6 +226,7 @@ fun SignUpScreen(
                 value = state.hearType,
                 required = true,
                 onClick = { pickerFor = "hearType" },
+                testTag = "signup-hear-type",
             )
             TypeInputField(
                 label = "Mobile Number",
