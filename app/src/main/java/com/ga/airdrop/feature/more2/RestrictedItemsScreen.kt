@@ -147,8 +147,8 @@ private fun RestrictedInfoButton(onClick: () -> Unit) {
             colorFilter = ColorFilter.tint(colors.textDarkTitle),
             modifier = Modifier
                 .size(24.dp)
-                .padding(2.dp)
-                .testTag("restricted-info-icon"),
+                .testTag("restricted-info-icon")
+                .padding(2.dp),
         )
     }
 }

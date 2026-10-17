@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -122,8 +123,17 @@ class RestrictedItemsParityTest {
 
         compose.onNodeWithTag("restricted-detail-scroll")
             .performScrollToNode(hasTestTag("restricted-note-BATTERY"))
+        // The whole note sits inside the scroll viewport once scrolled to,
+        // under the search and the tab bar.
+        val viewport = bounds("restricted-detail-scroll")
+        val batteryNote = bounds("restricted-note-BATTERY")
+        assertTrue(
+            "Battery note inside the viewport: note=$batteryNote viewport=$viewport",
+            batteryNote.top >= viewport.top && batteryNote.bottom <= viewport.bottom,
+        )
         compose.onNodeWithTag("restricted-note-BATTERY").assertIsDisplayed()
         compose.onNodeWithText("Battery policy (Jamaica + IATA):")
+            .performScrollTo()
             .assertIsDisplayed()
         compose.onNodeWithText(
             "Please note: All packages will be handled as Airdrop unless identified otherwise in address line 2.",
