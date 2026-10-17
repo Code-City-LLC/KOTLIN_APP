@@ -17,19 +17,14 @@ import com.ga.airdrop.core.navigation.Routes
  * No new route constants needed — all exist in Routes.kt already.
  *
  * Launch flow (RN LaunchAppView; Figma "Onboarding - Design Done"
- * 40006240:*): token → HOME; first run (onboarding not seen), or an explicit
- * logout whose onboarding has not finished yet → ONBOARDING carousel +
+ * 40006240:*): token → HOME unless an explicit logout armed onboarding for
+ * the next login; first run (onboarding not seen) → ONBOARDING carousel +
  * "Choose Your Look" → AUTH_LANDING; returning-but-signed-out →
  * AUTH_LANDING. Swift's SceneDelegate collapsed this straight to login, but the
  * Onboarding + Choose-Your-Look + AuthLanding are shipped Figma designs, so
  * Figma wins where Swift dropped them (per Kemar's Government-Charges ruling).
  * NOTE: AppRoot's reactive-logout effect must EXCLUDE SPLASH + ONBOARDING or it
  * yanks the first-run flow to AUTH_LANDING the moment it sees token == null.
- *
- * Logout (Kemar 2026-10-17, React Native order): Log Out → ONBOARDING →
- * AUTH_LANDING. RN SettingsView.onLogout resets the stack to OnboardingView.
- * Kotlin used to send logout to LOGIN and hold the slides back until the next
- * successful login.
  */
 fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
 
@@ -93,17 +88,8 @@ fun NavGraphBuilder.authExtraGraph(navController: NavHostController) {
 }
 
 /**
- * Cold-start routing. Signed out, onboarding is shown for exactly two reasons:
- * a first run, and an explicit logout whose onboarding has not finished.
- *
- * ⚠️ That second case used to route to AUTH_LANDING, because explicit-logout
- * onboarding was a post-authentication gate that waited for the next login.
- * It now plays AT logout (React Native order), and the flag stays armed until
- * the slides finish, so an armed flag here means the app closed partway
- * through them. Resume the onboarding now. Sending the customer to the landing
- * screen instead would show it again after the next login. Only this armed-flag
- * path changed. A signed-out customer who has seen onboarding still lands on
- * AUTH_LANDING.
+ * Explicit-logout onboarding is a post-authentication gate. While signed out,
+ * keep that flag armed and route to login even if the first-run flag is false.
  */
 internal fun splashDestination(
     isAuthenticated: Boolean,
@@ -111,51 +97,18 @@ internal fun splashDestination(
     onboardingRequiredAfterLogin: Boolean,
 ): String = when {
     isAuthenticated -> authenticatedEntryDestination(onboardingRequiredAfterLogin)
-    onboardingRequiredAfterLogin -> Routes.ONBOARDING
+    onboardingRequiredAfterLogin -> Routes.AUTH_LANDING
     !onboardingSeen -> Routes.ONBOARDING
     else -> Routes.AUTH_LANDING
 }
 
-/**
- * One route policy shared by cold-start restore and successful login. Logout
- * now plays onboarding before the landing screen, and finishing it clears the
- * flag, so a login only reaches ONBOARDING here if the slides never finished.
- */
+/** One route policy shared by cold-start restore and successful login. */
 internal fun authenticatedEntryDestination(onboardingRequired: Boolean): String =
     if (onboardingRequired) Routes.ONBOARDING else Routes.HOME
 
 /** Onboarding is valid both before authentication and after explicit relogin. */
 internal fun onboardingCompletionDestination(isAuthenticated: Boolean): String =
     if (isAuthenticated) Routes.HOME else Routes.AUTH_LANDING
-
-/**
- * Where AppRoot's token-loss reset lands. An explicit logout (Settings → Log
- * Out, or Sign out on the biometric lock) arms onboarding BEFORE it clears the
- * bearer, so the reset follows it to ONBOARDING. It used to go to
- * AUTH_LANDING, which raced the logout's own navigation and could skip the
- * slides. Any other lost bearer, such as a refresh answered 401, still lands
- * on AUTH_LANDING.
- */
-internal fun tokenLossDestination(onboardingRequired: Boolean): String =
-    if (onboardingRequired) Routes.ONBOARDING else Routes.AUTH_LANDING
-
-/**
- * Clears the back stack onto a signed-out entry route.
- *
- * One explicit logout navigates twice in the same frame: Settings' own
- * onLoggedOut and AppRoot's token-loss reset both follow the armed flag to
- * ONBOARDING. Whichever runs second must leave the route the first opened
- * alone. Navigating again with popUpTo(0) would start the slides over. This
- * checks the LIVE destination, not a route captured when an effect launched,
- * because the reset's captured route still says Settings at that point.
- */
-internal fun NavHostController.resetToSignedOutRoute(route: String) {
-    if (currentDestination?.route == route) return
-    navigate(route) {
-        popUpTo(0) { inclusive = true }
-        launchSingleTop = true
-    }
-}
 
 internal fun NavHostController.showRegistrationSuccess() {
     com.ga.airdrop.core.session.clearLocalUserSession(context)
