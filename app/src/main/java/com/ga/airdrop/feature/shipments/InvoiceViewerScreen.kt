@@ -122,7 +122,10 @@ fun InvoiceViewerScreen(
             ?: (title.ifBlank { "Invoice" } + if (isPdf) ".pdf" else ".jpg")
     }
 
-    val exportScope = rememberCoroutineScope()
+    // Keep completion/toast/button state on Android's UI dispatcher even when
+    // the composition is hosted by a custom dispatcher (for example tests).
+    // File and provider I/O remain confined to Dispatchers.IO below.
+    val exportScope = rememberCoroutineScope { Dispatchers.Main.immediate }
     var saving by remember { mutableStateOf(false) }
     var pendingPickerPath by rememberSaveable { mutableStateOf<String?>(null) }
     // API 26-28 cannot write public Downloads without broad storage permission,
