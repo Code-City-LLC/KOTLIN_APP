@@ -2,6 +2,8 @@ package com.ga.airdrop.feature.shipments
 
 import androidx.activity.ComponentActivity
 import android.content.Intent
+import android.content.ContentUris
+import android.provider.MediaStore
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
@@ -18,10 +20,12 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ga.airdrop.BuildConfig
 import com.ga.airdrop.core.designsystem.theme.AirdropTheme
@@ -85,6 +89,52 @@ class InvoiceViewerParityTest {
         }
 
         saveRootScreenshot("invoice_viewer_local_pdf_light.png")
+    }
+
+    @Test
+    @SdkSuppress(minSdkVersion = 29)
+    fun saveButtonPersistsTwoCompleteCopiesWithoutReplacingTheFirst() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val marker = "airdrop-export-ui-${System.nanoTime()}"
+        val source = File(context.cacheDir, "$marker.pdf").also(::writeSamplePdf)
+        val resolver = context.contentResolver
+        fun exports(): List<android.net.Uri> = resolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Downloads._ID),
+            "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?",
+            arrayOf("$marker%"),
+            null,
+        )!!.use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cursor.getLong(0)))
+                }
+            }
+        }
+        assertTrue(exports().isEmpty())
+        try {
+            setInvoiceViewerContent(ThemeController.Mode.LIGHT, source.toUri().toString())
+            repeat(2) { index ->
+                compose.waitUntil(timeoutMillis = 20_000) {
+                    runCatching { compose.onNodeWithTag("invoice-save-button").assertIsEnabled(); true }.getOrDefault(false)
+                }
+                compose.onNodeWithTag("invoice-save-button").performClick()
+                compose.waitUntil(timeoutMillis = 20_000) {
+                    exports().size == index + 1 && runCatching {
+                        compose.onNodeWithTag("invoice-save-button").assertIsEnabled(); true
+                    }.getOrDefault(false)
+                }
+            }
+            assertEquals(2, exports().size)
+            exports().forEach { uri ->
+                org.junit.Assert.assertArrayEquals(source.readBytes(), resolver.openInputStream(uri)!!.use { it.readBytes() })
+            }
+            saveRootScreenshot("invoice_viewer_saved_downloads.png")
+        } finally {
+            // Only rows bearing this attempt's unique synthetic marker.
+            exports().forEach { resolver.delete(it, null, null) }
+            source.delete()
+        }
     }
 
     @Test

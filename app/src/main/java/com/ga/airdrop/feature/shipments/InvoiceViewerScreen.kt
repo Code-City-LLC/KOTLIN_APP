@@ -2,6 +2,7 @@ package com.ga.airdrop.feature.shipments
 
 import android.content.ClipData
 import android.content.Context
+import android.content.ContentResolver
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Matrix
@@ -11,6 +12,9 @@ import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +40,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +76,10 @@ import java.net.URL
 import java.nio.file.Files
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 
@@ -109,6 +119,36 @@ fun InvoiceViewerScreen(
     val fileName = remember(secureUrl, title) {
         Uri.parse(secureUrl).lastPathSegment?.takeIf { it.contains('.') }
             ?: (title.ifBlank { "Invoice" } + if (isPdf) ".pdf" else ".jpg")
+    }
+
+    val exportScope = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+    var pendingPickerPath by rememberSaveable { mutableStateOf<String?>(null) }
+    // API 26-28 cannot write public Downloads without broad storage permission,
+    // which this app deliberately does not request. CREATE_DOCUMENT grants one
+    // destination and preserves existing same-name files. API 29+ retains the
+    // existing direct-to-Downloads flow through an app-owned MediaStore row.
+    val exportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(invoiceMimeType(fileName)),
+    ) { destination ->
+        val source = pendingPickerPath?.let(::File)
+        pendingPickerPath = null
+        if (destination == null || source == null) {
+            saving = false
+        } else {
+            exportScope.launch {
+                try {
+                    writeInvoiceToDocument(context.contentResolver, source, destination)
+                    Toast.makeText(context, "File saved", Toast.LENGTH_SHORT).show()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Couldn't save invoice", Toast.LENGTH_SHORT).show()
+                } finally {
+                    saving = false
+                }
+            }
+        }
     }
 
     LaunchedEffect(secureUrl, fileName) {
@@ -285,8 +325,35 @@ fun InvoiceViewerScreen(
                 text = "Save to Files",
                 iconRes = R.drawable.ic_download_file,
                 primary = false,
-                enabled = actionsEnabled,
-                onClick = { localActionFile?.let { saveInvoice(context, it, fileName) } },
+                enabled = actionsEnabled && !saving && pendingPickerPath == null,
+                onClick = {
+                    localActionFile?.let { source ->
+                        saving = true
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                            pendingPickerPath = source.absolutePath
+                            try {
+                                exportPicker.launch(fileName)
+                            } catch (_: Exception) {
+                                pendingPickerPath = null
+                                saving = false
+                                Toast.makeText(context, "Couldn't open file picker", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            exportScope.launch {
+                                try {
+                                    saveInvoiceToDownloads(context.contentResolver, source, fileName)
+                                    Toast.makeText(context, "Invoice saved to Downloads", Toast.LENGTH_SHORT).show()
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "Couldn't save invoice", Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    saving = false
+                                }
+                            }
+                        }
+                    }
+                },
                 modifier = Modifier.weight(1f),
                 tag = "invoice-save-button",
             )
@@ -353,31 +420,44 @@ private fun InvoiceActionButton(
     }
 }
 
-private fun saveInvoice(context: Context, file: File, fileName: String) {
-    runCatching {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val resolver = context.contentResolver
-            val values = android.content.ContentValues().apply {
-                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
-                put(android.provider.MediaStore.Downloads.MIME_TYPE, invoiceMimeType(fileName))
-            }
-            val dest = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                ?: error("Unable to create Downloads entry")
-            val output = resolver.openOutputStream(dest)
-                ?: error("Unable to write invoice file")
-            output.use { out ->
-                file.inputStream().use { it.copyTo(out) }
-            }
-        } else {
-            val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            downloads.mkdirs()
-            file.copyTo(File(downloads, fileName), overwrite = true)
-        }
-        Toast.makeText(context, "Invoice saved to Downloads", Toast.LENGTH_SHORT).show()
-    }.onFailure {
-        Toast.makeText(context, "Couldn't save invoice", Toast.LENGTH_SHORT).show()
+internal suspend fun writeInvoiceToDocument(resolver: ContentResolver, file: File, destination: Uri) =
+    withContext(Dispatchers.IO) {
+        val output = resolver.openOutputStream(destination)
+            ?: error("Unable to write invoice file")
+        output.use { out -> file.inputStream().use { it.copyTo(out) } }
     }
-}
+
+@RequiresApi(Build.VERSION_CODES.Q)
+internal suspend fun saveInvoiceToDownloads(resolver: ContentResolver, file: File, fileName: String): Uri =
+    withContext(Dispatchers.IO) {
+        require(file.isFile) { "Invoice file does not exist" }
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
+            put(android.provider.MediaStore.Downloads.MIME_TYPE, invoiceMimeType(fileName))
+            put(android.provider.MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val destination = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: error("Unable to create Downloads entry")
+        try {
+            writeInvoiceToDocument(resolver, file, destination)
+            currentCoroutineContext().ensureActive()
+            val published = resolver.update(destination, android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Downloads.IS_PENDING, 0)
+            }, null, null)
+            check(published == 1) { "Unable to publish invoice file" }
+            destination
+        } catch (failure: Throwable) {
+            // This URI was created by this attempt. Never search for or delete
+            // another saved file by display name when recovering a failed copy.
+            try {
+                resolver.delete(destination, null, null)
+            } catch (cleanup: Exception) {
+                failure.addSuppressed(cleanup)
+            }
+            throw failure
+        }
+    }
 
 private fun shareInvoice(context: Context, file: File, title: String) {
     runCatching {
