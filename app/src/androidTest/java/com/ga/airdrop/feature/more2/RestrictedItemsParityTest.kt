@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
@@ -21,7 +24,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -67,7 +73,7 @@ class RestrictedItemsParityTest {
     }
 
     @Test
-    fun searchResultsUseSwiftPushDetailInsteadOfFigmaTabs() {
+    fun searchResultsOpenTheirCategoryPage() {
         setRestrictedItems(mode = ThemeController.Mode.LIGHT)
 
         compose.onNodeWithTag("restricted-search-input", useUnmergedTree = true)
@@ -128,6 +134,172 @@ class RestrictedItemsParityTest {
         assertClose(20f, note.left.value, "Note left gutter")
         assertClose(boundsWidth(root) - 40f, boundsWidth(note), "Note width")
         saveRootScreenshot("restricted_items_permitted_detail_swift_dark.png")
+    }
+
+    /**
+     * Kemar 2026-10-17: the category page carries the "Restricted Items" title,
+     * the info button, the item search 20dp under the header and the category
+     * tab bar 20dp under that, with the content 20dp below. Figma 40001432:15045.
+     */
+    @Test
+    fun categoryPageHasSearchAndTabBarUnderTheHeaderLight() {
+        setRestrictedItems(mode = ThemeController.Mode.LIGHT)
+        openCategory(RestrictedCategory.LICENSE_REQUIRED)
+
+        compose.onNodeWithText("Restricted Items").assertIsDisplayed()
+        compose.onNodeWithTag("restricted-info-button").assertIsDisplayed()
+        assertNoText("License Required")
+
+        val root = bounds("restricted-detail-root-LICENSE_REQUIRED")
+        val header = bounds("more2-inner-header-back")
+        val button = bounds("restricted-info-button")
+        val icon = bounds("restricted-info-icon")
+        val search = bounds("restricted-detail-search-row")
+        val tabs = bounds("restricted-tabs")
+        val license = bounds("restricted-tab-LICENSE_REQUIRED")
+        val intro = bounds("restricted-detail-intro-card")
+
+        assertClose(36f, boundsWidth(button), "Info button target")
+        assertClose(12f, (root.right - button.right).value, "Info button trailing inset")
+        assertClose(24f, boundsWidth(icon), "Info icon size")
+        assertClose(20f, search.left.value, "Search left gutter")
+        assertClose(boundsWidth(root) - 40f, boundsWidth(search), "Search width")
+        assertClose(50f, boundsHeight(search), "Search height")
+        assertTrue("Search sits under the header", search.top > header.bottom)
+        assertClose(20f, (tabs.top - search.bottom).value, "Search-to-tabs gap")
+        assertClose(40f, boundsHeight(license), "Tab height")
+        assertClose(20f, license.left.value, "Active tab scrolled to the 20dp inset")
+        assertClose(20f, (intro.top - tabs.bottom).value, "Tabs-to-content gap")
+        assertClose(20f, intro.left.value, "Content left gutter")
+        compose.onNodeWithTag("restricted-tab-LICENSE_REQUIRED").assertIsSelected()
+        compose.onNodeWithTag("restricted-tab-PERMITTED").assertIsNotSelected()
+        assertClose(24f, boundsWidth(bounds("restricted-tab-icon-LICENSE_REQUIRED")), "Tab icon slot")
+        saveRootScreenshot("restricted_items_license_tabs_light.png")
+    }
+
+    @Test
+    fun tabsAndSwipesChangeTheCategoryInPlace() {
+        setRestrictedItems(mode = ThemeController.Mode.LIGHT)
+        openCategory(RestrictedCategory.PERMITTED)
+
+        compose.onNodeWithTag("restricted-tab-LICENSE_REQUIRED").performClick()
+        waitForCategory(RestrictedCategory.LICENSE_REQUIRED)
+        compose.onNodeWithText("License Required Categories").assertIsDisplayed()
+
+        swipeContent(toNext = true)
+        waitForCategory(RestrictedCategory.RESTRICTED_COMMODITIES)
+        compose.onNodeWithText("Restricted Commodities (Carrier/Dangerous Goods)").assertIsDisplayed()
+        compose.waitForIdle()
+        assertClose(
+            20f,
+            bounds("restricted-tab-RESTRICTED_COMMODITIES").left.value,
+            "Swiped-to tab scrolled to the 20dp inset",
+        )
+
+        swipeContent(toNext = false)
+        waitForCategory(RestrictedCategory.LICENSE_REQUIRED)
+        compose.waitForIdle()
+
+        // A vertical drag on the content still scrolls the page and keeps the
+        // category.
+        val introTop = bounds("restricted-detail-intro-card").top
+        compose.onNodeWithTag("restricted-detail-content").performTouchInput {
+            swipe(
+                start = Offset(centerX, top + 300f),
+                end = Offset(centerX, top + 40f),
+                durationMillis = 300,
+            )
+        }
+        compose.waitForIdle()
+        assertTrue(
+            "A vertical drag scrolls the page",
+            bounds("restricted-detail-intro-card").top < introTop,
+        )
+        assertTrue(
+            compose.onAllNodesWithTag("restricted-detail-root-LICENSE_REQUIRED")
+                .fetchSemanticsNodes()
+                .isNotEmpty(),
+        )
+    }
+
+    @Test
+    fun categorySearchFiltersItemsAndShowsTheEmptyCard() {
+        setRestrictedItems(mode = ThemeController.Mode.LIGHT)
+        openCategory(RestrictedCategory.RESTRICTED_COMMODITIES)
+
+        compose.onNodeWithTag("restricted-detail-search-input", useUnmergedTree = true)
+            .performTextInput("POWER BANKS")
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithTag("restricted-detail-item-card-1").fetchSemanticsNodes().isEmpty()
+        }
+        compose.onNodeWithText("Lithium batteries and magnetised materials").assertIsDisplayed()
+        compose.onNodeWithTag("restricted-detail-intro-card").assertIsDisplayed()
+
+        compose.onNodeWithTag("restricted-detail-search-input", useUnmergedTree = true)
+            .performTextClearance()
+        compose.onNodeWithTag("restricted-detail-search-input", useUnmergedTree = true)
+            .performTextInput("zzqx")
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithTag("restricted-detail-search-empty").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("No results found for \"zzqx\".").assertIsDisplayed()
+        assertNoTag("restricted-detail-item-card-0")
+        saveRootScreenshot("restricted_items_category_search_empty_light.png")
+    }
+
+    @Test
+    fun categoryInfoButtonOpensInformationAndBackReturnsDark() {
+        setRestrictedItems(mode = ThemeController.Mode.DARK)
+        openCategory(RestrictedCategory.RESTRICTED_COMMODITIES)
+        compose.onNodeWithTag("restricted-tab-RESTRICTED_COMMODITIES").assertIsSelected()
+        saveRootScreenshot("restricted_items_restricted_tabs_dark.png")
+
+        compose.onNodeWithTag("restricted-info-button").performClick()
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithTag("restricted-legal-root").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Information").assertIsDisplayed()
+
+        // Figma 40001432:14025 and Swift order the page title, introduction
+        // and labeling card, Legal Notice, U.S. authorities, Jamaican authorities.
+        val sections = listOf(
+            "restricted-legal-title",
+            "restricted-legal-labeling-card",
+            "restricted-legal-notice",
+            "restricted-legal-us-authorities",
+            "restricted-legal-jm-authorities",
+        ).map { bounds(it) }
+        sections.zipWithNext().forEach { (above, below) ->
+            assertClose(20f, (below.top - above.bottom).value, "Information section gap")
+        }
+        saveRootScreenshot("restricted_items_information_dark.png")
+
+        compose.onNodeWithTag("more2-inner-header-back").performClick()
+        waitForCategory(RestrictedCategory.RESTRICTED_COMMODITIES)
+    }
+
+    private fun openCategory(category: RestrictedCategory) {
+        compose.onNodeWithTag("restricted-category-${category.name}").performClick()
+        waitForCategory(category)
+        compose.waitForIdle()
+    }
+
+    private fun waitForCategory(category: RestrictedCategory) {
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithTag("restricted-detail-root-${category.name}")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+    }
+
+    /** A horizontal swipe across the top of the category's content: toward the next category or back. */
+    private fun swipeContent(toNext: Boolean) {
+        compose.onNodeWithTag("restricted-detail-content").performTouchInput {
+            val y = top + 40f
+            val from = Offset(if (toNext) right - 20f else left + 20f, y)
+            val to = Offset(if (toNext) left + 20f else right - 20f, y)
+            swipe(start = from, end = to, durationMillis = 300)
+        }
     }
 
     private fun setRestrictedItems(mode: ThemeController.Mode) {

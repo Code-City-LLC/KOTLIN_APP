@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Restricted Items "License-Required" tab: square with a tick. Path verbatim
+     from RN src/assets/icons/LicenseRequiredIcon.tsx (Figma "Tick Square"). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillType="evenOdd"
+        android:pathData="M16.334 2H7.665C4.26743 2 2 4.4326 2 7.916V16.084C2 19.5707 4.26137 22 7.665 22H16.333C19.7376 22 22 19.5707 22 16.084V7.916C22 4.4295 19.7378 2 16.334 2ZM7.665 3.5H16.334C18.8845 3.5 20.5 5.23496 20.5 7.916V16.084C20.5 18.7652 18.8844 20.5 16.333 20.5H7.665C5.11476 20.5 3.5 18.7653 3.5 16.084V7.916C3.5 5.23837 5.12034 3.5 7.665 3.5ZM16.0898 9.09667C15.7969 8.80378 15.3221 8.80378 15.0292 9.09667L10.8126 13.3118L8.96972 11.4696L8.88558 11.397C8.59193 11.1792 8.17527 11.2035 7.90906 11.4698C7.61623 11.7627 7.61633 12.2376 7.90928 12.5304L10.2833 14.9034L10.3674 14.976C10.661 15.1938 11.0776 15.1696 11.3438 14.9033L16.0898 10.1573L16.1624 10.0732C16.3803 9.7796 16.3561 9.36294 16.0898 9.09667Z"
+        android:fillColor="@color/icon_duotone" />
+</vector>

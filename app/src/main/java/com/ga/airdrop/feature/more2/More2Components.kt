@@ -65,6 +65,8 @@ internal fun More2InnerHeader(
     contentHeight: androidx.compose.ui.unit.Dp = 56.dp,
     backTargetSize: androidx.compose.ui.unit.Dp = 36.dp,
     backStartPadding: androidx.compose.ui.unit.Dp = 12.dp,
+    /** Inset of [rightContent] from the trailing edge; 12dp mirrors the back button's 36dp target. */
+    rightEndPadding: androidx.compose.ui.unit.Dp = Spacing.md,
     rightContent: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     val colors = AirdropTheme.colors
@@ -110,7 +112,7 @@ internal fun More2InnerHeader(
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = Spacing.md),
+                        .padding(end = rightEndPadding),
                     content = rightContent,
                 )
             }
