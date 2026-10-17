@@ -67,12 +67,23 @@ val signUpCountries = listOf(
 val pickupLocationOptions = listOf("Montego Bay", "Kingston", "Savanna-La-Mar")
 
 /** Swift SignUpViewController "channel" options (user_hear_type). */
+// CANONICAL signup-channel vocabulary (Kemar 2026-08-16): ONE list across
+// web, iOS and Android. Mirrors SignupCard.jsx (guarded by
+// SignupChannelsContractTest in AIRDROP-LARAVEL) and
+// FigmaSignUpViewController.swift.
 val hearAboutUsOptions = listOf(
-    "Instagram/Facebook",
-    "Google/YouTube",
+    "Saw our ad on Facebook/Instagram",
+    "Facebook",
+    "Instagram",
+    "Google",
+    "YouTube",
+    "TikTok",
+    "WhatsApp",
     "Radio",
+    "TV",
     "Recommended by Someone",
-    "Airdrop Outdoor Promotion",
+    "Bank / Credit Card Promotion",
+    "Outdoor Promotion",
     "Other",
 )
 
