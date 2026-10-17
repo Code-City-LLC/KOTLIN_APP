@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -142,6 +143,21 @@ fun DocumentsScreen(
                         Box(Modifier.fillMaxWidth().padding(top = Spacing.xl), Alignment.Center) {
                             CircularProgressIndicator(color = BrandPalette.OrangeMain)
                         }
+                    }
+                    // Match Swift's cold-load error banner. Keep already loaded
+                    // files visible on a failed refresh, and reuse pull-to-refresh.
+                    if (state.filesLoadFailed && state.files.isEmpty()) {
+                        Text(
+                            text = "Couldn't load your documents. Pull down to try again.",
+                            style = AirdropType.body2,
+                            color = colors.textDarkTitle,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("documents-load-error")
+                                .border(1.dp, colors.cardHairline, RoundedCornerShape(Radius.s))
+                                .padding(16.dp),
+                        )
                     }
                     DOCUMENT_SLOTS.forEach { slot ->
                         DocumentCard(
