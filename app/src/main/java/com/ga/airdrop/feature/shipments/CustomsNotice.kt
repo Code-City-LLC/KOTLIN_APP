@@ -91,6 +91,11 @@ internal fun CustomsNoticeSheet(
     val colors = AirdropTheme.colors
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        // Deliberately the DEFAULT sheet state, unlike CifValueSheet: Swift
+        // presents this notice at the medium detent, expandable to large
+        // (AirdropInfoSheets.presentCustomsNotice →
+        // configureAirdropGlassBottomSheet [.medium(), .large()]), which is
+        // Material3's half-height start. Checked 2026-10-17.
         containerColor = colors.gray150,
         shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
         dragHandle = {
