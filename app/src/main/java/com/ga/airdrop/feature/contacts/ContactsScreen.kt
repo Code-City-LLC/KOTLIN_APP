@@ -156,8 +156,10 @@ fun ContactsScreen(
                     darkIconRes = R.drawable.ic_contacts_location_dark,
                     title = "Location",
                 ) {
+                    // Swift's Help card and the web phone shell print Kingston the
+                    // same way (Package Hub Ja at Pristine Plaza), word for word.
                     val addresses = listOf(
-                        "Unit 19 Pristine Plaza, 15 Eastwood Park Rd, Kingston, Jamaica",
+                        "Package Hub Ja, Unit 19, Pristine Plaza, 15 Eastwood Park Road, Half Way Tree, Kingston",
                         "Unit #14, Annex Complex, Fairview Shopping Center, Montego Bay",
                         "Unit 8, Beckford Plaza, 33-35 Beckford Street, Savanna La Mar, Westmoreland",
                     )

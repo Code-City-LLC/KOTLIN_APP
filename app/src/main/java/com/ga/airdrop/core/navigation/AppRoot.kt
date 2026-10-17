@@ -26,6 +26,8 @@ import com.ga.airdrop.feature.auth.LoginScreen
 import com.ga.airdrop.feature.auth.OnboardingStore
 import com.ga.airdrop.feature.auth.authenticatedEntryDestination
 import com.ga.airdrop.feature.auth.authExtraGraph
+import com.ga.airdrop.feature.auth.resetToSignedOutRoute
+import com.ga.airdrop.feature.auth.tokenLossDestination
 import com.ga.airdrop.feature.calculator.calculatorGraph
 import com.ga.airdrop.feature.dropalert.dropAlertGraph
 import com.ga.airdrop.feature.home.HomeScreen
@@ -143,12 +145,15 @@ fun AppRoot(
     // plain 401 on an ordinary request does not, nor does a network error, a
     // 5xx, or a dropped connection. This effect only follows a bearer that is
     // already gone; it decides nothing itself.
+    //
+    // An explicit logout armed onboarding before it cleared the bearer, so the
+    // reset follows it to ONBOARDING (React Native order, Kemar 2026-10-17)
+    // instead of racing it to the landing screen; see tokenLossDestination.
     androidx.compose.runtime.LaunchedEffect(token, currentRoute) {
         if (shouldResetToAuthLanding(token, currentRoute)) {
-            navController.navigate(Routes.AUTH_LANDING) {
-                popUpTo(0) { inclusive = true }
-                launchSingleTop = true
-            }
+            navController.resetToSignedOutRoute(
+                tokenLossDestination(OnboardingStore.isRequiredAfterLogin(appRootContext)),
+            )
         }
     }
 

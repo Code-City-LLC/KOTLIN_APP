@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +69,12 @@ fun CifValueSheet(
     val colors = AirdropTheme.colors
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        // Opens fully. The default sheet state stops content this tall at
+        // Material3's half-height detent, so the explainer opened half-way with
+        // the services table below the fold. Swift's
+        // FigmaCIFValueBottomSheetViewController never opens at half: it sizes
+        // to 80% of the window, or to its content up to the safe-area top.
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = colors.gray150,
         shape = RoundedCornerShape(topStart = Radius.s, topEnd = Radius.s),
         dragHandle = {

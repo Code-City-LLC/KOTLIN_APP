@@ -4,6 +4,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.ga.airdrop.core.navigation.Routes
+import com.ga.airdrop.feature.auth.resetToSignedOutRoute
 
 /**
  * More feature group, part 1 — hub, Settings, Profile, Documents,
@@ -22,13 +23,16 @@ fun NavGraphBuilder.moreGraph(navController: NavHostController) {
         SettingsScreen(
             onBack = { navController.popBackStack() },
             onNavigate = { navController.navigate(it) },
-            // Swift FigmaSpecificPages.swift:1737 — logout root-swaps the
-            // window to FigmaLoginViewController (the Login form), stack reset.
-            onLoggedOut = {
-                navController.navigate(Routes.LOGIN) {
-                    popUpTo(0) { inclusive = true }
-                }
-            },
+            // React Native order (Kemar 2026-10-17): SettingsView.onLogout
+            // resets the stack to OnboardingView, and the slides end on the
+            // auth landing. Swift (FigmaSpecificPages.swift:1737) root-swaps to
+            // the Login form instead, and Kotlin used to follow it, playing
+            // onboarding only after the next login. The logout armed
+            // OnboardingStore before clearing the bearer, and finishing the
+            // slides clears it, so they play once. AppRoot's token-loss reset
+            // lands on the same route, and resetToSignedOutRoute keeps the
+            // second of the two navigations from starting them over.
+            onLoggedOut = { navController.resetToSignedOutRoute(Routes.ONBOARDING) },
         )
     }
     composable(Routes.PROFILE) {

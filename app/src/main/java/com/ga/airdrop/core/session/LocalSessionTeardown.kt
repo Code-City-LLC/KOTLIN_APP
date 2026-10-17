@@ -76,10 +76,13 @@ fun clearLocalUserSession(context: Context) {
 }
 
 /**
- * Explicit customer logout has one extra product rule: the next successful
- * login must enter the existing onboarding sequence before Home. The other
- * session boundaries — registration completion and account deletion — keep
- * their current routing and therefore continue to call [clearLocalUserSession].
+ * Explicit customer logout has one extra product rule: the customer goes
+ * through the existing onboarding sequence before the auth landing (React
+ * Native order, Kemar 2026-10-17). It used to wait for the next successful
+ * login. The flag is armed BEFORE the bearer is cleared, so AppRoot's
+ * token-loss reset already sees it. The other session boundaries,
+ * registration completion and account deletion, keep their current routing
+ * and therefore continue to call [clearLocalUserSession].
  *
  * ⚠️ "rejected bearer" is deliberately NOT listed here as a boundary, even
  * though one narrow rejection does end a session: a refresh answering 401
